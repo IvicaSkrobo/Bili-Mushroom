@@ -16,6 +16,12 @@ pub fn run() {
             sql: include_str!("../migrations/0002_finds.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 3,
+            description: "create_find_photos_and_migrate",
+            sql: include_str!("../migrations/0003_find_photos.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
@@ -34,6 +40,8 @@ pub fn run() {
             commands::import::import_find,
             commands::import::get_finds,
             commands::import::update_find,
+            commands::finds::delete_find,
+            commands::finds::get_find_photos,
         ])
         .setup(|_app| Ok(()))
         .run(tauri::generate_context!())
@@ -43,7 +51,7 @@ pub fn run() {
 #[cfg(test)]
 mod smoke {
     #[test]
-    fn test_migration_vec_has_two_entries() {
+    fn test_migration_vec_has_three_entries() {
         // Validate migration vec length by constructing it inline
         use tauri_plugin_sql::{Migration, MigrationKind};
         let migrations = vec![
@@ -59,10 +67,17 @@ mod smoke {
                 sql: include_str!("../migrations/0002_finds.sql"),
                 kind: MigrationKind::Up,
             },
+            Migration {
+                version: 3,
+                description: "create_find_photos_and_migrate",
+                sql: include_str!("../migrations/0003_find_photos.sql"),
+                kind: MigrationKind::Up,
+            },
         ];
-        assert_eq!(migrations.len(), 2, "Must have exactly 2 migrations");
+        assert_eq!(migrations.len(), 3, "Must have exactly 3 migrations");
         assert_eq!(migrations[0].version, 1);
         assert_eq!(migrations[1].version, 2);
+        assert_eq!(migrations[2].version, 3);
     }
 
     #[test]
