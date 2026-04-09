@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-import-organization/02-02-PLAN.md
-last_updated: "2026-04-09T19:16:12.776Z"
-last_activity: 2026-04-09 — Phase 1 complete, advancing to Phase 2
+stopped_at: Completed 02.1-import-workflow-refinements/02.1-02-PLAN.md
+last_updated: "2026-04-09T23:41:47.720Z"
+last_activity: 2026-04-09
 progress:
-  total_phases: 6
-  completed_phases: 1
-  total_plans: 6
-  completed_plans: 5
-  percent: 83
+  total_phases: 7
+  completed_phases: 2
+  total_plans: 8
+  completed_plans: 7
+  percent: 88
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-09)
 
 **Core value:** A forager's personal mushroom journal — every find stored, organized, searchable, and mapped so that nothing collected is ever forgotten.
-**Current focus:** Phase 2 - Import & Organization
+**Current focus:** Phase 02.1 — import-workflow-refinements
 
 ## Current Position
 
-Phase: 2 of 6 (Import & Organization)
-Plan: 0 of TBD in current phase
-Status: Executing autonomous mode
-Last activity: 2026-04-09 — Phase 1 complete, advancing to Phase 2
+Phase: 02.1 (import-workflow-refinements) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-04-09
 
 Progress: [█░░░░░░░░░] 17%
 
@@ -54,6 +54,7 @@ Progress: [█░░░░░░░░░] 17%
 *Updated after each plan completion*
 | Phase 02-import-organization P01 | 404 | 3 tasks | 9 files |
 | Phase 02-import-organization P02 | 600 | 3 tasks | 18 files |
+| Phase 02.1-import-workflow-refinements P02 | 5 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -70,10 +71,16 @@ Recent decisions affecting current work:
 - [Phase 02-import-organization]: protocol-asset Tauri feature required when assetProtocol enabled in tauri.conf.json
 - [Phase 02-import-organization]: Folder enumeration uses JS-side readDir + SUPPORTED_EXTENSIONS filter; no Rust list_images command needed
 - [Phase 02-import-organization]: invokeHandlers dispatch table in tauri-mocks enables per-test handler overrides
+- [Phase 02.1-import-workflow-refinements]: react-leaflet v4.2.1 used (not v5) — v5 requires React 19, project uses React 18
+- [Phase 02.1-import-workflow-refinements]: LocationPickerMap tests fully mock react-leaflet and leaflet — jsdom cannot render Leaflet maps
 
 ### Pending Todos
 
 None yet.
+
+### Roadmap Evolution
+
+- Phase 02.1 inserted after Phase 2: Import workflow refinements (URGENT)
 
 ### Blockers/Concerns
 
@@ -81,6 +88,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-09T19:16:12.772Z
-Stopped at: Completed 02-import-organization/02-02-PLAN.md
+Last session: 2026-04-09T23:41:47.711Z
+Stopped at: Completed 02.1-import-workflow-refinements/02.1-02-PLAN.md
 Resume file: None
