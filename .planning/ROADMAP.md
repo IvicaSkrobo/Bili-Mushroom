@@ -50,7 +50,7 @@ Plans:
 **Plans**: 3 plans
 Plans:
 - [x] 02-01-PLAN.md — Rust backend: EXIF parsing, import_find + get_finds commands, finds migration, capabilities
-- [ ] 02-02-PLAN.md — React import UI: ImportDialog, FindPreviewCard, useImportProgress hook, finds.ts wrappers
+- [x] 02-02-PLAN.md — React import UI: ImportDialog, FindPreviewCard, useImportProgress hook, finds.ts wrappers
 - [ ] 02-03-PLAN.md — CollectionTab rebuild: FindCard, EditFindDialog, useFinds TanStack hook, update_find command
 **UI hint**: yes
 
@@ -114,7 +114,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 0/3 | Not started | - |
-| 2. Import & Organization | 0/TBD | Not started | - |
+| 2. Import & Organization | 2/3 | In Progress|  |
 | 3. Map | 0/TBD | Not started | - |
 | 4. Species Database | 0/TBD | Not started | - |
 | 5. Search, Browse & Wishlist | 0/TBD | Not started | - |
