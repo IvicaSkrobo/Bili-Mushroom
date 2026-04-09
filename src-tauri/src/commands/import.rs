@@ -1,6 +1,7 @@
 use rusqlite::{Connection, params};
 use tauri::Emitter;
 use chrono::Utc;
+use std::collections::HashMap;
 use std::path::Path;
 
 use crate::commands::path_builder::{build_dest_path, next_seq_for_folder};
@@ -16,12 +17,21 @@ pub struct ImportPayload {
     pub lat: Option<f64>,
     pub lng: Option<f64>,
     pub notes: String,
+    #[serde(default)]
+    pub additional_photos: Vec<String>, // Mode A: extra source paths for same find
+}
+
+#[derive(serde::Serialize, Clone, Debug)]
+pub struct FindPhoto {
+    pub id: i64,
+    pub find_id: i64,
+    pub photo_path: String,
+    pub is_primary: bool,
 }
 
 #[derive(serde::Serialize, Clone, Debug)]
 pub struct FindRecord {
     pub id: i64,
-    pub photo_path: String,
     pub original_filename: String,
     pub species_name: String,
     pub date_found: String,
@@ -31,6 +41,7 @@ pub struct FindRecord {
     pub lng: Option<f64>,
     pub notes: String,
     pub created_at: String,
+    pub photos: Vec<FindPhoto>,
 }
 
 #[derive(serde::Serialize)]
@@ -46,7 +57,7 @@ pub struct ImportProgress {
     pub filename: String,
 }
 
-fn open_db(storage_path: &str) -> Result<Connection, String> {
+pub(crate) fn open_db(storage_path: &str) -> Result<Connection, String> {
     let db_path = format!("{}/bili-mushroom.db", storage_path);
     Connection::open(&db_path).map_err(|e| format!("Failed to open DB at {}: {}", db_path, e))
 }
@@ -60,12 +71,11 @@ fn is_duplicate(conn: &Connection, filename: &str, date_found: &str) -> rusqlite
     Ok(count > 0)
 }
 
-fn insert_find_row(conn: &Connection, record: &FindRecord) -> rusqlite::Result<i64> {
+pub(crate) fn insert_find_row(conn: &Connection, record: &FindRecord) -> rusqlite::Result<i64> {
     conn.execute(
-        "INSERT INTO finds (photo_path, original_filename, species_name, date_found, country, region, lat, lng, notes, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        "INSERT INTO finds (original_filename, species_name, date_found, country, region, lat, lng, notes, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![
-            record.photo_path,
             record.original_filename,
             record.species_name,
             record.date_found,
@@ -76,6 +86,19 @@ fn insert_find_row(conn: &Connection, record: &FindRecord) -> rusqlite::Result<i
             record.notes,
             record.created_at,
         ],
+    )?;
+    Ok(conn.last_insert_rowid())
+}
+
+pub(crate) fn insert_find_photo(
+    conn: &Connection,
+    find_id: i64,
+    photo_path: &str,
+    is_primary: bool,
+) -> rusqlite::Result<i64> {
+    conn.execute(
+        "INSERT INTO find_photos (find_id, photo_path, is_primary) VALUES (?1, ?2, ?3)",
+        params![find_id, photo_path, if is_primary { 1i64 } else { 0i64 }],
     )?;
     Ok(conn.last_insert_rowid())
 }
@@ -135,7 +158,7 @@ pub async fn import_find(
         std::fs::create_dir_all(dest_folder)
             .map_err(|e| format!("Failed to create directory {:?}: {}", dest_folder, e))?;
 
-        // Compute actual sequence
+        // Compute actual sequence for primary photo
         let seq = next_seq_for_folder(dest_folder);
         let dest_path = build_dest_path(
             &storage_path,
@@ -147,12 +170,12 @@ pub async fn import_find(
             &ext,
         );
 
-        // Copy file
+        // Copy primary file
         std::fs::copy(&payload.source_path, &dest_path)
             .map_err(|e| format!("Failed to copy {:?} to {:?}: {}", payload.source_path, dest_path, e))?;
 
         // Compute relative photo_path (forward-slash for cross-platform)
-        let photo_path = dest_path
+        let primary_photo_path = dest_path
             .strip_prefix(&storage_path)
             .map(|p| p.to_string_lossy().replace('\\', "/").trim_start_matches('/').to_string())
             .unwrap_or_else(|_| dest_path.to_string_lossy().to_string());
@@ -162,7 +185,6 @@ pub async fn import_find(
 
         let record = FindRecord {
             id: 0, // set after insert
-            photo_path,
             original_filename: payload.original_filename.clone(),
             species_name: payload.species_name.clone(),
             date_found: payload.date_found.clone(),
@@ -172,13 +194,63 @@ pub async fn import_find(
             lng: payload.lng,
             notes: payload.notes.clone(),
             created_at,
+            photos: vec![],
         };
 
         let new_id = insert_find_row(&conn, &record)
             .map_err(|e| format!("DB insert failed: {}", e))?;
 
+        // Insert primary photo into find_photos
+        insert_find_photo(&conn, new_id, &primary_photo_path, true)
+            .map_err(|e| format!("DB insert primary photo failed: {}", e))?;
+
+        let mut photos: Vec<FindPhoto> = vec![FindPhoto {
+            id: conn.last_insert_rowid(),
+            find_id: new_id,
+            photo_path: primary_photo_path,
+            is_primary: true,
+        }];
+
+        // Mode A: handle additional_photos
+        for additional_src in &payload.additional_photos {
+            let add_ext = Path::new(additional_src)
+                .extension()
+                .map(|e| format!(".{}", e.to_string_lossy().to_lowercase()))
+                .unwrap_or_else(|| ".jpg".to_string());
+
+            let add_seq = next_seq_for_folder(dest_folder);
+            let add_dest_path = build_dest_path(
+                &storage_path,
+                &payload.country,
+                &payload.region,
+                &payload.date_found,
+                &payload.species_name,
+                add_seq,
+                &add_ext,
+            );
+
+            std::fs::copy(additional_src, &add_dest_path)
+                .map_err(|e| format!("Failed to copy additional photo {:?} to {:?}: {}", additional_src, add_dest_path, e))?;
+
+            let add_photo_path = add_dest_path
+                .strip_prefix(&storage_path)
+                .map(|p| p.to_string_lossy().replace('\\', "/").trim_start_matches('/').to_string())
+                .unwrap_or_else(|_| add_dest_path.to_string_lossy().to_string());
+
+            let photo_row_id = insert_find_photo(&conn, new_id, &add_photo_path, false)
+                .map_err(|e| format!("DB insert additional photo failed: {}", e))?;
+
+            photos.push(FindPhoto {
+                id: photo_row_id,
+                find_id: new_id,
+                photo_path: add_photo_path,
+                is_primary: false,
+            });
+        }
+
         let mut final_record = record;
         final_record.id = new_id;
+        final_record.photos = photos;
         imported.push(final_record);
 
         let _ = app.emit(
@@ -198,32 +270,63 @@ pub async fn import_find(
 pub async fn get_finds(storage_path: String) -> Result<Vec<FindRecord>, String> {
     let conn = open_db(&storage_path)?;
 
-    let mut stmt = conn
+    let mut find_stmt = conn
         .prepare(
-            "SELECT id, photo_path, original_filename, species_name, date_found, country, region, lat, lng, notes, created_at
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, created_at
              FROM finds ORDER BY date_found DESC, id DESC",
         )
-        .map_err(|e| format!("Failed to prepare query: {}", e))?;
+        .map_err(|e| format!("Failed to prepare finds query: {}", e))?;
 
-    let records = stmt
+    let mut records: Vec<FindRecord> = find_stmt
         .query_map([], |row| {
             Ok(FindRecord {
                 id: row.get(0)?,
-                photo_path: row.get(1)?,
-                original_filename: row.get(2)?,
-                species_name: row.get(3)?,
-                date_found: row.get(4)?,
-                country: row.get(5)?,
-                region: row.get(6)?,
-                lat: row.get(7)?,
-                lng: row.get(8)?,
-                notes: row.get(9)?,
-                created_at: row.get(10)?,
+                original_filename: row.get(1)?,
+                species_name: row.get(2)?,
+                date_found: row.get(3)?,
+                country: row.get(4)?,
+                region: row.get(5)?,
+                lat: row.get(6)?,
+                lng: row.get(7)?,
+                notes: row.get(8)?,
+                created_at: row.get(9)?,
+                photos: vec![],
             })
         })
         .map_err(|e| format!("Query failed: {}", e))?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("Row mapping failed: {}", e))?;
+
+    // Fetch all photos and build a HashMap<find_id, Vec<FindPhoto>>
+    let mut photo_stmt = conn
+        .prepare(
+            "SELECT id, find_id, photo_path, is_primary FROM find_photos ORDER BY find_id, is_primary DESC, id ASC",
+        )
+        .map_err(|e| format!("Failed to prepare photos query: {}", e))?;
+
+    let photo_rows: Vec<FindPhoto> = photo_stmt
+        .query_map([], |row| {
+            Ok(FindPhoto {
+                id: row.get(0)?,
+                find_id: row.get(1)?,
+                photo_path: row.get(2)?,
+                is_primary: row.get::<_, i64>(3)? == 1,
+            })
+        })
+        .map_err(|e| format!("Photos query failed: {}", e))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("Photos row mapping failed: {}", e))?;
+
+    let mut photos_by_find: HashMap<i64, Vec<FindPhoto>> = HashMap::new();
+    for photo in photo_rows {
+        photos_by_find.entry(photo.find_id).or_default().push(photo);
+    }
+
+    for record in &mut records {
+        if let Some(photos) = photos_by_find.remove(&record.id) {
+            record.photos = photos;
+        }
+    }
 
     Ok(records)
 }
@@ -267,50 +370,73 @@ pub async fn update_find(
         return Err("find not found".into());
     }
 
-    let record = conn
+    let mut record = conn
         .query_row(
-            "SELECT id, photo_path, original_filename, species_name, date_found, country, region, lat, lng, notes, created_at FROM finds WHERE id = ?1",
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, created_at FROM finds WHERE id = ?1",
             params![payload.id],
             |row| {
                 Ok(FindRecord {
                     id: row.get(0)?,
-                    photo_path: row.get(1)?,
-                    original_filename: row.get(2)?,
-                    species_name: row.get(3)?,
-                    date_found: row.get(4)?,
-                    country: row.get(5)?,
-                    region: row.get(6)?,
-                    lat: row.get(7)?,
-                    lng: row.get(8)?,
-                    notes: row.get(9)?,
-                    created_at: row.get(10)?,
+                    original_filename: row.get(1)?,
+                    species_name: row.get(2)?,
+                    date_found: row.get(3)?,
+                    country: row.get(4)?,
+                    region: row.get(5)?,
+                    lat: row.get(6)?,
+                    lng: row.get(7)?,
+                    notes: row.get(8)?,
+                    created_at: row.get(9)?,
+                    photos: vec![],
                 })
             },
         )
         .map_err(|e| format!("Failed to read updated record: {}", e))?;
 
+    // Fetch photos for the updated record
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let photos: Vec<FindPhoto> = stmt
+        .query_map(params![payload.id], |row| {
+            Ok(FindPhoto {
+                id: row.get(0)?,
+                find_id: row.get(1)?,
+                photo_path: row.get(2)?,
+                is_primary: row.get::<_, i64>(3)? == 1,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    record.photos = photos;
     Ok(record)
 }
 
+/// Shared test helpers — available to other test modules in the crate.
+/// This block is compiled only during `cargo test`.
 #[cfg(test)]
-mod tests {
+pub(crate) mod test_helpers {
     use super::*;
     use rusqlite::Connection;
 
     const MIGRATION_0001: &str = include_str!("../../migrations/0001_initial.sql");
     const MIGRATION_0002: &str = include_str!("../../migrations/0002_finds.sql");
+    const MIGRATION_0003: &str = include_str!("../../migrations/0003_find_photos.sql");
 
-    fn setup_in_memory_db() -> Connection {
+    pub(crate) fn setup_in_memory_db() -> Connection {
         let conn = Connection::open_in_memory().expect("in-memory DB");
         conn.execute_batch(MIGRATION_0001).expect("migration 0001");
         conn.execute_batch(MIGRATION_0002).expect("migration 0002");
+        conn.execute_batch(MIGRATION_0003).expect("migration 0003");
         conn
     }
 
-    fn make_find_record(filename: &str, date: &str) -> FindRecord {
+    pub(crate) fn make_find_record(filename: &str, date: &str) -> FindRecord {
         FindRecord {
             id: 0,
-            photo_path: format!("Croatia/Region/{}/{}_1.jpg", date, filename),
             original_filename: filename.to_string(),
             species_name: "Boletus edulis".to_string(),
             date_found: date.to_string(),
@@ -320,8 +446,20 @@ mod tests {
             lng: Some(16.0),
             notes: "Test note".to_string(),
             created_at: "2024-05-10T14:23:00Z".to_string(),
+            photos: vec![],
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::test_helpers::{setup_in_memory_db, make_find_record};
+    use rusqlite::Connection;
+
+    const MIGRATION_0001: &str = include_str!("../../migrations/0001_initial.sql");
+    const MIGRATION_0002: &str = include_str!("../../migrations/0002_finds.sql");
+    const MIGRATION_0003: &str = include_str!("../../migrations/0003_find_photos.sql");
 
     #[test]
     fn test_is_duplicate_returns_true_when_exists() {
@@ -365,22 +503,26 @@ mod tests {
         let record = make_find_record("round_trip.jpg", "2024-05-10");
         let id = insert_find_row(&conn, &record).expect("insert");
 
+        // Insert a photo so we can verify the find_photos table
+        insert_find_photo(&conn, id, "Croatia/Region/2024-05-10/round_trip_1.jpg", true)
+            .expect("insert photo");
+
         let retrieved: FindRecord = conn
             .query_row(
-                "SELECT id, photo_path, original_filename, species_name, date_found, country, region, lat, lng, notes, created_at FROM finds WHERE id = ?1",
+                "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, created_at FROM finds WHERE id = ?1",
                 params![id],
                 |row| Ok(FindRecord {
                     id: row.get(0)?,
-                    photo_path: row.get(1)?,
-                    original_filename: row.get(2)?,
-                    species_name: row.get(3)?,
-                    date_found: row.get(4)?,
-                    country: row.get(5)?,
-                    region: row.get(6)?,
-                    lat: row.get(7)?,
-                    lng: row.get(8)?,
-                    notes: row.get(9)?,
-                    created_at: row.get(10)?,
+                    original_filename: row.get(1)?,
+                    species_name: row.get(2)?,
+                    date_found: row.get(3)?,
+                    country: row.get(4)?,
+                    region: row.get(5)?,
+                    lat: row.get(6)?,
+                    lng: row.get(7)?,
+                    notes: row.get(8)?,
+                    created_at: row.get(9)?,
+                    photos: vec![],
                 }),
             )
             .expect("query");
@@ -394,10 +536,99 @@ mod tests {
         assert!((retrieved.lng.unwrap() - 16.0).abs() < 1e-9);
         assert_eq!(retrieved.notes, "Test note");
         assert_eq!(retrieved.created_at, "2024-05-10T14:23:00Z");
+
+        // Verify photo is in find_photos table
+        let photo_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM find_photos WHERE find_id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .expect("photo count");
+        assert_eq!(photo_count, 1, "primary photo should be in find_photos");
+    }
+
+    #[test]
+    fn test_insert_find_photo_creates_row() {
+        let conn = setup_in_memory_db();
+        let record = make_find_record("photo.jpg", "2024-05-10");
+        let find_id = insert_find_row(&conn, &record).expect("insert find");
+
+        let photo_id = insert_find_photo(&conn, find_id, "Croatia/Region/2024-05-10/photo_1.jpg", true)
+            .expect("insert photo");
+        assert!(photo_id > 0, "photo id should be positive");
+
+        let (path, is_primary): (String, i64) = conn
+            .query_row(
+                "SELECT photo_path, is_primary FROM find_photos WHERE id = ?1",
+                params![photo_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("query photo");
+        assert_eq!(path, "Croatia/Region/2024-05-10/photo_1.jpg");
+        assert_eq!(is_primary, 1);
+    }
+
+    #[test]
+    fn test_migration_0003_creates_find_photos_table() {
+        let conn = setup_in_memory_db();
+        let table_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='find_photos'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("query sqlite_master");
+        assert_eq!(table_exists, 1, "find_photos table must exist after migration 0003");
+    }
+
+    #[test]
+    fn test_migration_0003_migrates_existing_photo_path() {
+        // Set up DB with only migrations 0001 and 0002 (before find_photos)
+        let conn = Connection::open_in_memory().expect("in-memory DB");
+        conn.execute_batch(MIGRATION_0001).expect("migration 0001");
+        conn.execute_batch(MIGRATION_0002).expect("migration 0002");
+
+        // Insert a find with photo_path (pre-migration schema)
+        conn.execute(
+            "INSERT INTO finds (photo_path, original_filename, species_name, date_found, country, region, lat, lng, notes, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![
+                "Croatia/Region/2024-05-10/chanterelle_1.jpg",
+                "chanterelle.jpg",
+                "Cantharellus cibarius",
+                "2024-05-10",
+                "Croatia",
+                "Region",
+                45.5_f64,
+                16.0_f64,
+                "Test",
+                "2024-05-10T14:23:00Z",
+            ],
+        ).expect("pre-migration insert");
+
+        let find_id: i64 = conn
+            .query_row("SELECT last_insert_rowid()", [], |row| row.get(0))
+            .expect("get last id");
+
+        // Apply migration 0003
+        conn.execute_batch(MIGRATION_0003).expect("migration 0003");
+
+        // Verify photo was migrated into find_photos with is_primary = 1
+        let (photo_path, is_primary): (String, i64) = conn
+            .query_row(
+                "SELECT photo_path, is_primary FROM find_photos WHERE find_id = ?1",
+                params![find_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("query migrated photo");
+
+        assert_eq!(photo_path, "Croatia/Region/2024-05-10/chanterelle_1.jpg");
+        assert_eq!(is_primary, 1, "migrated photo should have is_primary = 1");
     }
 
     /// Migration key regression test (risk A5):
-    /// Verifies that 0001 + 0002 migration SQL is valid and creates the finds table
+    /// Verifies that 0001 + 0002 + 0003 migration SQL is valid and creates all tables
     /// when applied against a real on-disk SQLite DB via absolute path.
     #[test]
     fn test_migration_key_finds_table_exists_on_disk() {
@@ -406,6 +637,7 @@ mod tests {
         let conn = Connection::open(&db_path).expect("open on-disk DB");
         conn.execute_batch(MIGRATION_0001).expect("migration 0001");
         conn.execute_batch(MIGRATION_0002).expect("migration 0002");
+        conn.execute_batch(MIGRATION_0003).expect("migration 0003");
 
         let table_exists: i64 = conn
             .query_row(
@@ -415,10 +647,17 @@ mod tests {
             )
             .expect("query sqlite_master");
 
-        assert_eq!(table_exists, 1, "finds table must exist after both migrations");
+        assert_eq!(table_exists, 1, "finds table must exist after all migrations");
 
-        // Verify schema_version row exists (INSERT OR IGNORE keeps original value '1' since 0001
-        // already inserted it; the important thing is the finds table was created by 0002)
+        let photo_table_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='find_photos'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("query sqlite_master for find_photos");
+        assert_eq!(photo_table_exists, 1, "find_photos table must exist after migration 0003");
+
         let version_count: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM app_metadata WHERE key='schema_version'",
@@ -450,26 +689,48 @@ mod tests {
             return Err("find not found".into());
         }
 
-        conn.query_row(
-            "SELECT id, photo_path, original_filename, species_name, date_found, country, region, lat, lng, notes, created_at FROM finds WHERE id = ?1",
+        let mut record = conn.query_row(
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, created_at FROM finds WHERE id = ?1",
             params![payload.id],
             |row| {
                 Ok(FindRecord {
                     id: row.get(0)?,
-                    photo_path: row.get(1)?,
-                    original_filename: row.get(2)?,
-                    species_name: row.get(3)?,
-                    date_found: row.get(4)?,
-                    country: row.get(5)?,
-                    region: row.get(6)?,
-                    lat: row.get(7)?,
-                    lng: row.get(8)?,
-                    notes: row.get(9)?,
-                    created_at: row.get(10)?,
+                    original_filename: row.get(1)?,
+                    species_name: row.get(2)?,
+                    date_found: row.get(3)?,
+                    country: row.get(4)?,
+                    region: row.get(5)?,
+                    lat: row.get(6)?,
+                    lng: row.get(7)?,
+                    notes: row.get(8)?,
+                    created_at: row.get(9)?,
+                    photos: vec![],
                 })
             },
         )
-        .map_err(|e| format!("Failed to read updated record: {}", e))
+        .map_err(|e| format!("Failed to read updated record: {}", e))?;
+
+        // Fetch photos
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
+            )
+            .map_err(|e| e.to_string())?;
+        let photos: Vec<FindPhoto> = stmt
+            .query_map(params![payload.id], |row| {
+                Ok(FindPhoto {
+                    id: row.get(0)?,
+                    find_id: row.get(1)?,
+                    photo_path: row.get(2)?,
+                    is_primary: row.get::<_, i64>(3)? == 1,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        record.photos = photos;
+
+        Ok(record)
     }
 
     #[test]
@@ -477,6 +738,8 @@ mod tests {
         let conn = setup_in_memory_db();
         let original = make_find_record("mushroom.jpg", "2024-05-10");
         let id = insert_find_row(&conn, &original).expect("insert");
+        insert_find_photo(&conn, id, "Croatia/Region/2024-05-10/mushroom_1.jpg", true)
+            .expect("insert photo");
 
         let payload = UpdateFindPayload {
             id,
@@ -499,10 +762,12 @@ mod tests {
         assert!((updated.lat.unwrap() - 46.3).abs() < 1e-9);
         assert!((updated.lng.unwrap() - 14.1).abs() < 1e-9);
         assert_eq!(updated.notes, "Updated note");
-        // photo_path, original_filename, created_at must be unchanged
-        assert_eq!(updated.photo_path, original.photo_path);
+        // original_filename, created_at must be unchanged
         assert_eq!(updated.original_filename, "mushroom.jpg");
         assert_eq!(updated.created_at, "2024-05-10T14:23:00Z");
+        // photos should still be present
+        assert_eq!(updated.photos.len(), 1);
+        assert!(updated.photos[0].is_primary);
     }
 
     #[test]
