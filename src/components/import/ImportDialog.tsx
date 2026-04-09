@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { readDir } from '@tauri-apps/plugin-fs';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
   DialogContent,
@@ -17,6 +18,7 @@ import { useImportProgress } from './useImportProgress';
 import {
   parseExif,
   importFind,
+  FINDS_QUERY_KEY,
   SUPPORTED_EXTENSIONS,
   type ImportPayload,
 } from '@/lib/finds';
@@ -49,6 +51,7 @@ function buildInitialPayload(path: string, exif: Awaited<ReturnType<typeof parse
 
 export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
   const storagePath = useAppStore((s) => s.storagePath);
+  const qc = useQueryClient();
   const [pending, setPending] = useState<PendingItem[]>([]);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -125,6 +128,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
       const summary = await importFind(storagePath, payloads);
       toast.success(`Imported ${summary.imported.length} · Skipped ${summary.skipped.length}`);
       setPending([]);
+      qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
       onOpenChange(false);
     } catch (e) {
       setError(String(e));

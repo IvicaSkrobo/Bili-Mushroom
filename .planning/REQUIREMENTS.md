@@ -11,14 +11,14 @@
 - [x] **IMP-02**: User can add a single photo at a time via file picker
 - [x] **IMP-03**: App auto-reads date from photo EXIF metadata; falls back to filename parsing, then manual entry
 - [x] **IMP-04**: App auto-reads GPS coordinates from photo EXIF metadata if available; falls back to manual location picker on map
-- [ ] **IMP-05**: App shows preview of detected metadata before confirming import
+- [x] **IMP-05**: App shows preview of detected metadata before confirming import
 
 ### Organization
 
 - [x] **ORG-01**: App copies and organizes imported files into Location → Date folder structure (e.g., `Croatia/Gorski Kotar/2024-05-10/`)
 - [ ] **ORG-02**: User can choose and change the root storage folder where all organized mushroom data lives
 - [x] **ORG-03**: App renames photos on import using mushroom name + date pattern
-- [ ] **ORG-04**: User can edit the location, date, and name of any find after import
+- [x] **ORG-04**: User can edit the location, date, and name of any find after import
 
 ### Map
 
@@ -98,10 +98,10 @@
 | IMP-02 | Phase 2 - Import & Organization | Complete |
 | IMP-03 | Phase 2 - Import & Organization | Complete |
 | IMP-04 | Phase 2 - Import & Organization | Complete |
-| IMP-05 | Phase 2 - Import & Organization | Pending |
+| IMP-05 | Phase 2 - Import & Organization | Complete |
 | ORG-01 | Phase 2 - Import & Organization | Complete |
 | ORG-03 | Phase 2 - Import & Organization | Complete |
-| ORG-04 | Phase 2 - Import & Organization | Pending |
+| ORG-04 | Phase 2 - Import & Organization | Complete |
 | MAP-01 | Phase 3 - Map | Pending |
 | MAP-02 | Phase 3 - Map | Pending |
 | MAP-03 | Phase 3 - Map | Pending |

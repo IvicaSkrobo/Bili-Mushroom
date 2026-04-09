@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactNode } from 'react';
 import '@testing-library/jest-dom';
 import '../../test/tauri-mocks';
 import { invokeHandlers, emitMockEvent, listenCallbacks } from '../../test/tauri-mocks';
@@ -36,6 +38,20 @@ const { open: mockOpen } = await import('@tauri-apps/plugin-dialog');
 const { readDir: mockReadDir } = await import('@tauri-apps/plugin-fs');
 const { toast } = await import('sonner');
 
+function makeQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+}
+
+function Wrapper({ children }: { children: ReactNode }) {
+  const qc = makeQueryClient();
+  return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+}
+
 const sampleSummary: ImportSummary = {
   imported: [
     {
@@ -56,7 +72,11 @@ const sampleSummary: ImportSummary = {
 };
 
 function renderDialog(open = true, onOpenChange = vi.fn()) {
-  return render(<ImportDialog open={open} onOpenChange={onOpenChange} />);
+  return render(
+    <Wrapper>
+      <ImportDialog open={open} onOpenChange={onOpenChange} />
+    </Wrapper>,
+  );
 }
 
 beforeEach(() => {
@@ -162,7 +182,11 @@ describe('ImportDialog', () => {
     invokeHandlers['parse_exif'] = () => ({ date: '2024-05-10', lat: null, lng: null });
     invokeHandlers['import_find'] = () => sampleSummary;
     const onOpenChange = vi.fn();
-    render(<ImportDialog open={true} onOpenChange={onOpenChange} />);
+    render(
+      <Wrapper>
+        <ImportDialog open={true} onOpenChange={onOpenChange} />
+      </Wrapper>,
+    );
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
@@ -184,7 +208,11 @@ describe('ImportDialog', () => {
     invokeHandlers['parse_exif'] = () => ({ date: '2024-05-10', lat: null, lng: null });
     invokeHandlers['import_find'] = () => { throw 'DB write error'; };
     const onOpenChange = vi.fn();
-    render(<ImportDialog open={true} onOpenChange={onOpenChange} />);
+    render(
+      <Wrapper>
+        <ImportDialog open={true} onOpenChange={onOpenChange} />
+      </Wrapper>,
+    );
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
