@@ -47,7 +47,11 @@ Plans:
   3. When a photo has EXIF GPS data, the location is auto-populated; when it has EXIF date, the date is auto-populated; when neither is present, the user is prompted to enter them manually
   4. Before confirming import, user sees a preview of the detected metadata (name, date, location) and can correct it
   5. Imported files are copied and renamed into `<StorageRoot>/<Country>/<Region>/<YYYY-MM-DD>/` and re-importing the same photo does not create a duplicate entry
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 02-01-PLAN.md — Rust backend: EXIF parsing, import_find + get_finds commands, finds migration, capabilities
+- [ ] 02-02-PLAN.md — React import UI: ImportDialog, FindPreviewCard, useImportProgress hook, finds.ts wrappers
+- [ ] 02-03-PLAN.md — CollectionTab rebuild: FindCard, EditFindDialog, useFinds TanStack hook, update_find command
 **UI hint**: yes
 
 ### Phase 3: Map
