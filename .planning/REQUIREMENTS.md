@@ -7,17 +7,17 @@
 
 ### Import
 
-- [ ] **IMP-01**: User can import all photos from a chosen folder at once (batch import)
-- [ ] **IMP-02**: User can add a single photo at a time via file picker
-- [ ] **IMP-03**: App auto-reads date from photo EXIF metadata; falls back to filename parsing, then manual entry
-- [ ] **IMP-04**: App auto-reads GPS coordinates from photo EXIF metadata if available; falls back to manual location picker on map
+- [x] **IMP-01**: User can import all photos from a chosen folder at once (batch import)
+- [x] **IMP-02**: User can add a single photo at a time via file picker
+- [x] **IMP-03**: App auto-reads date from photo EXIF metadata; falls back to filename parsing, then manual entry
+- [x] **IMP-04**: App auto-reads GPS coordinates from photo EXIF metadata if available; falls back to manual location picker on map
 - [ ] **IMP-05**: App shows preview of detected metadata before confirming import
 
 ### Organization
 
-- [ ] **ORG-01**: App copies and organizes imported files into Location → Date folder structure (e.g., `Croatia/Gorski Kotar/2024-05-10/`)
+- [x] **ORG-01**: App copies and organizes imported files into Location → Date folder structure (e.g., `Croatia/Gorski Kotar/2024-05-10/`)
 - [ ] **ORG-02**: User can choose and change the root storage folder where all organized mushroom data lives
-- [ ] **ORG-03**: App renames photos on import using mushroom name + date pattern
+- [x] **ORG-03**: App renames photos on import using mushroom name + date pattern
 - [ ] **ORG-04**: User can edit the location, date, and name of any find after import
 
 ### Map
@@ -94,13 +94,13 @@
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | ORG-02 | Phase 1 - Foundation | Pending |
-| IMP-01 | Phase 2 - Import & Organization | Pending |
-| IMP-02 | Phase 2 - Import & Organization | Pending |
-| IMP-03 | Phase 2 - Import & Organization | Pending |
-| IMP-04 | Phase 2 - Import & Organization | Pending |
+| IMP-01 | Phase 2 - Import & Organization | Complete |
+| IMP-02 | Phase 2 - Import & Organization | Complete |
+| IMP-03 | Phase 2 - Import & Organization | Complete |
+| IMP-04 | Phase 2 - Import & Organization | Complete |
 | IMP-05 | Phase 2 - Import & Organization | Pending |
-| ORG-01 | Phase 2 - Import & Organization | Pending |
-| ORG-03 | Phase 2 - Import & Organization | Pending |
+| ORG-01 | Phase 2 - Import & Organization | Complete |
+| ORG-03 | Phase 2 - Import & Organization | Complete |
 | ORG-04 | Phase 2 - Import & Organization | Pending |
 | MAP-01 | Phase 3 - Map | Pending |
 | MAP-02 | Phase 3 - Map | Pending |

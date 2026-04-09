@@ -49,7 +49,7 @@ Plans:
   5. Imported files are copied and renamed into `<StorageRoot>/<Country>/<Region>/<YYYY-MM-DD>/` and re-importing the same photo does not create a duplicate entry
 **Plans**: 3 plans
 Plans:
-- [ ] 02-01-PLAN.md — Rust backend: EXIF parsing, import_find + get_finds commands, finds migration, capabilities
+- [x] 02-01-PLAN.md — Rust backend: EXIF parsing, import_find + get_finds commands, finds migration, capabilities
 - [ ] 02-02-PLAN.md — React import UI: ImportDialog, FindPreviewCard, useImportProgress hook, finds.ts wrappers
 - [ ] 02-03-PLAN.md — CollectionTab rebuild: FindCard, EditFindDialog, useFinds TanStack hook, update_find command
 **UI hint**: yes
