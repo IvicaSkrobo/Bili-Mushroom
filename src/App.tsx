@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Toaster } from 'sonner';
 import { useAppStore } from '@/stores/appStore';
 import { loadStoragePath } from '@/lib/storage';
 import { initializeDatabase } from '@/lib/db';
@@ -54,5 +55,10 @@ export default function App() {
     return null;
   }
 
-  return <AppShell />;
+  return (
+    <>
+      <AppShell />
+      <Toaster richColors />
+    </>
+  );
 }
