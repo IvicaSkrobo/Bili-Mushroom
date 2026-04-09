@@ -30,7 +30,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. A SQLite database file is created in the user-chosen storage folder on first run with WAL mode enabled
   3. User can choose and change the root storage folder, and the app persists that choice across restarts
   4. Running the app after a schema change applies pending migrations automatically without data loss
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 01-01-PLAN.md — Scaffold Tauri 2 + React + TS + shadcn/ui + Vitest test infrastructure
+- [ ] 01-02-PLAN.md — Rust plugins, SQLite WAL migration runner, storage persistence, real Zustand store
+- [ ] 01-03-PLAN.md — UI shell (first-run dialog, tabs, migration error, settings) + 13-step smoke gate
 **UI hint**: yes
 
 ### Phase 2: Import & Organization
@@ -105,7 +109,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/TBD | Not started | - |
+| 1. Foundation | 0/3 | Not started | - |
 | 2. Import & Organization | 0/TBD | Not started | - |
 | 3. Map | 0/TBD | Not started | - |
 | 4. Species Database | 0/TBD | Not started | - |
