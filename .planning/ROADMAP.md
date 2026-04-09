@@ -32,7 +32,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. Running the app after a schema change applies pending migrations automatically without data loss
 **Plans**: 3 plans
 Plans:
-- [ ] 01-01-PLAN.md — Scaffold Tauri 2 + React + TS + shadcn/ui + Vitest test infrastructure
+- [x] 01-01-PLAN.md — Scaffold Tauri 2 + React + TS + shadcn/ui + Vitest test infrastructure
 - [ ] 01-02-PLAN.md — Rust plugins, SQLite WAL migration runner, storage persistence, real Zustand store
 - [ ] 01-03-PLAN.md — UI shell (first-run dialog, tabs, migration error, settings) + 13-step smoke gate
 **UI hint**: yes
