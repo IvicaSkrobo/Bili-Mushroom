@@ -29,6 +29,7 @@
     "@tanstack/react-query": "^5",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2",
+    "@tauri-apps/plugin-fs": "^2.5.0",
     "@tauri-apps/plugin-sql": "^2",
     "@tauri-apps/plugin-store": "^2",
     "class-variance-authority": "^0.7.1",
@@ -37,6 +38,7 @@
     "radix-ui": "^1.4.3",
     "react": "^18",
     "react-dom": "^18",
+    "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.2",
     "zustand": "^5"

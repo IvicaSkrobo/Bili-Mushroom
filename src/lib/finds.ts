@@ -1,0 +1,98 @@
+import { invoke } from '@tauri-apps/api/core';
+
+// ---------------------------------------------------------------------------
+// Domain types — mirror the Rust structs from Plan 01
+// ---------------------------------------------------------------------------
+
+export interface ExifData {
+  date: string | null; // ISO YYYY-MM-DD
+  lat: number | null;
+  lng: number | null;
+}
+
+export interface ImportPayload {
+  source_path: string;
+  original_filename: string;
+  species_name: string;
+  date_found: string; // ISO YYYY-MM-DD
+  country: string;
+  region: string;
+  lat: number | null;
+  lng: number | null;
+  notes: string;
+}
+
+export interface Find {
+  id: number;
+  photo_path: string;
+  original_filename: string;
+  species_name: string;
+  date_found: string;
+  country: string;
+  region: string;
+  lat: number | null;
+  lng: number | null;
+  notes: string;
+  created_at: string;
+}
+
+export interface ImportSummary {
+  imported: Find[];
+  skipped: string[];
+}
+
+export interface ImportProgress {
+  current: number;
+  total: number;
+  filename: string;
+}
+
+// ---------------------------------------------------------------------------
+// Constants & helpers
+// ---------------------------------------------------------------------------
+
+export const SUPPORTED_EXTENSIONS = [
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.webp',
+  '.heic',
+  '.heif',
+] as const;
+
+/** Returns true if the file is a HEIC/HEIF image that WebView2 cannot render. */
+export function isHeic(filename: string): boolean {
+  const ext = filename.toLowerCase().slice(filename.lastIndexOf('.'));
+  return ext === '.heic' || ext === '.heif';
+}
+
+// ---------------------------------------------------------------------------
+// Rust command wrappers
+// ---------------------------------------------------------------------------
+
+/**
+ * Calls the Rust `parse_exif` command.
+ * Returns { date, lat, lng } — all fields may be null when EXIF is absent.
+ */
+export async function parseExif(path: string): Promise<ExifData> {
+  return invoke<ExifData>('parse_exif', { path });
+}
+
+/**
+ * Calls the Rust `import_find` command.
+ * Copies files into StorageRoot, inserts DB rows, emits import-progress events.
+ */
+export async function importFind(
+  storagePath: string,
+  payloads: ImportPayload[],
+): Promise<ImportSummary> {
+  return invoke<ImportSummary>('import_find', { storagePath, payloads });
+}
+
+/**
+ * Calls the Rust `get_finds` command.
+ * Returns all find records ordered by date_found DESC, id DESC.
+ */
+export async function getFinds(storagePath: string): Promise<Find[]> {
+  return invoke<Find[]>('get_finds', { storagePath });
+}
