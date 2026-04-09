@@ -12,7 +12,7 @@ Bili Mushroom is built in six phases, each delivering a coherent and verifiable 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation** - Tauri 2 app shell, SQLite with WAL + migration runner, storage folder selection scaffold
+- [x] **Phase 1: Foundation** - Tauri 2 app shell, SQLite with WAL + migration runner, storage folder selection scaffold
 - [ ] **Phase 2: Import & Organization** - Photo import, EXIF parsing, metadata preview, file organization into Location/Date folders
 - [ ] **Phase 3: Map** - Interactive Leaflet map, Rust tile proxy, offline tile cache, pins, location picker
 - [ ] **Phase 4: Species Database** - ~150 Croatian/European species records, edibility ratings, lookalike warnings, trilingual names
@@ -34,7 +34,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 Plans:
 - [x] 01-01-PLAN.md — Scaffold Tauri 2 + React + TS + shadcn/ui + Vitest test infrastructure
 - [x] 01-02-PLAN.md — Rust plugins, SQLite WAL migration runner, storage persistence, real Zustand store
-- [ ] 01-03-PLAN.md — UI shell (first-run dialog, tabs, migration error, settings) + 13-step smoke gate
+- [x] 01-03-PLAN.md — UI shell (first-run dialog, tabs, migration error, settings) + 13-step smoke gate
 **UI hint**: yes
 
 ### Phase 2: Import & Organization
