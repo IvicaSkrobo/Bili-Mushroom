@@ -89,15 +89,40 @@
 
 ## Traceability
 
-*(Updated during roadmap creation)*
+*(Updated 2026-04-08 during roadmap creation)*
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| IMP-01–05 | — | Pending |
-| ORG-01–04 | — | Pending |
-| MAP-01–06 | — | Pending |
-| SPE-01–06 | — | Pending |
-| SCH-01–03 | — | Pending |
-| WSH-01–03 | — | Pending |
-| STA-01–04 | — | Pending |
-| EXP-01–02 | — | Pending |
+| ORG-02 | Phase 1 - Foundation | Pending |
+| IMP-01 | Phase 2 - Import & Organization | Pending |
+| IMP-02 | Phase 2 - Import & Organization | Pending |
+| IMP-03 | Phase 2 - Import & Organization | Pending |
+| IMP-04 | Phase 2 - Import & Organization | Pending |
+| IMP-05 | Phase 2 - Import & Organization | Pending |
+| ORG-01 | Phase 2 - Import & Organization | Pending |
+| ORG-03 | Phase 2 - Import & Organization | Pending |
+| ORG-04 | Phase 2 - Import & Organization | Pending |
+| MAP-01 | Phase 3 - Map | Pending |
+| MAP-02 | Phase 3 - Map | Pending |
+| MAP-03 | Phase 3 - Map | Pending |
+| MAP-04 | Phase 3 - Map | Pending |
+| MAP-05 | Phase 3 - Map | Pending |
+| MAP-06 | Phase 3 - Map | Pending |
+| SPE-01 | Phase 4 - Species Database | Pending |
+| SPE-02 | Phase 4 - Species Database | Pending |
+| SPE-03 | Phase 4 - Species Database | Pending |
+| SPE-04 | Phase 4 - Species Database | Pending |
+| SPE-05 | Phase 4 - Species Database | Pending |
+| SPE-06 | Phase 4 - Species Database | Pending |
+| SCH-01 | Phase 5 - Search, Browse & Wishlist | Pending |
+| SCH-02 | Phase 5 - Search, Browse & Wishlist | Pending |
+| SCH-03 | Phase 5 - Search, Browse & Wishlist | Pending |
+| WSH-01 | Phase 5 - Search, Browse & Wishlist | Pending |
+| WSH-02 | Phase 5 - Search, Browse & Wishlist | Pending |
+| WSH-03 | Phase 5 - Search, Browse & Wishlist | Pending |
+| STA-01 | Phase 6 - Stats & Export | Pending |
+| STA-02 | Phase 6 - Stats & Export | Pending |
+| STA-03 | Phase 6 - Stats & Export | Pending |
+| STA-04 | Phase 6 - Stats & Export | Pending |
+| EXP-01 | Phase 6 - Stats & Export | Pending |
+| EXP-02 | Phase 6 - Stats & Export | Pending |
