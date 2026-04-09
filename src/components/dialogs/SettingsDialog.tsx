@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import { Info } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAppStore } from '@/stores/appStore';
+import { pickAndSaveStoragePath } from '@/lib/storage';
+import { initializeDatabase } from '@/lib/db';
 
 export interface SettingsDialogProps {
   open: boolean;
@@ -11,10 +14,26 @@ export interface SettingsDialogProps {
 
 export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const storagePath = useAppStore((s) => s.storagePath);
+  const setStoragePath = useAppStore((s) => s.setStoragePath);
+  const setDbReady = useAppStore((s) => s.setDbReady);
+  const setDbError = useAppStore((s) => s.setDbError);
+  const [picking, setPicking] = useState(false);
 
-  function handleChangeFolder() {
-    // TODO(phase 2): wire change-folder flow with move/copy prompt per D-02
-    console.log('Change folder — Phase 2 feature');
+  async function handleChangeFolder() {
+    setPicking(true);
+    try {
+      const folder = await pickAndSaveStoragePath();
+      if (!folder) return;
+      setDbReady(false);
+      setStoragePath(folder);
+      await initializeDatabase(folder);
+      setDbReady(true);
+      onOpenChange(false);
+    } catch (err) {
+      setDbError(String((err as Error)?.message ?? err));
+    } finally {
+      setPicking(false);
+    }
   }
 
   return (
@@ -28,7 +47,9 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
           <div className="rounded-md bg-muted px-3 py-2 font-mono text-sm">
             {storagePath ?? '(not set)'}
           </div>
-          <Button variant="secondary" onClick={handleChangeFolder}>Change Folder</Button>
+          <Button variant="secondary" onClick={handleChangeFolder} disabled={picking}>
+            {picking ? 'Choosing…' : 'Change Folder'}
+          </Button>
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription>
