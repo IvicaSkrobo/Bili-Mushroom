@@ -1,3 +1,5 @@
+mod commands;
+
 use tauri_plugin_sql::{Builder as SqlBuilder, Migration, MigrationKind};
 
 pub fn run() {
