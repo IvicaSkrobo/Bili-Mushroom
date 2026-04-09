@@ -33,7 +33,6 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
   get_finds: (_args: unknown) => [],
   update_find: (_args: unknown) => ({
     id: 1,
-    photo_path: 'Croatia/Istria/2024-05-10/Amanita_muscaria_2024-05-10_001.jpg',
     original_filename: 'shroom.jpg',
     species_name: 'Amanita muscaria',
     date_found: '2024-05-10',
@@ -43,7 +42,10 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
     lng: 13.9,
     notes: 'Found near oak tree',
     created_at: '2024-05-10T14:00:00Z',
+    photos: [],
   }),
+  delete_find: (_args: unknown) => undefined,
+  get_find_photos: (_args: unknown) => [],
 };
 
 vi.mock('@tauri-apps/api/core', () => ({

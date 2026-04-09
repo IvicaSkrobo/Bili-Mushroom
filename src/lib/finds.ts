@@ -10,6 +10,13 @@ export interface ExifData {
   lng: number | null;
 }
 
+export interface FindPhoto {
+  id: number;
+  find_id: number;
+  photo_path: string;   // relative to storagePath
+  is_primary: boolean;
+}
+
 export interface ImportPayload {
   source_path: string;
   original_filename: string;
@@ -20,11 +27,11 @@ export interface ImportPayload {
   lat: number | null;
   lng: number | null;
   notes: string;
+  additional_photos: string[];  // Mode A: extra source paths for same find
 }
 
 export interface Find {
   id: number;
-  photo_path: string;
   original_filename: string;
   species_name: string;
   date_found: string;
@@ -34,6 +41,7 @@ export interface Find {
   lng: number | null;
   notes: string;
   created_at: string;
+  photos: FindPhoto[];
 }
 
 export interface ImportSummary {
@@ -118,6 +126,29 @@ export interface UpdateFindPayload {
  */
 export async function updateFind(storagePath: string, payload: UpdateFindPayload): Promise<Find> {
   return invoke<Find>('update_find', { storagePath, payload });
+}
+
+/**
+ * Calls the Rust `delete_find` command.
+ * Removes DB record(s) and optionally moves photo files to system trash.
+ */
+export async function deleteFind(
+  storagePath: string,
+  findId: number,
+  deleteFiles: boolean,
+): Promise<void> {
+  return invoke<void>('delete_find', { storagePath, findId, deleteFiles });
+}
+
+/**
+ * Calls the Rust `get_find_photos` command.
+ * Returns photos for a specific find ordered by is_primary DESC, id ASC.
+ */
+export async function getFindPhotos(
+  storagePath: string,
+  findId: number,
+): Promise<FindPhoto[]> {
+  return invoke<FindPhoto[]>('get_find_photos', { storagePath, findId });
 }
 
 /** Shared query key for TanStack Query — import/edit hooks both reference this. */
