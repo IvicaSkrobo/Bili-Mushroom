@@ -18,7 +18,7 @@ pub struct ImportPayload {
     pub notes: String,
 }
 
-#[derive(serde::Serialize, Clone)]
+#[derive(serde::Serialize, Clone, Debug)]
 pub struct FindRecord {
     pub id: i64,
     pub photo_path: String,
@@ -228,6 +228,70 @@ pub async fn get_finds(storage_path: String) -> Result<Vec<FindRecord>, String> 
     Ok(records)
 }
 
+#[derive(serde::Deserialize)]
+pub struct UpdateFindPayload {
+    pub id: i64,
+    pub species_name: String,
+    pub date_found: String,
+    pub country: String,
+    pub region: String,
+    pub lat: Option<f64>,
+    pub lng: Option<f64>,
+    pub notes: String,
+}
+
+#[tauri::command]
+pub async fn update_find(
+    storage_path: String,
+    payload: UpdateFindPayload,
+) -> Result<FindRecord, String> {
+    let conn = open_db(&storage_path)?;
+
+    let rows_affected = conn
+        .execute(
+            "UPDATE finds SET species_name=?1, date_found=?2, country=?3, region=?4, lat=?5, lng=?6, notes=?7 WHERE id=?8",
+            params![
+                payload.species_name,
+                payload.date_found,
+                payload.country,
+                payload.region,
+                payload.lat,
+                payload.lng,
+                payload.notes,
+                payload.id,
+            ],
+        )
+        .map_err(|e| format!("Update failed: {}", e))?;
+
+    if rows_affected == 0 {
+        return Err("find not found".into());
+    }
+
+    let record = conn
+        .query_row(
+            "SELECT id, photo_path, original_filename, species_name, date_found, country, region, lat, lng, notes, created_at FROM finds WHERE id = ?1",
+            params![payload.id],
+            |row| {
+                Ok(FindRecord {
+                    id: row.get(0)?,
+                    photo_path: row.get(1)?,
+                    original_filename: row.get(2)?,
+                    species_name: row.get(3)?,
+                    date_found: row.get(4)?,
+                    country: row.get(5)?,
+                    region: row.get(6)?,
+                    lat: row.get(7)?,
+                    lng: row.get(8)?,
+                    notes: row.get(9)?,
+                    created_at: row.get(10)?,
+                })
+            },
+        )
+        .map_err(|e| format!("Failed to read updated record: {}", e))?;
+
+    Ok(record)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -363,5 +427,101 @@ mod tests {
             )
             .expect("schema_version count query");
         assert_eq!(version_count, 1, "schema_version row must exist in app_metadata");
+    }
+
+    fn update_find_on_conn(conn: &Connection, payload: &UpdateFindPayload) -> Result<FindRecord, String> {
+        let rows_affected = conn
+            .execute(
+                "UPDATE finds SET species_name=?1, date_found=?2, country=?3, region=?4, lat=?5, lng=?6, notes=?7 WHERE id=?8",
+                params![
+                    payload.species_name,
+                    payload.date_found,
+                    payload.country,
+                    payload.region,
+                    payload.lat,
+                    payload.lng,
+                    payload.notes,
+                    payload.id,
+                ],
+            )
+            .map_err(|e| format!("Update failed: {}", e))?;
+
+        if rows_affected == 0 {
+            return Err("find not found".into());
+        }
+
+        conn.query_row(
+            "SELECT id, photo_path, original_filename, species_name, date_found, country, region, lat, lng, notes, created_at FROM finds WHERE id = ?1",
+            params![payload.id],
+            |row| {
+                Ok(FindRecord {
+                    id: row.get(0)?,
+                    photo_path: row.get(1)?,
+                    original_filename: row.get(2)?,
+                    species_name: row.get(3)?,
+                    date_found: row.get(4)?,
+                    country: row.get(5)?,
+                    region: row.get(6)?,
+                    lat: row.get(7)?,
+                    lng: row.get(8)?,
+                    notes: row.get(9)?,
+                    created_at: row.get(10)?,
+                })
+            },
+        )
+        .map_err(|e| format!("Failed to read updated record: {}", e))
+    }
+
+    #[test]
+    fn test_update_find_changes_all_editable_fields() {
+        let conn = setup_in_memory_db();
+        let original = make_find_record("mushroom.jpg", "2024-05-10");
+        let id = insert_find_row(&conn, &original).expect("insert");
+
+        let payload = UpdateFindPayload {
+            id,
+            species_name: "Cantharellus cibarius".to_string(),
+            date_found: "2024-06-01".to_string(),
+            country: "Slovenia".to_string(),
+            region: "Triglav".to_string(),
+            lat: Some(46.3),
+            lng: Some(14.1),
+            notes: "Updated note".to_string(),
+        };
+
+        let updated = update_find_on_conn(&conn, &payload).expect("update");
+
+        assert_eq!(updated.id, id);
+        assert_eq!(updated.species_name, "Cantharellus cibarius");
+        assert_eq!(updated.date_found, "2024-06-01");
+        assert_eq!(updated.country, "Slovenia");
+        assert_eq!(updated.region, "Triglav");
+        assert!((updated.lat.unwrap() - 46.3).abs() < 1e-9);
+        assert!((updated.lng.unwrap() - 14.1).abs() < 1e-9);
+        assert_eq!(updated.notes, "Updated note");
+        // photo_path, original_filename, created_at must be unchanged
+        assert_eq!(updated.photo_path, original.photo_path);
+        assert_eq!(updated.original_filename, "mushroom.jpg");
+        assert_eq!(updated.created_at, "2024-05-10T14:23:00Z");
+    }
+
+    #[test]
+    fn test_update_find_returns_err_for_nonexistent_id() {
+        let conn = setup_in_memory_db();
+
+        let payload = UpdateFindPayload {
+            id: 9999,
+            species_name: "Ghost".to_string(),
+            date_found: "2024-01-01".to_string(),
+            country: "Nowhere".to_string(),
+            region: "Void".to_string(),
+            lat: None,
+            lng: None,
+            notes: "".to_string(),
+        };
+
+        let result = update_find_on_conn(&conn, &payload);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "find not found");
     }
 }

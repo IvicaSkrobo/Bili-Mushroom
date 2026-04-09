@@ -5,12 +5,15 @@ import {
   parseExif,
   importFind,
   getFinds,
+  updateFind,
   isHeic,
   SUPPORTED_EXTENSIONS,
+  FINDS_QUERY_KEY,
   type ExifData,
   type ImportPayload,
   type Find,
   type ImportSummary,
+  type UpdateFindPayload,
 } from './finds';
 
 // tauri-mocks sets up vi.mock for @tauri-apps/api/core
@@ -152,5 +155,60 @@ describe('getFinds', () => {
       throw 'DB read error';
     };
     await expect(getFinds('/storage')).rejects.toThrow('DB read error');
+  });
+});
+
+const sampleUpdatePayload: UpdateFindPayload = {
+  id: 1,
+  species_name: 'Cantharellus cibarius',
+  date_found: '2024-06-01',
+  country: 'Slovenia',
+  region: 'Triglav',
+  lat: 46.3,
+  lng: 14.1,
+  notes: 'Updated note',
+};
+
+describe('updateFind', () => {
+  const updatedFind: Find = {
+    ...sampleFind,
+    species_name: 'Cantharellus cibarius',
+    date_found: '2024-06-01',
+    country: 'Slovenia',
+    region: 'Triglav',
+    lat: 46.3,
+    lng: 14.1,
+    notes: 'Updated note',
+  };
+
+  beforeEach(() => {
+    invokeHandlers['update_find'] = () => updatedFind;
+  });
+
+  it('calls invoke("update_find") with storagePath and payload', async () => {
+    await updateFind('/storage', sampleUpdatePayload);
+    expect(invoke).toHaveBeenCalledWith('update_find', {
+      storagePath: '/storage',
+      payload: sampleUpdatePayload,
+    });
+  });
+
+  it('returns the updated Find from the handler', async () => {
+    const result = await updateFind('/storage', sampleUpdatePayload);
+    expect(result.species_name).toBe('Cantharellus cibarius');
+    expect(result.country).toBe('Slovenia');
+  });
+
+  it('propagates rejection from handler', async () => {
+    invokeHandlers['update_find'] = () => {
+      throw 'find not found';
+    };
+    await expect(updateFind('/storage', sampleUpdatePayload)).rejects.toThrow('find not found');
+  });
+});
+
+describe('FINDS_QUERY_KEY', () => {
+  it('is the string "finds"', () => {
+    expect(FINDS_QUERY_KEY).toBe('finds');
   });
 });

@@ -31,6 +31,19 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
   parse_exif: (_args: unknown) => ({ date: null, lat: null, lng: null }),
   import_find: (_args: unknown) => ({ imported: [], skipped: [] }),
   get_finds: (_args: unknown) => [],
+  update_find: (_args: unknown) => ({
+    id: 1,
+    photo_path: 'Croatia/Istria/2024-05-10/Amanita_muscaria_2024-05-10_001.jpg',
+    original_filename: 'shroom.jpg',
+    species_name: 'Amanita muscaria',
+    date_found: '2024-05-10',
+    country: 'Croatia',
+    region: 'Istria',
+    lat: 45.1,
+    lng: 13.9,
+    notes: 'Found near oak tree',
+    created_at: '2024-05-10T14:00:00Z',
+  }),
 };
 
 vi.mock('@tauri-apps/api/core', () => ({

@@ -96,3 +96,29 @@ export async function importFind(
 export async function getFinds(storagePath: string): Promise<Find[]> {
   return invoke<Find[]>('get_finds', { storagePath });
 }
+
+// ---------------------------------------------------------------------------
+// Update find
+// ---------------------------------------------------------------------------
+
+export interface UpdateFindPayload {
+  id: number;
+  species_name: string;
+  date_found: string;
+  country: string;
+  region: string;
+  lat: number | null;
+  lng: number | null;
+  notes: string;
+}
+
+/**
+ * Calls the Rust `update_find` command.
+ * Updates DB columns only — does NOT move the file on disk.
+ */
+export async function updateFind(storagePath: string, payload: UpdateFindPayload): Promise<Find> {
+  return invoke<Find>('update_find', { storagePath, payload });
+}
+
+/** Shared query key for TanStack Query — import/edit hooks both reference this. */
+export const FINDS_QUERY_KEY = 'finds' as const;

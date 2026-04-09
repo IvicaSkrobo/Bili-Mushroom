@@ -33,6 +33,7 @@ pub fn run() {
             commands::exif::parse_exif,
             commands::import::import_find,
             commands::import::get_finds,
+            commands::import::update_find,
         ])
         .setup(|_app| Ok(()))
         .run(tauri::generate_context!())

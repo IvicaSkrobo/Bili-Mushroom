@@ -1,11 +1,21 @@
 import { useEffect } from 'react';
 import { Toaster } from 'sonner';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAppStore } from '@/stores/appStore';
 import { loadStoragePath } from '@/lib/storage';
 import { initializeDatabase } from '@/lib/db';
 import { FirstRunDialog } from '@/components/dialogs/FirstRunDialog';
 import { MigrationErrorDialog } from '@/components/dialogs/MigrationErrorDialog';
 import { AppShell } from '@/components/layout/AppShell';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 export default function App() {
   const storagePath = useAppStore((s) => s.storagePath);
@@ -56,9 +66,9 @@ export default function App() {
   }
 
   return (
-    <>
+    <QueryClientProvider client={queryClient}>
       <AppShell />
       <Toaster richColors />
-    </>
+    </QueryClientProvider>
   );
 }
