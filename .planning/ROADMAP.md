@@ -54,6 +54,16 @@ Plans:
 - [ ] 02-03-PLAN.md — CollectionTab rebuild: FindCard, EditFindDialog, useFinds TanStack hook, update_find command
 **UI hint**: yes
 
+### Phase 02.1: Import workflow refinements (INSERTED)
+
+**Goal:** Multi-photo finds, map-based location picking during import, bulk metadata, post-import review dialog, and delete find with optional disk delete
+**Requirements**: IMP-01, IMP-02, IMP-04, IMP-05, ORG-04
+**Depends on:** Phase 2
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 02.1 to break down)
+
 ### Phase 3: Map
 **Goal**: Users can see all their finds on an interactive map and pick locations manually
 **Depends on**: Phase 2
