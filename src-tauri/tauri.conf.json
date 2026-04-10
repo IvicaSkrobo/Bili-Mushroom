@@ -21,7 +21,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost blob: data:",
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost blob: data: https://*.tile.openstreetmap.org",
       "assetProtocol": {
         "enable": true,
         "scope": ["$HOME/**", "$DOCUMENT/**", "$DESKTOP/**"]
@@ -44,6 +44,12 @@
       },
       "nsis": {
         "installMode": "currentUser"
+      }
+    },
+    "macOS": {
+      "entitlements": "Entitlements.plist",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Bili Mushroom uses your location to set the find location on the map."
       }
     }
   }

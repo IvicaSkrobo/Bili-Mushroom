@@ -135,9 +135,9 @@ describe('ImportDialog', () => {
       fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
     });
 
+    // Lat/lng inputs removed — location shown in the map picker button as coordinates
     await waitFor(() => {
-      const latInput = screen.getByPlaceholderText('Latitude') as HTMLInputElement;
-      expect(latInput.value).toBe('45.1');
+      expect(screen.getByRole('button', { name: /pick on map/i })).toHaveTextContent('45.1000');
     });
   });
 

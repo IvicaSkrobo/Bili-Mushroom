@@ -27,16 +27,6 @@ export function FindPreviewCard({
     onChange({ ...payload, [key]: value });
   };
 
-  const handleLatChange = (raw: string) => {
-    const parsed = parseFloat(raw);
-    updateField('lat', raw === '' || isNaN(parsed) ? null : parsed);
-  };
-
-  const handleLngChange = (raw: string) => {
-    const parsed = parseFloat(raw);
-    updateField('lng', raw === '' || isNaN(parsed) ? null : parsed);
-  };
-
   const handleMapConfirm = (lat: number, lng: number) => {
     onChange({ ...payload, lat, lng });
   };
@@ -112,30 +102,20 @@ export function FindPreviewCard({
                 />
               </div>
 
-              <div className="col-span-2 grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
-                <Input
-                  type="number"
-                  step="any"
-                  placeholder="Latitude"
-                  value={payload.lat ?? ''}
-                  onChange={(e) => handleLatChange(e.target.value)}
-                />
-                <Input
-                  type="number"
-                  step="any"
-                  placeholder="Longitude"
-                  value={payload.lng ?? ''}
-                  onChange={(e) => handleLngChange(e.target.value)}
-                />
+              <div className="col-span-2 flex items-center gap-2">
                 <Button
                   type="button"
                   variant="outline"
-                  size="icon"
+                  size="sm"
                   aria-label="Pick on map"
                   onClick={() => setMapOpen(true)}
                   title="Pick on map"
+                  className={payload.lat !== null && payload.lng !== null ? 'text-green-600 border-green-600' : ''}
                 >
-                  <MapPin className="h-4 w-4" />
+                  <MapPin className="h-4 w-4 mr-1" />
+                  {payload.lat !== null && payload.lng !== null
+                    ? `${payload.lat.toFixed(4)}, ${payload.lng.toFixed(4)}`
+                    : 'Set location'}
                 </Button>
               </div>
 

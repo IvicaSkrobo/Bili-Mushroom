@@ -88,8 +88,10 @@ describe('FindPreviewCard', () => {
     expect(screen.getByPlaceholderText('Species name')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Country')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Region')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Latitude')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Longitude')).toBeInTheDocument();
+    // Lat/lng text inputs removed — location set via map picker button only
+    expect(screen.queryByPlaceholderText('Latitude')).toBeNull();
+    expect(screen.queryByPlaceholderText('Longitude')).toBeNull();
+    expect(screen.getByRole('button', { name: /pick on map/i })).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Notes')).toBeInTheDocument();
   });
 
