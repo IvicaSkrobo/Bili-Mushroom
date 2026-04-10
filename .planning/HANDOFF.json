@@ -1,0 +1,30 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-04-10T00:48:50.034Z",
+  "phase": "02.1",
+  "phase_name": "import-workflow-refinements",
+  "phase_dir": ".planning/phases/02.1-import-workflow-refinements",
+  "plan": 5,
+  "task": 1,
+  "total_tasks": 3,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": "02.1-01", "name": "Multi-photo schema migration + Rust backend", "status": "done", "commit": "cf0c253"},
+    {"id": "02.1-02", "name": "Frontend types + LocationPickerMap component", "status": "done", "commit": "f788b42"},
+    {"id": "02.1-03", "name": "FindCard fix + DeleteFindDialog + CollectionTab wiring", "status": "done", "commit": "3cc1234"},
+    {"id": "02.1-04", "name": "LocationPickerMap wired into FindPreviewCard", "status": "done", "commit": "d24963f"}
+  ],
+  "remaining_tasks": [
+    {"id": "02.1-05", "name": "PostImportReviewDialog + BulkMetadataBar", "status": "not_started", "wave": 2}
+  ],
+  "blockers": [],
+  "human_actions_pending": [],
+  "decisions": [
+    {"decision": "Used AlertDialog for delete confirmation (not Dialog)", "rationale": "Semantically correct for destructive actions", "phase": "02.1"},
+    {"decision": "DeleteFindDialog defaults to record-only deletion", "rationale": "Safer default — user must opt in to file deletion", "phase": "02.1"},
+    {"decision": "LocationPickerMap mocked in FindPreviewCard tests via vi.mock", "rationale": "Avoids Leaflet/react-leaflet dependency in JSDOM test environment", "phase": "02.1"}
+  ],
+  "uncommitted_files": [".planning/ROADMAP.md"],
+  "next_action": "Execute plan 02.1-05: Create PostImportReviewDialog and BulkMetadataBar, then wire both into ImportDialog. Run /gsd-execute-phase 02.1 to resume — Wave 1 is complete, only Wave 2 (02.1-05) remains.",
+  "context_notes": "Wave 1 of phase 02.1 is fully done. 119 tests passing. ROADMAP updated for 02.1-03 and 02.1-04. The stash@{1} WIP predates this session and should be investigated carefully before use."
+}

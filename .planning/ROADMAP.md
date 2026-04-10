@@ -59,7 +59,7 @@ Plans:
 **Goal:** Multi-photo finds, map-based location picking during import, bulk metadata, post-import review dialog, and delete find with optional disk delete
 **Requirements**: IMP-01, IMP-02, IMP-04, IMP-05, ORG-04
 **Depends on:** Phase 2
-**Plans:** 2/2 plans complete
+**Plans:** 4/5 plans executed
 
 Plans:
 - [x] TBD (run /gsd-plan-phase 02.1 to break down) (completed 2026-04-09)
