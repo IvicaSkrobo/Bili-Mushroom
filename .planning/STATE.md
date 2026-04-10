@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: verifying
 stopped_at: Completed 02.1-import-workflow-refinements/02.1-01-PLAN.md
-last_updated: "2026-04-09T23:47:18.289Z"
-last_activity: 2026-04-09
+last_updated: "2026-04-10T09:13:43.000Z"
+last_activity: 2026-04-10
 progress:
   total_phases: 7
   completed_phases: 3
@@ -79,7 +79,16 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-None yet.
+- [ ] Fix quit button in error dialog — button unresponsive when DB/startup error is shown
+- [ ] Add Clear All button to import photo picker — removes all queued photos in one click
+- [ ] Batch metadata cascade in import picker — shared name+location header above card list, pre-filled from folder name, cascades to all cards; each card still individually editable
+- [ ] Folder hierarchy import mode — main folder > mushroom sub-folders > photos; each sub-folder becomes one find batch, folder name = default mushroom name; collection reflects this structure
+
+### Quick Tasks Completed
+
+| Task | Date | Summary |
+|------|------|---------|
+| 260410-flf import-workflow-improvements | 2026-04-10 | Location mark field, species folder autocomplete, folder path in collection, Rust location_note fix |
 
 ### Roadmap Evolution
 
