@@ -64,6 +64,7 @@ const MIGRATION_0001: &str = include_str!("../../migrations/0001_initial.sql");
 const MIGRATION_0002: &str = include_str!("../../migrations/0002_finds.sql");
 const MIGRATION_0003: &str = include_str!("../../migrations/0003_find_photos.sql");
 const MIGRATION_0004: &str = include_str!("../../migrations/0004_location_note.sql");
+const MIGRATION_0005: &str = include_str!("../../migrations/0005_species_notes.sql");
 
 /// Apply all migrations to an open connection using rusqlite's user_version pragma
 /// as a lightweight migration tracker. Idempotent — safe to call on every open.
@@ -95,6 +96,12 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
             .map_err(|e| format!("Migration 0004 failed: {}", e))?;
         conn.execute_batch("PRAGMA user_version = 4")
             .map_err(|e| format!("Failed to set user_version=4: {}", e))?;
+    }
+    if version < 5 {
+        conn.execute_batch(MIGRATION_0005)
+            .map_err(|e| format!("Migration 0005 failed: {}", e))?;
+        conn.execute_batch("PRAGMA user_version = 5")
+            .map_err(|e| format!("Failed to set user_version=5: {}", e))?;
     }
 
     Ok(())
@@ -213,9 +220,10 @@ pub async fn import_find(
             &ext,
         );
 
-        // Copy primary file
+        // Move primary file (copy then delete source — works across filesystems/USB drives)
         std::fs::copy(&payload.source_path, &dest_path)
             .map_err(|e| format!("Failed to copy {:?} to {:?}: {}", payload.source_path, dest_path, e))?;
+        let _ = std::fs::remove_file(&payload.source_path); // best-effort; ignore failure (e.g. read-only USB)
 
         // Compute relative photo_path (forward-slash for cross-platform)
         let primary_photo_path = dest_path
@@ -273,6 +281,7 @@ pub async fn import_find(
 
             std::fs::copy(additional_src, &add_dest_path)
                 .map_err(|e| format!("Failed to copy additional photo {:?} to {:?}: {}", additional_src, add_dest_path, e))?;
+            let _ = std::fs::remove_file(additional_src); // best-effort move
 
             let add_photo_path = add_dest_path
                 .strip_prefix(&storage_path)

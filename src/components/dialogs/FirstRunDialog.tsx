@@ -3,12 +3,14 @@ import { Sprout } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { pickAndSaveStoragePath } from '@/lib/storage';
+import { useT } from '@/i18n/index';
 
 export interface FirstRunDialogProps {
   onFolderSelected: (path: string) => void;
 }
 
 export function FirstRunDialog({ onFolderSelected }: FirstRunDialogProps) {
+  const t = useT();
   const [picking, setPicking] = useState(false);
 
   async function handleChoose() {
@@ -34,18 +36,17 @@ export function FirstRunDialog({ onFolderSelected }: FirstRunDialogProps) {
             <Sprout className="h-8 w-8 text-primary" aria-hidden="true" />
           </div>
           <DialogTitle className="text-center text-2xl font-semibold">
-            Choose Your Mushroom Library
+            {t('firstRun.title')}
           </DialogTitle>
           <DialogDescription className="text-center text-sm">
-            Choose a folder where Bili Mushroom will store your finds, photos, and database.
-            You can change this later in Settings.
+            {t('firstRun.description')}
           </DialogDescription>
         </DialogHeader>
         <div className="rounded-md bg-muted px-3 py-2 text-center text-sm text-muted-foreground">
-          No folder selected
+          {t('firstRun.noFolder')}
         </div>
         <Button onClick={handleChoose} disabled={picking} className="w-full">
-          Choose Folder
+          {t('firstRun.chooseFolder')}
         </Button>
       </DialogContent>
     </Dialog>

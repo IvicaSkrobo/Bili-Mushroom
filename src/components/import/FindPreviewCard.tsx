@@ -1,14 +1,20 @@
 import { useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { Image, MapPin, X, Unlock } from 'lucide-react';
+import { Image, MapPin, X, Unlock, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
 import { isHeic, type ImportPayload } from '@/lib/finds';
 import { reverseGeocode } from '@/lib/geocoding';
+import { useT } from '@/i18n/index';
+import { useAppStore } from '@/stores/appStore';
 import type { LockableField } from './ImportDialog';
+
+const TRASH_HINT_KEY = 'bili_trash_hint_seen';
 
 interface FindPreviewCardProps {
   payload: ImportPayload;
@@ -27,24 +33,49 @@ export function FindPreviewCard({
   onUnlock,
   onRemove,
 }: FindPreviewCardProps) {
+  const t = useT();
+  const lang = useAppStore((s) => s.language);
   const [mapOpen, setMapOpen] = useState(false);
+  const [showTrashHint, setShowTrashHint] = useState(false);
+  const [trashing, setTrashing] = useState(false);
 
-  /** Update a field and auto-lock it (user manually edited this card). */
   const updateLockable = <K extends LockableField>(key: K, value: string) => {
     onChange({ ...payload, [key]: value }, key);
   };
 
   const handleMapConfirm = async (lat: number, lng: number) => {
     onChange({ ...payload, lat, lng });
-    const geo = await reverseGeocode(lat, lng);
+    const geo = await reverseGeocode(lat, lng, lang);
     if (geo.country || geo.region) {
       onChange({ ...payload, lat, lng, country: geo.country, region: geo.region }, 'country');
     }
   };
 
+  const handleTrashClick = () => {
+    const seen = localStorage.getItem(TRASH_HINT_KEY);
+    if (!seen) {
+      setShowTrashHint(true);
+    } else {
+      doTrash();
+    }
+  };
+
+  const doTrash = async () => {
+    setTrashing(true);
+    try {
+      await invoke('trash_source_file', { path: sourcePath });
+    } catch {
+      // If trash fails (e.g. read-only USB), still remove from list
+    } finally {
+      setTrashing(false);
+      localStorage.setItem(TRASH_HINT_KEY, '1');
+      setShowTrashHint(false);
+      onRemove();
+    }
+  };
+
   const isHeicFile = isHeic(payload.original_filename);
 
-  /** Renders a lockable field row. When locked, shows an "Allow override" unlock button. */
   function LockableInput({
     field,
     ...inputProps
@@ -76,18 +107,49 @@ export function FindPreviewCard({
   return (
     <>
       <Card className="relative">
-        {/* Remove button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-2 right-2 h-7 w-7"
-          onClick={onRemove}
-          aria-label="Remove"
-        >
-          <X className="h-4 w-4" />
-        </Button>
+        {/* Remove (X) and Delete source (trash) buttons */}
+        <div className="absolute top-2 right-2 flex gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-destructive hover:text-destructive"
+            onClick={handleTrashClick}
+            disabled={trashing}
+            aria-label={t('preview.deleteSource')}
+            title={t('preview.deleteSource')}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={onRemove}
+            aria-label={t('preview.remove')}
+            title={t('preview.remove')}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
 
         <CardContent className="pt-4">
+          {/* First-time trash hint */}
+          {showTrashHint && (
+            <Alert variant="destructive" className="mb-3">
+              <AlertDescription className="text-xs">
+                {t('preview.deleteSourceHint')}
+                <div className="flex gap-2 mt-2">
+                  <Button size="sm" variant="destructive" onClick={doTrash} disabled={trashing}>
+                    {t('delete.confirm')}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setShowTrashHint(false)}>
+                    {t('edit.cancel')}
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="grid grid-cols-[auto_1fr] gap-4">
             {/* Thumbnail */}
             <div className="flex-shrink-0">
@@ -106,10 +168,10 @@ export function FindPreviewCard({
             </div>
 
             {/* Fields */}
-            <div className="grid grid-cols-2 gap-2 pr-8">
+            <div className="grid grid-cols-2 gap-2 pr-16">
               <div className="col-span-2">
                 <Input
-                  placeholder="Species name"
+                  placeholder={t('preview.speciesName')}
                   value={payload.species_name}
                   onChange={(e) => onChange({ ...payload, species_name: e.target.value })}
                 />
@@ -118,20 +180,20 @@ export function FindPreviewCard({
               <div>
                 <LockableInput field="date_found" type="date" />
                 {payload.date_found === '' && (
-                  <p className="text-xs text-destructive mt-1">Date required before import</p>
+                  <p className="text-xs text-destructive mt-1">{t('preview.dateRequired')}</p>
                 )}
               </div>
 
               <div>
-                <LockableInput field="country" placeholder="Country" />
+                <LockableInput field="country" placeholder={t('preview.country')} />
               </div>
 
               <div>
-                <LockableInput field="region" placeholder="Region" />
+                <LockableInput field="region" placeholder={t('preview.region')} />
               </div>
 
               <div>
-                <LockableInput field="location_note" placeholder="Location mark" />
+                <LockableInput field="location_note" placeholder={t('preview.locationMark')} />
               </div>
 
               <div className="col-span-2 flex items-center gap-2">
@@ -147,13 +209,13 @@ export function FindPreviewCard({
                   <MapPin className="h-4 w-4 mr-1" />
                   {payload.lat !== null && payload.lng !== null
                     ? `${payload.lat.toFixed(4)}, ${payload.lng.toFixed(4)}`
-                    : 'Set location'}
+                    : t('preview.setLocation')}
                 </Button>
               </div>
 
               <div className="col-span-2">
                 <Textarea
-                  placeholder="Notes"
+                  placeholder={t('preview.notes')}
                   rows={2}
                   value={payload.notes}
                   onChange={(e) => onChange({ ...payload, notes: e.target.value })}

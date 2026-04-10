@@ -1,5 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getFinds, updateFind, deleteFind, FINDS_QUERY_KEY, type Find, type UpdateFindPayload } from '@/lib/finds';
+import {
+  getFinds, updateFind, deleteFind, getSpeciesNotes, upsertSpeciesNote,
+  FINDS_QUERY_KEY, SPECIES_NOTES_QUERY_KEY,
+  type Find, type UpdateFindPayload,
+} from '@/lib/finds';
 import { useAppStore } from '@/stores/appStore';
 
 export function useFinds() {
@@ -30,6 +34,27 @@ export function useDeleteFind() {
       deleteFind(storagePath!, findId, deleteFiles),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
+    },
+  });
+}
+
+export function useSpeciesNotes() {
+  const storagePath = useAppStore((s) => s.storagePath);
+  return useQuery({
+    queryKey: [SPECIES_NOTES_QUERY_KEY, storagePath],
+    queryFn: () => getSpeciesNotes(storagePath!),
+    enabled: !!storagePath,
+  });
+}
+
+export function useUpsertSpeciesNote() {
+  const storagePath = useAppStore((s) => s.storagePath);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ speciesName, notes }: { speciesName: string; notes: string }) =>
+      upsertSpeciesNote(storagePath!, speciesName, notes),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [SPECIES_NOTES_QUERY_KEY, storagePath] });
     },
   });
 }

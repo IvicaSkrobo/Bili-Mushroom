@@ -1,6 +1,93 @@
 use rusqlite::params;
+use chrono::Utc;
 
 use crate::commands::import::{open_db, FindPhoto};
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct SpeciesNote {
+    pub species_name: String,
+    pub notes: String,
+}
+
+#[tauri::command]
+pub async fn get_species_notes(storage_path: String) -> Result<Vec<SpeciesNote>, String> {
+    let conn = open_db(&storage_path)?;
+    let mut stmt = conn
+        .prepare("SELECT species_name, notes FROM species_notes ORDER BY species_name")
+        .map_err(|e| e.to_string())?;
+    let notes = stmt
+        .query_map([], |row| Ok(SpeciesNote { species_name: row.get(0)?, notes: row.get(1)? }))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    Ok(notes)
+}
+
+#[tauri::command]
+pub async fn upsert_species_note(
+    storage_path: String,
+    species_name: String,
+    notes: String,
+) -> Result<(), String> {
+    let conn = open_db(&storage_path)?;
+    let updated_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    conn.execute(
+        "INSERT INTO species_notes (species_name, notes, updated_at) VALUES (?1, ?2, ?3)
+         ON CONFLICT(species_name) DO UPDATE SET notes=excluded.notes, updated_at=excluded.updated_at",
+        params![species_name, notes, updated_at],
+    )
+    .map_err(|e| format!("Upsert species note failed: {}", e))?;
+    Ok(())
+}
+
+/// Move all photo files for a find to a different folder, then delete the DB record.
+/// Used by the "move files to another folder" option in the delete dialog.
+#[tauri::command]
+pub async fn move_find_files(
+    storage_path: String,
+    find_id: i64,
+    dest_folder: String,
+) -> Result<(), String> {
+    let conn = open_db(&storage_path)?;
+
+    let mut stmt = conn
+        .prepare("SELECT photo_path FROM find_photos WHERE find_id = ?1")
+        .map_err(|e| e.to_string())?;
+    let paths: Vec<String> = stmt
+        .query_map(params![find_id], |row| row.get(0))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    for rel_path in &paths {
+        let abs_src = format!("{}/{}", storage_path, rel_path);
+        let filename = std::path::Path::new(rel_path.as_str())
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(rel_path.as_str());
+        let abs_dest = format!("{}/{}", dest_folder, filename);
+        // Try rename first; fall back to copy+delete for cross-device moves
+        if std::fs::rename(&abs_src, &abs_dest).is_err() {
+            std::fs::copy(&abs_src, &abs_dest)
+                .map_err(|e| format!("Failed to copy '{}': {}", abs_src, e))?;
+            let _ = std::fs::remove_file(&abs_src);
+        }
+    }
+
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM finds WHERE id = ?1", params![find_id])
+        .map_err(|e| format!("DB delete failed: {}", e))?;
+
+    Ok(())
+}
+
+/// Move a file to the system Recycle Bin. Used by the import dialog's
+/// "delete source" trash button to remove the original before or instead of importing.
+#[tauri::command]
+pub async fn trash_source_file(path: String) -> Result<(), String> {
+    trash::delete(&path).map_err(|e| format!("Failed to trash '{}': {}", path, e))
+}
 
 #[tauri::command]
 pub async fn delete_find(

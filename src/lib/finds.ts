@@ -156,3 +156,26 @@ export async function getFindPhotos(
 
 /** Shared query key for TanStack Query — import/edit hooks both reference this. */
 export const FINDS_QUERY_KEY = 'finds' as const;
+
+// ---------------------------------------------------------------------------
+// Species notes (folder-level notes in collection view)
+// ---------------------------------------------------------------------------
+
+export interface SpeciesNote {
+  species_name: string;
+  notes: string;
+}
+
+export async function getSpeciesNotes(storagePath: string): Promise<SpeciesNote[]> {
+  return invoke<SpeciesNote[]>('get_species_notes', { storagePath });
+}
+
+export async function upsertSpeciesNote(
+  storagePath: string,
+  speciesName: string,
+  notes: string,
+): Promise<void> {
+  return invoke<void>('upsert_species_note', { storagePath, speciesName, notes });
+}
+
+export const SPECIES_NOTES_QUERY_KEY = 'species_notes' as const;

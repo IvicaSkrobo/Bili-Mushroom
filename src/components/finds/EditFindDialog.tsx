@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useUpdateFind } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
+import { useT } from '@/i18n/index';
 import type { Find } from '@/lib/finds';
 
 interface FormState {
@@ -45,9 +46,11 @@ interface EditFindDialogProps {
 }
 
 export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
+  const t = useT();
   const storagePath = useAppStore((s) => s.storagePath);
   const updateMutation = useUpdateFind();
   const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
+  const [folderHighlight, setFolderHighlight] = useState(0);
 
   const [form, setForm] = useState<FormState>({
     species_name: '',
@@ -64,7 +67,6 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     if (find) setForm(findToFormState(find));
   }, [find]);
 
-  // Load species folders when dialog opens
   useEffect(() => {
     if (!find || !storagePath) return;
     readDir(storagePath)
@@ -106,35 +108,59 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     <Dialog open={find !== null} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Edit Find</DialogTitle>
+          <DialogTitle>{t('edit.title')}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
           <div>
-            <label className="text-sm font-medium">Species</label>
-            <Input
-              value={form.species_name}
-              onChange={(e) => handleChange('species_name', e.target.value)}
-              placeholder="Species name"
-            />
-            {/* Autocomplete from existing folders */}
-            {filteredFolders.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-1">
-                {filteredFolders.slice(0, 6).map((f) => (
-                  <button
-                    key={f}
-                    type="button"
-                    onClick={() => handleChange('species_name', f)}
-                    className="text-xs px-2 py-0.5 rounded bg-muted border hover:bg-accent transition-colors"
-                  >
-                    {f}
-                  </button>
-                ))}
-              </div>
-            )}
+            <label className="text-sm font-medium">{t('edit.species')}</label>
+            <div className="relative">
+              <Input
+                value={form.species_name}
+                onChange={(e) => { handleChange('species_name', e.target.value); setFolderHighlight(0); }}
+                placeholder={t('preview.speciesName')}
+                onKeyDown={(e) => {
+                  const visible = filteredFolders.slice(0, 8);
+                  if (visible.length === 0) return;
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setFolderHighlight((h) => Math.min(h + 1, visible.length - 1));
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setFolderHighlight((h) => Math.max(h - 1, 0));
+                  } else if (e.key === 'Enter' || e.key === 'Tab') {
+                    e.preventDefault();
+                    handleChange('species_name', visible[folderHighlight]);
+                    setFolderHighlight(0);
+                  } else if (e.key === 'Escape') {
+                    setFolderHighlight(0);
+                    handleChange('species_name', '');
+                  }
+                }}
+              />
+              {filteredFolders.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto">
+                  {filteredFolders.slice(0, 8).map((f, i) => (
+                    <button
+                      key={f}
+                      type="button"
+                      className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${i === folderHighlight ? 'bg-accent' : 'hover:bg-accent'}`}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        handleChange('species_name', f);
+                        setFolderHighlight(0);
+                      }}
+                      onMouseEnter={() => setFolderHighlight(i)}
+                    >
+                      {f}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           <div>
-            <label className="text-sm font-medium">Date found</label>
+            <label className="text-sm font-medium">{t('edit.date')}</label>
             <Input
               type="date"
               value={form.date_found}
@@ -143,33 +169,33 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-sm font-medium">Country</label>
+              <label className="text-sm font-medium">{t('edit.country')}</label>
               <Input
                 value={form.country}
                 onChange={(e) => handleChange('country', e.target.value)}
-                placeholder="Country"
+                placeholder={t('edit.country')}
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Region</label>
+              <label className="text-sm font-medium">{t('edit.region')}</label>
               <Input
                 value={form.region}
                 onChange={(e) => handleChange('region', e.target.value)}
-                placeholder="Region"
+                placeholder={t('edit.region')}
               />
             </div>
             <div className="col-span-2">
-              <label className="text-sm font-medium">Location mark</label>
+              <label className="text-sm font-medium">{t('edit.locationMark')}</label>
               <Input
                 value={form.location_note}
                 onChange={(e) => handleChange('location_note', e.target.value)}
-                placeholder="e.g. near the old oak"
+                placeholder={t('edit.locationMarkPlaceholder')}
               />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-sm font-medium">Latitude</label>
+              <label className="text-sm font-medium">{t('edit.lat')}</label>
               <Input
                 type="number"
                 value={form.lat}
@@ -178,7 +204,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Longitude</label>
+              <label className="text-sm font-medium">{t('edit.lng')}</label>
               <Input
                 type="number"
                 value={form.lng}
@@ -188,11 +214,11 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium">Notes</label>
+            <label className="text-sm font-medium">{t('edit.notes')}</label>
             <Textarea
               value={form.notes}
               onChange={(e) => handleChange('notes', e.target.value)}
-              placeholder="Notes"
+              placeholder={t('edit.notes')}
               rows={3}
             />
           </div>
@@ -206,10 +232,10 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t('edit.cancel')}
           </Button>
           <Button onClick={handleSave} disabled={updateMutation.isPending}>
-            {updateMutation.isPending ? 'Saving…' : 'Save'}
+            {updateMutation.isPending ? t('edit.saving') : t('edit.save')}
           </Button>
         </DialogFooter>
       </DialogContent>

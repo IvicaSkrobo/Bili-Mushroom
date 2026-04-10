@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Settings as SettingsIcon } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import { useAppStore, type Tab } from '@/stores/appStore';
 import CollectionTab from '@/tabs/CollectionTab';
 import MapTab from '@/tabs/MapTab';
@@ -10,52 +9,70 @@ import SpeciesTab from '@/tabs/SpeciesTab';
 import BrowseTab from '@/tabs/BrowseTab';
 import StatsTab from '@/tabs/StatsTab';
 import { SettingsDialog } from '@/components/dialogs/SettingsDialog';
+import { useT } from '@/i18n/index';
 
-const TABS: { value: Tab; label: string }[] = [
-  { value: 'collection', label: 'Collection' },
-  { value: 'map', label: 'Map' },
-  { value: 'species', label: 'Species' },
-  { value: 'browse', label: 'Browse' },
-  { value: 'stats', label: 'Stats' },
-];
+const TAB_VALUES: Tab[] = ['collection', 'map', 'species', 'browse', 'stats'];
+const TAB_KEYS: Record<Tab, string> = {
+  collection: 'nav.collection',
+  map: 'nav.map',
+  species: 'nav.species',
+  browse: 'nav.browse',
+  stats: 'nav.stats',
+};
 
 export function AppShell() {
+  const t = useT();
   const activeTab = useAppStore((s) => s.activeTab);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <div className="flex h-screen w-screen flex-col bg-background">
-      <div className="flex h-12 items-center justify-between border-b px-4">
-        <span className="text-sm font-medium">Bili Mushroom</span>
+      {/* Header */}
+      <header className="flex h-14 flex-shrink-0 items-center justify-between border-b border-border px-6">
+        <div className="flex items-baseline gap-2">
+          <span className="font-serif text-2xl font-bold italic text-primary tracking-tight">Bili</span>
+          <span className="text-[10px] font-medium tracking-[0.3em] uppercase text-muted-foreground">Mushroom</span>
+        </div>
         <Button
           variant="ghost"
           size="icon"
-          aria-label="Settings"
+          aria-label={t('nav.settings')}
           onClick={() => setSettingsOpen(true)}
+          className="text-muted-foreground hover:text-foreground"
         >
           <SettingsIcon className="h-4 w-4" />
         </Button>
-      </div>
-      <Separator />
+      </header>
+
+      {/* Tabs */}
       <Tabs
         value={activeTab}
         onValueChange={(v) => setActiveTab(v as Tab)}
-        className="flex flex-1 flex-col"
+        className="flex flex-1 flex-col min-h-0"
       >
-        <TabsList className="h-11 w-full justify-start rounded-none border-b bg-muted/30 px-4">
-          {TABS.map((t) => (
-            <TabsTrigger key={t.value} value={t.value} className="text-xs font-medium">
-              {t.label}
+        <TabsList
+          variant="line"
+          className="h-10 w-full flex-shrink-0 justify-start rounded-none border-b border-border bg-transparent px-6 gap-0"
+        >
+          {TAB_VALUES.map((value) => (
+            <TabsTrigger
+              key={value}
+              value={value}
+              className="h-10 rounded-none border-0 px-4 text-[10px] font-medium tracking-[0.18em] uppercase text-muted-foreground hover:text-foreground/70 data-[state=active]:text-primary data-[state=active]:bg-transparent transition-colors"
+            >
+              {t(TAB_KEYS[value])}
             </TabsTrigger>
           ))}
         </TabsList>
-        <TabsContent value="collection" className="flex-1"><CollectionTab /></TabsContent>
-        <TabsContent value="map" className="flex-1"><MapTab /></TabsContent>
-        <TabsContent value="species" className="flex-1"><SpeciesTab /></TabsContent>
-        <TabsContent value="browse" className="flex-1"><BrowseTab /></TabsContent>
-        <TabsContent value="stats" className="flex-1"><StatsTab /></TabsContent>
+
+        <TabsContent value="collection" className="flex-1 min-h-0 overflow-auto"><CollectionTab /></TabsContent>
+        <TabsContent value="map" className="flex-1 min-h-0"><MapTab /></TabsContent>
+        <TabsContent value="species" className="flex-1 min-h-0"><SpeciesTab /></TabsContent>
+        <TabsContent value="browse" className="flex-1 min-h-0"><BrowseTab /></TabsContent>
+        <TabsContent value="stats" className="flex-1 min-h-0"><StatsTab /></TabsContent>
       </Tabs>
+
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   );

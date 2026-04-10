@@ -1,73 +1,40 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '../test/tauri-mocks';
-import Database from '@tauri-apps/plugin-sql';
-import { DatabaseInitError, initializeDatabase, verifyWalMode } from './db';
+import { invokeHandlers } from '../test/tauri-mocks';
+import { DatabaseInitError, initializeDatabase } from './db';
 
 describe('db', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Reset the module-level instances cache between tests
-    vi.resetModules();
   });
 
-  it('initializeDatabase throws DatabaseInitError when Database.load rejects', async () => {
-    vi.mocked(Database.load).mockRejectedValueOnce(new Error('cannot open db'));
+  it('initializeDatabase resolves when get_finds invoke succeeds', async () => {
+    invokeHandlers['get_finds'] = (_args: unknown) => [];
+    await expect(initializeDatabase('/some/path')).resolves.toBeUndefined();
+  });
+
+  it('initializeDatabase throws DatabaseInitError when invoke rejects', async () => {
+    invokeHandlers['get_finds'] = (_args: unknown) => {
+      throw new Error('open_db failed');
+    };
     await expect(initializeDatabase('/bad/path')).rejects.toThrow(DatabaseInitError);
   });
 
-  it('initializeDatabase DatabaseInitError message contains Failed to open database', async () => {
-    vi.mocked(Database.load).mockRejectedValueOnce(new Error('cannot open db'));
-    await expect(initializeDatabase('/bad/path3')).rejects.toThrow('Failed to open database');
+  it('initializeDatabase error message contains Failed to initialise database', async () => {
+    invokeHandlers['get_finds'] = (_args: unknown) => {
+      throw new Error('disk error');
+    };
+    await expect(initializeDatabase('/bad/path2')).rejects.toThrow(
+      'Failed to initialise database',
+    );
   });
 
-  it('initializeDatabase calls db.execute with PRAGMA journal_mode=WAL after load', async () => {
-    const mockDb = {
-      execute: vi.fn().mockResolvedValue({ rowsAffected: 0, lastInsertId: 0 }),
-      select: vi.fn().mockResolvedValue([{ journal_mode: 'wal' }]),
-      close: vi.fn().mockResolvedValue(undefined),
-    };
-    vi.mocked(Database.load).mockResolvedValueOnce(mockDb as any);
-    await initializeDatabase('/good/path');
-    expect(mockDb.execute).toHaveBeenCalledWith('PRAGMA journal_mode=WAL', []);
-  });
-
-  it('initializeDatabase throws DatabaseInitError if verifyWalMode returns false', async () => {
-    const mockDb = {
-      execute: vi.fn().mockResolvedValue({ rowsAffected: 0, lastInsertId: 0 }),
-      select: vi.fn().mockResolvedValue([{ journal_mode: 'delete' }]),
-      close: vi.fn().mockResolvedValue(undefined),
-    };
-    vi.mocked(Database.load).mockResolvedValueOnce(mockDb as any);
-    await expect(initializeDatabase('/wal-fails')).rejects.toThrow('WAL mode could not be enabled');
-  });
-
-  it('verifyWalMode returns true when journal_mode is wal', async () => {
-    const mockDb = {
-      execute: vi.fn(),
-      select: vi.fn().mockResolvedValue([{ journal_mode: 'wal' }]),
-      close: vi.fn(),
-    };
-    const result = await verifyWalMode(mockDb as any);
-    expect(result).toBe(true);
-  });
-
-  it('verifyWalMode returns false when journal_mode is not wal', async () => {
-    const mockDb = {
-      execute: vi.fn(),
-      select: vi.fn().mockResolvedValue([{ journal_mode: 'delete' }]),
-      close: vi.fn(),
-    };
-    const result = await verifyWalMode(mockDb as any);
-    expect(result).toBe(false);
-  });
-
-  it('verifyWalMode returns false for empty result set', async () => {
-    const mockDb = {
-      execute: vi.fn(),
-      select: vi.fn().mockResolvedValue([]),
-      close: vi.fn(),
-    };
-    const result = await verifyWalMode(mockDb as any);
-    expect(result).toBe(false);
+  it('initializeDatabase passes storagePath as the storagePath arg to invoke', async () => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    invokeHandlers['get_finds'] = (_args: unknown) => [];
+    await initializeDatabase('/my/lib');
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith('get_finds', {
+      storagePath: '/my/lib',
+    });
   });
 });

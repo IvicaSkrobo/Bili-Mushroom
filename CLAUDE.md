@@ -129,6 +129,24 @@ A Windows desktop app for mushroom foragers to catalogue, organize, and explore 
 ## Conventions
 
 Conventions not yet established. Will populate as patterns emerge during development.
+
+## Frontend Design
+
+The `frontend-design` skill is installed at `.claude/skills/frontend-design/SKILL.md`.
+
+**Always invoke the `frontend-design` skill before implementing or modifying any UI component, page layout, visual styling, or UX flow.**
+
+### Established aesthetic: Forest Codex
+
+Dark forest-floor theme committed in the initial redesign (2026-04-10):
+
+- **Palette**: Deep moss background (`oklch(0.12 0.015 135)`), chanterelle amber primary (`oklch(0.72 0.12 80)`), warm off-white text. All CSS variables defined in `src/index.css`.
+- **Typography**: Playfair Display (italic serif) for species names and headings; DM Sans for all UI copy; JetBrains Mono for coordinates and paths. Fonts loaded via Google Fonts in `index.html`.
+- **Motion**: `animate-fade-up` on page-level content; `stagger-item` with `animationDelay` on list items. CSS-only.
+- **Cards/hover**: Amber left-border reveal on hover (`group-hover:opacity-100`), edit/delete actions hidden until hover.
+- **Tab nav**: Uppercase tracked labels (`tracking-[0.18em]`), amber underline on active tab via `[data-slot="tabs-trigger"][data-state="active"]::after` in CSS.
+
+Do not introduce Inter, Roboto, system-ui as the primary font, purple/blue gradients, or light-mode defaults. This app is dark-only.
 <!-- GSD:conventions-end -->
 
 <!-- GSD:architecture-start source:ARCHITECTURE.md -->

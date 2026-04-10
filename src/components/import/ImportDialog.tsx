@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react';
-import { toast } from 'sonner';
+import { useState, useEffect, useMemo } from 'react';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { readDir } from '@tauri-apps/plugin-fs';
 import { useQueryClient } from '@tanstack/react-query';
-import { MapPin } from 'lucide-react';
+import { MapPin, Images, FolderOpen } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -22,12 +21,16 @@ import { LocationPickerMap } from '@/components/map/LocationPickerMap';
 import {
   parseExif,
   importFind,
+  upsertSpeciesNote,
   FINDS_QUERY_KEY,
+  SPECIES_NOTES_QUERY_KEY,
   SUPPORTED_EXTENSIONS,
   type ImportPayload,
 } from '@/lib/finds';
 import { reverseGeocode } from '@/lib/geocoding';
 import { useAppStore } from '@/stores/appStore';
+import { useFinds, useSpeciesNotes } from '@/hooks/useFinds';
+import { useT } from '@/i18n/index';
 
 export type LockableField = 'date_found' | 'country' | 'region' | 'location_note';
 
@@ -40,6 +43,7 @@ interface PendingItem {
 interface ImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onImportComplete?: (imported: number, skipped: number) => void;
 }
 
 function buildInitialPayload(path: string, exif: Awaited<ReturnType<typeof parseExif>>): ImportPayload {
@@ -59,9 +63,23 @@ function buildInitialPayload(path: string, exif: Awaited<ReturnType<typeof parse
   };
 }
 
-export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
+export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDialogProps) {
+  const t = useT();
   const storagePath = useAppStore((s) => s.storagePath);
+  const lang = useAppStore((s) => s.language);
   const qc = useQueryClient();
+  const { data: speciesNotesData } = useSpeciesNotes();
+  const { data: findsData } = useFinds();
+
+  // Unique species names from DB — used for autocomplete
+  const speciesFolders = useMemo(() => {
+    if (!findsData) return [];
+    const seen = new Set<string>();
+    return findsData
+      .map((f) => f.species_name)
+      .filter((name) => { if (!name || seen.has(name)) return false; seen.add(name); return true; });
+  }, [findsData]);
+
   const [pending, setPending] = useState<PendingItem[]>([]);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,31 +90,28 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
   const [sharedCountry, setSharedCountry] = useState('');
   const [sharedRegion, setSharedRegion] = useState('');
   const [sharedLocationNote, setSharedLocationNote] = useState('');
-  const [sharedNotes, setSharedNotes] = useState('');
+  const [sharedFolderNotes, setSharedFolderNotes] = useState('');
   const [sharedMapOpen, setSharedMapOpen] = useState(false);
   const [sharedLocation, setSharedLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
+  const [nameDropdownOpen, setNameDropdownOpen] = useState(false);
+  const [nameHighlight, setNameHighlight] = useState(0);
 
-  // Load existing species folders when dialog opens
+  // When species name changes to a known folder, pre-fill folder notes from DB
   useEffect(() => {
-    if (!open || !storagePath) return;
-    readDir(storagePath)
-      .then((entries) => {
-        const folders = entries
-          .filter((e) => e.isDirectory && e.name)
-          .map((e) => e.name as string);
-        setSpeciesFolders(folders);
-      })
-      .catch(() => setSpeciesFolders([]));
-  }, [open, storagePath]);
+    if (!speciesNotesData || !sharedName) return;
+    const existing = speciesNotesData.find(
+      (sn) => sn.species_name.toLowerCase() === sharedName.toLowerCase(),
+    );
+    setSharedFolderNotes(existing?.notes ?? '');
+  }, [sharedName, speciesNotesData]);
 
   const filteredFolders = sharedName
     ? speciesFolders.filter((f) => f.toLowerCase().includes(sharedName.toLowerCase()))
-    : [];
+    : speciesFolders;
 
   const progress = useImportProgress(importing);
 
-  // Cascade shared name to all cards (no lock on name)
+  // Cascade shared name to all cards
   useEffect(() => {
     if (sharedName === '') return;
     setPending((prev) =>
@@ -148,12 +163,10 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
 
   const handleSharedMapConfirm = async (lat: number, lng: number) => {
     setSharedLocation({ lat, lng });
-    // Cascade lat/lng to all cards
     setPending((prev) =>
       prev.map((item) => ({ ...item, payload: { ...item.payload, lat, lng } })),
     );
-    // Reverse geocode → fill shared country+region (which then cascades via effects)
-    const geo = await reverseGeocode(lat, lng);
+    const geo = await reverseGeocode(lat, lng, lang);
     if (geo.country) setSharedCountry(geo.country);
     if (geo.region) setSharedRegion(geo.region);
   };
@@ -162,8 +175,6 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
   const allNamed = pending.length > 0 && pending.every((item) => item.payload.species_name.trim() !== '');
   const canImport = pending.length > 0 && allDatesSet && allNamed && !importing;
 
-  /** Apply current shared header values to a freshly-built payload.
-   *  EXIF date takes precedence over shared date when present. */
   const applyShared = (payload: ImportPayload): ImportPayload => ({
     ...payload,
     species_name: sharedName || payload.species_name,
@@ -171,8 +182,13 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
     country: sharedCountry || payload.country,
     region: sharedRegion || payload.region,
     location_note: sharedLocationNote || payload.location_note,
-    notes: sharedNotes || payload.notes,
   });
+
+  /** Extract folder name from a file path */
+  function folderFromPath(path: string): string {
+    const segments = path.replace(/\\/g, '/').split('/');
+    return segments.length >= 2 ? segments[segments.length - 2] : '';
+  }
 
   async function handlePickFiles() {
     try {
@@ -188,12 +204,6 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
           return { sourcePath: path, payload: applyShared(buildInitialPayload(path, exif)), locked: {} };
         }),
       );
-      if (!sharedName && paths.length > 0) {
-        const firstPath = paths[0];
-        const segments = firstPath.replace(/\\/g, '/').split('/');
-        const parentFolder = segments.length >= 2 ? segments[segments.length - 2] : '';
-        if (parentFolder) setSharedName(parentFolder);
-      }
       setPending((prev) => [...prev, ...items]);
     } catch (e) {
       setError(String(e));
@@ -219,6 +229,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
           return { sourcePath: path, payload: applyShared(buildInitialPayload(path, exif)), locked: {} };
         }),
       );
+      // Always update name from picked folder
       const folderName = dir.split('/').pop()?.split('\\').pop() ?? '';
       if (folderName) setSharedName(folderName);
       setPending((prev) => [...prev, ...items]);
@@ -227,7 +238,6 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
     }
   }
 
-  /** Update a card's payload. If lockField is provided, also lock that field for this card. */
   const updateAt = (index: number, updated: ImportPayload, lockField?: LockableField) => {
     setPending((prev) =>
       prev.map((item, i) => {
@@ -263,8 +273,20 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
     try {
       const payloads = pending.map((item) => item.payload);
       const summary = await importFind(storagePath, payloads);
-      toast.success(`Imported ${summary.imported.length} · Skipped ${summary.skipped.length}`);
+      // Save folder-level notes if provided
+      if (sharedName && sharedFolderNotes.trim()) {
+        await upsertSpeciesNote(storagePath, sharedName, sharedFolderNotes.trim());
+        qc.invalidateQueries({ queryKey: [SPECIES_NOTES_QUERY_KEY, storagePath] });
+      }
+      onImportComplete?.(summary.imported.length, summary.skipped.length);
       setPending([]);
+      setSharedName('');
+      setSharedDate('');
+      setSharedCountry('');
+      setSharedRegion('');
+      setSharedLocationNote('');
+      setSharedFolderNotes('');
+      setSharedLocation(null);
       qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
       onOpenChange(false);
     } catch (e) {
@@ -278,109 +300,135 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Import Photos</DialogTitle>
+          <DialogTitle>{t('import.title')}</DialogTitle>
         </DialogHeader>
 
         {/* Picker buttons */}
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handlePickFiles} disabled={importing}>
-            Pick Photos
+          <Button variant="secondary" onClick={handlePickFiles} disabled={importing}>
+            <Images className="h-4 w-4" />
+            {t('import.pickPhotos')}
           </Button>
-          <Button variant="outline" onClick={handlePickFolder} disabled={importing}>
-            Pick Folder
+          <Button variant="secondary" onClick={handlePickFolder} disabled={importing}>
+            <FolderOpen className="h-4 w-4" />
+            {t('import.pickFolder')}
           </Button>
           {pending.length > 0 && (
             <Button
               variant="ghost"
-              onClick={() => setPending([])}
+              onClick={() => { setPending([]); setSharedName(''); }}
               disabled={importing}
               className="ml-auto text-destructive"
             >
-              Clear All
+              {t('import.clearAll')}
             </Button>
           )}
         </div>
 
-        {/* Shared header — cascades to all cards */}
-        {pending.length > 0 && (
-          <div className="p-3 rounded-md border bg-muted/50 space-y-2">
-            {/* Row 1: name + map pin */}
-            <div className="flex items-center gap-2">
+        {/* Folder notes — shown always (even before picking photos) */}
+        <div className="p-3 rounded-md border bg-muted/50 space-y-2">
+          {/* Row 1: name + map pin */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
               <Input
-                className="flex-1"
-                placeholder="Mushroom name (all photos)"
+                placeholder={t('import.mushroomName')}
                 value={sharedName}
-                onChange={(e) => setSharedName(e.target.value)}
+                autoComplete="off"
+                onChange={(e) => { setSharedName(e.target.value); setNameDropdownOpen(true); setNameHighlight(0); }}
+                onFocus={() => setNameDropdownOpen(true)}
+                onBlur={() => setTimeout(() => setNameDropdownOpen(false), 150)}
+                onKeyDown={(e) => {
+                  const visible = filteredFolders.slice(0, 10);
+                  if (!nameDropdownOpen || visible.length === 0) return;
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setNameHighlight((h) => Math.min(h + 1, visible.length - 1));
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setNameHighlight((h) => Math.max(h - 1, 0));
+                  } else if (e.key === 'Enter' || e.key === 'Tab') {
+                    e.preventDefault();
+                    setSharedName(visible[nameHighlight]);
+                    setNameDropdownOpen(false);
+                  } else if (e.key === 'Escape') {
+                    setNameDropdownOpen(false);
+                  }
+                }}
               />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                aria-label="Pick shared location"
-                onClick={() => setSharedMapOpen(true)}
-              >
-                <MapPin className="h-4 w-4" />
-              </Button>
-              {sharedLocation && (
-                <span className="text-xs text-muted-foreground whitespace-nowrap">
-                  {sharedLocation.lat.toFixed(4)}, {sharedLocation.lng.toFixed(4)}
-                </span>
-              )}
-            </div>
-
-            {/* Species folder autocomplete */}
-            {sharedName && (
-              <div className="flex flex-wrap gap-1 items-center">
-                {filteredFolders.length > 0 ? (
-                  filteredFolders.slice(0, 6).map((f) => (
+              {nameDropdownOpen && filteredFolders.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto">
+                  {filteredFolders.slice(0, 10).map((f, i) => (
                     <button
                       key={f}
                       type="button"
-                      onClick={() => setSharedName(f)}
-                      className="text-xs px-2 py-0.5 rounded bg-background border hover:bg-accent transition-colors"
+                      className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${i === nameHighlight ? 'bg-accent' : 'hover:bg-accent'}`}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setSharedName(f);
+                        setNameDropdownOpen(false);
+                      }}
+                      onMouseEnter={() => setNameHighlight(i)}
                     >
                       {f}
                     </button>
-                  ))
-                ) : (
-                  <p className="text-xs text-muted-foreground">New folder will be created</p>
-                )}
-              </div>
-            )}
-
-            {/* Row 2: date + country + region + location note */}
-            <div className="grid grid-cols-2 gap-2">
-              <Input
-                type="date"
-                placeholder="Date (all photos)"
-                value={sharedDate}
-                onChange={(e) => setSharedDate(e.target.value)}
-              />
-              <Input
-                placeholder="Country (all photos)"
-                value={sharedCountry}
-                onChange={(e) => setSharedCountry(e.target.value)}
-              />
-              <Input
-                placeholder="Region (all photos)"
-                value={sharedRegion}
-                onChange={(e) => setSharedRegion(e.target.value)}
-              />
-              <Input
-                placeholder="Location mark (all photos)"
-                value={sharedLocationNote}
-                onChange={(e) => setSharedLocationNote(e.target.value)}
-              />
+                  ))}
+                </div>
+              )}
             </div>
-            {/* Notes — pre-fills new cards only, not live-cascaded */}
-            <Textarea
-              placeholder="Notes (pre-fills new photos — not linked to per-photo notes)"
-              rows={2}
-              value={sharedNotes}
-              onChange={(e) => setSharedNotes(e.target.value)}
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label={t('import.pickLocation')}
+              onClick={() => setSharedMapOpen(true)}
+            >
+              <MapPin className="h-4 w-4" />
+            </Button>
+            {sharedLocation && (
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                {sharedLocation.lat.toFixed(4)}, {sharedLocation.lng.toFixed(4)}
+              </span>
+            )}
+          </div>
+
+          {/* New folder hint when no matches */}
+          {nameDropdownOpen && sharedName && filteredFolders.length === 0 && (
+            <p className="text-xs text-muted-foreground">{t('import.newFolderHint')}</p>
+          )}
+
+          {/* Row 2: date + country + region + location note */}
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              type="date"
+              placeholder={t('import.date')}
+              value={sharedDate}
+              onChange={(e) => setSharedDate(e.target.value)}
+            />
+            <Input
+              placeholder={t('import.country')}
+              value={sharedCountry}
+              onChange={(e) => setSharedCountry(e.target.value)}
+            />
+            <Input
+              placeholder={t('import.region')}
+              value={sharedRegion}
+              onChange={(e) => setSharedRegion(e.target.value)}
+            />
+            <Input
+              placeholder={t('import.locationMark')}
+              value={sharedLocationNote}
+              onChange={(e) => setSharedLocationNote(e.target.value)}
             />
           </div>
-        )}
+
+          {/* Folder-level notes — saved to species_notes on import */}
+          <Textarea
+            placeholder={t('import.folderNotes')}
+            rows={2}
+            value={sharedFolderNotes}
+            onChange={(e) => setSharedFolderNotes(e.target.value)}
+          />
+        </div>
 
         <LocationPickerMap
           open={sharedMapOpen}
@@ -426,10 +474,10 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
         <DialogFooter>
           <div className="flex flex-col items-end gap-2 w-full">
             {pending.length > 0 && !allNamed && (
-              <p className="text-sm text-destructive">All photos must have a mushroom name before importing.</p>
+              <p className="text-sm text-destructive">{t('import.nameRequired')}</p>
             )}
             <Button onClick={handleImportAll} disabled={!canImport}>
-              Import All
+              {t('import.importAll')}
             </Button>
           </div>
         </DialogFooter>

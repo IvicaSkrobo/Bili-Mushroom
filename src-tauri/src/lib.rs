@@ -1,40 +1,10 @@
 mod commands;
 
-use tauri_plugin_sql::{Builder as SqlBuilder, Migration, MigrationKind};
-
 pub fn run() {
-    let migrations = vec![
-        Migration {
-            version: 1,
-            description: "enable_wal_and_create_schema",
-            sql: include_str!("../migrations/0001_initial.sql"),
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 2,
-            description: "create_finds_table",
-            sql: include_str!("../migrations/0002_finds.sql"),
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 3,
-            description: "create_find_photos_and_migrate",
-            sql: include_str!("../migrations/0003_find_photos.sql"),
-            kind: MigrationKind::Up,
-        },
-    ];
-
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_fs::init())
-        // NOTE: see 01-RESEARCH.md Pitfall 2 / A2 — verify migrations apply when loading DB with absolute path
-        // Migration key MUST remain "sqlite:bili-mushroom.db" — do NOT change (risk A5)
-        .plugin(
-            SqlBuilder::default()
-                .add_migrations("sqlite:bili-mushroom.db", migrations)
-                .build(),
-        )
         .invoke_handler(tauri::generate_handler![
             commands::exif::parse_exif,
             commands::import::import_find,
@@ -42,6 +12,9 @@ pub fn run() {
             commands::import::update_find,
             commands::finds::delete_find,
             commands::finds::get_find_photos,
+            commands::finds::get_species_notes,
+            commands::finds::upsert_species_note,
+            commands::finds::trash_source_file,
         ])
         .setup(|_app| Ok(()))
         .run(tauri::generate_context!())
@@ -51,33 +24,35 @@ pub fn run() {
 #[cfg(test)]
 mod smoke {
     #[test]
-    fn test_migration_vec_has_three_entries() {
-        // Validate migration vec length by constructing it inline
-        use tauri_plugin_sql::{Migration, MigrationKind};
-        let migrations = vec![
-            Migration {
-                version: 1,
-                description: "enable_wal_and_create_schema",
-                sql: include_str!("../migrations/0001_initial.sql"),
-                kind: MigrationKind::Up,
-            },
-            Migration {
-                version: 2,
-                description: "create_finds_table",
-                sql: include_str!("../migrations/0002_finds.sql"),
-                kind: MigrationKind::Up,
-            },
-            Migration {
-                version: 3,
-                description: "create_find_photos_and_migrate",
-                sql: include_str!("../migrations/0003_find_photos.sql"),
-                kind: MigrationKind::Up,
-            },
-        ];
-        assert_eq!(migrations.len(), 3, "Must have exactly 3 migrations");
-        assert_eq!(migrations[0].version, 1);
-        assert_eq!(migrations[1].version, 2);
-        assert_eq!(migrations[2].version, 3);
+    fn test_migrate_db_creates_schema_on_fresh_db() {
+        // Verify that open_db() on a fresh path applies all three migrations
+        // and produces a usable finds + find_photos schema.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_str().expect("path to str");
+        let conn = crate::commands::import::open_db(storage_path).expect("open_db");
+
+        let finds_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='finds'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("query finds");
+        assert_eq!(finds_exists, 1, "finds table must exist after open_db");
+
+        let photos_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='find_photos'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("query find_photos");
+        assert_eq!(photos_exists, 1, "find_photos table must exist after open_db");
+
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .expect("user_version");
+        assert_eq!(version, 3, "user_version must be 3 after all migrations");
     }
 
     #[test]

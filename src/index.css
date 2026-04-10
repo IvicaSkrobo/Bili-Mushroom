@@ -19,26 +19,103 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  --font-serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --font-sans: 'DM Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
 }
 
+/* ── Light mode (default) ─ Botanical Field Guide ── */
 :root {
-  --background: oklch(0.99 0 0);
-  --foreground: oklch(0.14 0.02 260);
+  --background: oklch(0.97 0.012 80);
+  --foreground: oklch(0.18 0.06 155);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.14 0.02 260);
+  --card-foreground: oklch(0.18 0.06 155);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.14 0.02 260);
-  --primary: oklch(0.45 0.14 145);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.96 0.01 260);
-  --secondary-foreground: oklch(0.20 0.02 260);
-  --muted: oklch(0.96 0.01 260);
-  --muted-foreground: oklch(0.50 0.02 260);
-  --accent: oklch(0.96 0.01 260);
-  --accent-foreground: oklch(0.20 0.02 260);
-  --destructive: oklch(0.55 0.22 27);
-  --border: oklch(0.90 0.01 260);
-  --input: oklch(0.90 0.01 260);
-  --ring: oklch(0.45 0.14 145);
-  --radius: 0.5rem;
+  --popover-foreground: oklch(0.18 0.06 155);
+  --primary: oklch(0.56 0.15 75);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.92 0.025 130);
+  --secondary-foreground: oklch(0.22 0.05 150);
+  --muted: oklch(0.93 0.01 85);
+  --muted-foreground: oklch(0.48 0.04 140);
+  --accent: oklch(0.90 0.025 130);
+  --accent-foreground: oklch(0.22 0.05 150);
+  --destructive: oklch(0.55 0.20 25);
+  --border: oklch(0.87 0.015 90);
+  --input: oklch(0.96 0.01 80);
+  --ring: oklch(0.56 0.15 75);
+  --radius: 0.4rem;
+}
+
+/* ── Dark mode ─ Forest Codex (high contrast) ── */
+.dark {
+  --background: oklch(0.13 0.015 135);
+  --foreground: oklch(0.94 0.01 90);
+  --card: oklch(0.18 0.02 132);
+  --card-foreground: oklch(0.94 0.01 90);
+  --popover: oklch(0.18 0.02 132);
+  --popover-foreground: oklch(0.94 0.01 90);
+  --primary: oklch(0.80 0.14 78);
+  --primary-foreground: oklch(0.12 0.02 80);
+  --secondary: oklch(0.24 0.03 130);
+  --secondary-foreground: oklch(0.85 0.03 110);
+  --muted: oklch(0.21 0.02 132);
+  --muted-foreground: oklch(0.62 0.04 125);
+  --accent: oklch(0.27 0.03 130);
+  --accent-foreground: oklch(0.94 0.01 90);
+  --destructive: oklch(0.60 0.20 25);
+  --border: oklch(0.30 0.025 130);
+  --input: oklch(0.21 0.02 132);
+  --ring: oklch(0.80 0.14 78);
+}
+
+/* Base */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  font-family: 'DM Sans', 'Segoe UI', system-ui, sans-serif;
+  background-color: var(--background);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Date input — suppress browser's per-segment colour highlighting */
+input[type="date"]::-webkit-datetime-edit-fields-wrapper { color: inherit !important; }
+input[type="date"]::-webkit-datetime-edit-day-field,
+input[type="date"]::-webkit-datetime-edit-month-field,
+input[type="date"]::-webkit-datetime-edit-year-field,
+input[type="date"]::-webkit-datetime-edit-text { color: inherit !important; }
+input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: pointer; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
+
+/* Tab active indicator — primary colour */
+[data-slot="tabs-trigger"][data-state="active"]::after {
+  background-color: var(--primary) !important;
+}
+
+/* Animations */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+.animate-fade-up {
+  animation: fade-up 0.3s ease-out both;
+}
+
+@keyframes stagger-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+.stagger-item {
+  animation: stagger-in 0.22s ease-out both;
 }

@@ -1,0 +1,1 @@
+ALTER TABLE finds ADD COLUMN location_note TEXT NOT NULL DEFAULT '';

@@ -25,6 +25,15 @@ export default function App() {
   const setStoragePath = useAppStore((s) => s.setStoragePath);
   const setDbReady = useAppStore((s) => s.setDbReady);
   const setDbError = useAppStore((s) => s.setDbError);
+  const theme = useAppStore((s) => s.theme);
+
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
 
   // Load persisted path on mount
   useEffect(() => {

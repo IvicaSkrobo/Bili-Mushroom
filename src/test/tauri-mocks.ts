@@ -12,16 +12,6 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
   open: vi.fn().mockResolvedValue('/tmp/test-mushroom-library'),
 }));
 
-vi.mock('@tauri-apps/plugin-sql', () => ({
-  default: {
-    load: vi.fn().mockResolvedValue({
-      execute: vi.fn().mockResolvedValue({ rowsAffected: 0, lastInsertId: 0 }),
-      select: vi.fn().mockResolvedValue([{ journal_mode: 'wal' }]),
-      close: vi.fn().mockResolvedValue(undefined),
-    }),
-  },
-}));
-
 // ---------------------------------------------------------------------------
 // @tauri-apps/api/core mock — invoke dispatch table
 // Tests can override individual handlers by mutating invokeHandlers.
