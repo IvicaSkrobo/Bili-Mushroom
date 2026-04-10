@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAppStore } from '@/stores/appStore';
 import { pickAndSaveStoragePath } from '@/lib/storage';
-import { initializeDatabase } from '@/lib/db';
 import { useT } from '@/i18n/index';
 import type { Lang } from '@/i18n/index';
 
@@ -32,13 +31,12 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     try {
       const folder = await pickAndSaveStoragePath();
       if (!folder) return;
-      setDbReady(false);
-      setStoragePath(folder);
-      await initializeDatabase(folder);
       setPendingScan(true);
-      setDbReady(true);
+      setDbReady(false);
+      setStoragePath(folder); // triggers App.tsx effect → initializeDatabase → setDbReady(true)
       onOpenChange(false);
     } catch (err) {
+      setPendingScan(false);
       setDbError(String((err as Error)?.message ?? err));
     } finally {
       setPicking(false);
