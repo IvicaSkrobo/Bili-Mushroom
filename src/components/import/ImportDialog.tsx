@@ -92,7 +92,8 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
   };
 
   const allDatesSet = pending.length > 0 && pending.every((item) => item.payload.date_found !== '');
-  const canImport = pending.length > 0 && allDatesSet && !importing;
+  const allNamed = pending.length > 0 && pending.every((item) => item.payload.species_name.trim() !== '');
+  const canImport = pending.length > 0 && allDatesSet && allNamed && !importing;
 
   async function handlePickFiles() {
     try {
@@ -272,12 +273,17 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
         )}
 
         <DialogFooter>
-          <Button
-            onClick={handleImportAll}
-            disabled={!canImport}
-          >
-            Import All
-          </Button>
+          <div className="flex flex-col items-end gap-2 w-full">
+            {pending.length > 0 && !allNamed && (
+              <p className="text-sm text-destructive">All photos must have a mushroom name before importing.</p>
+            )}
+            <Button
+              onClick={handleImportAll}
+              disabled={!canImport}
+            >
+              Import All
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
