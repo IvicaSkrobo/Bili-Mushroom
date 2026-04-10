@@ -7,7 +7,6 @@ import '@/test/tauri-mocks';
 
 const sampleFind: Find = {
   id: 1,
-  photo_path: 'Croatia/Istria/2024-05-10/Amanita_muscaria_2024-05-10_001.jpg',
   original_filename: 'shroom.jpg',
   species_name: 'Amanita muscaria',
   date_found: '2024-05-10',
@@ -17,34 +16,39 @@ const sampleFind: Find = {
   lng: 13.9,
   notes: 'Found near oak tree',
   created_at: '2024-05-10T14:00:00Z',
+  photos: [
+    { id: 1, find_id: 1, photo_path: 'Croatia/Istria/2024-05-10/Amanita_muscaria_2024-05-10_001.jpg', is_primary: true },
+  ],
 };
 
 const storageRoot = '/storage/test';
 
 describe('FindCard', () => {
   const onEdit = vi.fn();
+  const onDelete = vi.fn();
 
   beforeEach(() => {
     onEdit.mockClear();
+    onDelete.mockClear();
   });
 
   it('renders species name', () => {
-    render(<FindCard find={sampleFind} storagePath={storageRoot} onEdit={onEdit} />);
+    render(<FindCard find={sampleFind} storagePath={storageRoot} onEdit={onEdit} onDelete={onDelete} />);
     expect(screen.getByText('Amanita muscaria')).toBeInTheDocument();
   });
 
   it('renders date_found', () => {
-    render(<FindCard find={sampleFind} storagePath={storageRoot} onEdit={onEdit} />);
+    render(<FindCard find={sampleFind} storagePath={storageRoot} onEdit={onEdit} onDelete={onDelete} />);
     expect(screen.getByText('2024-05-10')).toBeInTheDocument();
   });
 
   it('renders country / region', () => {
-    render(<FindCard find={sampleFind} storagePath={storageRoot} onEdit={onEdit} />);
+    render(<FindCard find={sampleFind} storagePath={storageRoot} onEdit={onEdit} onDelete={onDelete} />);
     expect(screen.getByText('Croatia / Istria')).toBeInTheDocument();
   });
 
-  it('renders an img tag with convertFileSrc path for non-HEIC files', () => {
-    render(<FindCard find={sampleFind} storagePath={storageRoot} onEdit={onEdit} />);
+  it('renders an img tag with convertFileSrc path from photos[0].photo_path', () => {
+    render(<FindCard find={sampleFind} storagePath={storageRoot} onEdit={onEdit} onDelete={onDelete} />);
     const img = screen.getByRole('img');
     // convertFileSrc mock returns `asset://localhost/${path}`
     expect(img).toHaveAttribute(
@@ -56,22 +60,52 @@ describe('FindCard', () => {
   it('shows placeholder and no img for HEIC files', () => {
     const heicFind: Find = {
       ...sampleFind,
-      photo_path: 'Croatia/Istria/2024-05-10/mushroom.heic',
+      photos: [{ id: 1, find_id: 1, photo_path: 'Croatia/Istria/2024-05-10/mushroom.heic', is_primary: true }],
     };
-    render(<FindCard find={heicFind} storagePath={storageRoot} onEdit={onEdit} />);
+    render(<FindCard find={heicFind} storagePath={storageRoot} onEdit={onEdit} onDelete={onDelete} />);
     expect(screen.queryByRole('img')).toBeNull();
     expect(screen.getByText('HEIC')).toBeInTheDocument();
   });
 
+  it('shows no img and no crash when photos is empty', () => {
+    const emptyFind: Find = { ...sampleFind, photos: [] };
+    render(<FindCard find={emptyFind} storagePath={storageRoot} onEdit={onEdit} onDelete={onDelete} />);
+    expect(screen.queryByRole('img')).toBeNull();
+  });
+
   it('shows "(unnamed)" when species_name is empty', () => {
     const unnamed: Find = { ...sampleFind, species_name: '' };
-    render(<FindCard find={unnamed} storagePath={storageRoot} onEdit={onEdit} />);
+    render(<FindCard find={unnamed} storagePath={storageRoot} onEdit={onEdit} onDelete={onDelete} />);
     expect(screen.getByText('(unnamed)')).toBeInTheDocument();
   });
 
   it('fires onEdit with the find when Edit button is clicked', () => {
-    render(<FindCard find={sampleFind} storagePath={storageRoot} onEdit={onEdit} />);
+    render(<FindCard find={sampleFind} storagePath={storageRoot} onEdit={onEdit} onDelete={onDelete} />);
     fireEvent.click(screen.getByRole('button', { name: /edit/i }));
     expect(onEdit).toHaveBeenCalledWith(sampleFind);
+  });
+
+  it('fires onDelete with the find when Delete button is clicked', () => {
+    render(<FindCard find={sampleFind} storagePath={storageRoot} onEdit={onEdit} onDelete={onDelete} />);
+    fireEvent.click(screen.getByRole('button', { name: /delete/i }));
+    expect(onDelete).toHaveBeenCalledWith(sampleFind);
+  });
+
+  it('shows "+2 more" badge when photos.length === 3', () => {
+    const multiFind: Find = {
+      ...sampleFind,
+      photos: [
+        { id: 1, find_id: 1, photo_path: 'photo1.jpg', is_primary: true },
+        { id: 2, find_id: 1, photo_path: 'photo2.jpg', is_primary: false },
+        { id: 3, find_id: 1, photo_path: 'photo3.jpg', is_primary: false },
+      ],
+    };
+    render(<FindCard find={multiFind} storagePath={storageRoot} onEdit={onEdit} onDelete={onDelete} />);
+    expect(screen.getByText('+2 more')).toBeInTheDocument();
+  });
+
+  it('does not show count badge when photos.length === 1', () => {
+    render(<FindCard find={sampleFind} storagePath={storageRoot} onEdit={onEdit} onDelete={onDelete} />);
+    expect(screen.queryByText(/\+\d+ more/)).toBeNull();
   });
 });
