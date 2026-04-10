@@ -18,6 +18,7 @@ interface FormState {
   date_found: string;
   country: string;
   region: string;
+  location_note: string;
   lat: string;
   lng: string;
   notes: string;
@@ -29,6 +30,7 @@ function findToFormState(find: Find): FormState {
     date_found: find.date_found,
     country: find.country,
     region: find.region,
+    location_note: find.location_note,
     lat: find.lat !== null ? String(find.lat) : '',
     lng: find.lng !== null ? String(find.lng) : '',
     notes: find.notes,
@@ -48,6 +50,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     date_found: '',
     country: '',
     region: '',
+    location_note: '',
     lat: '',
     lng: '',
     notes: '',
@@ -72,6 +75,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
         date_found: form.date_found,
         country: form.country,
         region: form.region,
+        location_note: form.location_note,
         lat: form.lat !== '' ? parseFloat(form.lat) : null,
         lng: form.lng !== '' ? parseFloat(form.lng) : null,
         notes: form.notes,
@@ -121,6 +125,14 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
                 value={form.region}
                 onChange={(e) => handleChange('region', e.target.value)}
                 placeholder="Region"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="text-sm font-medium">Location mark</label>
+              <Input
+                value={form.location_note}
+                onChange={(e) => handleChange('location_note', e.target.value)}
+                placeholder="e.g. near the old oak"
               />
             </div>
           </div>

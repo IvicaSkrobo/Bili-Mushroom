@@ -107,6 +107,14 @@ export function FindPreviewCard({
                 />
               </div>
 
+              <div>
+                <Input
+                  placeholder="Location mark"
+                  value={payload.location_note}
+                  onChange={(e) => updateField('location_note', e.target.value)}
+                />
+              </div>
+
               <div className="col-span-2 flex items-center gap-2">
                 <Button
                   type="button"

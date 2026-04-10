@@ -47,6 +47,7 @@ function buildInitialPayload(path: string, exif: Awaited<ReturnType<typeof parse
     date_found: exif.date ?? '',
     country: '',
     region: '',
+    location_note: '',
     lat: exif.lat,
     lng: exif.lng,
     notes: '',
@@ -63,6 +64,24 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
   const [sharedName, setSharedName] = useState('');
   const [sharedMapOpen, setSharedMapOpen] = useState(false);
   const [sharedLocation, setSharedLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
+
+  // Load existing species folders when dialog opens
+  useEffect(() => {
+    if (!open || !storagePath) return;
+    readDir(storagePath)
+      .then((entries) => {
+        const folders = entries
+          .filter((e) => e.isDirectory && e.name)
+          .map((e) => e.name as string);
+        setSpeciesFolders(folders);
+      })
+      .catch(() => setSpeciesFolders([]));
+  }, [open, storagePath]);
+
+  const filteredFolders = sharedName
+    ? speciesFolders.filter((f) => f.toLowerCase().includes(sharedName.toLowerCase()))
+    : [];
 
   const progress = useImportProgress(importing);
 
@@ -209,26 +228,47 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
 
         {/* Shared name + location header */}
         {pending.length > 0 && (
-          <div className="flex items-center gap-2 p-3 rounded-md border bg-muted/50">
-            <Input
-              className="flex-1"
-              placeholder="Mushroom name (all photos)"
-              value={sharedName}
-              onChange={(e) => setSharedName(e.target.value)}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              aria-label="Pick shared location"
-              onClick={() => setSharedMapOpen(true)}
-            >
-              <MapPin className="h-4 w-4" />
-            </Button>
-            {sharedLocation && (
-              <span className="text-xs text-muted-foreground">
-                {sharedLocation.lat.toFixed(4)}, {sharedLocation.lng.toFixed(4)}
-              </span>
+          <div className="p-3 rounded-md border bg-muted/50 space-y-2">
+            <div className="flex items-center gap-2">
+              <Input
+                className="flex-1"
+                placeholder="Mushroom name (all photos)"
+                value={sharedName}
+                onChange={(e) => setSharedName(e.target.value)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Pick shared location"
+                onClick={() => setSharedMapOpen(true)}
+              >
+                <MapPin className="h-4 w-4" />
+              </Button>
+              {sharedLocation && (
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  {sharedLocation.lat.toFixed(4)}, {sharedLocation.lng.toFixed(4)}
+                </span>
+              )}
+            </div>
+            {/* Species folder autocomplete */}
+            {sharedName && (
+              <div className="flex flex-wrap gap-1 items-center">
+                {filteredFolders.length > 0 ? (
+                  filteredFolders.slice(0, 6).map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => setSharedName(f)}
+                      className="text-xs px-2 py-0.5 rounded bg-background border hover:bg-accent transition-colors"
+                    >
+                      {f}
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-xs text-muted-foreground">New folder will be created</p>
+                )}
+              </div>
             )}
           </div>
         )}

@@ -18,6 +18,8 @@ pub struct ImportPayload {
     pub lng: Option<f64>,
     pub notes: String,
     #[serde(default)]
+    pub location_note: String,
+    #[serde(default)]
     pub additional_photos: Vec<String>, // Mode A: extra source paths for same find
 }
 
@@ -40,6 +42,7 @@ pub struct FindRecord {
     pub lat: Option<f64>,
     pub lng: Option<f64>,
     pub notes: String,
+    pub location_note: String,
     pub created_at: String,
     pub photos: Vec<FindPhoto>,
 }
@@ -60,6 +63,7 @@ pub struct ImportProgress {
 const MIGRATION_0001: &str = include_str!("../../migrations/0001_initial.sql");
 const MIGRATION_0002: &str = include_str!("../../migrations/0002_finds.sql");
 const MIGRATION_0003: &str = include_str!("../../migrations/0003_find_photos.sql");
+const MIGRATION_0004: &str = include_str!("../../migrations/0004_location_note.sql");
 
 /// Apply all migrations to an open connection using rusqlite's user_version pragma
 /// as a lightweight migration tracker. Idempotent — safe to call on every open.
@@ -86,6 +90,12 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
         conn.execute_batch("PRAGMA user_version = 3")
             .map_err(|e| format!("Failed to set user_version=3: {}", e))?;
     }
+    if version < 4 {
+        conn.execute_batch(MIGRATION_0004)
+            .map_err(|e| format!("Migration 0004 failed: {}", e))?;
+        conn.execute_batch("PRAGMA user_version = 4")
+            .map_err(|e| format!("Failed to set user_version=4: {}", e))?;
+    }
 
     Ok(())
 }
@@ -109,8 +119,8 @@ fn is_duplicate(conn: &Connection, filename: &str, date_found: &str) -> rusqlite
 
 pub(crate) fn insert_find_row(conn: &Connection, record: &FindRecord) -> rusqlite::Result<i64> {
     conn.execute(
-        "INSERT INTO finds (original_filename, species_name, date_found, country, region, lat, lng, notes, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        "INSERT INTO finds (original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![
             record.original_filename,
             record.species_name,
@@ -120,6 +130,7 @@ pub(crate) fn insert_find_row(conn: &Connection, record: &FindRecord) -> rusqlit
             record.lat,
             record.lng,
             record.notes,
+            record.location_note,
             record.created_at,
         ],
     )?;
@@ -225,6 +236,7 @@ pub async fn import_find(
             lat: payload.lat,
             lng: payload.lng,
             notes: payload.notes.clone(),
+            location_note: payload.location_note.clone(),
             created_at,
             photos: vec![],
         };
@@ -302,7 +314,7 @@ pub async fn get_finds(storage_path: String) -> Result<Vec<FindRecord>, String> 
 
     let mut find_stmt = conn
         .prepare(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, created_at
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, created_at
              FROM finds ORDER BY date_found DESC, id DESC",
         )
         .map_err(|e| format!("Failed to prepare finds query: {}", e))?;
@@ -319,7 +331,8 @@ pub async fn get_finds(storage_path: String) -> Result<Vec<FindRecord>, String> 
                 lat: row.get(6)?,
                 lng: row.get(7)?,
                 notes: row.get(8)?,
-                created_at: row.get(9)?,
+                location_note: row.get(9)?,
+                created_at: row.get(10)?,
                 photos: vec![],
             })
         })
@@ -371,6 +384,7 @@ pub struct UpdateFindPayload {
     pub lat: Option<f64>,
     pub lng: Option<f64>,
     pub notes: String,
+    pub location_note: String,
 }
 
 #[tauri::command]
@@ -382,7 +396,7 @@ pub async fn update_find(
 
     let rows_affected = conn
         .execute(
-            "UPDATE finds SET species_name=?1, date_found=?2, country=?3, region=?4, lat=?5, lng=?6, notes=?7 WHERE id=?8",
+            "UPDATE finds SET species_name=?1, date_found=?2, country=?3, region=?4, lat=?5, lng=?6, notes=?7, location_note=?8 WHERE id=?9",
             params![
                 payload.species_name,
                 payload.date_found,
@@ -391,6 +405,7 @@ pub async fn update_find(
                 payload.lat,
                 payload.lng,
                 payload.notes,
+                payload.location_note,
                 payload.id,
             ],
         )
@@ -402,7 +417,7 @@ pub async fn update_find(
 
     let mut record = conn
         .query_row(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, created_at FROM finds WHERE id = ?1",
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, created_at FROM finds WHERE id = ?1",
             params![payload.id],
             |row| {
                 Ok(FindRecord {
@@ -415,7 +430,8 @@ pub async fn update_find(
                     lat: row.get(6)?,
                     lng: row.get(7)?,
                     notes: row.get(8)?,
-                    created_at: row.get(9)?,
+                    location_note: row.get(9)?,
+                    created_at: row.get(10)?,
                     photos: vec![],
                 })
             },
@@ -475,6 +491,7 @@ pub(crate) mod test_helpers {
             lat: Some(45.5),
             lng: Some(16.0),
             notes: "Test note".to_string(),
+            location_note: "".to_string(),
             created_at: "2024-05-10T14:23:00Z".to_string(),
             photos: vec![],
         }
@@ -780,6 +797,7 @@ mod tests {
             lat: Some(46.3),
             lng: Some(14.1),
             notes: "Updated note".to_string(),
+            location_note: "Near the oak".to_string(),
         };
 
         let updated = update_find_on_conn(&conn, &payload).expect("update");
@@ -813,6 +831,7 @@ mod tests {
             lat: None,
             lng: None,
             notes: "".to_string(),
+            location_note: "".to_string(),
         };
 
         let result = update_find_on_conn(&conn, &payload);

@@ -48,9 +48,14 @@ export function FindCard({ find, storagePath, onEdit, onDelete }: FindCardProps)
           <p className="font-semibold truncate">
             {find.species_name || '(unnamed)'}
           </p>
+          {primaryPhoto && (
+            <p className="text-xs text-muted-foreground font-mono truncate">
+              {primaryPhoto.photo_path.split('/')[0]}
+            </p>
+          )}
           <p className="text-sm text-muted-foreground">{find.date_found}</p>
           <p className="text-sm text-muted-foreground">
-            {find.country} / {find.region}
+            {find.country}{find.region ? ` / ${find.region}` : ''}{find.location_note ? ` · ${find.location_note}` : ''}
           </p>
           {(find.lat !== null && find.lng !== null) && (
             <p className="text-xs text-muted-foreground">

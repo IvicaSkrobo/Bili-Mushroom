@@ -24,6 +24,7 @@ export interface ImportPayload {
   date_found: string; // ISO YYYY-MM-DD
   country: string;
   region: string;
+  location_note: string;
   lat: number | null;
   lng: number | null;
   notes: string;
@@ -37,6 +38,7 @@ export interface Find {
   date_found: string;
   country: string;
   region: string;
+  location_note: string;
   lat: number | null;
   lng: number | null;
   notes: string;
@@ -115,6 +117,7 @@ export interface UpdateFindPayload {
   date_found: string;
   country: string;
   region: string;
+  location_note: string;
   lat: number | null;
   lng: number | null;
   notes: string;
