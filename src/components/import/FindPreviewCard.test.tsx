@@ -2,6 +2,24 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import '../../test/tauri-mocks';
+
+vi.mock('@/components/map/LocationPickerMap', () => ({
+  LocationPickerMap: vi.fn(({ open, onConfirm, onOpenChange }: {
+    open: boolean;
+    onConfirm: (lat: number, lng: number) => void;
+    onOpenChange: (open: boolean) => void;
+    initialLatLng?: { lat: number; lng: number } | null;
+  }) => {
+    if (!open) return null;
+    return (
+      <div data-testid="location-picker-map">
+        <button onClick={() => onConfirm(45.1, 13.9)}>Confirm pin</button>
+        <button onClick={() => onOpenChange(false)}>Close map</button>
+      </div>
+    );
+  }),
+}));
+
 import { FindPreviewCard } from './FindPreviewCard';
 import type { ImportPayload } from '@/lib/finds';
 
@@ -15,6 +33,7 @@ const basePayload: ImportPayload = {
   lat: 45.1,
   lng: 13.9,
   notes: 'Near oak',
+  additional_photos: [],
 };
 
 describe('FindPreviewCard', () => {
@@ -141,5 +160,81 @@ describe('FindPreviewCard', () => {
     const removeBtn = screen.getByRole('button', { name: /Remove/i });
     fireEvent.click(removeBtn);
     expect(onRemove).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders "Pick on map" button', () => {
+    render(
+      <FindPreviewCard
+        payload={basePayload}
+        sourcePath="/photos/shroom.jpg"
+        onChange={onChange}
+        onRemove={onRemove}
+      />,
+    );
+    expect(screen.getByRole('button', { name: /pick on map/i })).toBeInTheDocument();
+  });
+
+  it('opens LocationPickerMap when "Pick on map" is clicked', () => {
+    render(
+      <FindPreviewCard
+        payload={basePayload}
+        sourcePath="/photos/shroom.jpg"
+        onChange={onChange}
+        onRemove={onRemove}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /pick on map/i }));
+    expect(screen.getByTestId('location-picker-map')).toBeInTheDocument();
+  });
+
+  it('calls onChange with lat/lng from LocationPickerMap onConfirm', () => {
+    render(
+      <FindPreviewCard
+        payload={basePayload}
+        sourcePath="/photos/shroom.jpg"
+        onChange={onChange}
+        onRemove={onRemove}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /pick on map/i }));
+    fireEvent.click(screen.getByRole('button', { name: /confirm pin/i }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ lat: 45.1, lng: 13.9 }),
+    );
+  });
+
+  it('passes initialLatLng to LocationPickerMap when payload has coordinates', async () => {
+    const { LocationPickerMap: MockMap } = await import('@/components/map/LocationPickerMap');
+    render(
+      <FindPreviewCard
+        payload={basePayload}
+        sourcePath="/photos/shroom.jpg"
+        onChange={onChange}
+        onRemove={onRemove}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /pick on map/i }));
+    expect(MockMap).toHaveBeenCalledWith(
+      expect.objectContaining({ initialLatLng: { lat: 45.1, lng: 13.9 } }),
+      expect.anything(),
+    );
+  });
+
+  it('passes initialLatLng=null to LocationPickerMap when payload has no coordinates', async () => {
+    const { LocationPickerMap: MockMap } = await import('@/components/map/LocationPickerMap');
+    const noGps: ImportPayload = { ...basePayload, lat: null, lng: null };
+    render(
+      <FindPreviewCard
+        payload={noGps}
+        sourcePath="/photos/shroom.jpg"
+        onChange={onChange}
+        onRemove={onRemove}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /pick on map/i }));
+    expect(MockMap).toHaveBeenCalledWith(
+      expect.objectContaining({ initialLatLng: null }),
+      expect.anything(),
+    );
   });
 });
