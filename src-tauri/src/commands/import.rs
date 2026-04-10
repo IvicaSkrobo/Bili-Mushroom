@@ -57,9 +57,45 @@ pub struct ImportProgress {
     pub filename: String,
 }
 
+const MIGRATION_0001: &str = include_str!("../../migrations/0001_initial.sql");
+const MIGRATION_0002: &str = include_str!("../../migrations/0002_finds.sql");
+const MIGRATION_0003: &str = include_str!("../../migrations/0003_find_photos.sql");
+
+/// Apply all migrations to an open connection using rusqlite's user_version pragma
+/// as a lightweight migration tracker. Idempotent — safe to call on every open.
+fn migrate_db(conn: &Connection) -> Result<(), String> {
+    let version: i64 = conn
+        .query_row("PRAGMA user_version", [], |r| r.get(0))
+        .map_err(|e| format!("Failed to read user_version: {}", e))?;
+
+    if version < 1 {
+        conn.execute_batch(MIGRATION_0001)
+            .map_err(|e| format!("Migration 0001 failed: {}", e))?;
+        conn.execute_batch("PRAGMA user_version = 1")
+            .map_err(|e| format!("Failed to set user_version=1: {}", e))?;
+    }
+    if version < 2 {
+        conn.execute_batch(MIGRATION_0002)
+            .map_err(|e| format!("Migration 0002 failed: {}", e))?;
+        conn.execute_batch("PRAGMA user_version = 2")
+            .map_err(|e| format!("Failed to set user_version=2: {}", e))?;
+    }
+    if version < 3 {
+        conn.execute_batch(MIGRATION_0003)
+            .map_err(|e| format!("Migration 0003 failed: {}", e))?;
+        conn.execute_batch("PRAGMA user_version = 3")
+            .map_err(|e| format!("Failed to set user_version=3: {}", e))?;
+    }
+
+    Ok(())
+}
+
 pub(crate) fn open_db(storage_path: &str) -> Result<Connection, String> {
     let db_path = format!("{}/bili-mushroom.db", storage_path);
-    Connection::open(&db_path).map_err(|e| format!("Failed to open DB at {}: {}", db_path, e))
+    let conn = Connection::open(&db_path)
+        .map_err(|e| format!("Failed to open DB at {}: {}", db_path, e))?;
+    migrate_db(&conn)?;
+    Ok(conn)
 }
 
 fn is_duplicate(conn: &Connection, filename: &str, date_found: &str) -> rusqlite::Result<bool> {
@@ -143,10 +179,8 @@ pub async fn import_find(
         // Build destination folder (without filename) to determine sequence
         let dest_full = build_dest_path(
             &storage_path,
-            &payload.country,
-            &payload.region,
-            &payload.date_found,
             &payload.species_name,
+            &payload.date_found,
             1, // temporary seq — we'll recompute
             &ext,
         );
@@ -162,10 +196,8 @@ pub async fn import_find(
         let seq = next_seq_for_folder(dest_folder);
         let dest_path = build_dest_path(
             &storage_path,
-            &payload.country,
-            &payload.region,
-            &payload.date_found,
             &payload.species_name,
+            &payload.date_found,
             seq,
             &ext,
         );
@@ -221,10 +253,8 @@ pub async fn import_find(
             let add_seq = next_seq_for_folder(dest_folder);
             let add_dest_path = build_dest_path(
                 &storage_path,
-                &payload.country,
-                &payload.region,
-                &payload.date_found,
                 &payload.species_name,
+                &payload.date_found,
                 add_seq,
                 &add_ext,
             );

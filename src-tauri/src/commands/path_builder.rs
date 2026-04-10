@@ -39,26 +39,20 @@ pub fn resolve_location_component(value: &str, fallback: &str) -> String {
 
 /// Build the full destination path for a find's photo file.
 ///
-/// Pattern: `<storage_root>/<country>/<region>/<date>/<species>_<date>_<seq:03><ext>`
-/// Falls back to `unknown_country`, `unknown_region`, `unknown_species` if the sanitized values are empty.
+/// Pattern: `<storage_root>/<species_folder>/<date>_<seq:03><ext>`
+/// Falls back to `unknown_species` if the sanitized species value is empty.
 pub fn build_dest_path(
     storage_root: &str,
-    country: &str,
-    region: &str,
-    date: &str,
     species: &str,
+    date: &str,
     seq: u32,
     ext: &str,
 ) -> PathBuf {
-    let country_part = resolve_location_component(country, "unknown_country");
-    let region_part = resolve_location_component(region, "unknown_region");
-    let species_part = resolve_location_component(species, "unknown_species");
-    let filename = format!("{}_{}_{:03}{}", species_part, date, seq, ext);
+    let species_folder = resolve_location_component(species, "unknown_species");
+    let filename = format!("{}_{:03}{}", date, seq, ext);
 
     let mut path = PathBuf::from(storage_root);
-    path.push(&country_part);
-    path.push(&region_part);
-    path.push(date);
+    path.push(&species_folder);
     path.push(&filename);
     path
 }
@@ -84,39 +78,25 @@ mod tests {
     fn test_build_dest_path_standard() {
         let result = build_dest_path(
             "/root",
-            "Croatia",
-            "Gorski Kotar",
-            "2024-05-10",
             "Boletus edulis",
+            "2024-05-10",
             1,
             ".jpg",
         );
-        // Check components rather than full string for cross-platform compatibility
-        let components: Vec<_> = result.components().collect();
-        // Find the relevant suffix: Country/Region/Date/Filename
         let path_str = result.to_string_lossy();
         assert!(
-            path_str.contains("Croatia"),
-            "Expected Croatia in path, got: {}",
+            path_str.contains("Boletus_edulis"),
+            "Expected Boletus_edulis folder in path, got: {}",
             path_str
         );
         assert!(
-            path_str.contains("Gorski_Kotar"),
-            "Expected Gorski_Kotar in path, got: {}",
-            path_str
-        );
-        assert!(
-            path_str.contains("2024-05-10"),
-            "Expected 2024-05-10 in path, got: {}",
-            path_str
-        );
-        assert!(
-            path_str.contains("Boletus_edulis_2024-05-10_001.jpg"),
-            "Expected Boletus_edulis_2024-05-10_001.jpg in path, got: {}",
+            path_str.contains("2024-05-10_001.jpg"),
+            "Expected 2024-05-10_001.jpg filename in path, got: {}",
             path_str
         );
         // Verify the path has root component
-        assert!(components.len() >= 5, "Expected at least 5 path components");
+        let components: Vec<_> = result.components().collect();
+        assert!(components.len() >= 3, "Expected at least 3 path components");
     }
 
     #[test]
@@ -161,12 +141,12 @@ mod tests {
     }
 
     #[test]
-    fn test_build_dest_path_empty_country_uses_fallback() {
-        let result = build_dest_path("/root", "", "Region", "2024-05-10", "Species", 1, ".jpg");
+    fn test_build_dest_path_empty_species_uses_fallback() {
+        let result = build_dest_path("/root", "", "2024-05-10", 1, ".jpg");
         let path_str = result.to_string_lossy();
         assert!(
-            path_str.contains("unknown_country"),
-            "Expected unknown_country fallback, got: {}",
+            path_str.contains("unknown_species"),
+            "Expected unknown_species fallback, got: {}",
             path_str
         );
     }
