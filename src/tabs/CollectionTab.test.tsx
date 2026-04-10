@@ -23,7 +23,6 @@ vi.mock('lucide-react', async (importOriginal) => {
 
 const find1: Find = {
   id: 1,
-  photo_path: 'Croatia/Istria/2024-05-10/Amanita_muscaria_001.jpg',
   original_filename: 'shroom1.jpg',
   species_name: 'Amanita muscaria',
   date_found: '2024-05-10',
@@ -33,11 +32,13 @@ const find1: Find = {
   lng: 13.9,
   notes: '',
   created_at: '2024-05-10T14:00:00Z',
+  photos: [
+    { id: 1, find_id: 1, photo_path: 'Croatia/Istria/2024-05-10/Amanita_muscaria_001.jpg', is_primary: true },
+  ],
 };
 
 const find2: Find = {
   id: 2,
-  photo_path: 'Croatia/Istria/2024-06-01/Boletus_edulis_001.jpg',
   original_filename: 'shroom2.jpg',
   species_name: 'Boletus edulis',
   date_found: '2024-06-01',
@@ -47,6 +48,9 @@ const find2: Find = {
   lng: 14.0,
   notes: '',
   created_at: '2024-06-01T10:00:00Z',
+  photos: [
+    { id: 2, find_id: 2, photo_path: 'Croatia/Istria/2024-06-01/Boletus_edulis_001.jpg', is_primary: true },
+  ],
 };
 
 function makeQueryClient() {

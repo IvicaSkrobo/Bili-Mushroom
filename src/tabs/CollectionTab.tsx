@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ImportDialog } from '@/components/import/ImportDialog';
 import { FindCard } from '@/components/finds/FindCard';
 import { EditFindDialog } from '@/components/finds/EditFindDialog';
+import { DeleteFindDialog } from '@/components/finds/DeleteFindDialog';
 import { useFinds } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import type { Find } from '@/lib/finds';
@@ -15,6 +16,7 @@ export default function CollectionTab() {
   const { data: finds, isLoading, isError, error } = useFinds();
   const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<Find | null>(null);
+  const [deleting, setDeleting] = useState<Find | null>(null);
 
   return (
     <div className="p-4 space-y-4">
@@ -44,6 +46,7 @@ export default function CollectionTab() {
               find={f}
               storagePath={storagePath!}
               onEdit={() => setEditing(f)}
+              onDelete={() => setDeleting(f)}
             />
           ))}
         </div>
@@ -52,6 +55,10 @@ export default function CollectionTab() {
       <EditFindDialog
         find={editing}
         onOpenChange={(open) => !open && setEditing(null)}
+      />
+      <DeleteFindDialog
+        find={deleting}
+        onOpenChange={(open) => !open && setDeleting(null)}
       />
     </div>
   );
