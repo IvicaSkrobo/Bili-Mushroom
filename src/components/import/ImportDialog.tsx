@@ -46,6 +46,7 @@ function buildInitialPayload(path: string, exif: Awaited<ReturnType<typeof parse
     lat: exif.lat,
     lng: exif.lng,
     notes: '',
+    additional_photos: [],
   };
 }
 
