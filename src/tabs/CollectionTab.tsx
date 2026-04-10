@@ -38,6 +38,18 @@ export default function CollectionTab() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [moveTarget, setMoveTarget] = useState('');
+  const [moveDropdownOpen, setMoveDropdownOpen] = useState(false);
+  const [moveHighlight, setMoveHighlight] = useState(0);
+
+  const speciesNames = useMemo(
+    () => groups.map(([name]) => name).filter((n) => n !== '(unnamed)'),
+    [groups],
+  );
+  const filteredSpecies = useMemo(() => {
+    if (!moveTarget.trim()) return speciesNames;
+    const q = moveTarget.trim().toLowerCase();
+    return speciesNames.filter((n) => n.toLowerCase().includes(q));
+  }, [speciesNames, moveTarget]);
   const bulkRename = useBulkRenameSpecies();
 
   const toggleSelect = (id: number) => {
@@ -65,6 +77,7 @@ export default function CollectionTab() {
     setSelectMode(false);
     setSelectedIds(new Set());
     setMoveTarget('');
+    setMoveDropdownOpen(false);
   };
 
   const handleBulkMoveSuccess = () => {
@@ -197,14 +210,54 @@ export default function CollectionTab() {
       {/* Bulk action bar — visible in select mode when items are selected */}
       {selectMode && selectedIds.size > 0 && (
         <div className="flex items-center gap-2 px-4 py-2 border-b border-border/60 bg-card/40">
-          <input
-            type="text"
-            value={moveTarget}
-            onChange={(e) => setMoveTarget(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleBulkMove()}
-            placeholder={t('collection.moveTargetPlaceholder')}
-            className="h-8 flex-1 min-w-0 rounded-md border border-border bg-input px-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40 transition-colors"
-          />
+          <div className="relative flex-1 min-w-0">
+            <input
+              type="text"
+              value={moveTarget}
+              onChange={(e) => { setMoveTarget(e.target.value); setMoveDropdownOpen(true); setMoveHighlight(0); }}
+              onFocus={() => setMoveDropdownOpen(true)}
+              onBlur={() => setTimeout(() => setMoveDropdownOpen(false), 150)}
+              onKeyDown={(e) => {
+                const visible = filteredSpecies.slice(0, 8);
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  setMoveHighlight((h) => Math.min(h + 1, visible.length - 1));
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setMoveHighlight((h) => Math.max(h - 1, 0));
+                } else if ((e.key === 'Enter' || e.key === 'Tab') && moveDropdownOpen && visible.length > 0) {
+                  e.preventDefault();
+                  setMoveTarget(visible[moveHighlight]);
+                  setMoveDropdownOpen(false);
+                } else if (e.key === 'Enter' && !moveDropdownOpen) {
+                  handleBulkMove();
+                } else if (e.key === 'Escape') {
+                  setMoveDropdownOpen(false);
+                }
+              }}
+              placeholder={t('collection.moveTargetPlaceholder')}
+              className="h-8 w-full rounded-md border border-border bg-input px-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40 transition-colors"
+            />
+            {moveDropdownOpen && filteredSpecies.length > 0 && (
+              <div className="absolute z-50 w-full top-full mt-0.5 bg-popover border border-border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                {filteredSpecies.slice(0, 8).map((name, i) => (
+                  <button
+                    key={name}
+                    type="button"
+                    className={`w-full text-left px-3 py-1.5 text-sm font-serif transition-colors ${i === moveHighlight ? 'bg-accent text-accent-foreground' : 'hover:bg-accent'}`}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setMoveTarget(name);
+                      setMoveDropdownOpen(false);
+                    }}
+                    onMouseEnter={() => setMoveHighlight(i)}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <Button
             size="sm"
             variant="secondary"
