@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { readDir } from '@tauri-apps/plugin-fs';
 import {
   Dialog,
   DialogContent,
@@ -11,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useUpdateFind } from '@/hooks/useFinds';
+import { useAppStore } from '@/stores/appStore';
 import type { Find } from '@/lib/finds';
 
 interface FormState {
@@ -43,7 +45,9 @@ interface EditFindDialogProps {
 }
 
 export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
+  const storagePath = useAppStore((s) => s.storagePath);
   const updateMutation = useUpdateFind();
+  const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
 
   const [form, setForm] = useState<FormState>({
     species_name: '',
@@ -57,10 +61,24 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   });
 
   useEffect(() => {
-    if (find) {
-      setForm(findToFormState(find));
-    }
+    if (find) setForm(findToFormState(find));
   }, [find]);
+
+  // Load species folders when dialog opens
+  useEffect(() => {
+    if (!find || !storagePath) return;
+    readDir(storagePath)
+      .then((entries) => {
+        setSpeciesFolders(
+          entries.filter((e) => e.isDirectory && e.name).map((e) => e.name as string),
+        );
+      })
+      .catch(() => setSpeciesFolders([]));
+  }, [find, storagePath]);
+
+  const filteredFolders = form.species_name
+    ? speciesFolders.filter((f) => f.toLowerCase().includes(form.species_name.toLowerCase()))
+    : [];
 
   function handleChange(field: keyof FormState, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -80,9 +98,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
         lng: form.lng !== '' ? parseFloat(form.lng) : null,
         notes: form.notes,
       },
-      {
-        onSuccess: () => onOpenChange(false),
-      },
+      { onSuccess: () => onOpenChange(false) },
     );
   }
 
@@ -101,6 +117,21 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
               onChange={(e) => handleChange('species_name', e.target.value)}
               placeholder="Species name"
             />
+            {/* Autocomplete from existing folders */}
+            {filteredFolders.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1">
+                {filteredFolders.slice(0, 6).map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => handleChange('species_name', f)}
+                    className="text-xs px-2 py-0.5 rounded bg-muted border hover:bg-accent transition-colors"
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div>
             <label className="text-sm font-medium">Date found</label>
@@ -169,9 +200,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
 
         {updateMutation.isError && (
           <Alert variant="destructive" role="alert">
-            <AlertDescription>
-              {String(updateMutation.error)}
-            </AlertDescription>
+            <AlertDescription>{String(updateMutation.error)}</AlertDescription>
           </Alert>
         )}
 

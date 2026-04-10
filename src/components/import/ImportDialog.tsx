@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { FindPreviewCard } from './FindPreviewCard';
@@ -71,6 +72,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
   const [sharedCountry, setSharedCountry] = useState('');
   const [sharedRegion, setSharedRegion] = useState('');
   const [sharedLocationNote, setSharedLocationNote] = useState('');
+  const [sharedNotes, setSharedNotes] = useState('');
   const [sharedMapOpen, setSharedMapOpen] = useState(false);
   const [sharedLocation, setSharedLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
@@ -160,6 +162,18 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
   const allNamed = pending.length > 0 && pending.every((item) => item.payload.species_name.trim() !== '');
   const canImport = pending.length > 0 && allDatesSet && allNamed && !importing;
 
+  /** Apply current shared header values to a freshly-built payload.
+   *  EXIF date takes precedence over shared date when present. */
+  const applyShared = (payload: ImportPayload): ImportPayload => ({
+    ...payload,
+    species_name: sharedName || payload.species_name,
+    date_found: payload.date_found || sharedDate,
+    country: sharedCountry || payload.country,
+    region: sharedRegion || payload.region,
+    location_note: sharedLocationNote || payload.location_note,
+    notes: sharedNotes || payload.notes,
+  });
+
   async function handlePickFiles() {
     try {
       const selected = await openDialog({
@@ -171,7 +185,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
       const items: PendingItem[] = await Promise.all(
         paths.map(async (path) => {
           const exif = await parseExif(path);
-          return { sourcePath: path, payload: buildInitialPayload(path, exif), locked: {} };
+          return { sourcePath: path, payload: applyShared(buildInitialPayload(path, exif)), locked: {} };
         }),
       );
       if (!sharedName && paths.length > 0) {
@@ -202,7 +216,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
       const items: PendingItem[] = await Promise.all(
         imagePaths.map(async (path) => {
           const exif = await parseExif(path);
-          return { sourcePath: path, payload: buildInitialPayload(path, exif), locked: {} };
+          return { sourcePath: path, payload: applyShared(buildInitialPayload(path, exif)), locked: {} };
         }),
       );
       const folderName = dir.split('/').pop()?.split('\\').pop() ?? '';
@@ -358,6 +372,13 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
                 onChange={(e) => setSharedLocationNote(e.target.value)}
               />
             </div>
+            {/* Notes — pre-fills new cards only, not live-cascaded */}
+            <Textarea
+              placeholder="Notes (pre-fills new photos — not linked to per-photo notes)"
+              rows={2}
+              value={sharedNotes}
+              onChange={(e) => setSharedNotes(e.target.value)}
+            />
           </div>
         )}
 
