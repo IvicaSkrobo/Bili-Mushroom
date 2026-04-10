@@ -153,6 +153,16 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
           <Button variant="outline" onClick={handlePickFolder} disabled={importing}>
             Pick Folder
           </Button>
+          {pending.length > 0 && (
+            <Button
+              variant="ghost"
+              onClick={() => setPending([])}
+              disabled={importing}
+              className="ml-auto text-destructive"
+            >
+              Clear All
+            </Button>
+          )}
         </div>
 
         {/* Preview list */}
