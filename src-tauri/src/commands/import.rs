@@ -188,48 +188,58 @@ pub async fn import_find(
             Err(e) => return Err(format!("Duplicate check failed: {}", e)),
         }
 
-        // Determine destination extension
-        let ext = Path::new(&payload.source_path)
-            .extension()
-            .map(|e| format!(".{}", e.to_string_lossy().to_lowercase()))
-            .unwrap_or_else(|| ".jpg".to_string());
+        // If source is already inside storage_path, register it in-place — no copy, no delete.
+        // This handles auto-import where the user picks their existing mushroom library folder.
+        let src_path = Path::new(&payload.source_path);
+        let storage_path_buf = Path::new(&storage_path);
+        let is_already_in_storage = src_path.starts_with(storage_path_buf);
 
-        // Build destination folder (without filename) to determine sequence
-        let dest_full = build_dest_path(
-            &storage_path,
-            &payload.species_name,
-            &payload.date_found,
-            1, // temporary seq — we'll recompute
-            &ext,
-        );
-        let dest_folder = dest_full
-            .parent()
-            .ok_or_else(|| "Could not determine destination folder".to_string())?;
+        let primary_photo_path = if is_already_in_storage {
+            src_path
+                .strip_prefix(storage_path_buf)
+                .map(|p| p.to_string_lossy().replace('\\', "/").to_string())
+                .unwrap_or_else(|_| payload.source_path.clone())
+        } else {
+            // Determine destination extension
+            let ext = src_path
+                .extension()
+                .map(|e| format!(".{}", e.to_string_lossy().to_lowercase()))
+                .unwrap_or_else(|| ".jpg".to_string());
 
-        // Create directory
-        std::fs::create_dir_all(dest_folder)
-            .map_err(|e| format!("Failed to create directory {:?}: {}", dest_folder, e))?;
+            // Build destination folder to determine sequence
+            let dest_full = build_dest_path(
+                &storage_path,
+                &payload.species_name,
+                &payload.date_found,
+                1,
+                &ext,
+            );
+            let dest_folder = dest_full
+                .parent()
+                .ok_or_else(|| "Could not determine destination folder".to_string())?;
 
-        // Compute actual sequence for primary photo
-        let seq = next_seq_for_folder(dest_folder);
-        let dest_path = build_dest_path(
-            &storage_path,
-            &payload.species_name,
-            &payload.date_found,
-            seq,
-            &ext,
-        );
+            std::fs::create_dir_all(dest_folder)
+                .map_err(|e| format!("Failed to create directory {:?}: {}", dest_folder, e))?;
 
-        // Move primary file (copy then delete source — works across filesystems/USB drives)
-        std::fs::copy(&payload.source_path, &dest_path)
-            .map_err(|e| format!("Failed to copy {:?} to {:?}: {}", payload.source_path, dest_path, e))?;
-        let _ = std::fs::remove_file(&payload.source_path); // best-effort; ignore failure (e.g. read-only USB)
+            let seq = next_seq_for_folder(dest_folder);
+            let dest_path = build_dest_path(
+                &storage_path,
+                &payload.species_name,
+                &payload.date_found,
+                seq,
+                &ext,
+            );
 
-        // Compute relative photo_path (forward-slash for cross-platform)
-        let primary_photo_path = dest_path
-            .strip_prefix(&storage_path)
-            .map(|p| p.to_string_lossy().replace('\\', "/").trim_start_matches('/').to_string())
-            .unwrap_or_else(|_| dest_path.to_string_lossy().to_string());
+            // Copy then delete source — works across filesystems/USB drives
+            std::fs::copy(&payload.source_path, &dest_path)
+                .map_err(|e| format!("Failed to copy {:?} to {:?}: {}", payload.source_path, dest_path, e))?;
+            let _ = std::fs::remove_file(&payload.source_path); // best-effort; ignore on read-only USB
+
+            dest_path
+                .strip_prefix(&storage_path)
+                .map(|p| p.to_string_lossy().replace('\\', "/").trim_start_matches('/').to_string())
+                .unwrap_or_else(|_| dest_path.to_string_lossy().to_string())
+        };
 
         // created_at ISO 8601
         let created_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
@@ -256,6 +266,10 @@ pub async fn import_find(
         insert_find_photo(&conn, new_id, &primary_photo_path, true)
             .map_err(|e| format!("DB insert primary photo failed: {}", e))?;
 
+        // Compute add_dest_folder before primary_photo_path is moved
+        let primary_abs = storage_path_buf.join(&primary_photo_path);
+        let add_dest_folder = primary_abs.parent().unwrap_or(storage_path_buf);
+
         let mut photos: Vec<FindPhoto> = vec![FindPhoto {
             id: conn.last_insert_rowid(),
             find_id: new_id,
@@ -263,14 +277,14 @@ pub async fn import_find(
             is_primary: true,
         }];
 
-        // Mode A: handle additional_photos
+        // Mode A: handle additional_photos (always copied to storage, never in-place)
         for additional_src in &payload.additional_photos {
             let add_ext = Path::new(additional_src)
                 .extension()
                 .map(|e| format!(".{}", e.to_string_lossy().to_lowercase()))
                 .unwrap_or_else(|| ".jpg".to_string());
 
-            let add_seq = next_seq_for_folder(dest_folder);
+            let add_seq = next_seq_for_folder(add_dest_folder);
             let add_dest_path = build_dest_path(
                 &storage_path,
                 &payload.species_name,
