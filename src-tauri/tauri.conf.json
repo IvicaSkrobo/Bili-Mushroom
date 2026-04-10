@@ -48,9 +48,7 @@
     },
     "macOS": {
       "entitlements": "Entitlements.plist",
-      "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Bili Mushroom uses your location to set the find location on the map."
-      }
+      "infoPlist": "Info.plist"
     }
   }
 }
