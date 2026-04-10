@@ -25,6 +25,7 @@ import {
   SUPPORTED_EXTENSIONS,
   type ImportPayload,
 } from '@/lib/finds';
+import { reverseGeocode } from '@/lib/geocoding';
 import { useAppStore } from '@/stores/appStore';
 
 interface PendingItem {
@@ -73,11 +74,21 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
     );
   }, [sharedName]);
 
-  const handleSharedMapConfirm = (lat: number, lng: number) => {
+  const handleSharedMapConfirm = async (lat: number, lng: number) => {
     setSharedLocation({ lat, lng });
     setPending((prev) =>
       prev.map((item) => ({ ...item, payload: { ...item.payload, lat, lng } })),
     );
+    // Reverse geocode and cascade country+region to all cards
+    const geo = await reverseGeocode(lat, lng);
+    if (geo.country || geo.region) {
+      setPending((prev) =>
+        prev.map((item) => ({
+          ...item,
+          payload: { ...item.payload, country: geo.country, region: geo.region },
+        })),
+      );
+    }
   };
 
   const allDatesSet = pending.length > 0 && pending.every((item) => item.payload.date_found !== '');
@@ -102,6 +113,13 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
           return { sourcePath: path, payload: buildInitialPayload(path, exif) };
         }),
       );
+      // Pre-fill sharedName from parent folder (same as handlePickFolder)
+      if (!sharedName && paths.length > 0) {
+        const firstPath = paths[0];
+        const segments = firstPath.replace(/\\/g, '/').split('/');
+        const parentFolder = segments.length >= 2 ? segments[segments.length - 2] : '';
+        if (parentFolder) setSharedName(parentFolder);
+      }
       setPending((prev) => [...prev, ...items]);
     } catch (e) {
       setError(String(e));

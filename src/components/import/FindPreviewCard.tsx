@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
 import { isHeic, type ImportPayload } from '@/lib/finds';
+import { reverseGeocode } from '@/lib/geocoding';
 
 interface FindPreviewCardProps {
   payload: ImportPayload;
@@ -27,8 +28,12 @@ export function FindPreviewCard({
     onChange({ ...payload, [key]: value });
   };
 
-  const handleMapConfirm = (lat: number, lng: number) => {
+  const handleMapConfirm = async (lat: number, lng: number) => {
     onChange({ ...payload, lat, lng });
+    const geo = await reverseGeocode(lat, lng);
+    if (geo.country || geo.region) {
+      onChange({ ...payload, lat, lng, country: geo.country, region: geo.region });
+    }
   };
 
   const isHeicFile = isHeic(payload.original_filename);
