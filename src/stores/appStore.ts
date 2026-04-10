@@ -13,7 +13,7 @@ export interface AppState {
   theme: Theme;
   pendingScan: boolean;
   setActiveTab: (tab: Tab) => void;
-  setStoragePath: (path: string) => void;
+  setStoragePath: (path: string | null) => void;
   setDbReady: (ready: boolean) => void;
   setDbError: (error: string | null) => void;
   setLanguage: (lang: Lang) => void;

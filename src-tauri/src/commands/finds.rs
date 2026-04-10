@@ -89,6 +89,13 @@ pub async fn trash_source_file(path: String) -> Result<(), String> {
     trash::delete(&path).map_err(|e| format!("Failed to trash '{}': {}", path, e))
 }
 
+/// Terminate the process immediately. Used by the DB error dialog's Quit button.
+/// getCurrentWindow().close() on macOS only closes the window, leaving the process alive.
+#[tauri::command]
+pub async fn quit_app() {
+    std::process::exit(0);
+}
+
 #[tauri::command]
 pub async fn delete_find(
     storage_path: String,

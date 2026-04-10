@@ -67,7 +67,17 @@ export default function App() {
   }
 
   if (dbError) {
-    return <MigrationErrorDialog errorMessage={dbError} onQuit={handleQuit} />;
+    return (
+      <MigrationErrorDialog
+        errorMessage={dbError}
+        onReset={() => {
+          setDbError(null);
+          setStoragePath(null);
+          setDbReady(false);
+          setPendingScan(false);
+        }}
+      />
+    );
   }
 
   if (!storagePath) {
