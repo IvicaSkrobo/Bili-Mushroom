@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import L from 'leaflet';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import { MapContainer, Marker, useMapEvents, useMap } from 'react-leaflet';
+import { tileLayerOffline } from 'leaflet.offline';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+import { LocateFixed } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
@@ -26,6 +29,30 @@ interface LocationPickerMapProps {
   onConfirm: (lat: number, lng: number) => void;
 }
 
+/** Adds an offline-capable OSM tile layer using leaflet.offline.
+ *  Tiles are cached in IndexedDB on first load and served from cache when offline.
+ *  Uncached areas show grey boxes but the map stays fully interactive. */
+function OfflineTileLayer() {
+  const map = useMap();
+
+  useEffect(() => {
+    const layer = tileLayerOffline(
+      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19,
+        // Attempt network first; fall back to IndexedDB automatically
+      },
+    );
+    layer.addTo(map);
+    return () => {
+      layer.remove();
+    };
+  }, [map]);
+
+  return null;
+}
+
 function ClickHandler({ onPick }: { onPick: (latlng: L.LatLng) => void }) {
   useMapEvents({
     click(e) {
@@ -33,6 +60,49 @@ function ClickHandler({ onPick }: { onPick: (latlng: L.LatLng) => void }) {
     },
   });
   return null;
+}
+
+function LocateMeButton({ onLocate }: { onLocate: (latlng: L.LatLng) => void }) {
+  const map = useMap();
+  const [locating, setLocating] = useState(false);
+
+  const handleLocate = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation not supported');
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
+        map.flyTo(latlng, 13);
+        onLocate(latlng);
+        setLocating(false);
+      },
+      (err) => {
+        toast.error(`Location unavailable: ${err.message}`);
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  };
+
+  return (
+    <div className="absolute top-2 right-2 z-[1000]">
+      <Button
+        type="button"
+        variant="secondary"
+        size="icon"
+        onClick={handleLocate}
+        disabled={locating}
+        aria-label="Use my location"
+        title="Use my location"
+        className="h-8 w-8 shadow-md"
+      >
+        <LocateFixed className={`h-4 w-4 ${locating ? 'animate-pulse' : ''}`} />
+      </Button>
+    </div>
+  );
 }
 
 export function LocationPickerMap({
@@ -45,9 +115,10 @@ export function LocationPickerMap({
     initialLatLng ? L.latLng(initialLatLng.lat, initialLatLng.lng) : null,
   );
 
+  // Default center: Croatia (45.1, 15.2) — zoom 7 shows the whole country
   const center: [number, number] = initialLatLng
     ? [initialLatLng.lat, initialLatLng.lng]
-    : [45.1, 15.2]; // Croatia region default
+    : [45.1, 15.2];
 
   const handleConfirm = () => {
     if (pin) {
@@ -62,7 +133,7 @@ export function LocationPickerMap({
         <DialogHeader>
           <DialogTitle>Pick location</DialogTitle>
         </DialogHeader>
-        <div style={{ height: 400 }}>
+        <div style={{ height: 400, position: 'relative' }}>
           {open && (
             <MapContainer
               key={String(open)}
@@ -70,11 +141,9 @@ export function LocationPickerMap({
               zoom={initialLatLng ? 13 : 7}
               style={{ height: '100%', width: '100%' }}
             >
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
+              <OfflineTileLayer />
               <ClickHandler onPick={setPin} />
+              <LocateMeButton onLocate={setPin} />
               {pin && <Marker position={pin} />}
             </MapContainer>
           )}

@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { readDir } from '@tauri-apps/plugin-fs';
 import { useQueryClient } from '@tanstack/react-query';
+import { MapPin } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -11,10 +12,12 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { FindPreviewCard } from './FindPreviewCard';
 import { useImportProgress } from './useImportProgress';
+import { LocationPickerMap } from '@/components/map/LocationPickerMap';
 import {
   parseExif,
   importFind,
@@ -56,8 +59,26 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
   const [pending, setPending] = useState<PendingItem[]>([]);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sharedName, setSharedName] = useState('');
+  const [sharedMapOpen, setSharedMapOpen] = useState(false);
+  const [sharedLocation, setSharedLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   const progress = useImportProgress(importing);
+
+  // Cascade shared name to all pending items when sharedName changes (non-empty only)
+  useEffect(() => {
+    if (sharedName === '') return;
+    setPending((prev) =>
+      prev.map((item) => ({ ...item, payload: { ...item.payload, species_name: sharedName } })),
+    );
+  }, [sharedName]);
+
+  const handleSharedMapConfirm = (lat: number, lng: number) => {
+    setSharedLocation({ lat, lng });
+    setPending((prev) =>
+      prev.map((item) => ({ ...item, payload: { ...item.payload, lat, lng } })),
+    );
+  };
 
   const allDatesSet = pending.length > 0 && pending.every((item) => item.payload.date_found !== '');
   const canImport = pending.length > 0 && allDatesSet && !importing;
@@ -106,6 +127,8 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
           return { sourcePath: path, payload: buildInitialPayload(path, exif) };
         }),
       );
+      const folderName = dir.split('/').pop()?.split('\\').pop() ?? '';
+      if (folderName) setSharedName(folderName);
       setPending((prev) => [...prev, ...items]);
     } catch (e) {
       setError(String(e));
@@ -164,6 +187,39 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
             </Button>
           )}
         </div>
+
+        {/* Shared name + location header */}
+        {pending.length > 0 && (
+          <div className="flex items-center gap-2 p-3 rounded-md border bg-muted/50">
+            <Input
+              className="flex-1"
+              placeholder="Mushroom name (all photos)"
+              value={sharedName}
+              onChange={(e) => setSharedName(e.target.value)}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label="Pick shared location"
+              onClick={() => setSharedMapOpen(true)}
+            >
+              <MapPin className="h-4 w-4" />
+            </Button>
+            {sharedLocation && (
+              <span className="text-xs text-muted-foreground">
+                {sharedLocation.lat.toFixed(4)}, {sharedLocation.lng.toFixed(4)}
+              </span>
+            )}
+          </div>
+        )}
+
+        <LocationPickerMap
+          open={sharedMapOpen}
+          onOpenChange={setSharedMapOpen}
+          initialLatLng={sharedLocation}
+          onConfirm={handleSharedMapConfirm}
+        />
 
         {/* Preview list */}
         {pending.length > 0 && (

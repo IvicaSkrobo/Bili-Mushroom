@@ -12,6 +12,12 @@ vi.mock('react-leaflet', () => ({
     <div data-testid="marker" data-lat={position.lat} data-lng={position.lng} />
   ),
   useMapEvents: () => null,
+  useMap: () => ({ flyTo: vi.fn(), addLayer: vi.fn(), removeLayer: vi.fn() }),
+}));
+
+// Mock leaflet.offline — no real IndexedDB in jsdom
+vi.mock('leaflet.offline', () => ({
+  tileLayerOffline: () => ({ addTo: vi.fn(), remove: vi.fn() }),
 }));
 
 // Mock leaflet module
