@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getFinds, updateFind, deleteFind, getSpeciesNotes, upsertSpeciesNote,
-  bulkRenameSpecies,
+  bulkRenameSpecies, moveFindToFolder,
   FINDS_QUERY_KEY, SPECIES_NOTES_QUERY_KEY,
   type Find, type UpdateFindPayload,
 } from '@/lib/finds';
@@ -45,6 +45,31 @@ export function useSpeciesNotes() {
     queryKey: [SPECIES_NOTES_QUERY_KEY, storagePath],
     queryFn: () => getSpeciesNotes(storagePath!),
     enabled: !!storagePath,
+  });
+}
+
+export function useMoveFindToFolder() {
+  const storagePath = useAppStore((s) => s.storagePath);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ findId, destFolder }: { findId: number; destFolder: string }) =>
+      moveFindToFolder(storagePath!, findId, destFolder),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
+    },
+  });
+}
+
+export function useBulkMoveFindToFolder() {
+  const storagePath = useAppStore((s) => s.storagePath);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ findIds, destFolder }: { findIds: number[]; destFolder: string }) => {
+      await Promise.all(findIds.map((id) => moveFindToFolder(storagePath!, id, destFolder)));
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
+    },
   });
 }
 

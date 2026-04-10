@@ -59,3 +59,4 @@ $RECYCLE.BIN/
 
 # GSD / Claude
 .claude/settings.local.json
+.aider*

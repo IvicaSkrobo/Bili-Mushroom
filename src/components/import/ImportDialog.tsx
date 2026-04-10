@@ -34,6 +34,19 @@ import { useT } from '@/i18n/index';
 
 export type LockableField = 'date_found' | 'country' | 'region' | 'location_note';
 
+function isoToDisplay(iso: string): string {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  if (!y || !m || !d) return iso;
+  return `${d}/${m}/${y}`;
+}
+
+function displayToIso(display: string): string {
+  const parts = display.split('/');
+  if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+  return display;
+}
+
 interface PendingItem {
   sourcePath: string;
   payload: ImportPayload;
@@ -298,13 +311,13 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>{t('import.title')}</DialogTitle>
         </DialogHeader>
 
         {/* Picker buttons */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-shrink-0">
           <Button variant="secondary" onClick={handlePickFiles} disabled={importing}>
             <Images className="h-4 w-4" />
             {t('import.pickPhotos')}
@@ -326,7 +339,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         </div>
 
         {/* Folder notes — shown always (even before picking photos) */}
-        <div className="p-3 rounded-md border bg-muted/50 space-y-2">
+        <div className="p-3 rounded-md border bg-muted/50 space-y-2 flex-shrink-0">
           {/* Row 1: name + map pin */}
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
@@ -399,10 +412,10 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
           {/* Row 2: date + country + region + location note */}
           <div className="grid grid-cols-2 gap-2">
             <Input
-              type="date"
-              placeholder={t('import.date')}
-              value={sharedDate}
-              onChange={(e) => setSharedDate(e.target.value)}
+              type="text"
+              placeholder="DD/MM/YYYY"
+              value={isoToDisplay(sharedDate)}
+              onChange={(e) => setSharedDate(displayToIso(e.target.value))}
             />
             <Input
               placeholder={t('import.country')}
@@ -437,26 +450,28 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
           onConfirm={handleSharedMapConfirm}
         />
 
-        {/* Preview list */}
-        {pending.length > 0 && (
-          <div className="flex flex-col gap-3 mt-2">
-            {pending.map((item, i) => (
-              <FindPreviewCard
-                key={i}
-                payload={item.payload}
-                sourcePath={item.sourcePath}
-                locked={item.locked}
-                onChange={(p, lockField) => updateAt(i, p, lockField)}
-                onUnlock={(field) => unlockAt(i, field)}
-                onRemove={() => removeAt(i)}
-              />
-            ))}
-          </div>
-        )}
+        {/* Scrollable preview list */}
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {pending.length > 0 && (
+            <div className="flex flex-col gap-3 py-1">
+              {pending.map((item, i) => (
+                <FindPreviewCard
+                  key={i}
+                  payload={item.payload}
+                  sourcePath={item.sourcePath}
+                  locked={item.locked}
+                  onChange={(p, lockField) => updateAt(i, p, lockField)}
+                  onUnlock={(field) => unlockAt(i, field)}
+                  onRemove={() => removeAt(i)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Progress bar */}
         {importing && progress && (
-          <div className="mt-2 space-y-1">
+          <div className="space-y-1 flex-shrink-0">
             <Progress value={(progress.current / progress.total) * 100} />
             <p className="text-xs text-muted-foreground">
               {progress.current}/{progress.total} · {progress.filename}
@@ -466,12 +481,12 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
 
         {/* Error alert */}
         {error && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="flex-shrink-0">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0">
           <div className="flex flex-col items-end gap-2 w-full">
             {pending.length > 0 && !allNamed && (
               <p className="text-sm text-destructive">{t('import.nameRequired')}</p>

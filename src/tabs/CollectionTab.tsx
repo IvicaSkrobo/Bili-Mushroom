@@ -55,6 +55,12 @@ export default function CollectionTab() {
     setMoveTarget('');
   };
 
+  const enterSelectModeWith = (id: number) => {
+    setSelectMode(true);
+    setSelectedIds(new Set([id]));
+    setMoveTarget('');
+  };
+
   const cancelSelectMode = () => {
     setSelectMode(false);
     setSelectedIds(new Set());
@@ -316,6 +322,7 @@ export default function CollectionTab() {
                         selectMode={selectMode}
                         isSelected={selectedIds.has(f.id)}
                         onToggleSelect={toggleSelect}
+                        onLongPress={enterSelectModeWith}
                       />
                     ))}
                   </div>

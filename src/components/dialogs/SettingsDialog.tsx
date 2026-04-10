@@ -1,10 +1,14 @@
 import { useState } from 'react';
 import { Info } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAppStore } from '@/stores/appStore';
-import { pickAndSaveStoragePath } from '@/lib/storage';
+import { pickAndSaveStoragePath, clearStoragePath } from '@/lib/storage';
 import { useT } from '@/i18n/index';
 import type { Lang } from '@/i18n/index';
 
@@ -25,6 +29,16 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const theme = useAppStore((s) => s.theme);
   const setTheme = useAppStore((s) => s.setTheme);
   const [picking, setPicking] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+
+  async function handleReset() {
+    await clearStoragePath();
+    setStoragePath(null);
+    setDbReady(false);
+    setDbError(null);
+    setPendingScan(false);
+    onOpenChange(false);
+  }
 
   async function handleChangeFolder() {
     setPicking(true);
@@ -101,8 +115,31 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
               ))}
             </div>
           </div>
+          <div className="pt-2 border-t">
+            <div className="text-xs font-medium text-muted-foreground mb-2">{t('settings.resetSection')}</div>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setResetConfirmOpen(true)}
+            >
+              {t('settings.resetBtn')}
+            </Button>
+          </div>
         </div>
       </DialogContent>
+
+      <AlertDialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('settings.resetTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('settings.resetWarning')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('delete.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleReset}>{t('settings.resetConfirm')}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

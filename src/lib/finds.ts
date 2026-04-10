@@ -184,6 +184,18 @@ export const SPECIES_NOTES_QUERY_KEY = 'species_notes' as const;
  * Calls the Rust `bulk_rename_species` command.
  * Updates species_name for all given find IDs atomically.
  */
+/**
+ * Calls the Rust `move_find_files` command.
+ * Moves photo files to destFolder on disk, then removes the DB record.
+ */
+export async function moveFindToFolder(
+  storagePath: string,
+  findId: number,
+  destFolder: string,
+): Promise<void> {
+  return invoke<void>('move_find_files', { storagePath, findId, destFolder });
+}
+
 export async function bulkRenameSpecies(
   storagePath: string,
   findIds: number[],

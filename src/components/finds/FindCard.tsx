@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { Pencil, Image, Trash2, Square, CheckSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,14 +13,25 @@ interface FindCardProps {
   selectMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: (id: number) => void;
+  onLongPress?: (id: number) => void;
 }
 
-export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSelected, onToggleSelect }: FindCardProps) {
+export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSelected, onToggleSelect, onLongPress }: FindCardProps) {
   const t = useT();
   const primaryPhoto = find.photos[0] ?? null;
   const absolutePath = primaryPhoto ? `${storagePath}/${primaryPhoto.photo_path}` : '';
   const heic = primaryPhoto ? isHeic(primaryPhoto.photo_path) : false;
   const extraCount = find.photos.length > 1 ? find.photos.length - 1 : 0;
+
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const startLongPress = () => {
+    if (selectMode || !onLongPress) return;
+    longPressTimer.current = setTimeout(() => onLongPress(find.id), 600);
+  };
+  const cancelLongPress = () => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+  };
 
   const handleClick = selectMode && onToggleSelect
     ? () => onToggleSelect(find.id)
@@ -35,6 +47,12 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
           : 'border-border/50 bg-card/60 hover:border-primary/25 hover:bg-card'
       }`}
       onClick={handleClick}
+      onMouseDown={startLongPress}
+      onMouseUp={cancelLongPress}
+      onMouseLeave={cancelLongPress}
+      onTouchStart={startLongPress}
+      onTouchEnd={cancelLongPress}
+      onTouchCancel={cancelLongPress}
     >
       {/* Amber left accent */}
       <div className={`absolute left-0 top-0 bottom-0 w-0.5 rounded-l-sm bg-primary transition-opacity duration-200 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} />

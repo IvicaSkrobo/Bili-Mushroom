@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -12,9 +13,12 @@ import {
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useDeleteFind } from '@/hooks/useFinds';
+import { Button } from '@/components/ui/button';
+import { useDeleteFind, useMoveFindToFolder } from '@/hooks/useFinds';
 import { useT } from '@/i18n/index';
 import type { Find } from '@/lib/finds';
+
+type DeleteMode = 'record' | 'files' | 'move';
 
 interface DeleteFindDialogProps {
   find: Find | null;
@@ -23,20 +27,50 @@ interface DeleteFindDialogProps {
 
 export function DeleteFindDialog({ find, onOpenChange }: DeleteFindDialogProps) {
   const t = useT();
-  const [deleteFiles, setDeleteFiles] = useState(false);
+  const [mode, setMode] = useState<DeleteMode>('record');
+  const [destFolder, setDestFolder] = useState<string | null>(null);
+  const [pickingFolder, setPickingFolder] = useState(false);
   const deleteMutation = useDeleteFind();
+  const moveMutation = useMoveFindToFolder();
 
   useEffect(() => {
-    setDeleteFiles(false);
+    setMode('record');
+    setDestFolder(null);
   }, [find]);
+
+  async function handlePickFolder() {
+    setPickingFolder(true);
+    try {
+      const dir = await openDialog({ directory: true, multiple: false });
+      if (dir && typeof dir === 'string') setDestFolder(dir);
+    } finally {
+      setPickingFolder(false);
+    }
+  }
 
   async function handleConfirm() {
     if (!find) return;
-    deleteMutation.mutate(
-      { findId: find.id, deleteFiles },
-      { onSuccess: () => onOpenChange(false) },
-    );
+    if (mode === 'move') {
+      if (!destFolder) return;
+      moveMutation.mutate(
+        { findId: find.id, destFolder },
+        { onSuccess: () => onOpenChange(false) },
+      );
+    } else {
+      deleteMutation.mutate(
+        { findId: find.id, deleteFiles: mode === 'files' },
+        { onSuccess: () => onOpenChange(false) },
+      );
+    }
   }
+
+  const isPending = deleteMutation.isPending || moveMutation.isPending;
+  const isError = deleteMutation.isError || moveMutation.isError;
+  const errorMsg = (deleteMutation.error ?? moveMutation.error) instanceof Error
+    ? (deleteMutation.error ?? moveMutation.error as Error).message
+    : t('delete.confirm');
+
+  const confirmDisabled = isPending || (mode === 'move' && !destFolder);
 
   return (
     <AlertDialog open={find !== null} onOpenChange={onOpenChange}>
@@ -49,8 +83,8 @@ export function DeleteFindDialog({ find, onOpenChange }: DeleteFindDialogProps) 
         </AlertDialogHeader>
 
         <RadioGroup
-          value={deleteFiles ? 'files' : 'record'}
-          onValueChange={(val) => setDeleteFiles(val === 'files')}
+          value={mode}
+          onValueChange={(val) => { setMode(val as DeleteMode); setDestFolder(null); }}
           className="gap-3"
         >
           <div className="flex items-center gap-2">
@@ -61,22 +95,43 @@ export function DeleteFindDialog({ find, onOpenChange }: DeleteFindDialogProps) 
             <RadioGroupItem value="files" id="delete-record-files" />
             <Label htmlFor="delete-record-files">{t('delete.recordAndFiles')}</Label>
           </div>
+          <div className="flex items-center gap-2">
+            <RadioGroupItem value="move" id="delete-move-files" />
+            <Label htmlFor="delete-move-files">{t('delete.moveFiles')}</Label>
+          </div>
         </RadioGroup>
 
-        {deleteMutation.isError && (
+        {mode === 'move' && (
+          <div className="flex items-center gap-2 pl-1">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={handlePickFolder}
+              disabled={pickingFolder}
+            >
+              {destFolder ? t('delete.folderSelected') : t('delete.chooseDestFolder')}
+            </Button>
+            {destFolder && (
+              <span className="text-xs text-muted-foreground truncate max-w-[200px]" title={destFolder}>
+                {destFolder.split(/[\\/]/).pop()}
+              </span>
+            )}
+          </div>
+        )}
+
+        {isError && (
           <Alert variant="destructive">
-            <AlertDescription>
-              {deleteMutation.error instanceof Error
-                ? deleteMutation.error.message
-                : t('delete.confirm')}
-            </AlertDescription>
+            <AlertDescription>{errorMsg}</AlertDescription>
           </Alert>
         )}
 
         <AlertDialogFooter>
           <AlertDialogCancel>{t('delete.cancel')}</AlertDialogCancel>
-          <AlertDialogAction onClick={handleConfirm} disabled={deleteMutation.isPending}>
-            {deleteMutation.isPending ? t('delete.deleting') : t('delete.confirm')}
+          <AlertDialogAction onClick={handleConfirm} disabled={confirmDisabled}>
+            {isPending
+              ? (mode === 'move' ? t('delete.moving') : t('delete.deleting'))
+              : t('delete.confirm')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -107,6 +107,11 @@ const hr: Translations = {
   'settings.theme': 'Izgled',
   'settings.themeLight': 'Svijetlo',
   'settings.themeDark': 'Tamno',
+  'settings.resetSection': 'Resetiranje aplikacije',
+  'settings.resetBtn': 'Resetiraj na početak',
+  'settings.resetTitle': 'Resetirati aplikaciju?',
+  'settings.resetWarning': 'Ovo će zaboraviti lokaciju knjižnice i vratiti te na početni zaslon. Tvoji nalazi i fotografije na disku neće biti obrisani.',
+  'settings.resetConfirm': 'Da, resetiraj',
 
   // first run dialog
   'firstRun.title': 'Odaberite svoju knjižnicu gljiva',
@@ -230,6 +235,11 @@ const en: Translations = {
   'settings.theme': 'Appearance',
   'settings.themeLight': 'Light',
   'settings.themeDark': 'Dark',
+  'settings.resetSection': 'Reset App',
+  'settings.resetBtn': 'Reset to First Run',
+  'settings.resetTitle': 'Reset the app?',
+  'settings.resetWarning': 'This will forget your library location and return you to the welcome screen. Your finds and photos on disk will NOT be deleted.',
+  'settings.resetConfirm': 'Yes, reset',
 
   // first run dialog
   'firstRun.title': 'Choose Your Mushroom Library',

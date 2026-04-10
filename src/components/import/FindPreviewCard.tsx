@@ -16,6 +16,19 @@ import type { LockableField } from './ImportDialog';
 
 const TRASH_HINT_KEY = 'bili_trash_hint_seen';
 
+function isoToDisplay(iso: string): string {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  if (!y || !m || !d) return iso;
+  return `${d}/${m}/${y}`;
+}
+
+function displayToIso(display: string): string {
+  const parts = display.split('/');
+  if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+  return display;
+}
+
 interface FindPreviewCardProps {
   payload: ImportPayload;
   sourcePath: string;
@@ -80,12 +93,14 @@ export function FindPreviewCard({
     field,
     ...inputProps
   }: { field: LockableField } & React.InputHTMLAttributes<HTMLInputElement>) {
+    const isDate = field === 'date_found';
+    const rawValue = payload[field] as string;
     return (
       <div className="flex items-center gap-1">
         <Input
           {...inputProps}
-          value={payload[field] as string}
-          onChange={(e) => updateLockable(field, e.target.value)}
+          value={isDate ? isoToDisplay(rawValue) : rawValue}
+          onChange={(e) => updateLockable(field, isDate ? displayToIso(e.target.value) : e.target.value)}
           className={locked[field] ? 'border-amber-400 focus-visible:ring-amber-400' : ''}
         />
         {locked[field] && (
@@ -178,7 +193,7 @@ export function FindPreviewCard({
               </div>
 
               <div>
-                <LockableInput field="date_found" type="date" />
+                <LockableInput field="date_found" type="text" placeholder="DD/MM/YYYY" />
                 {payload.date_found === '' && (
                   <p className="text-xs text-destructive mt-1">{t('preview.dateRequired')}</p>
                 )}
