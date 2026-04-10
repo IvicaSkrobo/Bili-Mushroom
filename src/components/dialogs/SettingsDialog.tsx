@@ -20,6 +20,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const setStoragePath = useAppStore((s) => s.setStoragePath);
   const setDbReady = useAppStore((s) => s.setDbReady);
   const setDbError = useAppStore((s) => s.setDbError);
+  const setPendingScan = useAppStore((s) => s.setPendingScan);
   const language = useAppStore((s) => s.language);
   const setLanguage = useAppStore((s) => s.setLanguage);
   const theme = useAppStore((s) => s.theme);
@@ -34,6 +35,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
       setDbReady(false);
       setStoragePath(folder);
       await initializeDatabase(folder);
+      setPendingScan(true);
       setDbReady(true);
       onOpenChange(false);
     } catch (err) {

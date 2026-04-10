@@ -11,12 +11,14 @@ export interface AppState {
   dbError: string | null;
   language: Lang;
   theme: Theme;
+  pendingScan: boolean;
   setActiveTab: (tab: Tab) => void;
   setStoragePath: (path: string) => void;
   setDbReady: (ready: boolean) => void;
   setDbError: (error: string | null) => void;
   setLanguage: (lang: Lang) => void;
   setTheme: (theme: Theme) => void;
+  setPendingScan: (v: boolean) => void;
 }
 
 function loadLang(): Lang {
@@ -42,10 +44,12 @@ export const useAppStore = create<AppState>((set) => ({
   dbError: null,
   language: loadLang(),
   theme: loadTheme(),
+  pendingScan: false,
   setActiveTab: (activeTab) => set({ activeTab }),
   setStoragePath: (storagePath) => set({ storagePath }),
   setDbReady: (dbReady) => set({ dbReady }),
   setDbError: (dbError) => set({ dbError }),
+  setPendingScan: (pendingScan) => set({ pendingScan }),
   setLanguage: (language) => {
     try { localStorage.setItem('bili_lang', language); } catch { /* ignore */ }
     set({ language });

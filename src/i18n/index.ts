@@ -113,6 +113,18 @@ const hr: Translations = {
   'firstRun.description': 'Odaberite mapu gdje će Bili Mushroom pohraniti vaše nalaze, fotografije i bazu podataka. Ovo možete promijeniti kasnije u Postavkama.',
   'firstRun.noFolder': 'Mapa nije odabrana',
   'firstRun.chooseFolder': 'Odaberi mapu',
+
+  // auto-import dialog
+  'autoImport.title.scanning': 'Skeniranje knjižnice…',
+  'autoImport.title.done': 'Uvoz završen',
+  'autoImport.species': 'Uvoz: {name}',
+  'autoImport.progress': '{current} / {total} vrsta',
+  'autoImport.result.species': 'Pronađeno {n} vrsta',
+  'autoImport.result.imported': 'Uvezeno {n} fotografija',
+  'autoImport.result.skipped': '{n} već postoji, preskočeno',
+  'autoImport.result.empty': 'Nije pronađena nijedna podmapa s fotografijama.',
+  'autoImport.done': 'Gotovo',
+  'autoImport.skip': 'Preskoči',
 };
 
 const en: Translations = {
@@ -224,6 +236,18 @@ const en: Translations = {
   'firstRun.description': 'Choose a folder where Bili Mushroom will store your finds, photos, and database. You can change this later in Settings.',
   'firstRun.noFolder': 'No folder selected',
   'firstRun.chooseFolder': 'Choose Folder',
+
+  // auto-import dialog
+  'autoImport.title.scanning': 'Scanning Library…',
+  'autoImport.title.done': 'Import Complete',
+  'autoImport.species': 'Importing: {name}',
+  'autoImport.progress': '{current} / {total} species',
+  'autoImport.result.species': '{n} species found',
+  'autoImport.result.imported': '{n} photos imported',
+  'autoImport.result.skipped': '{n} already existed, skipped',
+  'autoImport.result.empty': 'No subfolders with photos found.',
+  'autoImport.done': 'Done',
+  'autoImport.skip': 'Skip',
 };
 
 const dict: Record<Lang, Translations> = { hr, en };

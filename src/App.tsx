@@ -7,6 +7,7 @@ import { loadStoragePath } from '@/lib/storage';
 import { initializeDatabase } from '@/lib/db';
 import { FirstRunDialog } from '@/components/dialogs/FirstRunDialog';
 import { MigrationErrorDialog } from '@/components/dialogs/MigrationErrorDialog';
+import { AutoImportDialog } from '@/components/dialogs/AutoImportDialog';
 import { AppShell } from '@/components/layout/AppShell';
 
 const queryClient = new QueryClient({
@@ -26,6 +27,8 @@ export default function App() {
   const setDbReady = useAppStore((s) => s.setDbReady);
   const setDbError = useAppStore((s) => s.setDbError);
   const theme = useAppStore((s) => s.theme);
+  const pendingScan = useAppStore((s) => s.pendingScan);
+  const setPendingScan = useAppStore((s) => s.setPendingScan);
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -68,7 +71,14 @@ export default function App() {
   }
 
   if (!storagePath) {
-    return <FirstRunDialog onFolderSelected={setStoragePath} />;
+    return (
+      <FirstRunDialog
+        onFolderSelected={(path) => {
+          setPendingScan(true);
+          setStoragePath(path);
+        }}
+      />
+    );
   }
 
   if (!dbReady) {
@@ -77,8 +87,14 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AppShell />
-      <Toaster richColors />
+      {pendingScan ? (
+        <AutoImportDialog storagePath={storagePath} onDone={() => setPendingScan(false)} />
+      ) : (
+        <>
+          <AppShell />
+          <Toaster richColors />
+        </>
+      )}
     </QueryClientProvider>
   );
 }
