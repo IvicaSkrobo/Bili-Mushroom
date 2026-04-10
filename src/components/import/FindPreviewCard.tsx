@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { Image, MapPin, X } from 'lucide-react';
+import { Image, MapPin, X, Unlock } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,35 +8,70 @@ import { Button } from '@/components/ui/button';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
 import { isHeic, type ImportPayload } from '@/lib/finds';
 import { reverseGeocode } from '@/lib/geocoding';
+import type { LockableField } from './ImportDialog';
 
 interface FindPreviewCardProps {
   payload: ImportPayload;
   sourcePath: string;
-  onChange: (updated: ImportPayload) => void;
+  locked: Partial<Record<LockableField, boolean>>;
+  onChange: (updated: ImportPayload, lockField?: LockableField) => void;
+  onUnlock: (field: LockableField) => void;
   onRemove: () => void;
 }
 
 export function FindPreviewCard({
   payload,
   sourcePath,
+  locked,
   onChange,
+  onUnlock,
   onRemove,
 }: FindPreviewCardProps) {
   const [mapOpen, setMapOpen] = useState(false);
 
-  const updateField = <K extends keyof ImportPayload>(key: K, value: ImportPayload[K]) => {
-    onChange({ ...payload, [key]: value });
+  /** Update a field and auto-lock it (user manually edited this card). */
+  const updateLockable = <K extends LockableField>(key: K, value: string) => {
+    onChange({ ...payload, [key]: value }, key);
   };
 
   const handleMapConfirm = async (lat: number, lng: number) => {
     onChange({ ...payload, lat, lng });
     const geo = await reverseGeocode(lat, lng);
     if (geo.country || geo.region) {
-      onChange({ ...payload, lat, lng, country: geo.country, region: geo.region });
+      onChange({ ...payload, lat, lng, country: geo.country, region: geo.region }, 'country');
     }
   };
 
   const isHeicFile = isHeic(payload.original_filename);
+
+  /** Renders a lockable field row. When locked, shows an "Allow override" unlock button. */
+  function LockableInput({
+    field,
+    ...inputProps
+  }: { field: LockableField } & React.InputHTMLAttributes<HTMLInputElement>) {
+    return (
+      <div className="flex items-center gap-1">
+        <Input
+          {...inputProps}
+          value={payload[field] as string}
+          onChange={(e) => updateLockable(field, e.target.value)}
+          className={locked[field] ? 'border-amber-400 focus-visible:ring-amber-400' : ''}
+        />
+        {locked[field] && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0 text-amber-500 hover:text-amber-700"
+            title="Allow shared header to override this field"
+            onClick={() => onUnlock(field)}
+          >
+            <Unlock className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <>
@@ -76,43 +111,27 @@ export function FindPreviewCard({
                 <Input
                   placeholder="Species name"
                   value={payload.species_name}
-                  onChange={(e) => updateField('species_name', e.target.value)}
+                  onChange={(e) => onChange({ ...payload, species_name: e.target.value })}
                 />
               </div>
 
               <div>
-                <Input
-                  type="date"
-                  value={payload.date_found}
-                  onChange={(e) => updateField('date_found', e.target.value)}
-                />
+                <LockableInput field="date_found" type="date" />
                 {payload.date_found === '' && (
                   <p className="text-xs text-destructive mt-1">Date required before import</p>
                 )}
               </div>
 
-              <div className="col-span-1">
-                <Input
-                  placeholder="Country"
-                  value={payload.country}
-                  onChange={(e) => updateField('country', e.target.value)}
-                />
+              <div>
+                <LockableInput field="country" placeholder="Country" />
               </div>
 
               <div>
-                <Input
-                  placeholder="Region"
-                  value={payload.region}
-                  onChange={(e) => updateField('region', e.target.value)}
-                />
+                <LockableInput field="region" placeholder="Region" />
               </div>
 
               <div>
-                <Input
-                  placeholder="Location mark"
-                  value={payload.location_note}
-                  onChange={(e) => updateField('location_note', e.target.value)}
-                />
+                <LockableInput field="location_note" placeholder="Location mark" />
               </div>
 
               <div className="col-span-2 flex items-center gap-2">
@@ -137,7 +156,7 @@ export function FindPreviewCard({
                   placeholder="Notes"
                   rows={2}
                   value={payload.notes}
-                  onChange={(e) => updateField('notes', e.target.value)}
+                  onChange={(e) => onChange({ ...payload, notes: e.target.value })}
                 />
               </div>
             </div>

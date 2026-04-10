@@ -30,6 +30,7 @@ const basePayload: ImportPayload = {
   date_found: '2024-05-10',
   country: 'Croatia',
   region: 'Istria',
+  location_note: '',
   lat: 45.1,
   lng: 13.9,
   notes: 'Near oak',
@@ -40,9 +41,12 @@ describe('FindPreviewCard', () => {
   let onChange: ReturnType<typeof vi.fn>;
   let onRemove: ReturnType<typeof vi.fn>;
 
+  let onUnlock: ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
     onChange = vi.fn();
     onRemove = vi.fn();
+    onUnlock = vi.fn();
   });
 
   it('renders a thumbnail img tag for a jpg file with src from convertFileSrc', () => {
@@ -50,7 +54,9 @@ describe('FindPreviewCard', () => {
       <FindPreviewCard
         payload={basePayload}
         sourcePath="/photos/shroom.jpg"
+        locked={{}}
         onChange={onChange}
+        onUnlock={onUnlock}
         onRemove={onRemove}
       />,
     );
@@ -68,7 +74,9 @@ describe('FindPreviewCard', () => {
       <FindPreviewCard
         payload={heicPayload}
         sourcePath="/photos/mushroom.heic"
+        locked={{}}
         onChange={onChange}
+        onUnlock={onUnlock}
         onRemove={onRemove}
       />,
     );
@@ -81,7 +89,9 @@ describe('FindPreviewCard', () => {
       <FindPreviewCard
         payload={basePayload}
         sourcePath="/photos/shroom.jpg"
+        locked={{}}
         onChange={onChange}
+        onUnlock={onUnlock}
         onRemove={onRemove}
       />,
     );
@@ -100,7 +110,9 @@ describe('FindPreviewCard', () => {
       <FindPreviewCard
         payload={basePayload}
         sourcePath="/photos/shroom.jpg"
+        locked={{}}
         onChange={onChange}
+        onUnlock={onUnlock}
         onRemove={onRemove}
       />,
     );
@@ -117,7 +129,9 @@ describe('FindPreviewCard', () => {
       <FindPreviewCard
         payload={noDate}
         sourcePath="/photos/shroom.jpg"
+        locked={{}}
         onChange={onChange}
+        onUnlock={onUnlock}
         onRemove={onRemove}
       />,
     );
@@ -129,7 +143,9 @@ describe('FindPreviewCard', () => {
       <FindPreviewCard
         payload={basePayload}
         sourcePath="/photos/shroom.jpg"
+        locked={{}}
         onChange={onChange}
+        onUnlock={onUnlock}
         onRemove={onRemove}
       />,
     );
@@ -142,7 +158,9 @@ describe('FindPreviewCard', () => {
       <FindPreviewCard
         payload={noGps}
         sourcePath="/photos/shroom.jpg"
+        locked={{}}
         onChange={onChange}
+        onUnlock={onUnlock}
         onRemove={onRemove}
       />,
     );
@@ -155,7 +173,9 @@ describe('FindPreviewCard', () => {
       <FindPreviewCard
         payload={basePayload}
         sourcePath="/photos/shroom.jpg"
+        locked={{}}
         onChange={onChange}
+        onUnlock={onUnlock}
         onRemove={onRemove}
       />,
     );
@@ -169,7 +189,9 @@ describe('FindPreviewCard', () => {
       <FindPreviewCard
         payload={basePayload}
         sourcePath="/photos/shroom.jpg"
+        locked={{}}
         onChange={onChange}
+        onUnlock={onUnlock}
         onRemove={onRemove}
       />,
     );
@@ -181,7 +203,9 @@ describe('FindPreviewCard', () => {
       <FindPreviewCard
         payload={basePayload}
         sourcePath="/photos/shroom.jpg"
+        locked={{}}
         onChange={onChange}
+        onUnlock={onUnlock}
         onRemove={onRemove}
       />,
     );
@@ -194,7 +218,9 @@ describe('FindPreviewCard', () => {
       <FindPreviewCard
         payload={basePayload}
         sourcePath="/photos/shroom.jpg"
+        locked={{}}
         onChange={onChange}
+        onUnlock={onUnlock}
         onRemove={onRemove}
       />,
     );
@@ -211,7 +237,9 @@ describe('FindPreviewCard', () => {
       <FindPreviewCard
         payload={basePayload}
         sourcePath="/photos/shroom.jpg"
+        locked={{}}
         onChange={onChange}
+        onUnlock={onUnlock}
         onRemove={onRemove}
       />,
     );
@@ -229,7 +257,9 @@ describe('FindPreviewCard', () => {
       <FindPreviewCard
         payload={noGps}
         sourcePath="/photos/shroom.jpg"
+        locked={{}}
         onChange={onChange}
+        onUnlock={onUnlock}
         onRemove={onRemove}
       />,
     );

@@ -28,9 +28,12 @@ import {
 import { reverseGeocode } from '@/lib/geocoding';
 import { useAppStore } from '@/stores/appStore';
 
+export type LockableField = 'date_found' | 'country' | 'region' | 'location_note';
+
 interface PendingItem {
   sourcePath: string;
   payload: ImportPayload;
+  locked: Partial<Record<LockableField, boolean>>;
 }
 
 interface ImportDialogProps {
@@ -61,7 +64,13 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
   const [pending, setPending] = useState<PendingItem[]>([]);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Shared header state
   const [sharedName, setSharedName] = useState('');
+  const [sharedDate, setSharedDate] = useState('');
+  const [sharedCountry, setSharedCountry] = useState('');
+  const [sharedRegion, setSharedRegion] = useState('');
+  const [sharedLocationNote, setSharedLocationNote] = useState('');
   const [sharedMapOpen, setSharedMapOpen] = useState(false);
   const [sharedLocation, setSharedLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
@@ -85,7 +94,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
 
   const progress = useImportProgress(importing);
 
-  // Cascade shared name to all pending items when sharedName changes (non-empty only)
+  // Cascade shared name to all cards (no lock on name)
   useEffect(() => {
     if (sharedName === '') return;
     setPending((prev) =>
@@ -93,21 +102,58 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
     );
   }, [sharedName]);
 
+  // Cascade shared date to unlocked cards
+  useEffect(() => {
+    if (sharedDate === '') return;
+    setPending((prev) =>
+      prev.map((item) =>
+        item.locked.date_found ? item : { ...item, payload: { ...item.payload, date_found: sharedDate } },
+      ),
+    );
+  }, [sharedDate]);
+
+  // Cascade shared country to unlocked cards
+  useEffect(() => {
+    if (sharedCountry === '') return;
+    setPending((prev) =>
+      prev.map((item) =>
+        item.locked.country ? item : { ...item, payload: { ...item.payload, country: sharedCountry } },
+      ),
+    );
+  }, [sharedCountry]);
+
+  // Cascade shared region to unlocked cards
+  useEffect(() => {
+    if (sharedRegion === '') return;
+    setPending((prev) =>
+      prev.map((item) =>
+        item.locked.region ? item : { ...item, payload: { ...item.payload, region: sharedRegion } },
+      ),
+    );
+  }, [sharedRegion]);
+
+  // Cascade shared location note to unlocked cards
+  useEffect(() => {
+    if (sharedLocationNote === '') return;
+    setPending((prev) =>
+      prev.map((item) =>
+        item.locked.location_note
+          ? item
+          : { ...item, payload: { ...item.payload, location_note: sharedLocationNote } },
+      ),
+    );
+  }, [sharedLocationNote]);
+
   const handleSharedMapConfirm = async (lat: number, lng: number) => {
     setSharedLocation({ lat, lng });
+    // Cascade lat/lng to all cards
     setPending((prev) =>
       prev.map((item) => ({ ...item, payload: { ...item.payload, lat, lng } })),
     );
-    // Reverse geocode and cascade country+region to all cards
+    // Reverse geocode → fill shared country+region (which then cascades via effects)
     const geo = await reverseGeocode(lat, lng);
-    if (geo.country || geo.region) {
-      setPending((prev) =>
-        prev.map((item) => ({
-          ...item,
-          payload: { ...item.payload, country: geo.country, region: geo.region },
-        })),
-      );
-    }
+    if (geo.country) setSharedCountry(geo.country);
+    if (geo.region) setSharedRegion(geo.region);
   };
 
   const allDatesSet = pending.length > 0 && pending.every((item) => item.payload.date_found !== '');
@@ -118,22 +164,16 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
     try {
       const selected = await openDialog({
         multiple: true,
-        filters: [
-          {
-            name: 'Images',
-            extensions: SUPPORTED_EXTENSIONS.map((ext) => ext.replace('.', '')),
-          },
-        ],
+        filters: [{ name: 'Images', extensions: SUPPORTED_EXTENSIONS.map((ext) => ext.replace('.', '')) }],
       });
       if (!selected) return;
       const paths = Array.isArray(selected) ? selected : [selected];
-      const items = await Promise.all(
+      const items: PendingItem[] = await Promise.all(
         paths.map(async (path) => {
           const exif = await parseExif(path);
-          return { sourcePath: path, payload: buildInitialPayload(path, exif) };
+          return { sourcePath: path, payload: buildInitialPayload(path, exif), locked: {} };
         }),
       );
-      // Pre-fill sharedName from parent folder (same as handlePickFolder)
       if (!sharedName && paths.length > 0) {
         const firstPath = paths[0];
         const segments = firstPath.replace(/\\/g, '/').split('/');
@@ -159,10 +199,10 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
         })
         .map((entry) => `${dir}/${entry.name}`);
 
-      const items = await Promise.all(
+      const items: PendingItem[] = await Promise.all(
         imagePaths.map(async (path) => {
           const exif = await parseExif(path);
-          return { sourcePath: path, payload: buildInitialPayload(path, exif) };
+          return { sourcePath: path, payload: buildInitialPayload(path, exif), locked: {} };
         }),
       );
       const folderName = dir.split('/').pop()?.split('\\').pop() ?? '';
@@ -173,8 +213,29 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
     }
   }
 
-  const updateAt = (index: number, updated: ImportPayload) => {
-    setPending((prev) => prev.map((item, i) => (i === index ? { ...item, payload: updated } : item)));
+  /** Update a card's payload. If lockField is provided, also lock that field for this card. */
+  const updateAt = (index: number, updated: ImportPayload, lockField?: LockableField) => {
+    setPending((prev) =>
+      prev.map((item, i) => {
+        if (i !== index) return item;
+        return {
+          ...item,
+          payload: updated,
+          locked: lockField ? { ...item.locked, [lockField]: true } : item.locked,
+        };
+      }),
+    );
+  };
+
+  const unlockAt = (index: number, field: LockableField) => {
+    setPending((prev) =>
+      prev.map((item, i) => {
+        if (i !== index) return item;
+        const locked = { ...item.locked };
+        delete locked[field];
+        return { ...item, locked };
+      }),
+    );
   };
 
   const removeAt = (index: number) => {
@@ -226,9 +287,10 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
           )}
         </div>
 
-        {/* Shared name + location header */}
+        {/* Shared header — cascades to all cards */}
         {pending.length > 0 && (
           <div className="p-3 rounded-md border bg-muted/50 space-y-2">
+            {/* Row 1: name + map pin */}
             <div className="flex items-center gap-2">
               <Input
                 className="flex-1"
@@ -251,6 +313,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
                 </span>
               )}
             </div>
+
             {/* Species folder autocomplete */}
             {sharedName && (
               <div className="flex flex-wrap gap-1 items-center">
@@ -270,6 +333,31 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
                 )}
               </div>
             )}
+
+            {/* Row 2: date + country + region + location note */}
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                type="date"
+                placeholder="Date (all photos)"
+                value={sharedDate}
+                onChange={(e) => setSharedDate(e.target.value)}
+              />
+              <Input
+                placeholder="Country (all photos)"
+                value={sharedCountry}
+                onChange={(e) => setSharedCountry(e.target.value)}
+              />
+              <Input
+                placeholder="Region (all photos)"
+                value={sharedRegion}
+                onChange={(e) => setSharedRegion(e.target.value)}
+              />
+              <Input
+                placeholder="Location mark (all photos)"
+                value={sharedLocationNote}
+                onChange={(e) => setSharedLocationNote(e.target.value)}
+              />
+            </div>
           </div>
         )}
 
@@ -288,7 +376,9 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
                 key={i}
                 payload={item.payload}
                 sourcePath={item.sourcePath}
-                onChange={(p) => updateAt(i, p)}
+                locked={item.locked}
+                onChange={(p, lockField) => updateAt(i, p, lockField)}
+                onUnlock={(field) => unlockAt(i, field)}
                 onRemove={() => removeAt(i)}
               />
             ))}
@@ -317,10 +407,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
             {pending.length > 0 && !allNamed && (
               <p className="text-sm text-destructive">All photos must have a mushroom name before importing.</p>
             )}
-            <Button
-              onClick={handleImportAll}
-              disabled={!canImport}
-            >
+            <Button onClick={handleImportAll} disabled={!canImport}>
               Import All
             </Button>
           </div>
