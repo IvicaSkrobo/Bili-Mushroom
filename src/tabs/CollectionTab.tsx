@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { GalleryHorizontal, Plus, ChevronDown, ChevronRight, FolderOpen, Search, X } from 'lucide-react';
+import { GalleryHorizontal, Plus, ChevronDown, ChevronRight, FolderOpen, Search, X, CheckSquare } from 'lucide-react';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -9,7 +9,8 @@ import { ImportDialog } from '@/components/import/ImportDialog';
 import { FindCard } from '@/components/finds/FindCard';
 import { EditFindDialog } from '@/components/finds/EditFindDialog';
 import { DeleteFindDialog } from '@/components/finds/DeleteFindDialog';
-import { useFinds, useSpeciesNotes, useUpsertSpeciesNote } from '@/hooks/useFinds';
+import { BulkDeleteDialog } from '@/components/finds/BulkDeleteDialog';
+import { useFinds, useSpeciesNotes, useUpsertSpeciesNote, useBulkRenameSpecies } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { useT, tFindsCount } from '@/i18n/index';
 import type { Find } from '@/lib/finds';
@@ -32,6 +33,55 @@ export default function CollectionTab() {
   const [search, setSearch] = useState('');
 
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [moveTarget, setMoveTarget] = useState('');
+  const bulkRename = useBulkRenameSpecies();
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const enterSelectMode = () => {
+    setSelectMode(true);
+    setSelectedIds(new Set());
+    setMoveTarget('');
+  };
+
+  const cancelSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+    setMoveTarget('');
+  };
+
+  const handleBulkMoveSuccess = () => {
+    setImportMsg(t('collection.movedToast', { n: selectedIds.size, name: moveTarget }));
+    if (importMsgTimer.current) clearTimeout(importMsgTimer.current);
+    importMsgTimer.current = setTimeout(() => setImportMsg(null), 4000);
+    cancelSelectMode();
+  };
+
+  const handleBulkMove = () => {
+    if (!moveTarget.trim() || selectedIds.size === 0) return;
+    bulkRename.mutate(
+      { findIds: Array.from(selectedIds), newSpeciesName: moveTarget.trim() },
+      { onSuccess: handleBulkMoveSuccess },
+    );
+  };
+
+  const handleBulkDeleteSuccess = () => {
+    setImportMsg(t('collection.deletedToast', { n: selectedIds.size }));
+    if (importMsgTimer.current) clearTimeout(importMsgTimer.current);
+    importMsgTimer.current = setTimeout(() => setImportMsg(null), 4000);
+    cancelSelectMode();
+  };
 
   useEffect(() => {
     if (!speciesNotesData) return;
@@ -88,36 +138,86 @@ export default function CollectionTab() {
     <div className="flex flex-col h-full">
       {/* Toolbar */}
       <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-border/60">
-        {/* Search */}
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+        {selectMode ? (
+          <>
+            <span className="flex-1 text-sm text-muted-foreground">
+              {selectedIds.size > 0
+                ? tFindsCount(selectedIds.size, lang)
+                : (lang === 'hr' ? 'Odaberi nalaze…' : 'Select finds…')}
+            </span>
+            <Button variant="ghost" size="sm" onClick={cancelSelectMode} className="flex-shrink-0">
+              {t('collection.cancelSelect')}
+            </Button>
+          </>
+        ) : (
+          <>
+            {/* Search */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={lang === 'hr' ? 'Pretraži vrste…' : 'Search species…'}
+                className="w-full h-9 rounded-md border border-border bg-input pl-9 pr-8 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/40 transition-colors"
+              />
+              {isSearching && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Toast message */}
+            {importMsg && (
+              <span className="text-xs font-medium text-primary whitespace-nowrap">{importMsg}</span>
+            )}
+            <Button variant="ghost" size="sm" onClick={enterSelectMode} className="gap-1.5 flex-shrink-0 text-muted-foreground hover:text-foreground">
+              <CheckSquare className="h-3.5 w-3.5" />
+              {t('collection.selectFinds')}
+            </Button>
+            <Button onClick={() => setImportOpen(true)} size="sm" className="gap-1.5 flex-shrink-0">
+              <Plus className="h-3.5 w-3.5" />
+              {t('collection.importBtn')}
+            </Button>
+          </>
+        )}
+      </div>
+
+      {/* Bulk action bar — visible in select mode when items are selected */}
+      {selectMode && selectedIds.size > 0 && (
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-border/60 bg-card/40">
           <input
             type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={lang === 'hr' ? 'Pretraži vrste…' : 'Search species…'}
-            className="w-full h-9 rounded-md border border-border bg-input pl-9 pr-8 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/40 transition-colors"
+            value={moveTarget}
+            onChange={(e) => setMoveTarget(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleBulkMove()}
+            placeholder={t('collection.moveTargetPlaceholder')}
+            className="h-8 flex-1 min-w-0 rounded-md border border-border bg-input px-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40 transition-colors"
           />
-          {isSearching && (
-            <button
-              type="button"
-              onClick={() => setSearch('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={handleBulkMove}
+            disabled={!moveTarget.trim() || bulkRename.isPending}
+            className="flex-shrink-0 whitespace-nowrap"
+          >
+            {t('collection.bulkMoveBtn', { n: selectedIds.size })}
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => setBulkDeleteOpen(true)}
+            className="flex-shrink-0 whitespace-nowrap"
+          >
+            {t('collection.deleteSelected', { n: selectedIds.size })}
+          </Button>
         </div>
-
-        {/* Import button + message */}
-        {importMsg && (
-          <span className="text-xs font-medium text-primary whitespace-nowrap">{importMsg}</span>
-        )}
-        <Button onClick={() => setImportOpen(true)} size="sm" className="gap-1.5 flex-shrink-0">
-          <Plus className="h-3.5 w-3.5" />
-          {t('collection.importBtn')}
-        </Button>
-      </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-4 space-y-2">
@@ -213,6 +313,9 @@ export default function CollectionTab() {
                         storagePath={storagePath!}
                         onEdit={() => setEditing(f)}
                         onDelete={() => setDeleting(f)}
+                        selectMode={selectMode}
+                        isSelected={selectedIds.has(f.id)}
+                        onToggleSelect={toggleSelect}
                       />
                     ))}
                   </div>
@@ -235,6 +338,13 @@ export default function CollectionTab() {
       <DeleteFindDialog
         find={deleting}
         onOpenChange={(open) => !open && setDeleting(null)}
+      />
+      <BulkDeleteDialog
+        count={selectedIds.size}
+        findIds={Array.from(selectedIds)}
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        onSuccess={handleBulkDeleteSuccess}
       />
     </div>
   );

@@ -16,6 +16,7 @@ pub fn run() {
             commands::finds::upsert_species_note,
             commands::finds::trash_source_file,
             commands::finds::quit_app,
+            commands::finds::bulk_rename_species,
         ])
         .setup(|_app| Ok(()))
         .run(tauri::generate_context!())

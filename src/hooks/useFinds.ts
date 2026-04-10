@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getFinds, updateFind, deleteFind, getSpeciesNotes, upsertSpeciesNote,
+  bulkRenameSpecies,
   FINDS_QUERY_KEY, SPECIES_NOTES_QUERY_KEY,
   type Find, type UpdateFindPayload,
 } from '@/lib/finds';
@@ -44,6 +45,31 @@ export function useSpeciesNotes() {
     queryKey: [SPECIES_NOTES_QUERY_KEY, storagePath],
     queryFn: () => getSpeciesNotes(storagePath!),
     enabled: !!storagePath,
+  });
+}
+
+export function useBulkDeleteFinds() {
+  const storagePath = useAppStore((s) => s.storagePath);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ findIds, deleteFiles }: { findIds: number[]; deleteFiles: boolean }) => {
+      await Promise.all(findIds.map((id) => deleteFind(storagePath!, id, deleteFiles)));
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
+    },
+  });
+}
+
+export function useBulkRenameSpecies() {
+  const storagePath = useAppStore((s) => s.storagePath);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ findIds, newSpeciesName }: { findIds: number[]; newSpeciesName: string }) =>
+      bulkRenameSpecies(storagePath!, findIds, newSpeciesName),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
+    },
   });
 }
 

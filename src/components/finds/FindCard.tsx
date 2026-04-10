@@ -1,5 +1,5 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { Pencil, Image, Trash2 } from 'lucide-react';
+import { Pencil, Image, Trash2, Square, CheckSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { isHeic, type Find } from '@/lib/finds';
 import { useT } from '@/i18n/index';
@@ -9,19 +9,35 @@ interface FindCardProps {
   storagePath: string;
   onEdit: (find: Find) => void;
   onDelete: (find: Find) => void;
+  selectMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (id: number) => void;
 }
 
-export function FindCard({ find, storagePath, onEdit, onDelete }: FindCardProps) {
+export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSelected, onToggleSelect }: FindCardProps) {
   const t = useT();
   const primaryPhoto = find.photos[0] ?? null;
   const absolutePath = primaryPhoto ? `${storagePath}/${primaryPhoto.photo_path}` : '';
   const heic = primaryPhoto ? isHeic(primaryPhoto.photo_path) : false;
   const extraCount = find.photos.length > 1 ? find.photos.length - 1 : 0;
 
+  const handleClick = selectMode && onToggleSelect
+    ? () => onToggleSelect(find.id)
+    : undefined;
+
   return (
-    <div className="group relative flex items-start gap-3 rounded-sm border border-border/50 bg-card/60 p-3 transition-all duration-200 hover:border-primary/25 hover:bg-card">
+    <div
+      className={`group relative flex items-start gap-3 rounded-sm border p-3 transition-all duration-200 ${
+        selectMode
+          ? isSelected
+            ? 'border-primary/60 bg-primary/8 cursor-pointer'
+            : 'border-border/50 bg-card/60 cursor-pointer hover:border-primary/25 hover:bg-card'
+          : 'border-border/50 bg-card/60 hover:border-primary/25 hover:bg-card'
+      }`}
+      onClick={handleClick}
+    >
       {/* Amber left accent */}
-      <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-l-sm bg-primary opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+      <div className={`absolute left-0 top-0 bottom-0 w-0.5 rounded-l-sm bg-primary transition-opacity duration-200 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} />
 
       {/* Thumbnail */}
       <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-sm bg-muted flex items-center justify-center">
@@ -74,27 +90,36 @@ export function FindCard({ find, storagePath, onEdit, onDelete }: FindCardProps)
         )}
       </div>
 
-      {/* Actions — appear on hover */}
-      <div className="flex flex-shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 text-muted-foreground hover:text-foreground"
-          aria-label={t('findCard.edit')}
-          onClick={() => onEdit(find)}
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 text-muted-foreground hover:text-destructive"
-          aria-label="Delete"
-          onClick={() => onDelete(find)}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
-      </div>
+      {/* Actions — normal mode: edit/delete on hover; select mode: checkbox */}
+      {selectMode ? (
+        <div className="flex flex-shrink-0 items-center pl-1">
+          {isSelected
+            ? <CheckSquare className="h-5 w-5 text-primary" />
+            : <Square className="h-5 w-5 text-muted-foreground/40 group-hover:text-muted-foreground/70" />
+          }
+        </div>
+      ) : (
+        <div className="flex flex-shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            aria-label={t('findCard.edit')}
+            onClick={(e) => { e.stopPropagation(); onEdit(find); }}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+            aria-label="Delete"
+            onClick={(e) => { e.stopPropagation(); onDelete(find); }}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

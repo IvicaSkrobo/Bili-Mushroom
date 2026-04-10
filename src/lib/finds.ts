@@ -179,3 +179,15 @@ export async function upsertSpeciesNote(
 }
 
 export const SPECIES_NOTES_QUERY_KEY = 'species_notes' as const;
+
+/**
+ * Calls the Rust `bulk_rename_species` command.
+ * Updates species_name for all given find IDs atomically.
+ */
+export async function bulkRenameSpecies(
+  storagePath: string,
+  findIds: number[],
+  newSpeciesName: string,
+): Promise<void> {
+  return invoke<void>('bulk_rename_species', { storagePath, findIds, newSpeciesName });
+}

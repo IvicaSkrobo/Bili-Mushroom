@@ -156,6 +156,28 @@ pub async fn get_find_photos(
     Ok(photos)
 }
 
+#[tauri::command]
+pub async fn bulk_rename_species(
+    storage_path: String,
+    find_ids: Vec<i64>,
+    new_species_name: String,
+) -> Result<(), String> {
+    if find_ids.is_empty() {
+        return Ok(());
+    }
+    let mut conn = open_db(&storage_path)?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    for find_id in &find_ids {
+        tx.execute(
+            "UPDATE finds SET species_name = ?1 WHERE id = ?2",
+            params![new_species_name, find_id],
+        )
+        .map_err(|e| format!("Bulk rename failed for id {}: {}", find_id, e))?;
+    }
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
