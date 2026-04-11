@@ -16,6 +16,7 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
 // Mock fs plugin
 vi.mock('@tauri-apps/plugin-fs', () => ({
   readDir: vi.fn().mockResolvedValue([]),
+  remove: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock sonner toast
@@ -219,8 +220,8 @@ describe('ImportDialog', () => {
     });
 
     await waitFor(() => {
-      // PostImportReviewDialog should open showing the imported count
-      expect(screen.getByText(/import complete/i)).toBeInTheDocument();
+      // PostImportReviewDialog should open — "Done" button is unique to the review dialog
+      expect(screen.getByRole('button', { name: /done/i })).toBeInTheDocument();
     });
     // onOpenChange should NOT have been called yet
     expect(onOpenChange).not.toHaveBeenCalledWith(false);

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
-import { readDir } from '@tauri-apps/plugin-fs';
+import { readDir, remove } from '@tauri-apps/plugin-fs';
 import { useQueryClient } from '@tanstack/react-query';
 import { MapPin, Images, FolderOpen } from 'lucide-react';
 import {
@@ -88,6 +88,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   const [error, setError] = useState<string | null>(null);
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [deleteSource, setDeleteSource] = useState(true);
 
   // Shared header state
   const [sharedName, setSharedName] = useState('');
@@ -285,6 +286,15 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
       }
       onImportComplete?.(summary.imported.length, summary.skipped.length);
       qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
+      // Delete source files if checkbox checked (skip in-place files already inside storagePath)
+      if (deleteSource) {
+        const sourcePaths = pending.map((item) => item.sourcePath);
+        await Promise.allSettled(
+          sourcePaths
+            .filter((p) => !p.startsWith(storagePath))
+            .map((p) => remove(p)),
+        );
+      }
       // Store summary and open review dialog — pending cleared when review closes
       setImportSummary(summary);
       setReviewOpen(true);
@@ -431,6 +441,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
               type="date"
               value={sharedDate}
               onChange={(e) => setSharedDate(e.target.value)}
+              className="text-foreground [color-scheme:light]"
             />
             <Input
               placeholder={t('import.country')}
@@ -506,9 +517,20 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
             {pending.length > 0 && !allNamed && (
               <p className="text-sm text-destructive">{t('import.nameRequired')}</p>
             )}
-            <Button onClick={handleImportAll} disabled={!canImport}>
-              {t('import.importAll')}
-            </Button>
+            <div className="flex items-center justify-between w-full">
+              <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={deleteSource}
+                  onChange={(e) => setDeleteSource(e.target.checked)}
+                  className="h-4 w-4 rounded accent-primary cursor-pointer"
+                />
+                Delete from source folder after import
+              </label>
+              <Button onClick={handleImportAll} disabled={!canImport}>
+                {t('import.importAll')}
+              </Button>
+            </div>
           </div>
         </DialogFooter>
       </DialogContent>

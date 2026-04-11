@@ -80,4 +80,5 @@ export function emitMockEvent<T>(eventName: string, payload: T): void {
 // ---------------------------------------------------------------------------
 vi.mock('@tauri-apps/plugin-fs', () => ({
   readDir: vi.fn().mockResolvedValue([]),
+  remove: vi.fn().mockResolvedValue(undefined),
 }));

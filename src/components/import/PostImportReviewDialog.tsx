@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { Trash2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -10,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { EditFindDialog } from '@/components/finds/EditFindDialog';
 import { useAppStore } from '@/stores/appStore';
+import { deleteFind } from '@/lib/finds';
 import type { ImportSummary, Find } from '@/lib/finds';
 
 interface PostImportReviewDialogProps {
@@ -20,9 +22,22 @@ interface PostImportReviewDialogProps {
 
 export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: PostImportReviewDialogProps) {
   const [editingFind, setEditingFind] = useState<Find | null>(null);
+  const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
   const storagePath = useAppStore((s) => s.storagePath);
 
   const open = summary !== null;
+
+  async function handleDelete(find: Find) {
+    if (!storagePath) return;
+    try {
+      await deleteFind(storagePath, find.id, false);
+      setDeletedIds((prev) => new Set(prev).add(find.id));
+    } catch {
+      // silently ignore — find may already be gone
+    }
+  }
+
+  const visibleFinds = summary?.imported.filter((f) => !deletedIds.has(f.id)) ?? [];
 
   return (
     <>
@@ -30,17 +45,18 @@ export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: 
         <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>
-              Import complete — {summary?.imported.length ?? 0} imported
+              Import complete — {visibleFinds.length} imported
               {(summary?.skipped.length ?? 0) > 0 && `, ${summary!.skipped.length} skipped`}
+              {deletedIds.size > 0 && ` (${deletedIds.size} deleted)`}
             </DialogTitle>
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto max-h-[50vh]">
             {/* Imported finds list */}
-            {summary && summary.imported.length > 0 && (
+            {visibleFinds.length > 0 && (
               <div className="space-y-2 p-1">
                 <p className="text-sm font-medium text-muted-foreground">Imported</p>
-                {summary.imported.map((find) => {
+                {visibleFinds.map((find) => {
                   const primaryPhoto = find.photos?.[0];
                   const thumbSrc = primaryPhoto && storagePath
                     ? convertFileSrc(`${storagePath}/${primaryPhoto.photo_path}`)
@@ -68,12 +84,21 @@ export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: 
                         </p>
                         <p className="text-xs text-muted-foreground">{find.date_found}</p>
                       </div>
+
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => setEditingFind(find)}
                       >
                         Edit
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => handleDelete(find)}
+                      >
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   );
@@ -103,7 +128,6 @@ export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: 
         </DialogContent>
       </Dialog>
 
-      {/* Inline edit for a find from the review list */}
       <EditFindDialog
         find={editingFind}
         onOpenChange={(open) => !open && setEditingFind(null)}
