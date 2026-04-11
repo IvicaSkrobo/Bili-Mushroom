@@ -6,7 +6,7 @@ import '@testing-library/jest-dom';
 import '../../test/tauri-mocks';
 import { invokeHandlers, emitMockEvent, listenCallbacks } from '../../test/tauri-mocks';
 import { ImportDialog } from './ImportDialog';
-import type { ImportSummary } from '@/lib/finds';
+import type { ImportSummary, Find } from '@/lib/finds';
 
 // Mock dialog plugin
 vi.mock('@tauri-apps/plugin-dialog', () => ({
@@ -27,16 +27,28 @@ vi.mock('sonner', () => ({
   Toaster: () => null,
 }));
 
-// Seed the appStore with a storage path so ImportDialog can call importFind
+// Seed the appStore with a storage path and language so useT and ImportDialog work
 vi.mock('@/stores/appStore', () => ({
-  useAppStore: vi.fn((selector: (s: { storagePath: string | null }) => unknown) =>
-    selector({ storagePath: '/test-storage' }),
+  useAppStore: vi.fn((selector: (s: { storagePath: string | null; language: string }) => unknown) =>
+    selector({ storagePath: '/test-storage', language: 'en' }),
   ),
+}));
+
+// Mock LocationPickerMap to avoid leaflet/jsdom issues
+vi.mock('@/components/map/LocationPickerMap', () => ({
+  LocationPickerMap: () => null,
+}));
+
+// Mock EditFindDialog to avoid complex dependency chain
+vi.mock('@/components/finds/EditFindDialog', () => ({
+  EditFindDialog: vi.fn(({ find }: { find: Find | null }) => {
+    if (!find) return null;
+    return <div data-testid="edit-find-dialog">{find.species_name}</div>;
+  }),
 }));
 
 const { open: mockOpen } = await import('@tauri-apps/plugin-dialog');
 const { readDir: mockReadDir } = await import('@tauri-apps/plugin-fs');
-const { toast } = await import('sonner');
 
 function makeQueryClient() {
   return new QueryClient({
@@ -56,16 +68,17 @@ const sampleSummary: ImportSummary = {
   imported: [
     {
       id: 1,
-      photo_path: 'Croatia/Istria/2024-05-10/Amanita_muscaria_2024-05-10_001.jpg',
       original_filename: 'shroom.jpg',
-      species_name: '',
+      species_name: 'Amanita muscaria',
       date_found: '2024-05-10',
-      country: '',
-      region: '',
+      country: 'Croatia',
+      region: 'Istria',
+      location_note: '',
       lat: 45.1,
       lng: 13.9,
       notes: '',
       created_at: '2024-05-10T14:00:00Z',
+      photos: [],
     },
   ],
   skipped: [],
@@ -84,6 +97,8 @@ beforeEach(() => {
   // Reset invoke handlers to safe defaults
   invokeHandlers['parse_exif'] = () => ({ date: '2024-05-10', lat: 45.1, lng: 13.9 });
   invokeHandlers['import_find'] = () => sampleSummary;
+  invokeHandlers['get_finds'] = () => [];
+  invokeHandlers['get_species_notes'] = () => [];
   // Clear listen callbacks
   Object.keys(listenCallbacks).forEach((k) => delete listenCallbacks[k]);
 });
@@ -165,6 +180,9 @@ describe('ImportDialog', () => {
     });
     await waitFor(() => screen.getByPlaceholderText('Species name'));
 
+    // Fill species name so Import All is enabled
+    fireEvent.change(screen.getByPlaceholderText('Species name'), { target: { value: 'Boletus edulis' } });
+
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Import All/i }));
     });
@@ -177,7 +195,7 @@ describe('ImportDialog', () => {
     });
   });
 
-  it('on successful import shows success toast and calls onOpenChange(false)', async () => {
+  it('on successful import opens PostImportReviewDialog instead of closing immediately', async () => {
     vi.mocked(mockOpen).mockResolvedValueOnce(['/photos/shroom.jpg']);
     invokeHandlers['parse_exif'] = () => ({ date: '2024-05-10', lat: null, lng: null });
     invokeHandlers['import_find'] = () => sampleSummary;
@@ -193,14 +211,19 @@ describe('ImportDialog', () => {
     });
     await waitFor(() => screen.getByPlaceholderText('Species name'));
 
+    // Fill species name so Import All is enabled
+    fireEvent.change(screen.getByPlaceholderText('Species name'), { target: { value: 'Amanita muscaria' } });
+
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Import All/i }));
     });
 
     await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('Imported 1'));
-      expect(onOpenChange).toHaveBeenCalledWith(false);
+      // PostImportReviewDialog should open showing the imported count
+      expect(screen.getByText(/import complete/i)).toBeInTheDocument();
     });
+    // onOpenChange should NOT have been called yet
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
   it('on import error shows Alert and does NOT call onOpenChange', async () => {
@@ -218,6 +241,9 @@ describe('ImportDialog', () => {
       fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
     });
     await waitFor(() => screen.getByPlaceholderText('Species name'));
+
+    // Fill species name
+    fireEvent.change(screen.getByPlaceholderText('Species name'), { target: { value: 'Boletus edulis' } });
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Import All/i }));
@@ -256,9 +282,12 @@ describe('ImportDialog', () => {
     });
 
     await waitFor(() => {
-      const cards = screen.getAllByPlaceholderText('Species name');
+      // BulkMetadataBar adds its own "Species name" input when pending >= 2
+      // so we count FindPreviewCard species inputs by their unique presence in each card
+      // Use the remove buttons as a proxy: 1 remove button per card
+      const removeButtons = screen.getAllByRole('button', { name: /remove from list/i });
       // Only jpg and png should be imported (txt filtered out)
-      expect(cards).toHaveLength(2);
+      expect(removeButtons).toHaveLength(2);
     });
   });
 
@@ -292,6 +321,9 @@ describe('ImportDialog', () => {
       fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
     });
     await waitFor(() => screen.getByPlaceholderText('Species name'));
+
+    // Fill species name so Import All is enabled
+    fireEvent.change(screen.getByPlaceholderText('Species name'), { target: { value: 'Boletus edulis' } });
 
     act(() => {
       fireEvent.click(screen.getByRole('button', { name: /Import All/i }));

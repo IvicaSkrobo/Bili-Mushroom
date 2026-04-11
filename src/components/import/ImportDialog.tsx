@@ -16,6 +16,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { FindPreviewCard } from './FindPreviewCard';
+import { PostImportReviewDialog } from './PostImportReviewDialog';
+import { BulkMetadataBar, type BulkFields } from './BulkMetadataBar';
 import { useImportProgress } from './useImportProgress';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
 import {
@@ -26,6 +28,7 @@ import {
   SPECIES_NOTES_QUERY_KEY,
   SUPPORTED_EXTENSIONS,
   type ImportPayload,
+  type ImportSummary,
 } from '@/lib/finds';
 import { reverseGeocode } from '@/lib/geocoding';
 import { useAppStore } from '@/stores/appStore';
@@ -96,6 +99,8 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   const [pending, setPending] = useState<PendingItem[]>([]);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   // Shared header state
   const [sharedName, setSharedName] = useState('');
@@ -292,6 +297,19 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         qc.invalidateQueries({ queryKey: [SPECIES_NOTES_QUERY_KEY, storagePath] });
       }
       onImportComplete?.(summary.imported.length, summary.skipped.length);
+      qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
+      // Store summary and open review dialog — pending cleared when review closes
+      setImportSummary(summary);
+      setReviewOpen(true);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  function handleReviewClose(open: boolean) {
+    if (!open) {
       setPending([]);
       setSharedName('');
       setSharedDate('');
@@ -300,16 +318,28 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
       setSharedLocationNote('');
       setSharedFolderNotes('');
       setSharedLocation(null);
-      qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
+      setImportSummary(null);
+      setReviewOpen(false);
       onOpenChange(false);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setImporting(false);
     }
   }
 
+  function handleApplyAll(fields: BulkFields) {
+    setPending((prev) =>
+      prev.map((item) => ({
+        ...item,
+        payload: {
+          ...item.payload,
+          ...(fields.species_name !== undefined ? { species_name: fields.species_name } : {}),
+          ...(fields.date_found !== undefined ? { date_found: fields.date_found } : {}),
+          ...(fields.country !== undefined ? { country: fields.country } : {}),
+        },
+      })),
+    );
+  }
+
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
@@ -454,6 +484,10 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         <div className="flex-1 overflow-y-auto min-h-0">
           {pending.length > 0 && (
             <div className="flex flex-col gap-3 py-1">
+              <BulkMetadataBar
+                itemCount={pending.length}
+                onApplyAll={handleApplyAll}
+              />
               {pending.map((item, i) => (
                 <FindPreviewCard
                   key={i}
@@ -498,5 +532,11 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+      <PostImportReviewDialog
+        summary={reviewOpen ? importSummary : null}
+        onOpenChange={handleReviewClose}
+      />
+    </>
   );
 }
