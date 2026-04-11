@@ -40,16 +40,6 @@ export default function CollectionTab() {
   const [moveTarget, setMoveTarget] = useState('');
   const [moveDropdownOpen, setMoveDropdownOpen] = useState(false);
   const [moveHighlight, setMoveHighlight] = useState(0);
-
-  const speciesNames = useMemo(
-    () => groups.map(([name]) => name).filter((n) => n !== '(unnamed)'),
-    [groups],
-  );
-  const filteredSpecies = useMemo(() => {
-    if (!moveTarget.trim()) return speciesNames;
-    const q = moveTarget.trim().toLowerCase();
-    return speciesNames.filter((n) => n.toLowerCase().includes(q));
-  }, [speciesNames, moveTarget]);
   const bulkRename = useBulkRenameSpecies();
 
   const toggleSelect = (id: number) => {
@@ -130,6 +120,16 @@ export default function CollectionTab() {
     const q = search.trim().toLowerCase();
     return groups.filter(([name]) => name.toLowerCase().includes(q));
   }, [groups, search]);
+
+  const speciesNames = useMemo(
+    () => groups.map(([name]) => name).filter((n) => n !== '(unnamed)'),
+    [groups],
+  );
+  const filteredSpecies = useMemo(() => {
+    if (!moveTarget.trim()) return speciesNames;
+    const q = moveTarget.trim().toLowerCase();
+    return speciesNames.filter((n) => n.toLowerCase().includes(q));
+  }, [speciesNames, moveTarget]);
 
   const isSearching = search.trim().length > 0;
 
