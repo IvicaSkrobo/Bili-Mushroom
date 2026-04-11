@@ -162,6 +162,7 @@ pub async fn import_find(
     app: tauri::AppHandle,
     storage_path: String,
     payloads: Vec<ImportPayload>,
+    delete_source: bool,
 ) -> Result<ImportSummary, String> {
     let total = payloads.len();
     let mut imported: Vec<FindRecord> = Vec::new();
@@ -230,10 +231,12 @@ pub async fn import_find(
                 &ext,
             );
 
-            // Copy then delete source — works across filesystems/USB drives
+            // Copy then optionally delete source — works across filesystems/USB drives
             std::fs::copy(&payload.source_path, &dest_path)
                 .map_err(|e| format!("Failed to copy {:?} to {:?}: {}", payload.source_path, dest_path, e))?;
-            let _ = std::fs::remove_file(&payload.source_path); // best-effort; ignore on read-only USB
+            if delete_source {
+                let _ = std::fs::remove_file(&payload.source_path); // best-effort; ignore on read-only USB
+            }
 
             dest_path
                 .strip_prefix(&storage_path)

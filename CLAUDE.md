@@ -3,15 +3,15 @@
 
 **Bili Mushroom**
 
-A Windows desktop app for mushroom foragers to catalogue, organize, and explore their finds. Users import photos and info about mushrooms they've collected, and the app organizes everything by location and date, displays finds on an interactive map, and provides a rich knowledge base with species descriptions, edibility warnings, and personal notes. Built with Tauri + React + Rust — distributable to other foragers.
+Windows desktop app for mushroom foragers to catalogue, organize, explore finds. Import photos + info; app organizes by location/date, displays on interactive map, provides knowledge base: species descriptions, edibility warnings, personal notes. Tauri + React + Rust — distributable to foragers.
 
-**Core Value:** A forager's personal mushroom journal — every find stored, organized, searchable, and mapped so that nothing collected is ever forgotten.
+**Core Value:** Forager's personal mushroom journal — every find stored, organized, searchable, mapped. Nothing collected forgotten.
 
 ### Constraints
 
-- **Platform**: Windows primary (Win 10/11) — Tauri supports Mac/Linux but not the focus
-- **Storage**: 100% local — no internet requirement for core features (map tiles may need initial download)
-- **Distribution**: Packaged installer — must run without installing Node/Rust on end user machine
+- **Platform**: Windows primary (Win 10/11) — Tauri supports Mac/Linux but not focus
+- **Storage**: 100% local — no internet required for core features (map tiles may need initial download)
+- **Distribution**: Packaged installer — no Node/Rust on end user machine
 - **Tech Stack**: Tauri 2.x + React 18+ + Rust (already committed)
 - **Species Database**: Bundled with app — no external API for species lookup in v1
 <!-- GSD:project-end -->
@@ -23,47 +23,47 @@ A Windows desktop app for mushroom foragers to catalogue, organize, and explore 
 ### Core Framework
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
-| Tauri | 2.10.x | Desktop shell, OS integration | Latest stable (2.10.3, Mar 2025). 10-20x smaller than Electron. Rust backend gives safe file I/O, EXIF parsing, and SQLite without Node.js on end user's machine. |
-| React | 18.x | UI rendering | Already committed. Concurrent features align with Tauri 2's async IPC model. |
-| TypeScript | 5.x | Type safety across frontend | Non-negotiable for a data-heavy app with complex domain types (species, finds, coordinates). |
+| Tauri | 2.10.x | Desktop shell, OS integration | Latest stable (2.10.3, Mar 2025). 10-20x smaller than Electron. Rust backend: safe file I/O, EXIF, SQLite. No Node.js on end user machine. |
+| React | 18.x | UI rendering | Already committed. Concurrent features align with Tauri 2 async IPC model. |
+| TypeScript | 5.x | Type safety across frontend | Non-negotiable. Data-heavy app with complex domain types (species, finds, coordinates). |
 | Vite | 5.x | Frontend build tooling | Default Tauri 2 scaffolding uses Vite. Fast HMR. No reason to deviate. |
 ### SQLite / Database
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
-| tauri-plugin-sql | 2.x | JS ↔ SQLite bridge via Tauri IPC | Official plugin. Exposes `execute()` and `select()` to the React frontend. Handles migrations at startup. Uses sqlx under the hood. |
-| libsqlite3-sys | latest | SQLite native binding | Add with `features = ["bundled"]` to statically link SQLite into the Windows binary. Without this, builds on Windows fail with "sqlite3.lib not found". |
-| sqlx | 0.8.x | Rust-side SQL (used internally by plugin) | Used indirectly through the plugin. If you need direct Rust-side queries (e.g. in Tauri commands), sqlx with compile-time checked queries is the right tool. |
+| tauri-plugin-sql | 2.x | JS ↔ SQLite bridge via Tauri IPC | Official plugin. Exposes `execute()` and `select()` to React frontend. Handles migrations at startup. Uses sqlx. |
+| libsqlite3-sys | latest | SQLite native binding | Add with `features = ["bundled"]` to statically link SQLite into Windows binary. Without this, builds fail with "sqlite3.lib not found". |
+| sqlx | 0.8.x | Rust-side SQL (used internally by plugin) | Used indirectly via plugin. For direct Rust-side queries (e.g. Tauri commands), sqlx compile-time checked queries. |
 ### State Management
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
-| Zustand | 5.0.x | Global UI state (active species, filter state, selected find, map viewport, active tab) | Minimal boilerplate, no Provider wrappers, TypeScript inference is excellent in v5. 5.0.12 is the latest (actively maintained). |
-| TanStack Query | 5.x | All async data — Tauri IPC calls to SQLite | Caching, background refetch, loading/error states. In Tauri, every SQLite read is an async IPC invoke — TQ handles this exactly like API calls. Avoids manual useEffect + useState patterns for every list/detail query. |
+| Zustand | 5.0.x | Global UI state (active species, filter state, selected find, map viewport, active tab) | Minimal boilerplate, no Provider wrappers, excellent TS inference in v5. 5.0.12 latest (active). |
+| TanStack Query | 5.x | All async data — Tauri IPC calls to SQLite | Caching, bg refetch, loading/error states. Every SQLite read is async IPC invoke — TQ handles like API calls. Avoids manual useEffect + useState per query. |
 ### Map Library
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
-| Leaflet | 1.9.x | Core map engine | Battle-tested, 148KB JS, no API key, OSM works out of the box. Croatia has excellent OSM coverage. |
+| Leaflet | 1.9.x | Core map engine | Battle-tested, 148KB JS, no API key, OSM out of box. Croatia has excellent OSM coverage. |
 | react-leaflet | 5.0.x | React bindings for Leaflet | Latest stable (v5.0.0). Declarative component model fits React patterns. |
-| leaflet.offline | 3.2.x | Offline tile caching via IndexedDB | Stores downloaded tiles in IndexedDB, which Tauri supports natively on Windows. Users can pre-cache their region tiles. |
+| leaflet.offline | 3.2.x | Offline tile caching via IndexedDB | Stores tiles in IndexedDB (Tauri native on Windows). Users pre-cache region tiles. |
 ### EXIF Parsing
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
-| kamadak-exif | 0.6.1 | Read GPS lat/lon, DateTimeOriginal from smartphone JPEGs | Pure Rust, no C dependencies, actively maintained. Supports JPEG, HEIF, PNG, WebP. Exposes `GPSLatitude`, `GPSLatitudeRef`, `GPSLongitude`, `GPSLongitudeRef`, `DateTimeOriginal` tags directly. |
+| kamadak-exif | 0.6.1 | Read GPS lat/lon, DateTimeOriginal from smartphone JPEGs | Pure Rust, no C deps, active. Supports JPEG, HEIF, PNG, WebP. Exposes `GPSLatitude`, `GPSLatitudeRef`, `GPSLongitude`, `GPSLongitudeRef`, `DateTimeOriginal` directly. |
 ### File Watching
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
-| tauri-plugin-fs | 2.x (watch feature) | File system access + folder watching from frontend | The `watch` feature of the official FS plugin wraps `notify` and exposes it via IPC events. Avoids adding `notify` as a separate dependency. |
-| notify | 6.x | Underlying cross-platform FS watcher | Used indirectly by `tauri-plugin-fs`. If you need lower-level control in Rust commands (e.g. recursive watch + debounce), add directly. Uses OS-native APIs (ReadDirectoryChangesW on Windows). |
+| tauri-plugin-fs | 2.x (watch feature) | File system access + folder watching from frontend | `watch` feature wraps `notify`, exposes via IPC events. No separate `notify` dep needed. |
+| notify | 6.x | Underlying cross-platform FS watcher | Used indirectly by `tauri-plugin-fs`. Add directly for lower-level Rust control (recursive watch + debounce). OS-native APIs (ReadDirectoryChangesW on Windows). |
 ### PDF Export
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
-| @react-pdf/renderer | 3.x | Generate PDF from React components | Pure JavaScript, no native dependencies, 860K weekly downloads, actively maintained. Renders to a Blob in-browser. The React component model lets you design the report layout as JSX. |
-| Comlink | 4.x | Web Worker bridge | Offloads PDF generation from the main thread. Without this, complex reports (many photos + maps) will freeze the UI. Proven pattern documented specifically for Tauri + react-pdf. |
+| @react-pdf/renderer | 3.x | Generate PDF from React components | Pure JS, no native deps, 860K weekly downloads, active. Renders to Blob in-browser. Design layout as JSX. |
+| Comlink | 4.x | Web Worker bridge | Offloads PDF gen from main thread. Without it, complex reports freeze UI. Proven pattern for Tauri + react-pdf. |
 ### UI Component Library
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
-| shadcn/ui | current (CLI-managed) | Accessible, desktop-appropriate UI components | Components are copy-pasted into the repo — you own the code and customize freely. Built on Radix UI accessibility primitives (keyboard nav, ARIA). Tailwind v4 compatible as of March 2025. |
-| Tailwind CSS | 4.x | Utility styling | shadcn/ui v4 components use Tailwind v4. Vite plugin makes integration straightforward. |
-| Radix UI | (bundled via shadcn) | Accessible primitives | Do not use raw Radix directly — use it through shadcn/ui. You get Dialog, DropdownMenu, Tooltip, Select, etc. correctly wired to ARIA. |
+| shadcn/ui | current (CLI-managed) | Accessible, desktop-appropriate UI components | Components copy-pasted into repo — own + customize freely. Built on Radix UI primitives (keyboard nav, ARIA). Tailwind v4 compatible Mar 2025. |
+| Tailwind CSS | 4.x | Utility styling | shadcn/ui v4 uses Tailwind v4. Vite plugin integrates cleanly. |
+| Radix UI | (bundled via shadcn) | Accessible primitives | Don't use raw Radix directly — use via shadcn/ui. Get Dialog, DropdownMenu, Tooltip, Select, etc. wired to ARIA. |
 ### Species Database
 | Source | Format | Coverage | Usability |
 |--------|--------|----------|-----------|
@@ -75,16 +75,16 @@ A Windows desktop app for mushroom foragers to catalogue, organize, and explore 
 ## Alternatives Considered
 | Category | Recommended | Alternative | Why Not |
 |----------|-------------|-------------|---------|
-| SQLite plugin | tauri-plugin-sql | tauri-plugin-rusqlite2 | Community fork, not official, not needed for this app's requirements |
-| SQLite plugin | tauri-plugin-sql | Direct sqlx commands | More boilerplate, need to write your own JS bindings; plugin handles this |
-| State management | Zustand + TanStack Query | Redux Toolkit | 3x boilerplate, wrong fit for single-developer desktop app |
+| SQLite plugin | tauri-plugin-sql | tauri-plugin-rusqlite2 | Community fork, not official, unneeded |
+| SQLite plugin | tauri-plugin-sql | Direct sqlx commands | More boilerplate, need own JS bindings; plugin handles it |
+| State management | Zustand + TanStack Query | Redux Toolkit | 3x boilerplate, wrong fit for solo dev desktop app |
 | Map | react-leaflet | MapLibre GL JS | 800KB vs 148KB; WebGL overhead; Croatia use case doesn't need vector tiles or 3D |
 | Map tiles | leaflet.offline (IndexedDB) | Bundled .mbtiles + local server | Valid for fully-offline install; heavier; revisit in Phase 2 if needed |
 | EXIF | kamadak-exif | rexif | rexif is JPEG/TIFF only, less active maintenance, no HEIF support |
-| PDF | @react-pdf/renderer | printpdf (Rust) | Low-level; manual layout of photos and formatted text is impractical |
+| PDF | @react-pdf/renderer | printpdf (Rust) | Low-level; manual photo/text layout impractical |
 | PDF | @react-pdf/renderer | wkhtmltopdf | Requires bundling 30MB extra binary; deployment complexity |
-| UI | shadcn/ui | Mantine | Mantine is opinionated SaaS library; shadcn/ui code ownership fits custom desktop design better |
-| Watch | tauri-plugin-fs (watch) | notify crate directly | Plugin wraps notify and exposes it to frontend IPC — less code |
+| UI | shadcn/ui | Mantine | Mantine opinionated SaaS lib; shadcn/ui code ownership fits custom desktop better |
+| Watch | tauri-plugin-fs (watch) | notify crate directly | Plugin wraps notify and exposes to frontend IPC — less code |
 ## Installation Reference
 # Frontend packages
 # shadcn/ui (uses CLI, not npm install)
@@ -98,12 +98,12 @@ A Windows desktop app for mushroom foragers to catalogue, organize, and explore 
 |------|------------|-------|
 | Tauri 2.x version (2.10.3) | HIGH | Confirmed from GitHub releases |
 | tauri-plugin-sql + Windows bundled fix | HIGH | Official docs + confirmed community fix |
-| Zustand v5 + TanStack Query v5 | HIGH | Both actively maintained, versions confirmed |
+| Zustand v5 + TanStack Query v5 | HIGH | Both active, versions confirmed |
 | react-leaflet v5 + leaflet.offline | MEDIUM | Versions confirmed; Tauri WebView/ServiceWorker limitation inferred from architecture — verify in Phase 1 |
 | kamadak-exif 0.6.1 | HIGH | crates.io + docs.rs confirmed |
 | tauri-plugin-fs watch feature | HIGH | Official docs confirmed |
-| @react-pdf/renderer + Comlink | MEDIUM | Pattern confirmed in March 2025 Tauri-specific article |
-| shadcn/ui + Tailwind v4 | HIGH | Official docs confirmed March 2025 |
+| @react-pdf/renderer + Comlink | MEDIUM | Pattern confirmed Mar 2025 Tauri article |
+| shadcn/ui + Tailwind v4 | HIGH | Official docs confirmed Mar 2025 |
 | Species database (manual curation) | MEDIUM | No ready-made source found; approach is sound |
 ## Sources
 - [Tauri SQL Plugin — official docs](https://v2.tauri.app/plugin/sql/)
@@ -128,50 +128,50 @@ A Windows desktop app for mushroom foragers to catalogue, organize, and explore 
 <!-- GSD:conventions-start source:CONVENTIONS.md -->
 ## Conventions
 
-Conventions not yet established. Will populate as patterns emerge during development.
+None yet. Populate as patterns emerge.
 
 ## Frontend Design
 
-The `frontend-design` skill is installed at `.claude/skills/frontend-design/SKILL.md`.
+`frontend-design` skill installed at `.claude/skills/frontend-design/SKILL.md`.
 
-**Always invoke the `frontend-design` skill before implementing or modifying any UI component, page layout, visual styling, or UX flow.**
+**Always invoke `frontend-design` skill before implementing/modifying UI components, layouts, styling, UX flows.**
 
 ### Established aesthetic: Forest Codex
 
-Dark forest-floor theme committed in the initial redesign (2026-04-10):
+Dark forest-floor theme. Initial redesign 2026-04-10:
 
-- **Palette**: Deep moss background (`oklch(0.12 0.015 135)`), chanterelle amber primary (`oklch(0.72 0.12 80)`), warm off-white text. All CSS variables defined in `src/index.css`.
-- **Typography**: Playfair Display (italic serif) for species names and headings; DM Sans for all UI copy; JetBrains Mono for coordinates and paths. Fonts loaded via Google Fonts in `index.html`.
+- **Palette**: Deep moss bg (`oklch(0.12 0.015 135)`), chanterelle amber primary (`oklch(0.72 0.12 80)`), warm off-white text. CSS vars in `src/index.css`.
+- **Typography**: Playfair Display (italic serif) for species names + headings; DM Sans for UI copy; JetBrains Mono for coords + paths. Fonts via Google Fonts in `index.html`.
 - **Motion**: `animate-fade-up` on page-level content; `stagger-item` with `animationDelay` on list items. CSS-only.
 - **Cards/hover**: Amber left-border reveal on hover (`group-hover:opacity-100`), edit/delete actions hidden until hover.
 - **Tab nav**: Uppercase tracked labels (`tracking-[0.18em]`), amber underline on active tab via `[data-slot="tabs-trigger"][data-state="active"]::after` in CSS.
 
-Do not introduce Inter, Roboto, system-ui as the primary font, purple/blue gradients, or light-mode defaults. This app is dark-only.
+No Inter, Roboto, system-ui as primary font. No purple/blue gradients, no light-mode defaults. Dark-only.
 <!-- GSD:conventions-end -->
 
 <!-- GSD:architecture-start source:ARCHITECTURE.md -->
 ## Architecture
 
-Architecture not yet mapped. Follow existing patterns found in the codebase.
+Not yet mapped. Follow existing codebase patterns.
 <!-- GSD:architecture-end -->
 
 <!-- GSD:skills-start source:skills/ -->
 ## Project Skills
 
-No project skills found. Add skills to any of: `.claude/skills/`, `.agents/skills/`, `.cursor/skills/`, or `.github/skills/` with a `SKILL.md` index file.
+None found. Add to `.claude/skills/`, `.agents/skills/`, `.cursor/skills/`, or `.github/skills/` with `SKILL.md` index.
 <!-- GSD:skills-end -->
 
 <!-- GSD:workflow-start source:GSD defaults -->
 ## GSD Workflow Enforcement
 
-Before using Edit, Write, or other file-changing tools, start work through a GSD command so planning artifacts and execution context stay in sync.
+Before Edit, Write, or other file-changing tools, start via GSD command. Keeps planning artifacts + execution context in sync.
 
-Use these entry points:
-- `/gsd-quick` for small fixes, doc updates, and ad-hoc tasks
-- `/gsd-debug` for investigation and bug fixing
-- `/gsd-execute-phase` for planned phase work
+Entry points:
+- `/gsd-quick` — small fixes, doc updates, ad-hoc tasks
+- `/gsd-debug` — investigation + bug fixing
+- `/gsd-execute-phase` — planned phase work
 
-Do not make direct repo edits outside a GSD workflow unless the user explicitly asks to bypass it.
+No direct repo edits outside GSD workflow unless user explicitly bypasses.
 <!-- GSD:workflow-end -->
 
 

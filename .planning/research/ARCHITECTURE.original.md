@@ -2,7 +2,7 @@
 
 **Domain:** Local-first Tauri 2 desktop mushroom catalogue app
 **Researched:** 2026-04-08
-**Confidence:** HIGH (Tauri 2 docs, SQLite patterns, library choices verified)
+**Confidence:** HIGH (Tauri 2 docs verified, SQLite patterns verified, library choices verified)
 
 ---
 
@@ -51,16 +51,16 @@
 
 | Component | Responsibility | Communicates With |
 |-----------|---------------|-------------------|
-| React Pages (Map, Gallery, Species, Stats) | UI render, user interactions | TanStack Query hooks, Zustand store |
-| TanStack Query layer | Cache Tauri command results, auto-invalidate | Tauri `invoke()` IPC |
-| Zustand store | UI state (selected find, filters, modal, map view) | React components directly |
-| Tauri Commands (Rust) | Business logic, file I/O, DB access | SQLite via sqlx, std::fs, kamadak-exif |
-| SQLite database | Persistent data, FTS5 index | Rust commands only (never from JS) |
-| File system (user data dir) | Photos (original), thumbnails | Rust commands; thumbs via Tauri asset protocol |
-| Tile cache (disk) | OSM tiles cached locally | Rust tile proxy command |
-| Species DB (bundled JSON/SQL) | Read-only species knowledge base | Loaded into SQLite on first run |
+| React Pages (Map, Gallery, Species, Stats) | UI rendering, user interactions | TanStack Query hooks, Zustand store |
+| TanStack Query layer | Caches Tauri command results, auto-invalidates | Tauri `invoke()` IPC |
+| Zustand store | UI-only state (selected find, active filters, modal open/close, map view) | React components directly |
+| Tauri Commands (Rust) | All business logic, file I/O, DB access | SQLite via sqlx, std::fs, kamadak-exif |
+| SQLite database | Persistent structured data, FTS5 search index | Rust commands only (never directly from JS) |
+| File system (user data dir) | Photos (original), thumbnails | Rust commands; thumbnails served via Tauri asset protocol |
+| Tile cache (disk) | OpenStreetMap tile images cached locally | Rust tile proxy command |
+| Species DB (bundled JSON/SQL) | Read-only species knowledge base | Loaded into SQLite at first run |
 
-**Critical boundary rule:** Frontend never touches SQLite/filesystem directly. All data via typed Tauri commands. Enforces Rust validation, prevents path traversal/injection.
+**Critical boundary rule:** The frontend never touches SQLite or the file system directly. All data access goes through typed Tauri commands. This enforces validation in Rust and prevents path traversal or injection.
 
 ---
 
@@ -240,11 +240,11 @@ CREATE INDEX idx_photos_hash    ON photos(file_hash);
 ```
 
 **Notes on schema decisions:**
-- `found_at` TEXT (ISO 8601) — date range queries work via string compare when format consistent.
-- `stored_path` relative to `data_dir` (settings table) — DB portable if user moves folder.
-- `thumb_path` relative to `AppData/thumbs/` — thumbs regenerable, separate from user data.
-- `file_hash` prevents re-import. Check before copy.
-- `finds_fts` uses `content=` external content mode — FTS indexes `finds` table, triggers sync it, no double-storage.
+- `found_at` stored as TEXT (ISO 8601) — simple date range queries work with string comparison when format is consistent.
+- `stored_path` is relative to user-configured `data_dir` (from settings table) — database stays portable if user moves their data folder.
+- `thumb_path` is relative to `AppData/thumbs/` — thumbnails are regenerable, kept separate from user data.
+- `file_hash` on photos table prevents re-import of same photo. Check before copying.
+- `finds_fts` uses `content=` external content mode — the FTS index references the `finds` table, triggers keep it in sync, avoids double-storage.
 
 ---
 
@@ -254,17 +254,17 @@ CREATE INDEX idx_photos_hash    ON photos(file_hash);
 
 | Command | Why Rust |
 |---------|----------|
-| `scan_folder(path)` | FS enumeration, safe path handling |
-| `extract_exif(path)` | Binary parse via kamadak-exif crate |
-| `import_photos(candidates)` | Copy files, dedup hash, gen thumbnails |
-| `get_finds(filters)` | SQLite query, typed structs |
-| `save_find(find)` | Validated SQLite write |
-| `delete_find(id)` | Cascade delete (photos, FTS index) |
+| `scan_folder(path)` | File system enumeration, safe path handling |
+| `extract_exif(path)` | Binary parsing via kamadak-exif crate |
+| `import_photos(candidates)` | File copying, dedup hash, thumbnail generation |
+| `get_finds(filters)` | SQLite query, returns typed structs |
+| `save_find(find)` | Validated write to SQLite |
+| `delete_find(id)` | Cascading delete (photos, FTS index) |
 | `search_finds(query)` | FTS5 MATCH query via sqlx |
 | `get_species(id)` | SQLite lookup |
 | `get_stats()` | Aggregation queries (COUNT, GROUP BY) |
 | `get_tile(z, x, y)` | HTTP fetch + disk cache |
-| `export_pdf(find_ids)` | PDF gen (printpdf crate) |
+| `export_pdf(find_ids)` | PDF generation (printpdf crate) |
 | `get_settings()` / `save_settings()` | Read/write AppData |
 | `choose_data_dir()` | Native folder dialog (tauri-plugin-dialog) |
 
@@ -272,20 +272,20 @@ CREATE INDEX idx_photos_hash    ON photos(file_hash);
 
 | Concern | Why Frontend |
 |---------|-------------|
-| Map rendering (Leaflet) | WebView, JS library |
-| Search debouncing | UI concern (300ms delay) |
-| Photo lightbox / gallery UI | Display logic |
+| Map rendering (Leaflet) | WebView capability, JavaScript library |
+| Search debouncing | UI concern (300ms delay before invoke) |
+| Photo lightbox / gallery UI | Pure display logic |
 | Filter state (active species, date range) | Ephemeral UI state, Zustand |
-| Form validation display | UX feedback |
-| Seasonal calendar rendering | Computed from fetched data |
-| Wishlist UI interactions | Operates on fetched data |
+| Form validation display | UX feedback layer |
+| Seasonal calendar rendering | Computed from data already fetched |
+| Wishlist UI interactions | Operates on already-fetched data |
 
 ---
 
 ## File System Architecture
 
 ### User Data Directory (user-configurable)
-In settings as `data_dir`. Default: `Documents/Bili-Mushroom/`.
+Stored in settings table as `data_dir`. Defaults to `Documents/Bili-Mushroom/`.
 
 ```
 {data_dir}/
@@ -315,9 +315,9 @@ AppData/Roaming/bili-mushroom/
 ```
 
 **Rationale for split:**
-- User data dir = forager's archive — back up, copy, open in Explorer.
-- AppData: regenerable cache (thumbs, tiles) + SQLite index. Delete `bili.db` → re-scan + re-index.
-- Never store originals in AppData — user's data, not app's.
+- User data dir is the "forager's archive" — they can back it up, copy it, open it in Explorer.
+- AppData holds regenerable cache (thumbnails, tiles) and the index (SQLite). If bili.db is deleted, the app can re-scan and re-index.
+- Never store original photos in AppData — they belong to the user, not the app.
 
 ---
 
@@ -325,20 +325,20 @@ AppData/Roaming/bili-mushroom/
 
 **Recommended approach: Rust tile proxy via Tauri command + Leaflet custom tile layer.**
 
-PMTiles/MapLibre better for offline apps needing full regional downloads upfront. This app: progressive caching while browsing is better UX.
+The alternative (PMTiles with MapLibre GL) is better for truly offline apps needing full regional downloads up front. For this app, progressive tile caching as the user browses is the better UX.
 
 **Implementation:**
 
-1. Rust command `get_tile(z, x, y, source)` — caching proxy:
+1. Rust command `get_tile(z, x, y, source)` acts as a caching proxy:
    - Check `AppData/tile-cache/{source}/{z}/{x}/{y}.png`
    - Hit: return bytes as base64 or via Tauri asset protocol
    - Miss: fetch from `https://tile.openstreetmap.org/{z}/{x}/{y}.png`, write to disk, return
-2. React registers custom Leaflet `TileLayer` with URL template pointing to `tauri://localhost/tile/{z}/{x}/{y}` or invoking command via JS fetch interceptor.
-3. Tiles accumulate as user browses — no "download region" step for v1.
+2. React registers a custom Leaflet `TileLayer` with a URL template pointing to `tauri://localhost/tile/{z}/{x}/{y}` or invoking the command via a JavaScript fetch interceptor.
+3. Tiles accumulate on disk as the user browses — no explicit "download region" step needed for v1.
 
-**OSM tile usage note:** OSM tiles need User-Agent + rate limiting. Rust proxy adds these — frontend never makes HTTP requests.
+**OSM tile usage note:** OSM tiles require User-Agent header and reasonable rate limiting. Rust proxy can add these transparently (the frontend never makes direct HTTP requests).
 
-**Satellite layer:** Switch tile source (e.g., ESRI World Imagery) in proxy — change upstream URL param.
+**Satellite layer:** Switch tile source (e.g., ESRI World Imagery) in the same proxy — just change the upstream URL parameter.
 
 ---
 
@@ -352,36 +352,36 @@ PMTiles/MapLibre better for offline apps needing full regional downloads upfront
 5. Return candidate list to React for confirmation UI
 6. On confirm: `import_photos` copies originals to `{data_dir}/{Location}/{Date}/`
 7. Generate thumbnail: `image` crate → resize to 300px wide → save to `AppData/thumbs/{id}.jpg`
-8. Strip EXIF GPS from thumbnails (privacy-conscious) — preserve in DB only
+8. Strip EXIF GPS from thumbnails (privacy-conscious) — preserve it in DB only
 9. Insert `photos` row, update `finds_fts` index
 
 ### Serving Photos to React
-- Thumbs: Tauri asset protocol from AppData — fast, no IPC overhead
-- Full-res: invoke `open_photo(id)` returns path, React constructs `convertFileSrc(path)` URL
-- Never base64 photos over IPC — use Tauri asset serving
+- Thumbnails: served via Tauri asset protocol from AppData — fast, no IPC overhead
+- Full-res: invoke `open_photo(id)` which returns path, React constructs `convertFileSrc(path)` URL
+- Never base64-encode photos through IPC — use Tauri's asset serving
 
 ### EXIF Crate Choice
 **Use `kamadak-exif` (pure Rust) over `rexiv2`.**
-- `rexiv2` wraps gexiv2/Exiv2 (C++) — needs dynamic linking, complicates Windows dist
-- `kamadak-exif` pure Rust, clean Windows compile, reads GPS+datetime from JPEG/TIFF/HEIF/PNG/WebP (MEDIUM — verify HEIF on target build)
+- `rexiv2` wraps gexiv2/Exiv2 (C++ library) — requires dynamic linking, complicates Windows distribution
+- `kamadak-exif` is pure Rust, compiles cleanly on Windows, reads GPS coords and datetime from JPEG/TIFF/HEIF/PNG/WebP (MEDIUM confidence — verify HEIF support on target build)
 
 ---
 
 ## Search Architecture
 
-**Use SQLite FTS5.** No in-memory filtering for catalogue with thousands of finds.
+**Use SQLite FTS5.** Do not use in-memory filtering for a catalogue that could hold thousands of finds.
 
-FTS5 advantages:
-- BM25 ranking built-in — relevant finds first
+FTS5 advantages for this app:
+- BM25 ranking built in — relevant finds surface first
 - Supports prefix search (`Vrganj*` → matches Vrganji)
-- Unicode tokenizer handles Croatian chars (`unicode61`)
-- Same SQLite connection — no separate search process
-- 50ms at 10,000 files (Tauri reported) — fast enough for forager's catalogue
+- Unicode tokenizer handles Croatian characters correctly (`unicode61` tokenizer)
+- Integrated with the same SQLite connection — no separate search process
+- At Tauri's reported 50ms for 10,000 files, this is fast enough for a forager's catalogue
 
 **Search scope:**
 - `finds_fts`: notes, user_name — personal observations
 - `species_fts`: names, description — knowledge base search
-- SQL filters (date range, location, edibility) stay as WHERE clauses, not FTS
+- Combine with SQL filters: date range, location, edibility — these stay as SQL WHERE clauses, not FTS
 
 **Non-FTS filtering** (use SQL WHERE, not FTS):
 - Date range: `found_at BETWEEN '2024-01-01' AND '2024-12-31'`
@@ -418,7 +418,7 @@ const mutation = useMutation({
 ```
 
 **Why not use the Tauri SQL plugin directly from JS?**
-`tauri-plugin-sql` from JS exposes raw SQL — schema leaks to UI, no validation boundary. Use typed Tauri commands. Rust is sole SQL author.
+Using `tauri-plugin-sql` from JavaScript exposes raw SQL to the frontend — schema details leak to the UI layer, and there's no validation boundary. Prefer typed Tauri commands that return domain types. The Rust layer is the only SQL author.
 
 ---
 
@@ -426,34 +426,34 @@ const mutation = useMutation({
 
 ### Pattern 1: Command per use case, not per table
 **What:** One command per user action (import_photos, save_find) not one per SQL operation (insert_photo, update_find, delete_photo).
-**Why:** Encapsulates multi-step transactions. Import = copy files + gen thumbs + insert rows + update FTS, all atomic.
+**Why:** Encapsulates multi-step transactions. Import involves copying files, generating thumbnails, inserting rows, and updating FTS — all in one atomic command.
 
 ### Pattern 2: Relative paths in database
-**What:** Store `stored_path` relative to `data_dir`, not absolute.
-**Why:** Paths stay valid if user moves folder or shares DB.
+**What:** Store `stored_path` as path relative to `data_dir`, not absolute.
+**Why:** If user moves their mushroom folder or shares the database, paths remain valid.
 
 ### Pattern 3: Thumbnails are always regenerable
-**What:** Thumbs directory can be wiped. `regenerate_thumbnails` command re-creates from originals.
-**Why:** AppData cleared by Windows cleanup tools. App must survive.
+**What:** Thumbs directory can be wiped. A `regenerate_thumbnails` command re-creates from originals.
+**Why:** AppData can be cleared by Windows cleanup tools. App must not be broken by this.
 
 ### Pattern 4: FTS triggers, not dual writes
 **What:** Use SQLite triggers to keep FTS5 index in sync, not application-level dual writes.
-**Why:** Rust writes to base table only. Triggers sync FTS — no divergence risk.
+**Why:** Rust commands only write to the base table. Triggers handle FTS automatically — no risk of base table and index diverging.
 
 ---
 
 ## Anti-Patterns to Avoid
 
 ### Anti-Pattern 1: Storing absolute file paths in database
-**What goes wrong:** User moves mushroom folder → all photo paths break
+**What goes wrong:** User moves their mushroom folder → all photo paths break
 **Instead:** Store relative paths + resolve at runtime from settings.data_dir
 
 ### Anti-Pattern 2: Loading all photos as base64 over IPC
-**What goes wrong:** 50 thumbs on gallery = megabytes over IPC
+**What goes wrong:** Loading 50 thumbnails for a gallery page sends megabytes over the IPC bridge
 **Instead:** Use `convertFileSrc()` / Tauri asset protocol to serve images directly from disk
 
 ### Anti-Pattern 3: Running SQL from the frontend (tauri-plugin-sql)
-**What goes wrong:** Schema couples to UI; no validation; raw SQL in JS fragile
+**What goes wrong:** Schema details couple to UI; no validation boundary; raw SQL in JS is fragile
 **Instead:** Typed Tauri commands that accept/return domain types
 
 ### Anti-Pattern 4: Blocking the Rust command thread
@@ -461,14 +461,14 @@ const mutation = useMutation({
 **Instead:** All Tauri commands are async; use `tokio::spawn` for parallel EXIF extraction during import
 
 ### Anti-Pattern 5: Downloading satellite tiles without attribution
-**What goes wrong:** ESRI + OSM have ToS; mass test downloads = IP block risk
+**What goes wrong:** ESRI and OSM both have ToS; mass downloads during testing may get IP blocked
 **Instead:** Respect rate limits in tile proxy (tokio sleep between misses), add User-Agent header
 
 ---
 
 ## Suggested Build Order
 
-Fastest path to usable app, based on data dependencies:
+The fastest path to a usable app, based on data dependencies:
 
 **Stage 1 — Foundation (nothing works without this)**
 1. SQLite schema + migrations (sqlx, `bili.db` created on first launch)
@@ -505,11 +505,11 @@ Fastest path to usable app, based on data dependencies:
 22. Seasonal calendar
 23. PDF export (printpdf crate)
 
-**Rationale:**
-- Stage 1 unblocks all — no work without persistence
-- Stage 2: core value is import+organise — validates full pipeline
-- Map deferred (tile proxy complex); import more critical to validate
-- Stats/export last — need real data
+**Rationale for this order:**
+- Stage 1 unblocks all later stages — no work can happen without persistence
+- Stage 2 first because the core value proposition is "import and organise" — validates that the whole pipeline works end-to-end
+- Map deferred to Stage 4 because tile proxy adds complexity; find import is more important to validate
+- Stats and export are last — they depend on having real data
 
 ---
 
@@ -524,7 +524,7 @@ Fastest path to usable app, based on data dependencies:
 | Tile cache | ~500MB Croatia | Cap at 2GB, LRU evict | LRU eviction required |
 | Stats queries | Instant | Instant | May need materialized views |
 
-Typical forager: hundreds to low thousands. 50K = decades of pro use. Design for 5,000.
+A typical forager will have hundreds to low thousands of finds. 50K finds is an extreme case (decades of professional use). Design for 5,000 comfortably.
 
 ---
 

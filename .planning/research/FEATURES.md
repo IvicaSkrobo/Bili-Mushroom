@@ -2,73 +2,73 @@
 
 **Domain:** Personal mushroom foraging catalogue and journal (desktop)
 **Researched:** 2026-04-08
-**Context:** Windows desktop, fully local, primary user is a Croatian forager (Gorski Kotar, Istria, Slavonia)
+**Context:** Windows desktop, fully local, primary user is Croatian forager (Gorski Kotar, Istria, Slavonia)
 
 ---
 
 ## Table Stakes
 
-Features users expect in any serious foraging catalogue app. Missing = product feels incomplete or useless.
+Features users expect in serious foraging catalogue app. Missing = incomplete or useless.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| Photo storage per find | Foragers document everything visually; photos are the primary record | Low | Core data model — must support multiple photos per find |
-| Species name per entry | Every find must be attributed to a species (even if unconfirmed) | Low | Support both common and scientific names |
-| Date per find | When you found it is as important as where | Low | EXIF auto-read + manual fallback |
-| Location per find | Foragers protect and revisit spots; location is critical | Low | GPS from EXIF; manual map pick fallback |
-| Edibility/danger rating | Safety is non-negotiable for foragers | Low | Prominent display: Edible / Caution / Toxic / Deadly / Unknown |
-| Species description | Reference info about what you found | Medium | Can be auto-populated from bundled database |
-| Interactive map of finds | Visualizing where you've been is core to foraging | Medium | Pins per find; click to see what was found there |
-| Search and filter | Finding past finds by name, location, date | Low | Full-text search plus filter by field |
-| Offline functionality | Forests have no signal; app must work without internet | Low | All data local — this is already the architecture |
+| Photo storage per find | Foragers document visually; photos = primary record | Low | Core data model — must support multiple photos per find |
+| Species name per entry | Every find needs species (even unconfirmed) | Low | Support common + scientific names |
+| Date per find | When found = as critical as where | Low | EXIF auto-read + manual fallback |
+| Location per find | Foragers protect + revisit spots; location critical | Low | GPS from EXIF; manual map pick fallback |
+| Edibility/danger rating | Safety non-negotiable for foragers | Low | Prominent: Edible / Caution / Toxic / Deadly / Unknown |
+| Species description | Reference info about find | Medium | Auto-populate from bundled database |
+| Interactive map of finds | Visualizing where you've been = core to foraging | Medium | Pins per find; click to see finds |
+| Search and filter | Find past finds by name, location, date | Low | Full-text search + field filters |
+| Offline functionality | Forests = no signal; app must work offline | Low | All data local — already the architecture |
 | Photo import from disk | Most foragers shoot on phone; photos land on PC | Medium | Folder import with EXIF extraction |
 | Edit/correct any field | Foragers misidentify; corrections must be easy | Low | All fields editable post-import |
-| Duplicate detection on re-import | Re-importing from same folder must not create duplicates | Medium | Hash-based or path+date deduplication |
+| Duplicate detection on re-import | Re-import same folder = no duplicates | Medium | Hash-based or path+date deduplication |
 
 ---
 
 ## Differentiators
 
-Features that set this app apart from generic note-taking or mobile ID apps. Not universally expected, but highly valued once discovered.
+Features setting this app apart from generic note-taking or mobile ID apps. Not universally expected, but high value once discovered.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| EXIF GPS + date auto-extraction | Zero-friction import — photo taken, metadata flows in automatically | Medium | Rust-side EXIF parsing; fallback to filename date parsing |
+| EXIF GPS + date auto-extraction | Zero-friction import — photo taken, metadata flows in | Medium | Rust-side EXIF parsing; fallback to filename date parsing |
 | Built-in Croatian/European species database | No other desktop app has localized EU species with Croatian names | High | 150–300 species covering Croatia's forests; include Croatian common names (vrganji, lisičarka, smrčak, etc.) |
-| Seasonal calendar (when/where to find) | Foragers plan trips by season; calendar view shows what to expect each month | Medium | Per-species seasonality data in the bundled database |
-| Per-species statistics | "How many times have I found vrganji? Where? First find?" — rewarding for committed foragers | Medium | Aggregated from find records; no extra data entry |
-| Foraging stats dashboard | Total finds, best spots, top months, rarest species — gamifies the hobby | Medium | Derived from existing data; high delight-to-effort ratio |
-| Wishlist with mark-as-found | Dedicated "want to find" list that ties into the collection | Low | Simple list with found/not-found toggle |
-| Location → Date folder organization | Files organized on disk in a human-readable structure the user owns | Low | Matches how foragers think: place first, then visit |
-| Configurable root folder | User chooses where their mushroom data lives; portable, backup-friendly | Low | Critical for long-term trust in the app |
-| PDF export of collection | Printable record; share with mycological society; offline archival | Medium | Generate from find records + photos; useful for clubs and foraging friends |
-| Dangerous lookalike warnings | Per-species: "Easily confused with [Deadly species]" — life-safety value | Medium | Part of bundled species database; Croatian context (Amanita phalloides is common in all Croatian forests) |
-| Map pin clustering | When many finds are in the same area, cluster pins to avoid clutter | Medium | Standard Leaflet.js cluster plugin |
-| OpenStreetMap + satellite/terrain toggle | Free, offline-capable tiles; excellent coverage for Croatian forests | Low | Leaflet.js with OpenStreetMap default + tile provider switch |
-| Manual location pick on map | When photos lack GPS (indoor shots, old cameras), user can pin on map | Low | Click-to-place on Leaflet map during entry |
-| Filter finds by map area | Draw or click an area on map to see only finds within it | High | Spatial query on SQLite coordinates |
+| Seasonal calendar (when/where to find) | Foragers plan trips by season; calendar shows what to expect each month | Medium | Per-species seasonality data in bundled database |
+| Per-species statistics | "How many times found vrganji? Where? First find?" — rewarding for committed foragers | Medium | Aggregated from find records; no extra data entry |
+| Foraging stats dashboard | Total finds, best spots, top months, rarest species — gamifies hobby | Medium | Derived from existing data; high delight-to-effort ratio |
+| Wishlist with mark-as-found | "Want to find" list tied into collection | Low | Simple list with found/not-found toggle |
+| Location → Date folder organization | Files organized on disk in human-readable structure user owns | Low | Matches forager thinking: place first, then visit |
+| Configurable root folder | User chooses where data lives; portable, backup-friendly | Low | Critical for long-term trust |
+| PDF export of collection | Printable record; share with mycological society; offline archival | Medium | Generate from find records + photos; useful for clubs + friends |
+| Dangerous lookalike warnings | Per-species: "Easily confused with [Deadly species]" — life-safety value | Medium | Part of bundled database; Croatian context (Amanita phalloides common in all Croatian forests) |
+| Map pin clustering | Many finds in same area → cluster pins, avoid clutter | Medium | Standard Leaflet.js cluster plugin |
+| OpenStreetMap + satellite/terrain toggle | Free, offline-capable tiles; excellent Croatian forest coverage | Low | Leaflet.js with OpenStreetMap default + tile provider switch |
+| Manual location pick on map | No GPS on photo (indoor shots, old cameras) → user pins on map | Low | Click-to-place on Leaflet map during entry |
+| Filter finds by map area | Draw/click area → see only finds within it | High | Spatial query on SQLite coordinates |
 
 ---
 
 ## Anti-Features
 
-Features to explicitly NOT build. Each has a reason and an alternative.
+Features to explicitly NOT build. Each has reason + alternative.
 
 | Anti-Feature | Why Avoid | What to Do Instead |
 |--------------|-----------|-------------------|
-| AI photo identification (v1) | Accuracy is unreliable (best apps get 49% correct in studies); liability risk; adds API cost or heavy local model; false confidence is dangerous with toxic species | Bundled species database with user-assigned species; mark AI ID as Phase 2+ when approached with local on-device model |
-| Cloud sync / backend | Massive infrastructure cost; privacy concerns (foragers are territorial about spots); destroys local-first value proposition | Local SQLite + user-controlled backup folder; let users use their own cloud drive (Dropbox, OneDrive) for backup |
-| Community/social features | Single-user app; social = server, accounts, moderation; this app is distributed to friends, not a platform | PDF export and distributable app IS the sharing model |
+| AI photo identification (v1) | Accuracy unreliable (best apps: 49% in studies); liability risk; adds API cost or heavy local model; false confidence dangerous with toxic species | Bundled database + user-assigned species; mark AI ID as Phase 2+ with local on-device model |
+| Cloud sync / backend | Massive infrastructure cost; privacy concerns (foragers territorial about spots); destroys local-first value | Local SQLite + user-controlled backup folder; users use own cloud drive (Dropbox, OneDrive) |
+| Community/social features | Single-user app; social = server, accounts, moderation; app distributed to friends, not a platform | PDF export + distributable app IS the sharing model |
 | Real-time weather integration | Adds API key dependency; breaks offline-first; v1 out of scope | Seasonal calendar provides planning context without weather API |
-| Mobile companion app | Entirely separate project; different stack, distribution, UX; dilutes focus | Windows desktop first; mobile foraging workflows served by existing apps (iNaturalist, etc.) |
-| Crowdsourced species validation | Requires community and server; accuracy validation creates liability | Authoritative bundled database sourced from Croatian mycological resources |
-| Multi-device accounts | Authentication, sync conflict resolution, server cost | Single install per machine; data portability through folder |
-| Subscription / paywall | Target users are Croatian foragers sharing among friends; paywall kills adoption | Free distributable installer |
-| In-app ads | Degrades trust and UX in a personal journal app | Free, no ads |
-| Map heatmaps (v1) | Complex to render meaningfully with small personal datasets; pin clusters tell the story at personal scale | Add only when user has 100+ finds; defer to Phase 2+ |
-| Route/track recording | Requires active GPS tracking session; this is a catalogue app, not a trail recorder; Gaia GPS does this well | Keep app focused on catalogue; foragers already use GPS apps for navigation |
-| Spore print, cap shape, gill type fields | Overly detailed mycological data entry creates friction for casual foragers | Notes field captures ad hoc details; keep entry form simple |
-| Web interface / browser app | Tauri is already decided; web app = different deployment, different security model | Tauri desktop is the right choice for local file access |
+| Mobile companion app | Entirely separate project; different stack, distribution, UX; dilutes focus | Windows desktop first; mobile foraging served by existing apps (iNaturalist, etc.) |
+| Crowdsourced species validation | Requires community + server; validation creates liability | Authoritative bundled database from Croatian mycological resources |
+| Multi-device accounts | Authentication, sync conflict resolution, server cost | Single install per machine; portability through folder |
+| Subscription / paywall | Target users = Croatian foragers sharing among friends; paywall kills adoption | Free distributable installer |
+| In-app ads | Degrades trust + UX in personal journal app | Free, no ads |
+| Map heatmaps (v1) | Complex to render with small personal datasets; pin clusters tell the story at personal scale | Add only at 100+ finds; defer to Phase 2+ |
+| Route/track recording | Requires active GPS session; catalogue app, not trail recorder; Gaia GPS does this well | Keep focused on catalogue; foragers already use GPS apps for navigation |
+| Spore print, cap shape, gill type fields | Overly detailed mycological data creates friction for casual foragers | Notes field captures ad hoc details; keep entry form simple |
+| Web interface / browser app | Tauri already decided; web app = different deployment, different security model | Tauri desktop right choice for local file access |
 
 ---
 
@@ -98,7 +98,7 @@ Map display → Cluster pins → Click cluster/pin → Show finds at location
 
 ## MVP Recommendation
 
-The minimum viable product must deliver the core forager loop: import → organize → view on map → find info → stats.
+MVP must deliver core forager loop: import → organize → view on map → find info → stats.
 
 **Prioritize for MVP:**
 
@@ -123,7 +123,7 @@ The minimum viable product must deliver the core forager loop: import → organi
 
 ## Croatian / European Context
 
-This context shapes the bundled species database scope and naming conventions.
+Shapes bundled species database scope + naming conventions.
 
 ### Priority Species for Croatian Database
 
@@ -144,16 +144,16 @@ This context shapes the bundled species database scope and naming conventions.
 - Tuber melanosporum / Tuber magnatum — crni / bijeli tartuf (truffle); Istria
 
 **Deadly/toxic species requiring prominent warnings:**
-- Amanita phalloides — zelena pupavka / smrdljiva pupavka (death cap); responsible for 90% of mushroom fatalities worldwide; found across all Croatian forests
+- Amanita phalloides — zelena pupavka / smrdljiva pupavka (death cap); 90% of mushroom fatalities worldwide; all Croatian forests
 - Amanita virosa — bijela pupavka (destroying angel); often confused with edible Agaricus
 - Amanita pantherina — panterina muhara (panther cap); hallucinogenic/toxic
 - Amanita muscaria — muhara (fly agaric); iconic but toxic
 - Cortinarius orellanus — crvenjača (fool's webcap); kidney-destroying delayed toxicity
 - Rubroboletus satanas — vražji vrganj / ludara (Satan's bolete); looks like porcini to beginners
 - Galerina marginata — rebrasta patuljica (funeral bell); deadly lookalike for edible Pholiota/Kuehneromyces
-- Omphalotus olearius — lažna lisičica (jack-o'-lantern); toxic lookalike for chanterelle — critical Croatian pitfall
+- Omphalotus olearius — lažna lisičica (jack-o'-lantern); toxic chanterelle lookalike — critical Croatian pitfall
 
-**Critical dangerous lookalike pairs for the database (Croatia-specific):**
+**Critical dangerous lookalike pairs (Croatia-specific):**
 - Cantharellus cibarius (lisičarka / edible) ↔ Omphalotus olearius (lažna lisičica / toxic) — most common Croatian misidentification
 - Boletus edulis (vrganj / edible) ↔ Rubroboletus satanas (vražji vrganj / toxic)
 - Agaricus campestris (pećurka / edible) ↔ Amanita phalloides (zelena pupavka / deadly)
@@ -162,14 +162,14 @@ This context shapes the bundled species database scope and naming conventions.
 ### Seasonality (Northern Mediterranean / Balkan climate)
 - **Spring (March–May):** Smrčak (morel), St. George's mushroom, first chanterelles in Istria
 - **Summer (June–August):** Chanterelles peak, first porcini, bay bolete
-- **Autumn (September–November):** Porcini peak (September–October), black trumpet (Slavonia), honey fungus, saffron milkcap — the "golden season" for Croatian foragers
+- **Autumn (September–November):** Porcini peak (September–October), black trumpet (Slavonia), honey fungus, saffron milkcap — "golden season" for Croatian foragers
 - **Winter (December–February):** Very limited; oyster mushrooms on dead wood, velvet shank
 
 ### Legal Context
-- Foraging in Croatia requires a free permit from Croatian Forests (Hrvatske šume)
-- Daily personal collection limit: 3 kg
-- Fines for violations: 133–933 euros
-- The app should note this in onboarding or help text (not enforce it — just inform)
+- Foraging in Croatia requires free permit from Croatian Forests (Hrvatske šume)
+- Daily personal limit: 3 kg
+- Fines: 133–933 euros
+- App should note this in onboarding/help text (inform only — don't enforce)
 
 ---
 

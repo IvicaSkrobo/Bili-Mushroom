@@ -8,304 +8,304 @@
 
 ## Critical Pitfalls
 
-Mistakes that cause data loss, rewrites, or user-facing failures.
+Data loss, rewrites, or user-facing failures.
 
 ---
 
 ### Pitfall 1: Tauri 2 HTTP Scheme Change Wipes WebView Storage
 
-**What goes wrong:** In Tauri v1 on Windows, the frontend was served from `https://tauri.localhost`. In Tauri v2 it was changed to `http://tauri.localhost`. Any data stored in `localStorage`, `IndexedDB`, or cookies belongs to a different origin after this change — it is silently inaccessible and effectively erased from the user's point of view.
+**What goes wrong:** Tauri v1 Windows served frontend from `https://tauri.localhost`. v2 changed to `http://tauri.localhost`. Data in `localStorage`, `IndexedDB`, or cookies belongs to different origin — silently inaccessible, effectively erased.
 
-**Why it happens:** The scheme is part of the origin, so `https://` and `http://` are different storage namespaces in the WebView2 runtime. The change was intentional but creates a data loss trap for developers who store state in browser APIs during development, then discover they can't read it in production (or after upgrading from beta builds).
+**Why it happens:** Scheme is part of origin. `https://` and `http://` are different storage namespaces in WebView2 runtime. Change was intentional but traps devs who store state in browser APIs during dev, then can't read it in prod or after beta upgrades.
 
-**Consequences:** Any React state persisted to `localStorage` (e.g., user preferences, cached species lookups, draft entries) is lost silently on app version changes. IndexedDB storage locations on Windows change from `https_tauri.localhost_0.indexeddb.leveldb` to `http_tauri.localhost_0.indexeddb.leveldb`.
+**Consequences:** React state in `localStorage` (preferences, species lookups, draft entries) lost silently on version change. IndexedDB paths change from `https_tauri.localhost_0.indexeddb.leveldb` to `http_tauri.localhost_0.indexeddb.leveldb`.
 
 **Prevention:**
-- Store ALL persistent user data in SQLite via Rust commands. Never rely on `localStorage` or `IndexedDB` for anything that must survive an app update.
-- If preferences must be stored on the JS side, use Tauri's `store` plugin (`tauri-plugin-store`) which persists to a JSON file in `AppData`, not the WebView storage.
-- Never use `localStorage` as a database substitute in a Tauri app.
+- Store ALL persistent user data in SQLite via Rust commands. Never rely on `localStorage` or `IndexedDB` for anything surviving app update.
+- If preferences must live on JS side, use Tauri `store` plugin (`tauri-plugin-store`) — persists to JSON in `AppData`, not WebView storage.
+- Never use `localStorage` as DB substitute in Tauri app.
 
-**Detection:** Data missing after fresh install or after upgrading from dev to production build. Check WebView2 storage path changes.
+**Detection:** Data missing after fresh install or dev→prod upgrade. Check WebView2 storage path changes.
 
-**Phase:** Phase 1 (architecture decisions) — bake this in before writing any persistence code.
+**Phase:** Phase 1 (architecture decisions) — bake in before writing persistence code.
 
 ---
 
 ### Pitfall 2: SQLite "Database is Locked" on Windows Without WAL Mode
 
-**What goes wrong:** The default SQLite journal mode is DELETE (rollback journal). Under this mode, a write transaction holds an exclusive lock that blocks all readers and other writers. In Tauri's multi-threaded Rust backend, even a single async command that opens a second connection while a write is in progress returns `SQLITE_BUSY` and fails.
+**What goes wrong:** Default SQLite journal mode DELETE holds exclusive write lock, blocks all readers and writers. In Tauri's multi-threaded Rust backend, single async command opening second connection during write returns `SQLITE_BUSY` and fails.
 
-**Why it happens:** rusqlite's `Connection` is not `Send`, so it cannot cross async task boundaries easily. The common pattern of wrapping a connection in `Mutex<Connection>` and holding the lock across async calls (e.g., awaiting file I/O during an import) starves other database operations.
+**Why it happens:** rusqlite `Connection` not `Send`, can't cross async task boundaries. Wrapping connection in `Mutex<Connection>` and holding lock across async calls (e.g., awaiting file I/O during import) starves other DB ops.
 
-**Consequences:** Import operations fail mid-way through with cryptic "database is locked" errors. The app appears to hang during batch photo imports.
+**Consequences:** Import fails mid-way with cryptic "database is locked". App hangs during batch photo imports.
 
 **Prevention:**
-- Enable WAL mode immediately on first database open: `PRAGMA journal_mode=WAL;`
-- Set a busy timeout: `PRAGMA busy_timeout=5000;`
-- Keep write transactions short — do not hold a transaction open while doing file I/O or any async work.
-- Use `Mutex<Connection>` for the simplest case, OR use `sqlx` with a connection pool (`SqlitePoolOptions`) which handles read concurrency properly. For a single-user desktop app, `Arc<Mutex<rusqlite::Connection>>` with short transactions is adequate.
-- Alternatively use `tauri-plugin-sql` which handles WAL mode by default in recent versions.
+- Enable WAL mode on first DB open: `PRAGMA journal_mode=WAL;`
+- Set busy timeout: `PRAGMA busy_timeout=5000;`
+- Keep write transactions short — don't hold open during file I/O or async work.
+- Use `Mutex<Connection>` for simplest case, OR `sqlx` with pool (`SqlitePoolOptions`) for read concurrency. Single-user desktop: `Arc<Mutex<rusqlite::Connection>>` with short transactions adequate.
+- Or use `tauri-plugin-sql` — handles WAL mode by default in recent versions.
 
-**Detection:** `SQLITE_BUSY` errors during import; app freezes on the "Importing..." screen.
+**Detection:** `SQLITE_BUSY` errors during import; app freezes on "Importing..." screen.
 
-**Phase:** Phase 1 (database setup) — WAL mode must be the very first PRAGMA applied on connection open.
+**Phase:** Phase 1 (database setup) — WAL mode must be first PRAGMA on connection open.
 
 ---
 
 ### Pitfall 3: Missing SQLite Schema Migration Strategy
 
-**What goes wrong:** The app ships with schema version 1. A future release adds a column. Users who upgrade get a startup crash or silent data corruption because the running code expects the new column but the on-disk database is the old schema.
+**What goes wrong:** App ships schema version 1. Future release adds column. Upgrading users get startup crash or silent corruption — running code expects new column, on-disk DB is old schema.
 
-**Why it happens:** Developers test fresh installs; existing user databases are never tested against new code.
+**Why it happens:** Devs test fresh installs; existing user DBs never tested against new code.
 
-**Consequences:** App fails to start for existing users after update. Force-uninstall/reinstall loses all data. This is a critical distribution pitfall.
+**Consequences:** App fails to start for existing users after update. Force-uninstall/reinstall loses all data. Critical distribution pitfall.
 
 **Prevention:**
-- Implement `PRAGMA user_version` tracking from day one, even if the schema never changes in v1.
-- Use a migration runner at startup (before any other DB operations): check `user_version`, run pending migrations in order, then bump the version.
-- Libraries: `rusqlite_migration` crate (simple embedded migrations), or `sqlx` with compile-time migration embedding (`sqlx::migrate!()`).
-- Never use `CREATE TABLE IF NOT EXISTS` as a substitute for versioned migrations — it silently skips adding new columns to existing tables.
+- Implement `PRAGMA user_version` tracking from day one, even if schema never changes in v1.
+- Migration runner at startup (before any DB ops): check `user_version`, run pending migrations in order, bump version.
+- Libraries: `rusqlite_migration` crate (simple embedded migrations), or `sqlx` with compile-time embedding (`sqlx::migrate!()`).
+- Never use `CREATE TABLE IF NOT EXISTS` as substitute for versioned migrations — silently skips new columns on existing tables.
 
-**Detection:** Users reporting startup crashes after update. Test by creating a v1 database, then running the v2 binary against it.
+**Detection:** Users report startup crashes after update. Test: create v1 DB, run v2 binary against it.
 
-**Phase:** Phase 1 (database setup) — must be in place before first release, not retrofitted later.
+**Phase:** Phase 1 (database setup) — must exist before first release, not retrofitted.
 
 ---
 
 ### Pitfall 4: OpenStreetMap Tile Offline Caching is Prohibited
 
-**What goes wrong:** The OSM tile usage policy at `tile.openstreetmap.org` explicitly forbids bulk downloading / pre-fetching tiles for offline use. Features like "cache this region for offline use" violate the terms and can result in the IP/app being blocked.
+**What goes wrong:** OSM tile usage policy at `tile.openstreetmap.org` forbids bulk downloading/pre-fetching tiles for offline use. "Cache this region for offline" features violate terms; IP/app gets blocked.
 
-**Why it happens:** It seems natural to cache tiles for a local-first app. But OSM's tile servers are a community resource with strict usage limits.
+**Why it happens:** Caching tiles for local-first app seems natural. OSM tile servers are community resource with strict limits.
 
-**Consequences:** App gets rate-limited or blocked mid-session. Legal/ToS violation for a distributed app.
+**Consequences:** App rate-limited or blocked mid-session. Legal/ToS violation for distributed app.
 
 **Prevention:**
-- Use HTTP-cache-compliant tile caching only — respect cache headers, do not batch-download tiles the user hasn't navigated to.
-- For true offline capability, self-host tiles (MBTiles format) or use a tile provider that explicitly allows offline use (e.g., Stadia Maps, MapTiler, or a local `tileserver-gl` sidecar).
-- For this app (primarily online, Croatia region), standard Leaflet tile caching via the browser's HTTP cache is sufficient and compliant. Do not add a "download for offline" feature without switching tile providers.
-- Display OSM attribution `© OpenStreetMap contributors` visibly on the map at all times — this is mandatory, not optional.
+- HTTP-cache-compliant caching only — respect cache headers, don't batch-download tiles user hasn't navigated to.
+- For true offline: self-host tiles (MBTiles) or use provider allowing offline use (Stadia Maps, MapTiler, local `tileserver-gl` sidecar).
+- For this app (online, Croatia region), standard Leaflet tile caching via browser HTTP cache is sufficient and compliant. Don't add "download for offline" without switching providers.
+- Display OSM attribution `© OpenStreetMap contributors` visibly at all times — mandatory.
 
-**Detection:** App receives HTTP 429 responses from tile servers; map tiles fail to load after heavy usage.
+**Detection:** HTTP 429 from tile servers; tiles fail after heavy use.
 
-**Phase:** Phase 2 (map implementation) — attribution must be in the initial implementation; offline tile decisions must be made before building any caching layer.
+**Phase:** Phase 2 (map implementation) — attribution in initial implementation; offline tile decisions before any caching layer.
 
 ---
 
 ### Pitfall 5: Edibility Information as Legal Liability
 
-**What goes wrong:** The app displays edibility/toxicity status (Edible, Toxic, Deadly) from a built-in species database. A user misidentifies a species, sees "Edible" in the app, consumes it, and is harmed.
+**What goes wrong:** App shows edibility/toxicity (Edible, Toxic, Deadly) from built-in species DB. User misidentifies species, sees "Edible", eats it, gets harmed.
 
-**Why it happens:** Mushroom identification is genuinely hard. Similar-looking species can have opposite toxicity. Any app that presents edibility data could be relied upon by a user making a real consumption decision.
+**Why it happens:** Mushroom ID genuinely hard. Similar-looking species can have opposite toxicity. Any app presenting edibility data may be relied upon for real consumption decisions.
 
-**Consequences:** Personal harm to users. Legal liability in some jurisdictions. App store removal. Reputational damage.
+**Consequences:** User harm. Legal liability in some jurisdictions. App store removal. Reputational damage.
 
 **Prevention:**
-- Display a persistent, prominent disclaimer on every edibility/toxicity field: the app is a personal journal, not an identification guide; never consume anything based solely on app data.
-- Require a one-time disclaimer acknowledgment at first launch (store acknowledgment in SQLite, not `localStorage`).
-- Use cautious language: "typically edible" rather than "edible". For deadly species, use maximum-visibility warnings (red, skull icon, clear label).
-- For species data sourced from external databases (iNaturalist, GBIF, Wikipedia), include source attribution and note that data may be inaccurate.
-- Do not market the app as an identification tool.
+- Persistent, prominent disclaimer on every edibility/toxicity field: personal journal, not ID guide; never consume based solely on app data.
+- One-time disclaimer acknowledgment at first launch (store in SQLite, not `localStorage`).
+- Cautious language: "typically edible" not "edible". Deadly species: max-visibility warnings (red, skull icon, clear label).
+- For data from external DBs (iNaturalist, GBIF, Wikipedia): include source attribution, note data may be inaccurate.
+- Don't market as identification tool.
 
-**Detection:** User reviews or community feedback treating the app as authoritative.
+**Detection:** User reviews or community feedback treating app as authoritative.
 
-**Phase:** Phase 1 (species database design) — disclaimer architecture must be designed upfront, not added as an afterthought.
+**Phase:** Phase 1 (species database design) — disclaimer architecture designed upfront, not afterthought.
 
 ---
 
 ## Moderate Pitfalls
 
-Mistakes that cause significant rework or user-facing bugs.
+Significant rework or user-facing bugs.
 
 ---
 
 ### Pitfall 6: EXIF GPS Coordinates Are Not Always Decimal Degrees
 
-**What goes wrong:** EXIF stores GPS coordinates in Degrees/Minutes/Seconds (DMS) as rational numbers (numerator/denominator pairs), plus a hemisphere reference (N/S/E/W). Android cameras write the values as `{degrees}/{denominator},{minutes}/{denominator},{seconds}/{divisor}` which requires specific parsing. If hemisphere reference is `S` or `W` and the decimal is not negated, the pin appears in the wrong hemisphere.
+**What goes wrong:** EXIF stores GPS in DMS as rational numbers (numerator/denominator pairs) plus hemisphere ref (N/S/E/W). Android cameras write `{degrees}/{denominator},{minutes}/{denominator},{seconds}/{divisor}` — requires specific parsing. Hemisphere `S` or `W` without negation puts pin in wrong hemisphere.
 
-**Why it happens:** Most EXIF parsing tutorials show the happy path. Edge cases include: missing `GPSLatitudeRef`/`GPSLongitudeRef` fields, zero-denominator rational numbers, GPS altitude stored with different precision, and fully missing GPS block.
+**Why it happens:** Most EXIF tutorials show happy path. Edge cases: missing `GPSLatitudeRef`/`GPSLongitudeRef`, zero-denominator rationals, GPS altitude at different precision, fully missing GPS block.
 
-**Consequences:** Mushroom pins appear at wrong coordinates — mirrored across equator or prime meridian. App appears broken; user's data is quietly corrupted.
+**Consequences:** Pins at wrong coordinates — mirrored across equator or prime meridian. App appears broken; data quietly corrupted.
 
 **Prevention:**
-- Always check `GPSLatitudeRef` and `GPSLongitudeRef`; negate the decimal if `S` or `W`.
-- Guard against division by zero on denominator values.
-- Validate that parsed coordinates are geographically plausible (latitude -90 to 90, longitude -180 to 180).
-- If GPS block is present but any required subfield is missing, fall back to manual entry rather than showing 0,0.
-- Use a well-maintained EXIF library (e.g., `exifr` on JS side, or `kamadak-exif` / `rexiv2` on Rust side) rather than hand-rolling the parser.
+- Always check `GPSLatitudeRef` and `GPSLongitudeRef`; negate decimal if `S` or `W`.
+- Guard division by zero on denominators.
+- Validate coordinates are geographically plausible (lat -90 to 90, lon -180 to 180).
+- GPS block present but required subfield missing → fall back to manual entry, not 0,0.
+- Use maintained EXIF library (`exifr` on JS side, or `kamadak-exif`/`rexiv2` on Rust side) — don't hand-roll parser.
 
-**Detection:** Test with photos from Android (Kotlin-format DMS), iPhone (standard EXIF), and a camera with no GPS. Verify pin placement against known locations.
+**Detection:** Test with Android (Kotlin-format DMS), iPhone (standard EXIF), camera with no GPS. Verify pins against known locations.
 
-**Phase:** Phase 2 (import pipeline) — write tests for all three GPS formats before building the UI.
+**Phase:** Phase 2 (import pipeline) — write tests for all three GPS formats before building UI.
 
 ---
 
 ### Pitfall 7: EXIF Dates Have No Timezone Information
 
-**What goes wrong:** `DateTimeOriginal` in EXIF is a naive local timestamp with no timezone offset. A photo taken in Croatia (UTC+2) at 14:00 is stored as `2024:05:10 14:00:00` — the same string as a photo taken in the UK at 14:00. When sorting by date or grouping by day, photos from different timezones appear in wrong order.
+**What goes wrong:** `DateTimeOriginal` in EXIF is naive local timestamp, no timezone offset. Croatia (UTC+2) photo at 14:00 stored as `2024:05:10 14:00:00` — same string as UK photo at 14:00. Sorting/grouping by day shows wrong order across timezones.
 
-**Why it happens:** The EXIF standard historically lacked a timezone field. `OffsetTimeOriginal` was added later and most cameras (especially older DSLRs and basic Android phones) do not write it. iPhones do write it for GPS-tagged photos.
+**Why it happens:** EXIF standard historically lacked timezone field. `OffsetTimeOriginal` added later; most cameras (older DSLRs, basic Android) don't write it. iPhones do for GPS-tagged photos.
 
-**Consequences:** The seasonal calendar and per-date grouping show incorrect date distribution. A mushroom found at 23:30 Croatia time might appear under the next day's group when treated as UTC.
+**Consequences:** Seasonal calendar and per-date grouping show wrong distribution. Mushroom found 23:30 Croatia time may appear under next day's group when treated as UTC.
 
 **Prevention:**
-- Store timestamps as-is (naive local time) in SQLite, alongside a separate nullable `timezone_offset` column.
-- For the Croatia-focused audience, this is a minor issue (most users are in the same timezone). Do not attempt to infer timezone from GPS coordinates in v1 — it requires a reverse-geocoding timezone lookup which adds complexity.
-- Display dates without timezone conversion in the UI. Document the behavior.
-- If `OffsetTimeOriginal` is present in EXIF, use it. Otherwise, store the naive time and accept the edge case.
+- Store timestamps as-is (naive local time) in SQLite, with separate nullable `timezone_offset` column.
+- Croatia-focused audience: minor issue (most users same timezone). Don't infer timezone from GPS in v1 — requires reverse-geocoding lookup, adds complexity.
+- Display dates without timezone conversion. Document behavior.
+- If `OffsetTimeOriginal` present in EXIF, use it. Otherwise store naive time, accept edge case.
 
-**Detection:** Import a set of photos with known capture times and verify sorting order.
+**Detection:** Import photos with known capture times, verify sort order.
 
-**Phase:** Phase 2 (import pipeline) — design the schema with timezone in mind from the start, even if the field starts as NULL.
+**Phase:** Phase 2 (import pipeline) — design schema with timezone in mind from start, even if field starts NULL.
 
 ---
 
 ### Pitfall 8: Windows Path Separators Break File Organization
 
-**What goes wrong:** Rust's `std::path::PathBuf` handles Windows paths natively with backslash separators. The Tauri dialog API's `defaultPath` parameter requires backslashes on Windows — forward slashes cause the dialog to open in the default directory instead. When path strings are passed across the IPC boundary as JSON strings (JS → Rust), a mismatch in separator expectation can cause `file not found` errors.
+**What goes wrong:** Rust `std::path::PathBuf` handles Windows paths with backslash separators. Tauri dialog `defaultPath` requires backslashes on Windows — forward slashes open dialog in default directory. Path strings across IPC as JSON (JS → Rust) can cause `file not found` from separator mismatch.
 
-**Why it happens:** JavaScript strings use forward slashes by convention. Rust's `PathBuf` uses the OS-native separator. When paths are built by string concatenation rather than through `PathBuf`, the separators diverge.
+**Why it happens:** JS strings use forward slashes by convention. Rust `PathBuf` uses OS-native separator. Paths built by string concatenation instead of `PathBuf` diverge.
 
-**Consequences:** File copy operations silently fail. Dialog opens in wrong location, confusing users. Folder structure creation fails on Windows where forward-slash paths are rejected by some Win32 APIs.
+**Consequences:** File copy operations silently fail. Dialog opens wrong location. Folder creation fails on Windows where forward-slash paths rejected by some Win32 APIs.
 
 **Prevention:**
 - Never build file paths by string concatenation. Always use `std::path::PathBuf` and `.join()` in Rust.
-- When receiving a path from the frontend, pass it through `PathBuf::from()` on the Rust side before any file operations.
-- When sending a path to the frontend, use `.to_string_lossy()` — this converts to the OS-native representation.
-- For the dialog `defaultPath`, construct the path in Rust and send it to the frontend already formatted correctly.
-- Test file operations specifically on Windows (not just macOS/Linux during development).
+- Path from frontend → pass through `PathBuf::from()` on Rust side before file ops.
+- Path to frontend → use `.to_string_lossy()` for OS-native representation.
+- For dialog `defaultPath`, construct path in Rust, send already formatted.
+- Test file ops on Windows specifically (not just macOS/Linux during dev).
 
-**Detection:** File not found errors only on Windows. Dialog opens in wrong default folder.
+**Detection:** File not found errors Windows-only. Dialog opens wrong default folder.
 
-**Phase:** Phase 2 (import pipeline) — cross-platform path handling should be in the first Rust file I/O code written.
+**Phase:** Phase 2 (import pipeline) — cross-platform path handling in first Rust file I/O code.
 
 ---
 
 ### Pitfall 9: Duplicate Photo Detection Is Harder Than It Looks
 
-**What goes wrong:** A user imports the same folder twice (intentionally, to re-sync after adding new photos). The app creates duplicate entries for every existing photo instead of only adding new ones.
+**What goes wrong:** User imports same folder twice (re-syncing after adding photos). App creates duplicate entries for every existing photo instead of only new ones.
 
-**Why it happens:** Simple filename-based deduplication breaks if the user renames files, copies them to a different folder, or imports from a different copy of the same photo. File mtime also changes when copied.
+**Why it happens:** Filename deduplication breaks on rename, copy to different folder, or import from different copy. File mtime changes on copy.
 
-**Consequences:** Collection doubles in size silently. Stats are wrong. Map shows duplicate pins. User has to manually clean up.
+**Consequences:** Collection doubles silently. Stats wrong. Map shows duplicate pins. User must manually clean up.
 
 **Prevention:**
-- Generate a content hash (SHA-256 of the first 64KB + file size) at import time; store it in SQLite. Re-import checks this hash first.
-- A full-file SHA-256 is the gold standard but too slow for large photos (10MB+) in real-time. A partial hash (first 64KB + total size) is fast and sufficient for deduplication within a personal collection.
-- Do NOT use filename alone for deduplication. Do NOT use file path alone.
-- Store `imported_at` timestamp and `source_path` to help users understand where a record came from.
-- On re-import, show the user a count: "X new finds added, Y duplicates skipped."
+- Generate content hash (SHA-256 of first 64KB + file size) at import; store in SQLite. Re-import checks hash first.
+- Full-file SHA-256 too slow for 10MB+ photos in real-time. Partial hash (first 64KB + total size) fast, sufficient for personal collection dedup.
+- Do NOT use filename alone. Do NOT use file path alone.
+- Store `imported_at` timestamp and `source_path` for user context.
+- On re-import, show count: "X new finds added, Y duplicates skipped."
 
-**Detection:** Import the same folder twice and verify record count does not increase.
+**Detection:** Import same folder twice, verify record count unchanged.
 
-**Phase:** Phase 2 (import pipeline) — deduplication strategy must be designed into the schema before writing import code.
+**Phase:** Phase 2 (import pipeline) — dedup strategy in schema before writing import code.
 
 ---
 
 ### Pitfall 10: Tauri's New ACL Permissions System Is Easy to Misconfigure
 
-**What goes wrong:** Tauri 2 replaced the v1 allowlist with a capability-based ACL system. Every file system operation, dialog, and shell command must be explicitly granted in a `capabilities/*.json` file. A missing permission silently denies the operation at runtime — the frontend receives a vague error, not a clear "permission denied" message.
+**What goes wrong:** Tauri 2 replaced v1 allowlist with capability-based ACL. Every filesystem op, dialog, shell command must be explicitly granted in `capabilities/*.json`. Missing permission silently denies at runtime — frontend gets vague error, not clear "permission denied".
 
-**Why it happens:** The new system is more granular but requires more setup. Developers test in `tauri dev` (which may have broader defaults) and find production builds missing permissions they forgot to declare. The `fs:allow-read-recursive` vs `fs:read-all` distinction is not obvious.
+**Why it happens:** New system more granular, more setup required. Devs test in `tauri dev` (broader defaults), then find prod builds missing permissions. `fs:allow-read-recursive` vs `fs:read-all` distinction not obvious.
 
-**Consequences:** File picker opens but reading the selected file fails. Import works in dev, breaks in production build. Users see "Error: not allowed" with no actionable guidance.
+**Consequences:** File picker opens but reading selected file fails. Import works in dev, breaks in prod. Users see "Error: not allowed" with no guidance.
 
 **Prevention:**
-- Read the Tauri v2 permissions docs carefully before implementing any file I/O. `https://v2.tauri.app/security/permissions/`
-- Test production builds (`tauri build`) from day one — do not rely solely on `tauri dev`.
-- Separate capability files by category (filesystem, dialogs) as recommended by official docs.
-- Grant the minimum necessary permissions: use `fs:allow-read` scoped to user-selected directories, not global `fs:read-all`.
-- Log capability errors clearly: wrap Tauri command errors on the JS side with explicit messages.
+- Read Tauri v2 permissions docs before implementing any file I/O. `https://v2.tauri.app/security/permissions/`
+- Test prod builds (`tauri build`) from day one — don't rely solely on `tauri dev`.
+- Separate capability files by category (filesystem, dialogs) per official docs.
+- Grant minimum permissions: `fs:allow-read` scoped to user-selected directories, not global `fs:read-all`.
+- Wrap Tauri command errors on JS side with explicit messages.
 
-**Detection:** Features work in `tauri dev` but fail in `tauri build`. Check browser console in production for IPC errors.
+**Detection:** Features work in `tauri dev`, fail in `tauri build`. Check browser console in prod for IPC errors.
 
-**Phase:** Phase 1 (project scaffold) — get capability files configured correctly at the start, then expand as needed.
+**Phase:** Phase 1 (project scaffold) — configure capability files correctly at start, expand as needed.
 
 ---
 
 ### Pitfall 11: WebView2 Is Not Guaranteed to Be Installed on Target Windows Machines
 
-**What goes wrong:** Tauri on Windows requires the WebView2 runtime, which is bundled with Windows 11 and included in Windows 10 updates since late 2021. However, some Windows 10 machines (especially corporate or heavily-managed environments) may not have it. The default Tauri installer attempts to download WebView2 at install time, which fails silently in offline or restricted environments.
+**What goes wrong:** Tauri Windows requires WebView2 runtime — bundled with Windows 11, included in Windows 10 updates since late 2021. Some Windows 10 machines (corporate, managed) may not have it. Default Tauri installer downloads WebView2 at install time; fails silently in offline/restricted environments.
 
-**Why it happens:** The default `webviewInstallMode` is `downloadBootstrapper`, which requires internet access during installation.
+**Why it happens:** Default `webviewInstallMode` is `downloadBootstrapper` — requires internet during installation.
 
-**Consequences:** App fails to launch after successful-looking installation. User sees a blank window or WebView2 error. Support burden increases.
+**Consequences:** App fails to launch after successful-looking install. User sees blank window or WebView2 error. Support burden increases.
 
 **Prevention:**
-- Use `webviewInstallMode: "offlineInstaller"` in `tauri.conf.json` — this bundles the WebView2 offline installer (~127MB larger).
-- Or use `fixedRuntime` to bundle a specific WebView2 version (~180MB larger) for maximum reproducibility.
-- For the target audience (Croatian foragers distributing among friends), offline installer is the safer choice.
-- Document the installer size tradeoff in project decisions.
+- Use `webviewInstallMode: "offlineInstaller"` in `tauri.conf.json` — bundles WebView2 offline installer (~127MB larger).
+- Or `fixedRuntime` for specific WebView2 version (~180MB larger), maximum reproducibility.
+- For target audience (Croatian foragers, distributing among friends), offline installer safer.
+- Document installer size tradeoff in project decisions.
 
-**Detection:** Install the app on a fresh Windows 10 VM with no internet access and verify it launches.
+**Detection:** Install on fresh Windows 10 VM with no internet, verify it launches.
 
-**Phase:** Phase 4 (distribution) — but choose the bundling strategy early so installer size affects distribution planning.
+**Phase:** Phase 4 (distribution) — choose bundling strategy early; installer size affects distribution planning.
 
 ---
 
 ### Pitfall 12: Windows Defender / Antivirus Flags Unsigned Tauri Installers
 
-**What goes wrong:** Unsigned Tauri `.exe` installers (NSIS) are consistently flagged as malware by Windows Defender and third-party antivirus products. This is a documented, known NSIS upstream issue unrelated to the app's actual code. Even `.msi` installers sometimes trigger SmartScreen warnings.
+**What goes wrong:** Unsigned Tauri `.exe` installers (NSIS) consistently flagged as malware by Windows Defender and third-party AV. Documented NSIS upstream issue unrelated to app code. `.msi` installers sometimes trigger SmartScreen too.
 
-**Why it happens:** NSIS plugins bundled in the installer are not individually signed. Unknown publisher + NSIS packing pattern = heuristic malware detection. Windows SmartScreen also blocks unsigned executables downloaded from the browser.
+**Why it happens:** NSIS plugins not individually signed. Unknown publisher + NSIS packing = heuristic malware detection. SmartScreen blocks unsigned executables downloaded from browser.
 
-**Consequences:** Users see a red "Windows protected your PC" SmartScreen warning and must click "Run anyway." Many users will not do this. Some antivirus products quarantine the installer entirely.
+**Consequences:** Users see "Windows protected your PC" SmartScreen warning, must click "Run anyway." Many won't. Some AV products quarantine installer entirely.
 
 **Prevention:**
-- Sign the app with a code signing certificate (EV certificate removes SmartScreen warnings entirely; standard OV/DV certificates reduce but do not eliminate them).
-- For early distribution among trusted users (Croatia forager community), provide SHA-256 hash of the installer for manual verification and instructions to bypass SmartScreen.
-- Use `.msi` format rather than NSIS `.exe` — it triggers fewer false positives.
-- If distributing more broadly, budget for code signing (~$200-500/year for an OV certificate).
+- Sign app with code signing cert (EV removes SmartScreen entirely; OV/DV reduces but not eliminates).
+- For early trusted distribution (Croatia forager community): provide SHA-256 hash + bypass instructions.
+- Use `.msi` not NSIS `.exe` — fewer false positives.
+- Broader distribution: budget code signing (~$200-500/year OV cert).
 
-**Detection:** Download the installer from a browser on a fresh Windows machine and observe SmartScreen behavior.
+**Detection:** Download installer from browser on fresh Windows machine, observe SmartScreen behavior.
 
-**Phase:** Phase 4 (distribution) — plan for this before the first public release.
+**Phase:** Phase 4 (distribution) — plan before first public release.
 
 ---
 
 ## Minor Pitfalls
 
-Annoyances that create polish debt or require small fixes.
+Polish debt or small fixes.
 
 ---
 
 ### Pitfall 13: Leaflet Map Performance Degrades with 500+ Unclustered Markers
 
-**What goes wrong:** Leaflet renders each map marker as a separate DOM element. At 500+ markers (achievable for an active forager over several years), panning and zooming become noticeably sluggish, and initial map render is slow.
+**What goes wrong:** Leaflet renders each marker as separate DOM element. At 500+ markers (reachable for active forager over years), panning/zooming sluggish, initial render slow.
 
 **Prevention:**
-- Use `Leaflet.markercluster` (via `react-leaflet-cluster`) from the first implementation — it handles 10,000+ markers with no perceptible lag.
-- Only load markers for the current visible map bounds (viewport culling).
-- Lazy-load marker data: fetch from SQLite only after map initializes, show a loading indicator.
+- Use `Leaflet.markercluster` (via `react-leaflet-cluster`) from first implementation — handles 10,000+ markers with no lag.
+- Load only markers for current visible map bounds (viewport culling).
+- Lazy-load marker data: fetch from SQLite after map initializes, show loading indicator.
 
-**Phase:** Phase 2 (map) — use clustering in the initial implementation, not as an optimization added later.
+**Phase:** Phase 2 (map) — use clustering in initial implementation, not as later optimization.
 
 ---
 
 ### Pitfall 14: Thumbnail Generation Blocks the UI Thread
 
-**What goes wrong:** Generating thumbnails for 50+ imported photos synchronously on the Rust side blocks the Tauri command and freezes the UI. A 10MB smartphone photo resized via the `image` crate takes ~200ms; 50 photos = 10 seconds of UI freeze.
+**What goes wrong:** Generating thumbnails for 50+ photos synchronously on Rust side blocks Tauri command, freezes UI. 10MB smartphone photo via `image` crate ~200ms; 50 photos = 10s UI freeze.
 
 **Prevention:**
-- Run thumbnail generation in a Tokio `spawn_blocking` task (CPU-bound work off the async executor).
-- Emit progress events to the frontend using Tauri's event system (`app.emit("import_progress", ...)`) so the user sees incremental updates.
-- Generate thumbnails at a fixed size (e.g., 300×300 px JPEG at 80% quality) at import time; never resize on-the-fly during rendering.
-- Store thumbnail paths in SQLite; render `<img src="asset://...">` in the UI.
+- Run thumbnail generation in Tokio `spawn_blocking` task (CPU-bound off async executor).
+- Emit progress events via Tauri event system (`app.emit("import_progress", ...)`) for incremental UI updates.
+- Generate thumbnails at fixed size (e.g., 300×300 px JPEG 80% quality) at import time; never resize on-the-fly.
+- Store thumbnail paths in SQLite; render `<img src="asset://...">` in UI.
 
-**Phase:** Phase 2 (import pipeline) — async import with progress reporting must be designed in from the start.
+**Phase:** Phase 2 (import pipeline) — async import with progress reporting designed in from start.
 
 ---
 
 ### Pitfall 15: Species Data Copyright and Attribution
 
-**What goes wrong:** Species descriptions, habitat data, and edibility information sourced from external databases (Wikipedia, iNaturalist, GBIF, Plants for a Future) have license terms that require attribution or restrict commercial use.
+**What goes wrong:** Species descriptions, habitat data, edibility info from external DBs (Wikipedia, iNaturalist, GBIF, Plants for a Future) carry license terms requiring attribution or restricting commercial use.
 
 **Prevention:**
-- Write original descriptions for the Croatian/European species in the bundled database, based on multiple sources but not copied verbatim.
-- If sourcing from Wikipedia, the CC BY-SA license requires attribution and derivative works to carry the same license.
-- GBIF data is CC BY 4.0 or CC0 — attribution required for BY.
-- Include a "Data Sources" section in the app's About screen listing species data attribution.
-- For the initial 50-100 Croatian species, hand-curated original text is feasible and legally cleanest.
+- Write original descriptions for Croatian/European species, based on multiple sources, not copied verbatim.
+- Wikipedia CC BY-SA requires attribution; derivative works carry same license.
+- GBIF CC BY 4.0 or CC0 — attribution required for BY.
+- Include "Data Sources" in app About screen.
+- Initial 50-100 Croatian species: hand-curated original text feasible and legally cleanest.
 
 **Phase:** Phase 3 (species database content) — review license terms before writing data entry code.
 
@@ -313,13 +313,13 @@ Annoyances that create polish debt or require small fixes.
 
 ### Pitfall 16: Photo Copy vs. Move Confusion During Import
 
-**What goes wrong:** When the user imports photos into the organized `Location/Date/` folder structure, it is not clear whether the originals are copied (safe) or moved (originals lost). If photos are moved and the operation is interrupted, the user has partially-imported photos with originals deleted.
+**What goes wrong:** Importing photos into `Location/Date/` structure — unclear if originals copied (safe) or moved (lost). Interrupted move = partially-imported photos with originals deleted.
 
 **Prevention:**
-- Always copy, never move, as the default import behavior. Offer "move originals" as an explicit opt-in with a clear warning.
-- Make copy operations atomic where possible: write to a temp file in the destination directory, then rename (rename is atomic on the same filesystem/volume).
-- On import failure, clean up partial copies; do not leave half-written files.
-- Show the user exactly what will happen before confirming: "X photos will be copied to [path]".
+- Always copy, never move, as default. Offer "move originals" as explicit opt-in with clear warning.
+- Atomic copy ops: write to temp file in destination, then rename (atomic on same filesystem).
+- On import failure, clean up partial copies; no half-written files.
+- Show user exactly what happens before confirm: "X photos will be copied to [path]".
 
 **Phase:** Phase 2 (import pipeline).
 
@@ -327,12 +327,12 @@ Annoyances that create polish debt or require small fixes.
 
 ### Pitfall 17: SQLite Database File Location Confusion
 
-**What goes wrong:** If the SQLite database is stored in the app's install directory (`C:\Program Files\...`), writes fail on standard Windows installations due to UAC restrictions. If it is stored in a hardcoded path rather than via Tauri's `app_data_dir()`, the path differs per user and fails in multi-user Windows environments.
+**What goes wrong:** SQLite in app install dir (`C:\Program Files\...`) — writes fail on standard Windows due to UAC. Hardcoded path instead of Tauri `app_data_dir()` breaks in multi-user environments.
 
 **Prevention:**
-- Always use `app_handle.path().app_data_dir()` (Tauri v2 path API) to resolve the database path. This returns `C:\Users\[user]\AppData\Roaming\[bundle-id]\` which is always user-writable.
-- Never hardcode paths like `C:\Users\ivan\...` or relative paths like `./data/mushrooms.db`.
-- Store the user's chosen "mushroom data folder" (for photos) separately from the SQLite metadata database — the photos folder is user-configurable, the DB is always in AppData.
+- Always use `app_handle.path().app_data_dir()` (Tauri v2 path API). Returns `C:\Users\[user]\AppData\Roaming\[bundle-id]\` — always user-writable.
+- Never hardcode `C:\Users\ivan\...` or relative paths like `./data/mushrooms.db`.
+- User's chosen "mushroom data folder" (photos) separate from SQLite metadata DB — photos folder user-configurable, DB always in AppData.
 
 **Phase:** Phase 1 (project scaffold).
 
