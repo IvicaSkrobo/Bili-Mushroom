@@ -17,7 +17,6 @@ import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { FindPreviewCard } from './FindPreviewCard';
 import { PostImportReviewDialog } from './PostImportReviewDialog';
-import { BulkMetadataBar, type BulkFields } from './BulkMetadataBar';
 import { useImportProgress } from './useImportProgress';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
 import {
@@ -37,18 +36,6 @@ import { useT } from '@/i18n/index';
 
 export type LockableField = 'date_found' | 'country' | 'region' | 'location_note';
 
-function isoToDisplay(iso: string): string {
-  if (!iso) return '';
-  const [y, m, d] = iso.split('-');
-  if (!y || !m || !d) return iso;
-  return `${d}/${m}/${y}`;
-}
-
-function displayToIso(display: string): string {
-  const parts = display.split('/');
-  if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-  return display;
-}
 
 interface PendingItem {
   sourcePath: string;
@@ -324,18 +311,17 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     }
   }
 
-  function handleApplyAll(fields: BulkFields) {
-    setPending((prev) =>
-      prev.map((item) => ({
-        ...item,
-        payload: {
-          ...item.payload,
-          ...(fields.species_name !== undefined ? { species_name: fields.species_name } : {}),
-          ...(fields.date_found !== undefined ? { date_found: fields.date_found } : {}),
-          ...(fields.country !== undefined ? { country: fields.country } : {}),
-        },
-      })),
-    );
+  function handleImportMore() {
+    setPending([]);
+    setSharedName('');
+    setSharedDate('');
+    setSharedCountry('');
+    setSharedRegion('');
+    setSharedLocationNote('');
+    setSharedFolderNotes('');
+    setSharedLocation(null);
+    setImportSummary(null);
+    setReviewOpen(false);
   }
 
   return (
@@ -442,10 +428,9 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
           {/* Row 2: date + country + region + location note */}
           <div className="grid grid-cols-2 gap-2">
             <Input
-              type="text"
-              placeholder="DD/MM/YYYY"
-              value={isoToDisplay(sharedDate)}
-              onChange={(e) => setSharedDate(displayToIso(e.target.value))}
+              type="date"
+              value={sharedDate}
+              onChange={(e) => setSharedDate(e.target.value)}
             />
             <Input
               placeholder={t('import.country')}
@@ -484,10 +469,6 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         <div className="flex-1 overflow-y-auto min-h-0">
           {pending.length > 0 && (
             <div className="flex flex-col gap-3 py-1">
-              <BulkMetadataBar
-                itemCount={pending.length}
-                onApplyAll={handleApplyAll}
-              />
               {pending.map((item, i) => (
                 <FindPreviewCard
                   key={i}
@@ -536,6 +517,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
       <PostImportReviewDialog
         summary={reviewOpen ? importSummary : null}
         onOpenChange={handleReviewClose}
+        onImportMore={handleImportMore}
       />
     </>
   );

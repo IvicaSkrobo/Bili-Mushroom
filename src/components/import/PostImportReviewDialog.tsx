@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import {
   Dialog,
   DialogContent,
@@ -8,15 +9,18 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { EditFindDialog } from '@/components/finds/EditFindDialog';
+import { useAppStore } from '@/stores/appStore';
 import type { ImportSummary, Find } from '@/lib/finds';
 
 interface PostImportReviewDialogProps {
   summary: ImportSummary | null;
   onOpenChange: (open: boolean) => void;
+  onImportMore?: () => void;
 }
 
-export function PostImportReviewDialog({ summary, onOpenChange }: PostImportReviewDialogProps) {
+export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: PostImportReviewDialogProps) {
   const [editingFind, setEditingFind] = useState<Find | null>(null);
+  const storagePath = useAppStore((s) => s.storagePath);
 
   const open = summary !== null;
 
@@ -36,26 +40,44 @@ export function PostImportReviewDialog({ summary, onOpenChange }: PostImportRevi
             {summary && summary.imported.length > 0 && (
               <div className="space-y-2 p-1">
                 <p className="text-sm font-medium text-muted-foreground">Imported</p>
-                {summary.imported.map((find) => (
-                  <div
-                    key={find.id}
-                    className="flex items-center justify-between rounded border px-3 py-2"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate font-medium text-sm">
-                        {find.species_name || find.original_filename}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{find.date_found}</p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setEditingFind(find)}
+                {summary.imported.map((find) => {
+                  const primaryPhoto = find.photos?.[0];
+                  const thumbSrc = primaryPhoto && storagePath
+                    ? convertFileSrc(`${storagePath}/${primaryPhoto.photo_path}`)
+                    : null;
+
+                  return (
+                    <div
+                      key={find.id}
+                      className="flex items-center gap-3 rounded border px-3 py-2"
                     >
-                      Edit
-                    </Button>
-                  </div>
-                ))}
+                      {/* Thumbnail */}
+                      {thumbSrc ? (
+                        <img
+                          src={thumbSrc}
+                          alt=""
+                          className="h-12 w-12 rounded object-cover flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="h-12 w-12 rounded bg-muted flex-shrink-0" />
+                      )}
+
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium text-sm">
+                          {find.species_name || find.original_filename}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{find.date_found}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEditingFind(find)}
+                      >
+                        Edit
+                      </Button>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -70,7 +92,12 @@ export function PostImportReviewDialog({ summary, onOpenChange }: PostImportRevi
             )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="gap-2">
+            {onImportMore && (
+              <Button variant="outline" onClick={onImportMore}>
+                Import more
+              </Button>
+            )}
             <Button onClick={() => onOpenChange(false)}>Done</Button>
           </DialogFooter>
         </DialogContent>
