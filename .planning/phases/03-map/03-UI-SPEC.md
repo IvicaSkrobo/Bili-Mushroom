@@ -54,17 +54,19 @@ Exceptions:
 
 ## Typography
 
+Exactly 2 weights declared: **400 (regular)** and **600 (semibold)**.
+
 | Role | Font | Size | Weight | Line Height | Usage |
 |------|------|------|--------|-------------|-------|
 | Body | DM Sans | 14px | 400 | 1.5 | Popup metadata rows, Settings text, modal body copy |
-| Label | DM Sans | 12px | 500 | 1.4 | Badge text, cluster count, layer switcher labels, coordinates display |
+| Label | DM Sans | 12px | 400 | 1.4 | Badge text, cluster count, layer switcher labels, coordinates display |
 | Heading | Playfair Display | 16px italic | 600 | 1.2 | Species name in Level 1 popup, Level 2 mini card heading |
 | Display | DM Sans | 20px | 600 | 1.2 | Location picker modal title ("Pick a location") |
 
 Notes:
 - Coordinates (`lat`, `lng`) always use JetBrains Mono, 12px weight 400 — must be monospaced for alignment
 - Date strings use DM Sans 12px weight 400 (body small)
-- Cluster count uses DM Sans 12px weight 700 (bolder than label weight for legibility at small size)
+- Cluster count uses DM Sans 12px weight 400 — visual distinction from surrounding content is achieved via the amber filled circle background, not weight; 400 on a 24px amber circle at 12px is sufficient
 
 ---
 
@@ -88,6 +90,8 @@ Accent reserved for ONLY:
 2. Primary action buttons: "Confirm location" (picker modal), "Edit find" (Level 2 popup)
 3. Find pin marker SVG fill color
 4. Tab active underline (existing global rule — do not override)
+
+**Primary visual focal point:** Amber find pins are the primary visual anchor against the dark moss tile background. All other map chrome (zoom controls, layer switcher, attribution) is styled with dark card tones to recede. Pins compete with nothing.
 
 ---
 
@@ -131,7 +135,7 @@ New React components to create (map-specific, not shadcn):
 ### Find Pins
 - One pin per unique lat/lng coordinate group
 - Single find at coordinate: standard Leaflet marker with amber SVG fill
-- Multiple finds at same lat/lng: cluster pin — amber circle badge with white count text (e.g. "3"), 24px diameter
+- Multiple finds at same lat/lng: cluster pin — amber circle badge with dark count text (e.g. "3"), 24px diameter, weight 400
 - Pin click opens Level 1 popup immediately (no hover states — click only; desktop app)
 
 ### Pin Popup: Level 1
@@ -166,7 +170,7 @@ New React components to create (map-specific, not shadcn):
 - No animation, no pulse — deliberately unobtrusive
 
 ### Settings Panel (SettingsDialog additions)
-- New section heading: "Map Cache" (DM Sans 14px weight 500)
+- New section heading: "Map Cache" (DM Sans 14px weight 400)
 - Row 1: "Tile cache size" label + right-aligned current size display (e.g. "42 MB") in muted-foreground
 - Row 2: "Max cache size" label + Input field (width 80px) + "MB" suffix label
 - Row 3: "Clear tile cache" button (destructive variant, outline style) — triggers AlertDialog for confirmation
@@ -197,6 +201,7 @@ New React components to create (map-specific, not shadcn):
 | Clear cache AlertDialog cancel | "Cancel" | Standard |
 | Clear cache AlertDialog confirm | "Clear cache" | Designed |
 | "Pick on map" trigger button | "Pick on map" | CONTEXT.md D-03 |
+| Tile proxy fetch failure (toast/overlay) | "Map tiles unavailable — check your connection." | Checker revision 2026-04-11 |
 
 ---
 
@@ -256,8 +261,9 @@ Standard Leaflet default marker icon is broken with Vite (known issue). Replace 
 - Anchor: `[8, 22]` (tip of pin)
 
 ### Cluster Pin
-- A `DivIcon` with a 24px amber circle, dark count text (DM Sans 12px bold), amber border
-- CSS: `background: oklch(0.80 0.14 78); color: oklch(0.12 0.02 80); border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; border: 2px solid oklch(0.12 0.02 80);`
+A `DivIcon` with a 24px amber circle, dark count text (DM Sans 12px weight 400), amber border. Visual distinctiveness comes from the amber fill, not weight.
+
+CSS: `background: oklch(0.80 0.14 78); color: oklch(0.12 0.02 80); border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-weight: 400; font-size: 12px; border: 2px solid oklch(0.12 0.02 80);`
 
 ### Layer Switcher
 - Use Leaflet's built-in `L.control.layers` (not a custom React component)
@@ -287,6 +293,7 @@ No third-party registries. All shadcn components are already installed from Phas
 | src/index.css | Yes — all CSS variable values, font stack, animation classes |
 | REQUIREMENTS.md | 6 (MAP-01 through MAP-06 — all map requirements) |
 | User input | 0 — all design questions answered by upstream artifacts |
+| Checker revision | 3 fixes applied 2026-04-11 (typography weights, tile error copy, focal point) |
 
 ---
 
