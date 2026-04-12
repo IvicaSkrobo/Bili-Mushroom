@@ -21,10 +21,21 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost blob: data: https://*.tile.openstreetmap.org; connect-src 'self' ipc: http://ipc.localhost https://nominatim.openstreetmap.org",
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost blob: data: https://*.tile.openstreetmap.org; connect-src 'self' ipc: http://ipc.localhost https://nominatim.openstreetmap.org https://github.com https://objects.githubusercontent.com",
       "assetProtocol": {
         "enable": true,
         "scope": ["$HOME/**", "$DOCUMENT/**", "$DESKTOP/**"]
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "PLACEHOLDER_REPLACE_WITH_YOUR_PUBLIC_KEY",
+      "endpoints": [
+        "https://github.com/YOUR_GITHUB_USERNAME/bili-mushroom/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
       }
     }
   },

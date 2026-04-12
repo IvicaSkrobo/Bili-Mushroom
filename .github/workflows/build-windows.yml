@@ -1,0 +1,63 @@
+name: Build Windows Installer
+
+# Triggers:
+#   - Manually from GitHub → Actions tab (workflow_dispatch)
+#   - Automatically when you push a version tag like: git tag v0.2.0 && git push --tags
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # ---------------------------------------------------------------
+      # Build + publish a GitHub Release with the NSIS installer attached
+      # The installer will be named: Bili-Mushroom_0.x.x_x64-setup.exe
+      # ---------------------------------------------------------------
+      - name: Build and release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Updater signing key — add this secret in GitHub → Settings → Secrets
+          # once you run: npx tauri signer generate
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Bili Mushroom ${{ github.ref_name }}'
+          releaseBody: |
+            ## Bili Mushroom ${{ github.ref_name }}
+
+            ### Install
+            Download **Bili-Mushroom_*_x64-setup.exe** below and run it.
+            Windows will ask for confirmation — click "More info → Run anyway" if it appears.
+
+            ### Update
+            If you have a previous version installed, just run the new installer over it.
+          releaseDraft: true
+          prerelease: false
+          includeUpdaterJson: true
