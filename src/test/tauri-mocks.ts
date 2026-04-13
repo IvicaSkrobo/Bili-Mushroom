@@ -36,6 +36,17 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
   }),
   delete_find: (_args: unknown) => undefined,
   get_find_photos: (_args: unknown) => [],
+  fetch_tile: async (_args: { url: string; storagePath: string }) => {
+    // 1x1 transparent PNG data URI for tests
+    return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgAAIAAAUAAen63NgAAAAASUVORK5CYII=';
+  },
+  get_tile_cache_stats: async (_args: { storagePath: string }) => ({
+    size_bytes: 0,
+    tile_count: 0,
+  }),
+  clear_tile_cache: async (_args: { storagePath: string }) => undefined,
+  set_cache_max: async (_args: { storagePath: string; maxBytes: number }) => undefined,
+  get_cache_max_bytes: async (_args: { storagePath: string }) => 200 * 1024 * 1024,
 };
 
 vi.mock('@tauri-apps/api/core', () => ({

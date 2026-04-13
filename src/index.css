@@ -119,3 +119,29 @@ input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: po
 .stagger-item {
   animation: stagger-in 0.22s ease-out both;
 }
+
+/* Leaflet controls — Forest Codex override */
+.leaflet-control-attribution {
+  background: var(--card) !important;
+  color: var(--muted-foreground) !important;
+  font-family: var(--font-sans) !important;
+  font-size: 10px !important;
+}
+.leaflet-control-zoom a {
+  background: var(--card) !important;
+  color: var(--foreground) !important;
+  border-color: var(--border) !important;
+}
+.leaflet-control-zoom a:hover {
+  background: var(--secondary) !important;
+}
+.leaflet-popup-content-wrapper {
+  background: var(--card) !important;
+  color: var(--card-foreground) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: 0 4px 24px oklch(0 0 0 / 0.4) !important;
+}
+.leaflet-popup-tip {
+  background: var(--card) !important;
+}

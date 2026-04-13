@@ -21,10 +21,14 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost blob: data: https://*.tile.openstreetmap.org; connect-src 'self' ipc: http://ipc.localhost https://nominatim.openstreetmap.org https://github.com https://objects.githubusercontent.com",
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost blob: data:; connect-src 'self' ipc: http://ipc.localhost https://nominatim.openstreetmap.org https://github.com https://objects.githubusercontent.com",
       "assetProtocol": {
         "enable": true,
-        "scope": ["$HOME/**", "$DOCUMENT/**", "$DESKTOP/**"]
+        "scope": [
+          "$HOME/**",
+          "$DOCUMENT/**",
+          "$DESKTOP/**"
+        ]
       }
     }
   },

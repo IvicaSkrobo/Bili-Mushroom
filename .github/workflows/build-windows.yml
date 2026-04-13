@@ -37,9 +37,34 @@ jobs:
         run: npm ci
 
       # ---------------------------------------------------------------
-      # TAG PUSH → build + create GitHub Release with installer attached
+      # Build the app — always runs (manual trigger or tag push)
       # ---------------------------------------------------------------
-      - name: Build and publish release (tag push)
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      # ---------------------------------------------------------------
+      # Upload installer as a downloadable artifact (manual trigger only)
+      # Go to the finished run → click "Artifacts" → download the zip
+      # ---------------------------------------------------------------
+      - name: Upload installer as artifact (manual trigger)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bili-Mushroom-installer
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+          retention-days: 30
+
+      # ---------------------------------------------------------------
+      # Create a GitHub Release (only when you push a version tag)
+      # Tag example: git tag v0.2.0 && git push --tags
+      # ---------------------------------------------------------------
+      - name: Publish GitHub Release (tag push only)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: tauri-apps/tauri-action@v0
         env:
@@ -61,25 +86,3 @@ jobs:
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
-
-      # ---------------------------------------------------------------
-      # MANUAL TRIGGER → build only, download installer from Artifacts
-      # Go to the finished run → scroll down → download Bili-Mushroom-installer
-      # ---------------------------------------------------------------
-      - name: Build only (manual trigger)
-        if: github.event_name == 'workflow_dispatch'
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-
-      - name: Upload installer as artifact (manual trigger)
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
-        with:
-          name: Bili-Mushroom-installer
-          path: |
-            src-tauri/target/release/bundle/nsis/*.exe
-            src-tauri/target/release/bundle/msi/*.msi
-          retention-days: 30
