@@ -560,22 +560,13 @@ Note: `base64` crate (`base64 = "0.22"`) must be added to `Cargo.toml`. Alternat
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Tile content-type detection (PNG vs JPEG)**
-   - What we know: OSM tiles are PNG; Esri satellite tiles are JPEG.
-   - What's unclear: Should `fetch_tile` detect content-type from HTTP response headers and return the correct MIME type in the data URI (`data:image/jpeg;base64,...`)?
-   - Recommendation: Yes — read `Content-Type` header from reqwest response and use it in the data URI. Default to `image/png` if absent.
+1. **Tile content-type detection (PNG vs JPEG)** — RESOLVED: Read `Content-Type` header from the HTTP response and use it in the data URI. Default to `image/png` if absent. Implemented in `tile_proxy.rs` via `ext_from_mime()` helper (Plan 01, Task 2).
 
-2. **Cache size display in Settings**
-   - What we know: SettingsDialog is in `src/components/dialogs/SettingsDialog.tsx` and has a simple structure.
-   - What's unclear: Does cache size need to be a live query (reactive) or a one-time read when Settings opens?
-   - Recommendation: One-time read on open via a new Tauri command `get_tile_cache_stats` returning `{ size_bytes: u64, tile_count: u64 }`. No reactivity needed.
+2. **Cache size display in Settings** — RESOLVED: One-time read on dialog open via `invoke('get_tile_cache_stats', { storagePath })`. No reactive/polling query needed. Implemented in `SettingsDialog.tsx` via `useEffect` on `open` (Plan 04, Task 3).
 
-3. **Tile proxy invocation approach: IPC invoke vs URI scheme protocol**
-   - What we know: Two valid approaches exist — (a) `L.GridLayer.createTile` + `invoke('fetch_tile', ...)` returning base64, and (b) `register_asynchronous_uri_scheme_protocol` registering a `tile://` scheme that Leaflet's standard TileLayer fetches from.
-   - What's unclear: The URI scheme approach (b) would allow standard `<TileLayer url="tile://{z}/{x}/{y}?source=osm">` without a custom GridLayer, but Tauri documentation on async URI scheme protocol is sparse.
-   - Recommendation: Use approach (a), the invoke-based GridLayer override. It follows the established project pattern (`invoke` is used for all I/O), is testable via the existing `invokeHandlers` mock in `tauri-mocks.ts`, and avoids underdocumented Tauri APIs.
+3. **Tile proxy invocation approach: IPC invoke vs URI scheme protocol** — RESOLVED: IPC invoke-based `L.GridLayer` subclass (`RustProxyTileLayer`). `createTile` calls `invoke('fetch_tile', { url, storagePath })` and sets `img.src` to the returned data URI. This follows the established project IPC pattern and is testable via the existing `invokeHandlers` mock in `tauri-mocks.ts`. Implemented in Plan 02, Task 2.
 
 ---
 
