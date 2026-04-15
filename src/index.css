@@ -145,3 +145,18 @@ input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: po
 .leaflet-popup-tip {
   background: var(--card) !important;
 }
+
+/* ── Collection pin labels ──────────────────────────────── */
+.bili-collection-pin .bili-col-label {
+  transition: opacity 0.15s ease;
+  opacity: 1;
+}
+.bili-collection-pin.crowded .bili-col-label {
+  opacity: 0;
+  pointer-events: none;
+}
+.bili-collection-pin.crowded:hover .bili-col-label,
+.bili-collection-pin.crowded:focus-within .bili-col-label {
+  opacity: 1;
+  pointer-events: auto;
+}
