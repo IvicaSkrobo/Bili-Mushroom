@@ -1,37 +1,65 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import React from 'react';
 import { LocationPickerMap } from './LocationPickerMap';
 
 // Mock react-leaflet to avoid DOM rendering issues in jsdom
 vi.mock('react-leaflet', () => ({
-  MapContainer: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="map-container">{children}</div>
+  MapContainer: ({
+    children,
+    center,
+    zoom,
+  }: {
+    children: React.ReactNode;
+    center: [number, number];
+    zoom: number;
+  }) => (
+    <div
+      data-testid="map-container"
+      data-center={JSON.stringify(center)}
+      data-zoom={zoom}
+    >
+      {children}
+    </div>
   ),
-  TileLayer: () => <div data-testid="tile-layer" />,
-  Marker: ({ position }: { position: { lat: number; lng: number } }) => (
-    <div data-testid="marker" data-lat={position.lat} data-lng={position.lng} />
+  Marker: ({
+    position,
+  }: {
+    position: [number, number];
+    draggable?: boolean;
+    eventHandlers?: Record<string, unknown>;
+  }) => (
+    <div
+      data-testid="marker"
+      data-lat={position[0]}
+      data-lng={position[1]}
+    />
   ),
-  useMapEvents: () => null,
-  useMap: () => ({ flyTo: vi.fn(), addLayer: vi.fn(), removeLayer: vi.fn() }),
+  useMap: () => ({
+    addLayer: vi.fn(),
+    removeLayer: vi.fn(),
+  }),
+  useMapEvents: (_handlers: Record<string, unknown>) => null,
 }));
 
-// Mock leaflet.offline — no real IndexedDB in jsdom
-vi.mock('leaflet.offline', () => ({
-  tileLayerOffline: () => ({ addTo: vi.fn(), remove: vi.fn() }),
+// Mock RustProxyTileLayer
+vi.mock('./RustProxyTileLayer', () => ({
+  createRustProxyTileLayer: vi.fn(() => ({
+    addTo: vi.fn(),
+    remove: vi.fn(),
+  })),
 }));
 
-// Mock leaflet module
-vi.mock('leaflet', () => ({
-  default: {
-    Icon: { Default: { prototype: {}, mergeOptions: vi.fn() } },
-    latLng: (lat: number, lng: number) => ({ lat, lng }),
-  },
-  latLng: (lat: number, lng: number) => ({ lat, lng }),
+// Mock leafletIconFix
+vi.mock('./leafletIconFix', () => ({
+  applyLeafletIconFix: vi.fn(),
 }));
 
-// Mock leaflet marker images (Vite asset imports)
-vi.mock('leaflet/dist/images/marker-icon.png', () => ({ default: 'marker-icon.png' }));
-vi.mock('leaflet/dist/images/marker-shadow.png', () => ({ default: 'marker-shadow.png' }));
+// Mock appStore to return a storagePath
+vi.mock('@/stores/appStore', () => ({
+  useAppStore: (selector: (s: { storagePath: string }) => unknown) =>
+    selector({ storagePath: '/tmp/storage' }),
+}));
 
 describe('LocationPickerMap', () => {
   const onConfirm = vi.fn();
@@ -41,43 +69,18 @@ describe('LocationPickerMap', () => {
     vi.clearAllMocks();
   });
 
-  it('renders dialog with "Pick location" title when open', () => {
+  it('does not render MapContainer when open is false', () => {
     render(
       <LocationPickerMap
-        open={true}
+        open={false}
         onOpenChange={onOpenChange}
         onConfirm={onConfirm}
       />,
     );
-    expect(screen.getByText('Pick location')).toBeTruthy();
+    expect(screen.queryByTestId('map-container')).toBeNull();
   });
 
-  it('renders confirm button disabled when no pin is set', () => {
-    render(
-      <LocationPickerMap
-        open={true}
-        onOpenChange={onOpenChange}
-        onConfirm={onConfirm}
-      />,
-    );
-    const confirmBtn = screen.getByText('Confirm location');
-    expect(confirmBtn).toBeTruthy();
-    expect((confirmBtn as HTMLButtonElement).disabled).toBe(true);
-  });
-
-  it('renders cancel button that calls onOpenChange(false)', () => {
-    render(
-      <LocationPickerMap
-        open={true}
-        onOpenChange={onOpenChange}
-        onConfirm={onConfirm}
-      />,
-    );
-    fireEvent.click(screen.getByText('Cancel'));
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it('renders map container when open', () => {
+  it('renders MapContainer when open is true and storagePath is set', () => {
     render(
       <LocationPickerMap
         open={true}
@@ -86,5 +89,93 @@ describe('LocationPickerMap', () => {
       />,
     );
     expect(screen.getByTestId('map-container')).toBeTruthy();
+  });
+
+  it('centers on initialLatLng with zoom 13 when provided', () => {
+    render(
+      <LocationPickerMap
+        open={true}
+        onOpenChange={onOpenChange}
+        onConfirm={onConfirm}
+        initialLatLng={{ lat: 45.8, lng: 16.2 }}
+      />,
+    );
+    const map = screen.getByTestId('map-container');
+    expect(JSON.parse(map.getAttribute('data-center') ?? '[]')).toEqual([45.8, 16.2]);
+    expect(Number(map.getAttribute('data-zoom'))).toBe(13);
+  });
+
+  it('centers on Croatia at zoom 7 when no initialLatLng', () => {
+    render(
+      <LocationPickerMap
+        open={true}
+        onOpenChange={onOpenChange}
+        onConfirm={onConfirm}
+      />,
+    );
+    const map = screen.getByTestId('map-container');
+    expect(JSON.parse(map.getAttribute('data-center') ?? '[]')).toEqual([45.1, 15.2]);
+    expect(Number(map.getAttribute('data-zoom'))).toBe(7);
+  });
+
+  it('Confirm button is disabled until a pin is placed', () => {
+    render(
+      <LocationPickerMap
+        open={true}
+        onOpenChange={onOpenChange}
+        onConfirm={onConfirm}
+      />,
+    );
+    const btn = screen.getByText('Confirm location') as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+  });
+
+  it('Confirm button is enabled when initialLatLng is provided', () => {
+    render(
+      <LocationPickerMap
+        open={true}
+        onOpenChange={onOpenChange}
+        onConfirm={onConfirm}
+        initialLatLng={{ lat: 45.1, lng: 15.2 }}
+      />,
+    );
+    const btn = screen.getByText('Confirm location') as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
+  });
+
+  it('calls onConfirm with lat/lng when Confirm clicked', () => {
+    render(
+      <LocationPickerMap
+        open={true}
+        onOpenChange={onOpenChange}
+        onConfirm={onConfirm}
+        initialLatLng={{ lat: 45, lng: 15 }}
+      />,
+    );
+    fireEvent.click(screen.getByText('Confirm location'));
+    expect(onConfirm).toHaveBeenCalledWith(45, 15);
+  });
+
+  it('shows "Selected: —" when no pin and formatted coords when pin set', () => {
+    const { rerender } = render(
+      <LocationPickerMap
+        open={true}
+        onOpenChange={onOpenChange}
+        onConfirm={onConfirm}
+      />,
+    );
+    // "Selected:" and "—" may be split across sibling text nodes in jsdom
+    const container = screen.getByText(/Selected:/).closest('div');
+    expect(container?.textContent).toContain('—');
+
+    rerender(
+      <LocationPickerMap
+        open={true}
+        onOpenChange={onOpenChange}
+        onConfirm={onConfirm}
+        initialLatLng={{ lat: 45, lng: 15 }}
+      />,
+    );
+    expect(screen.getByText(/45\.000000, 15\.000000/)).toBeTruthy();
   });
 });
