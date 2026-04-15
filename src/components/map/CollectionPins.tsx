@@ -15,20 +15,15 @@ interface Collection {
   finds: Find[];
 }
 
-function collectionIcon(name: string, showLabel: boolean): L.DivIcon {
+function collectionIcon(name: string, showLabel: boolean, isSatellite: boolean): L.DivIcon {
   // Latin name only — species_name may include Croatian after comma e.g. "Agaricus bohusii, Busenasta rudnjača"
   const latinName = name.split(',')[0].trim();
   const opacity = showLabel ? '1' : '0.35';
+  // Satellite: light warm text for contrast against dark imagery; street/topo: dark (CSS default)
+  const colorOverride = isSatellite ? 'color:#F5E6C8;' : '';
 
-  // Visual styles live in index.css `.bili-col-label` — inline styles limited to positional + opacity.
-  // iconSize:[0,0] iconAnchor:[0,0] — anchor sits at coord; pill floats around it.
-  // leaflet-div-icon default styles neutralised in index.css.
-  const pill = [
-    'position:absolute',
-    'transform:translate(-50%,-50%)',
-    `opacity:${opacity}`,
-    'transition:opacity 0.15s ease',
-  ].join(';');
+  // Visual styles live in index.css `.bili-col-label` — inline styles limited to positional + opacity + color override.
+  const pill = `position:absolute;transform:translate(-50%,-50%);opacity:${opacity};transition:opacity 0.15s ease;${colorOverride}`;
 
   return L.divIcon({
     html: `<div class="bili-col-label" style="${pill}">${latinName}</div>`,
@@ -143,6 +138,7 @@ function CollectionPinsInner({ collections }: { collections: Collection[] }) {
   const [crowded, setCrowded] = useState<Set<string>>(new Set());
   const { data: speciesNotesData } = useSpeciesNotes();
   const storagePath = useAppStore((s) => s.storagePath) ?? '';
+  const isSatellite = useAppStore((s) => s.mapLayer === 'Satellite');
 
   const update = useCallback(() => {
     setCrowded(computeCrowded(map, collections));
@@ -166,7 +162,7 @@ function CollectionPinsInner({ collections }: { collections: Collection[] }) {
           <Marker
             key={`col-${c.name}`}
             position={[c.lat, c.lng]}
-            icon={collectionIcon(c.name, showLabel)}
+            icon={collectionIcon(c.name, showLabel, isSatellite)}
           >
             <Popup minWidth={220}>
               <CollectionPopup
