@@ -36,6 +36,8 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
 
   const handleClick = selectMode && onToggleSelect
     ? () => onToggleSelect(find.id)
+    : !selectMode && onPhotoClick && primaryPhoto
+    ? () => onPhotoClick(find.id, 0)
     : undefined;
 
   return (
@@ -45,7 +47,7 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
           ? isSelected
             ? 'border-primary/60 bg-primary/8 cursor-pointer'
             : 'border-border/50 bg-card/60 cursor-pointer hover:border-primary/25 hover:bg-card'
-          : 'border-border/50 bg-card/60 hover:border-primary/25 hover:bg-card'
+          : `border-border/50 bg-card/60 hover:border-primary/25 hover:bg-card${!selectMode && onPhotoClick && primaryPhoto ? ' cursor-pointer' : ''}`
       }`}
       onClick={handleClick}
       onMouseDown={startLongPress}
@@ -60,8 +62,7 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
 
       {/* Thumbnail */}
       <div
-        className={`relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-sm bg-muted flex items-center justify-center ${!selectMode && onPhotoClick && primaryPhoto ? 'cursor-pointer' : ''}`}
-        onClick={!selectMode && onPhotoClick && primaryPhoto ? (e) => { e.stopPropagation(); onPhotoClick(find.id, 0); } : undefined}
+        className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-sm bg-muted flex items-center justify-center"
       >
         {primaryPhoto === null ? (
           <Image className="h-7 w-7 text-muted-foreground/30" />
