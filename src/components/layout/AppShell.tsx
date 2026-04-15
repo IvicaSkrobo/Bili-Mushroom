@@ -5,18 +5,14 @@ import { Button } from '@/components/ui/button';
 import { useAppStore, type Tab } from '@/stores/appStore';
 import CollectionTab from '@/tabs/CollectionTab';
 import MapTab from '@/tabs/MapTab';
-import SpeciesTab from '@/tabs/SpeciesTab';
-import BrowseTab from '@/tabs/BrowseTab';
 import StatsTab from '@/tabs/StatsTab';
 import { SettingsDialog } from '@/components/dialogs/SettingsDialog';
 import { useT } from '@/i18n/index';
 
-const TAB_VALUES: Tab[] = ['collection', 'map', 'species', 'browse', 'stats'];
+const TAB_VALUES: Tab[] = ['collection', 'map', 'stats'];
 const TAB_KEYS: Record<Tab, string> = {
   collection: 'nav.collection',
   map: 'nav.map',
-  species: 'nav.species',
-  browse: 'nav.browse',
   stats: 'nav.stats',
 };
 
@@ -81,9 +77,7 @@ export function AppShell() {
 
         <TabsContent value="collection" className="flex-1 min-h-0 overflow-auto"><CollectionTab /></TabsContent>
         <TabsContent value="map" className="flex-1 min-h-0"><MapTab /></TabsContent>
-        <TabsContent value="species" className="flex-1 min-h-0"><SpeciesTab /></TabsContent>
-        <TabsContent value="browse" className="flex-1 min-h-0"><BrowseTab /></TabsContent>
-        <TabsContent value="stats" className="flex-1 min-h-0"><StatsTab /></TabsContent>
+<TabsContent value="stats" className="flex-1 min-h-0"><StatsTab /></TabsContent>
       </Tabs>
 
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />

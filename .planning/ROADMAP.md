@@ -2,7 +2,7 @@
 
 ## Overview
 
-Bili Mushroom is built in six phases, each delivering a coherent and verifiable capability. Phase 1 establishes the technical foundation — Tauri 2 app shell, SQLite with WAL mode, and migration runner — before any feature code touches the database. Phases 2 and 3 deliver the two core pillars: getting finds into the app (import + file organization) and seeing them on a map. Phase 4 provides the species knowledge base (a content curation task with its own delivery boundary). Phases 5 and 6 complete the forager workflow with search, wishlist, stats, and export.
+Bili Mushroom is built in four phases, each delivering a coherent and verifiable capability. Phase 1 establishes the technical foundation — Tauri 2 app shell, SQLite with WAL mode, and migration runner — before any feature code touches the database. Phases 2 and 3 deliver the two core pillars: getting finds into the app (import + file organization) and seeing them on a map. Phase 4 delivers the stats dashboard and export so foragers can understand their patterns and share their collection. Species database, search, wishlist, and browse features are in the backlog pending client demand.
 
 ## Phases
 
@@ -15,9 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation** - Tauri 2 app shell, SQLite with WAL + migration runner, storage folder selection scaffold
 - [ ] **Phase 2: Import & Organization** - Photo import, EXIF parsing, metadata preview, file organization into Location/Date folders
 - [ ] **Phase 3: Map** - Interactive Leaflet map, Rust tile proxy, offline tile cache, pins, location picker
-- [ ] **Phase 4: Species Database** - ~150 Croatian/European species records, edibility ratings, lookalike warnings, trilingual names
-- [ ] **Phase 5: Search, Browse & Wishlist** - Search by name/location/date, wishlist CRUD, wishlist map overlay
-- [ ] **Phase 6: Stats & Export** - Stats dashboard, seasonal calendar, per-species stats, PDF and CSV export
+- [ ] **Phase 4: Stats & Export** - Stats dashboard, per-species stats, PDF and CSV export
 
 ## Phase Details
 
@@ -77,35 +75,9 @@ Plans:
 **Plans**: TBD
 **UI hint**: yes
 
-### Phase 4: Species Database
-**Goal**: Every find can be linked to a rich species entry with edibility, lookalike warnings, and trilingual names
-**Depends on**: Phase 1
-**Requirements**: SPE-01, SPE-02, SPE-03, SPE-04, SPE-05, SPE-06
-**Success Criteria** (what must be TRUE):
-  1. The built-in database contains at least 150 Croatian/European species, each with Croatian, Latin, and English name
-  2. Every species entry shows its edibility/danger rating (Edible / Edible with caution / Toxic / Deadly / Unknown) prominently
-  3. Species that have dangerous lookalikes display a prominent warning card naming the lookalike and the distinguishing features
-  4. A safety disclaimer ("Never consume based solely on this app") is visible adjacent to all edibility data
-  5. User can edit all fields of any find — species name, notes, location, date, personal description, and photos
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 5: Search, Browse & Wishlist
-**Goal**: Users can find any past find quickly and track species they want to collect
-**Depends on**: Phase 4
-**Requirements**: SCH-01, SCH-02, SCH-03, WSH-01, WSH-02, WSH-03
-**Success Criteria** (what must be TRUE):
-  1. User can search their collection by species name (Croatian, Latin, or English) and results appear as the user types
-  2. User can filter finds by geographic area and by date range, combining filters freely
-  3. User can add any species to a wishlist and see all wishlist species in a dedicated view
-  4. When user marks a wishlist species as found and imports a photo, it moves from the wishlist to the collection
-  5. Wishlist species appear on the map as overlay markers showing the regions of Croatia where they typically grow
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 6: Stats & Export
+### Phase 4: Stats & Export
 **Goal**: Users can understand their foraging patterns at a glance and share or archive their collection
-**Depends on**: Phase 5
+**Depends on**: Phase 3
 **Requirements**: STA-01, STA-02, STA-03, STA-04, EXP-01, EXP-02
 **Success Criteria** (what must be TRUE):
   1. Stats dashboard shows total finds, unique species count, total locations visited, top spots by find count, and best months by find count
@@ -119,13 +91,37 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
+Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/3 | Not started | - |
-| 2. Import & Organization | 2/3 | In Progress|  |
-| 3. Map | 0/TBD | Not started | - |
-| 4. Species Database | 0/TBD | Not started | - |
-| 5. Search, Browse & Wishlist | 0/TBD | Not started | - |
-| 6. Stats & Export | 0/TBD | Not started | - |
+| 1. Foundation | 3/3 | Complete | 2026-04-09 |
+| 2. Import & Organization | 3/3 | Complete | 2026-04-09 |
+| 02.1. Import Workflow Refinements | 5/5 | Complete | 2026-04-09 |
+| 3. Map | 4/4 | Complete | 2026-04-15 |
+| 4. Stats & Export | 0/TBD | Not started | - |
+
+## Backlog
+
+### Phase 999.1: Species Database (BACKLOG)
+
+**Goal:** Every find can be linked to a rich species entry with edibility, lookalike warnings, and trilingual names
+**Deferred at:** 2026-04-15 — client hasn't requested; removing SpeciesTab from nav until needed
+**Requirements**: SPE-01, SPE-02, SPE-03, SPE-04, SPE-05, SPE-06
+**Success Criteria** (when promoted):
+  1. The built-in database contains at least 150 Croatian/European species, each with Croatian, Latin, and English name
+  2. Every species entry shows its edibility/danger rating (Edible / Edible with caution / Toxic / Deadly / Unknown) prominently
+  3. Species that have dangerous lookalikes display a prominent warning card naming the lookalike and the distinguishing features
+  4. A safety disclaimer ("Never consume based solely on this app") is visible adjacent to all edibility data
+
+### Phase 999.2: Search, Browse & Wishlist (BACKLOG)
+
+**Goal:** Users can find any past find quickly and track species they want to collect
+**Deferred at:** 2026-04-15 — client hasn't requested; BrowseTab removed from nav until needed
+**Requirements**: SCH-01, SCH-02, SCH-03, WSH-01, WSH-02, WSH-03
+**Success Criteria** (when promoted):
+  1. User can search their collection by species name (Croatian, Latin, or English) and results appear as the user types
+  2. User can filter finds by geographic area and by date range, combining filters freely
+  3. User can add any species to a wishlist and see all wishlist species in a dedicated view
+  4. When user marks a wishlist species as found and imports a photo, it moves from the wishlist to the collection
+  5. Wishlist species appear on the map as overlay markers showing the regions of Croatia where they typically grow

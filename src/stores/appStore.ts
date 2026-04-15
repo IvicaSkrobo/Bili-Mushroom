@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Lang } from '@/i18n/index';
 
-export type Tab = 'collection' | 'map' | 'species' | 'browse' | 'stats';
+export type Tab = 'collection' | 'map' | 'stats';
 export type Theme = 'light' | 'dark';
 export type MapLayer = 'Satellite' | 'Topo' | 'Street';
 
