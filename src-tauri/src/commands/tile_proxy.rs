@@ -11,6 +11,10 @@ const ALLOWED_PREFIXES: &[&str] = &[
     "https://b.tile.openstreetmap.org/",
     "https://c.tile.openstreetmap.org/",
     "https://server.arcgisonline.com/",
+    "https://tile.opentopomap.org/",
+    "https://a.tile.opentopomap.org/",
+    "https://b.tile.opentopomap.org/",
+    "https://c.tile.opentopomap.org/",
 ];
 
 const DEFAULT_MAX_BYTES: i64 = 200 * 1024 * 1024;
@@ -193,6 +197,14 @@ mod tests {
         assert!(validate_url("https://tile.openstreetmap.org/1/2/3.png").is_ok());
         assert!(validate_url("https://a.tile.openstreetmap.org/1/2/3.png").is_ok());
         assert!(validate_url("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/1/2/3").is_ok());
+    }
+
+    #[test]
+    fn accepts_allowlisted_opentopomap() {
+        assert!(validate_url("https://tile.opentopomap.org/10/550/335.png").is_ok());
+        assert!(validate_url("https://a.tile.opentopomap.org/10/550/335.png").is_ok());
+        assert!(validate_url("https://b.tile.opentopomap.org/10/550/335.png").is_ok());
+        assert!(validate_url("https://c.tile.opentopomap.org/10/550/335.png").is_ok());
     }
 
     #[tokio::test]

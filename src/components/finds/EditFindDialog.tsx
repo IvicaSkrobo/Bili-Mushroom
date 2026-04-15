@@ -15,6 +15,7 @@ import { useUpdateFind } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
 import type { Find } from '@/lib/finds';
+import { reverseGeocode } from '@/lib/geocoding';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
 import { MapPin } from 'lucide-react';
 
@@ -262,9 +263,18 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
             ? { lat: parseFloat(form.lat), lng: parseFloat(form.lng) }
             : null
         }
-        onConfirm={(lat, lng) => {
+        onConfirm={async (lat, lng) => {
           setForm((f) => ({ ...f, lat: String(lat), lng: String(lng) }));
           setPickerOpen(false);
+          const lang = useAppStore.getState().language;
+          const geo = await reverseGeocode(lat, lng, lang);
+          if (geo.country || geo.region) {
+            setForm((f) => ({
+              ...f,
+              country: geo.country || f.country,
+              region: geo.region || f.region,
+            }));
+          }
         }}
       />
     </Dialog>

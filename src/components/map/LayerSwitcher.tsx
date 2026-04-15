@@ -6,6 +6,7 @@ import { createRustProxyTileLayer } from './RustProxyTileLayer';
 const OSM_TEMPLATE = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const ESRI_TEMPLATE =
   'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+const TOPO_TEMPLATE = 'https://tile.opentopomap.org/{z}/{x}/{y}.png';
 
 /**
  * Attaches a Leaflet L.control.layers widget with two base layers:
@@ -27,10 +28,16 @@ export function LayerSwitcher({ storagePath }: { storagePath: string }) {
       attribution: 'Tiles © Esri',
       maxZoom: 19,
     });
+    const topoLayer = createRustProxyTileLayer({
+      urlTemplate: TOPO_TEMPLATE,
+      storagePath,
+      attribution: '© OpenTopoMap contributors',
+      maxZoom: 17,
+    });
     osmLayer.addTo(map);
     const control = L.control
       .layers(
-        { Street: osmLayer, Satellite: esriLayer },
+        { Street: osmLayer, Satellite: esriLayer, Topo: topoLayer },
         undefined,
         { position: 'topright' },
       )
@@ -39,6 +46,7 @@ export function LayerSwitcher({ storagePath }: { storagePath: string }) {
       control.remove();
       map.removeLayer(osmLayer);
       if (map.hasLayer(esriLayer)) map.removeLayer(esriLayer);
+      if (map.hasLayer(topoLayer)) map.removeLayer(topoLayer);
     };
   }, [map, storagePath]);
   return null;

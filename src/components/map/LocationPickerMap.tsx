@@ -19,6 +19,7 @@ const CROATIA_CENTER: [number, number] = [45.1, 15.2];
 const CROATIA_ZOOM = 7;
 const EXISTING_PIN_ZOOM = 13;
 const OSM_TEMPLATE = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const TOPO_TEMPLATE = 'https://tile.opentopomap.org/{z}/{x}/{y}.png';
 
 export interface LocationPickerMapProps {
   open: boolean;
@@ -27,18 +28,29 @@ export interface LocationPickerMapProps {
   onConfirm: (lat: number, lng: number) => void;
 }
 
-function RustProxyOsmLayer({ storagePath }: { storagePath: string }) {
+function PickerLayerSwitcher({ storagePath }: { storagePath: string }) {
   const map = useMap();
   useEffect(() => {
-    const layer = createRustProxyTileLayer({
+    const osmLayer = createRustProxyTileLayer({
       urlTemplate: OSM_TEMPLATE,
       storagePath,
       attribution: '© OpenStreetMap contributors',
       maxZoom: 19,
     });
-    layer.addTo(map);
+    const topoLayer = createRustProxyTileLayer({
+      urlTemplate: TOPO_TEMPLATE,
+      storagePath,
+      attribution: '© OpenTopoMap contributors',
+      maxZoom: 17,
+    });
+    osmLayer.addTo(map);
+    const control = L.control
+      .layers({ Street: osmLayer, Topo: topoLayer }, undefined, { position: 'topright' })
+      .addTo(map);
     return () => {
-      layer.remove();
+      control.remove();
+      map.removeLayer(osmLayer);
+      if (map.hasLayer(topoLayer)) map.removeLayer(topoLayer);
     };
   }, [map, storagePath]);
   return null;
@@ -87,7 +99,7 @@ export function LocationPickerMap({
               zoom={initialZoom}
               style={{ height: '100%', width: '100%' }}
             >
-              <RustProxyOsmLayer storagePath={storagePath} />
+              <PickerLayerSwitcher storagePath={storagePath} />
               <ClickHandler
                 onPick={(latlng) => setPin({ lat: latlng.lat, lng: latlng.lng })}
               />
