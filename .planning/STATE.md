@@ -5,7 +5,7 @@ milestone_name: milestone
 status: executing
 stopped_at: Phase 3 UI-SPEC approved
 last_updated: "2026-04-13T12:55:13.656Z"
-last_activity: 2026-04-15 -- Completed quick task 260415-li5: Folder edit dialog, EditFindDialog reverse geocode fix, OpenTopoMap layer
+last_activity: 2026-04-15 -- Completed quick task 260415-q7c: folder location picker saves lat/lng to collection finds
 progress:
   total_phases: 7
   completed_phases: 3
