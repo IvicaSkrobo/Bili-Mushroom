@@ -130,6 +130,12 @@ const hr: Translations = {
   'autoImport.result.empty': 'Nije pronađena nijedna podmapa s fotografijama.',
   'autoImport.done': 'Gotovo',
   'autoImport.skip': 'Preskoči',
+
+  // lightbox
+  'lightbox.photoCount': '{current} / {total}',
+  'lightbox.prev': 'Prethodna',
+  'lightbox.next': 'Sljedeća',
+  'lightbox.close': 'Zatvori',
 };
 
 const en: Translations = {
@@ -258,6 +264,12 @@ const en: Translations = {
   'autoImport.result.empty': 'No subfolders with photos found.',
   'autoImport.done': 'Done',
   'autoImport.skip': 'Skip',
+
+  // lightbox
+  'lightbox.photoCount': '{current} / {total}',
+  'lightbox.prev': 'Previous',
+  'lightbox.next': 'Next',
+  'lightbox.close': 'Close',
 };
 
 const dict: Record<Lang, Translations> = { hr, en };
