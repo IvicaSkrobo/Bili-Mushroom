@@ -103,6 +103,7 @@ Recent decisions affecting current work:
 | 260415-qsu fix-collection-map-pin-visibility-label | 2026-04-15 | iconSize [0,0]→[28,28]; badge renders in real bounds; overflow:visible on marker; description scrollable max-h-[90px]; per-photo find.notes overrides species fallback. |
 | 260415-rea satellite-pill-text-contrast | 2026-04-15 | White text + text-shadow on satellite collection pills; #F5E6C8 on amber had insufficient contrast ratio. |
 | 260415-rjf pill-text-white-always | 2026-04-15 | Pill text always #fff + text-shadow in CSS base; removed isSatellite conditional override entirely. |
+| 260415-rns pill-text-layer-aware-css-class | 2026-04-15 | Dark text on street/topo, white on satellite via CSS class; bili-collection-marker--satellite on divIcon className. |
 
 ### Roadmap Evolution
 
