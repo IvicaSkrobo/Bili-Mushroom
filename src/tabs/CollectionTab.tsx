@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { GalleryHorizontal, Plus, ChevronDown, ChevronRight, FolderOpen, Search, X, CheckSquare } from 'lucide-react';
+import { GalleryHorizontal, Plus, ChevronDown, ChevronRight, FolderOpen, Search, X, CheckSquare, Pencil } from 'lucide-react';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ImportDialog } from '@/components/import/ImportDialog';
 import { FindCard } from '@/components/finds/FindCard';
 import { EditFindDialog } from '@/components/finds/EditFindDialog';
+import { FolderEditDialog } from '@/components/finds/FolderEditDialog';
 import { DeleteFindDialog } from '@/components/finds/DeleteFindDialog';
 import { BulkDeleteDialog } from '@/components/finds/BulkDeleteDialog';
 import { useFinds, useSpeciesNotes, useUpsertSpeciesNote, useBulkRenameSpecies } from '@/hooks/useFinds';
@@ -35,6 +36,8 @@ export default function CollectionTab() {
   const [search, setSearch] = useState('');
 
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+
+  const [folderEditing, setFolderEditing] = useState<string | null>(null);
 
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -330,39 +333,57 @@ export default function CollectionTab() {
               style={{ animationDelay: `${Math.min(idx * 30, 300)}ms` }}
             >
               {/* Folder header */}
-              <button
-                type="button"
-                className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-150 hover:bg-accent/60"
-                onClick={() => !isSearching && toggleExpand(speciesName)}
-              >
-                {thumbSrc ? (
-                  <img
-                    src={thumbSrc}
-                    alt={speciesName}
-                    className="h-11 w-11 flex-shrink-0 rounded-sm object-cover"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                  />
-                ) : (
-                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-sm bg-muted">
-                    <FolderOpen className="h-5 w-5 text-muted-foreground/40" />
-                  </div>
-                )}
+              <div className="group relative flex w-full items-center gap-3 px-4 py-3 transition-colors duration-150 hover:bg-accent/60">
+                <button
+                  type="button"
+                  className="flex flex-1 min-w-0 items-center gap-3 text-left"
+                  onClick={() => !isSearching && toggleExpand(speciesName)}
+                >
+                  {thumbSrc ? (
+                    <img
+                      src={thumbSrc}
+                      alt={speciesName}
+                      className="h-11 w-11 flex-shrink-0 rounded-sm object-cover"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  ) : (
+                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-sm bg-muted">
+                      <FolderOpen className="h-5 w-5 text-muted-foreground/40" />
+                    </div>
+                  )}
 
-                <div className="flex-1 min-w-0">
-                  <p className="font-serif text-base font-semibold leading-tight truncate text-foreground">
-                    {speciesName}
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    {tFindsCount(speciesFinds.length, lang)}
-                  </p>
-                </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-serif text-base font-semibold leading-tight truncate text-foreground">
+                      {speciesName}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      {tFindsCount(speciesFinds.length, lang)}
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  className="flex-shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground hover:bg-accent focus:opacity-100"
+                  onClick={(e) => { e.stopPropagation(); setFolderEditing(speciesName); }}
+                  title="Edit folder"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
 
                 {!isSearching && (
-                  isOpen
-                    ? <ChevronDown className="h-4 w-4 flex-shrink-0 text-muted-foreground/50" />
-                    : <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground/50" />
+                  <button
+                    type="button"
+                    className="flex-shrink-0"
+                    onClick={() => toggleExpand(speciesName)}
+                    tabIndex={-1}
+                  >
+                    {isOpen
+                      ? <ChevronDown className="h-4 w-4 text-muted-foreground/50" />
+                      : <ChevronRight className="h-4 w-4 text-muted-foreground/50" />}
+                  </button>
                 )}
-              </button>
+              </div>
 
               {/* Folder body */}
               {isOpen && (
@@ -407,6 +428,11 @@ export default function CollectionTab() {
       <EditFindDialog
         find={editing}
         onOpenChange={(open) => !open && setEditing(null)}
+      />
+      <FolderEditDialog
+        speciesName={folderEditing}
+        finds={folderEditing ? (filteredGroups.find(([name]) => name === folderEditing)?.[1] ?? groups.find(([name]) => name === folderEditing)?.[1] ?? []) : []}
+        onOpenChange={(open) => !open && setFolderEditing(null)}
       />
       <DeleteFindDialog
         find={deleting}
