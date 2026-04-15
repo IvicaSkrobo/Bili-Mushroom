@@ -19,8 +19,8 @@ function collectionIcon(name: string, showLabel: boolean, isSatellite: boolean):
   // Latin name only — species_name may include Croatian after comma e.g. "Agaricus bohusii, Busenasta rudnjača"
   const latinName = name.split(',')[0].trim();
   const opacity = showLabel ? '1' : '0.35';
-  // Satellite: light warm text for contrast against dark imagery; street/topo: dark (CSS default)
-  const colorOverride = isSatellite ? 'color:#F5E6C8;' : '';
+  // Satellite: white text + shadow for contrast against amber pill on dark imagery; street/topo: dark (CSS default)
+  const colorOverride = isSatellite ? 'color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.7);' : '';
 
   // Visual styles live in index.css `.bili-col-label` — inline styles limited to positional + opacity + color override.
   const pill = `position:absolute;transform:translate(-50%,-50%);opacity:${opacity};transition:opacity 0.15s ease;${colorOverride}`;
