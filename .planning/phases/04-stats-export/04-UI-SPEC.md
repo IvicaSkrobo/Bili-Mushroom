@@ -57,14 +57,25 @@ Source: 8-point scale default; calendar exception is researcher discretion per D
 
 ## Typography
 
+4 sizes, 2 weights. No exceptions.
+
 | Role | Font | Size | Weight | Line Height | Usage |
 |------|------|------|--------|-------------|-------|
-| Body | DM Sans | 14px | 400 (regular) | 1.5 | Ranked list rows, labels, calendar month names |
-| Label | DM Sans | 12px | 500 (medium) | 1.4 | Stat card sub-labels ("TOTAL FINDS"), badge text, export button labels |
-| Heading | DM Sans | 16px | 600 (semibold) | 1.3 | Section headings ("Top Spots", "Best Months", "Per-Species Stats") |
-| Display | Playfair Display | 36px italic | 700 (bold) | 1.1 | Stat card numerals (the big numbers: 42, 17, etc.) |
-| Species name | Playfair Display | 15px italic | 400 (regular) | 1.4 | Species name in per-species list rows and calendar species lists |
-| Mono detail | JetBrains Mono | 11px | 400 (regular) | 1.4 | Location coordinates in expanded per-species detail if lat/lng shown |
+| xs / label / mono | DM Sans / JetBrains Mono | 12px | 400 (regular) | 1.4 | Stat card sub-labels ("TOTAL FINDS"), badge text, export button labels, location coordinates in expanded per-species detail, count badges, secondary metadata |
+| Body | DM Sans | 14px | 400 (regular) | 1.5 | Ranked list rows, calendar month names, species names in per-species rows, expanded detail values, all general UI copy |
+| Heading | DM Sans | 16px | 700 (bold) | 1.3 | Section headings ("Top Spots", "Best Months", "Per-Species Stats", "Your Season", "Your Species"). Uppercase + tracking 0.12em creates distinction without a third weight. |
+| Display | Playfair Display | 36px italic | 700 (bold) | 1.1 | Stat card numerals (the big numbers: 42, 17, etc.) and the page heading "Your Foraging Story" |
+
+Size consolidation rationale:
+- 11px (JetBrains Mono coords) → 12px
+- 13px (location text) → 12px
+- 15px (species name / rank) → 14px (body)
+- 20px (calendar month panel header) → 36px display (Playfair Display italic, Forest Codex feel)
+- 24px (page heading) → 36px display (same Playfair Display treatment as stat numerals)
+
+Weight consolidation rationale:
+- 500 (medium, formerly used on labels) → 400 (regular). Uppercase + tracking provides visual distinction.
+- 600 (semibold, formerly used on headings) → 700 (bold). Higher contrast aligns with Forest Codex drama.
 
 Rules:
 - Display numerals in stat cards MUST use Playfair Display italic at 36px with amber color — no exceptions (D-01, CONTEXT.md §Specifics).
@@ -107,7 +118,7 @@ Source: `src/index.css` CSS variables, CLAUDE.md §Frontend Design, 04-CONTEXT.m
 Reuse `shadcn/ui` `<Card>` from `src/components/ui/card.tsx`.
 
 Layout: 4-column grid at full tab width. Each card:
-- Sub-label: uppercase DM Sans 12px/medium, `--muted-foreground`, tracking 0.12em
+- Sub-label: uppercase DM Sans 12px/regular, `--muted-foreground`, tracking 0.12em
 - Number: Playfair Display 36px italic bold, `--primary` (amber)
 - Optional trend/sub-note: DM Sans 12px regular, `--muted-foreground`
 
@@ -124,20 +135,20 @@ Hover state: 1px amber left-border reveal (`border-l-2 border-primary opacity-0 
 Two side-by-side lists below the stat cards (each ~48% width with 16px gap).
 
 Each list row:
-- Rank number: Playfair Display italic, amber, 15px
+- Rank number: Playfair Display italic, amber, 14px (body tier)
 - Name: DM Sans 14px regular, `--foreground`
 - Count badge: `shadcn/ui` `<Badge>` variant outline, amber border+text, DM Sans 12px
 - Amber left-border on hover (3px, `--primary`)
 - Row bg: `--card`, border-bottom `--border`
 
-Section headings: DM Sans 16px semibold, uppercase, tracking 0.12em, `--foreground`.
+Section headings: DM Sans 16px bold, uppercase, tracking 0.12em, `--foreground`.
 
 ### Seasonal Calendar (STA-03)
 
 12-month grid: 3 columns × 4 rows (Jan–Dec reading order).
 
 Each month cell:
-- Month name: DM Sans 14px semibold, uppercase, `--foreground`
+- Month name: DM Sans 14px bold, uppercase, `--foreground`
 - Find dots: amber filled circles (8px diameter, `--primary` fill) — one dot per unique species found that month, max 5 visible, "+N more" overflow label in `--muted-foreground`
 - Empty month (no finds): `--muted` background, month name in `--muted-foreground`, no dots
 - Active month with finds: `--card` background, `--border` border, amber dot indicators
@@ -146,16 +157,16 @@ Each month cell:
 
 Interaction on month cell click:
 - Opens an inline-expanded panel below the grid row (not a modal) OR a `shadcn/ui` `<Dialog>` — executor's discretion based on layout feasibility
-- Panel shows: month header (Playfair Display 20px italic), then a staggered list (`.stagger-item`) of species found that month — species name (Playfair Display italic 15px), date (DM Sans 12px, `--muted-foreground`), location_note (DM Sans 12px, `--muted-foreground`)
+- Panel shows: month header (Playfair Display 36px italic, display tier), then a staggered list (`.stagger-item`) of species found that month — species name (Playfair Display italic 14px), date (DM Sans 12px, `--muted-foreground`), location_note (DM Sans 12px, `--muted-foreground`)
 - Empty state in panel: "No finds recorded in [Month]." — DM Sans 14px, `--muted-foreground`
 
 ### Per-Species Stats (STA-04)
 
-Section below the calendar. Heading: "Your Species" (DM Sans 16px semibold uppercase).
+Section below the calendar. Heading: "Your Species" (DM Sans 16px bold uppercase).
 
 Each species row in a ranked list (ranked by find count descending):
-- Rank #: Playfair Display italic amber 15px
-- Species name: Playfair Display italic 15px, `--foreground`
+- Rank #: Playfair Display italic amber 14px (body tier)
+- Species name: Playfair Display italic 14px, `--foreground`
 - Find count badge: `<Badge>` outline amber, DM Sans 12px
 - Expand chevron: lucide `ChevronDown` / `ChevronUp`, `--muted-foreground`, 16px
 
@@ -163,7 +174,7 @@ Expanded state (click row to toggle, amber left-border appears):
 - Total find count: label + number (DM Sans 14px)
 - First find date: label + value (DM Sans 14px)
 - Best month for species: label + value (DM Sans 14px, amber number)
-- Locations: list of `country / region / location_note` strings (DM Sans 13px, `--muted-foreground`, each on own line)
+- Locations: list of `country / region / location_note` strings (DM Sans 12px, `--muted-foreground`, each on own line)
 
 Transition: `max-height` CSS transition, 200ms ease-out. No JS animation library needed.
 
@@ -173,7 +184,7 @@ Placement: Fixed action bar at the bottom of StatsTab (sticky footer within the 
 
 Layout: right-aligned row. Two buttons:
 - "Export CSV" — `<Button>` variant outline, DM Sans 14px, `--foreground` text
-- "Export PDF" — `<Button>` variant default (amber fill, `--primary-foreground` text), DM Sans 14px semibold
+- "Export PDF" — `<Button>` variant default (amber fill, `--primary-foreground` text), DM Sans 14px bold
 
 Export PDF interaction:
 1. User clicks "Export PDF"
@@ -253,7 +264,7 @@ No JS animation libraries. CSS-only. All motion must be interruptible (no blocki
 
 ```
 StatsTab (full tab content area, overflow-y-auto)
-├── Page heading: "Your Foraging Story" (Playfair Display 24px italic, top padding 48px)
+├── Page heading: "Your Foraging Story" (Playfair Display 36px italic bold, top padding 48px)
 ├── Stat cards row (4-column grid, gap-6, px-6)
 │   ├── Card 1: Total Finds
 │   ├── Card 2: Unique Species
@@ -310,6 +321,7 @@ Note: `@react-pdf/renderer` and `comlink` are npm packages, not shadcn registry 
 | R-02 | Calendar dots = amber, mushroom feel (not generic calendar widget) | 04-CONTEXT.md §Specifics |
 | R-03 | Export button placement = StatsTab sticky footer bar | Researcher discretion per D-09 |
 | R-04 | 4th stat card = Most Active Month | Researcher discretion per D-01 |
+| R-05 | Typography: 4 sizes (12/14/16/36px), 2 weights (400/700) | Checker revision 2026-04-15 |
 
 ---
 
@@ -318,7 +330,7 @@ Note: `@react-pdf/renderer` and `comlink` are npm packages, not shadcn registry 
 | Section | Source | Pre-populated |
 |---------|--------|--------------|
 | Design system | components.json + src/index.css | Yes — shadcn new-york, lucide, Tailwind v4 |
-| Typography | CLAUDE.md Forest Codex | Yes — Playfair / DM Sans / JetBrains Mono |
+| Typography | CLAUDE.md Forest Codex + checker revision | Yes — Playfair / DM Sans / JetBrains Mono; 4 sizes, 2 weights |
 | Color | src/index.css .dark variables | Yes — all exact oklch values |
 | Spacing scale | 8-point default + researcher judgment | Yes — standard scale + calendar exception |
 | Stat card design | 04-CONTEXT.md D-01 + §Specifics | Yes |
