@@ -114,7 +114,7 @@ function CollectionPopup({
   );
 }
 
-const OVERLAP_PX = 130;
+const OVERLAP_PX = 50;
 
 function computeCrowded(map: L.Map, collections: Collection[]): Set<string> {
   const crowded = new Set<string>();
