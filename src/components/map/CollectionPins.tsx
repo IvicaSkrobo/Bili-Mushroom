@@ -1,13 +1,18 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import L from 'leaflet';
 import { Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
+import { convertFileSrc } from '@tauri-apps/api/core';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Find } from '@/lib/finds';
+import { useSpeciesNotes } from '@/hooks/useFinds';
+import { useAppStore } from '@/stores/appStore';
 
 interface Collection {
   name: string;
   lat: number;
   lng: number;
   count: number;
+  finds: Find[];
 }
 
 function collectionIcon(name: string, showLabel: boolean): L.DivIcon {
@@ -76,6 +81,80 @@ function collectionIcon(name: string, showLabel: boolean): L.DivIcon {
   });
 }
 
+function CollectionPopup({
+  collection,
+  speciesNote,
+  storagePath,
+}: {
+  collection: Collection;
+  speciesNote: string | undefined;
+  storagePath: string;
+}) {
+  const [photoIdx, setPhotoIdx] = useState(0);
+  const allPhotos = useMemo(
+    () => collection.finds.flatMap((f) => f.photos),
+    [collection.finds],
+  );
+  const latinName = collection.name.split(',')[0].trim();
+  const photo = allPhotos[photoIdx] ?? null;
+  const photoSrc = photo && storagePath
+    ? convertFileSrc(`${storagePath}/${photo.photo_path}`)
+    : null;
+
+  return (
+    <div className="flex w-[220px] flex-col gap-2 font-sans">
+      {/* Header */}
+      <div>
+        <p className="font-serif text-sm font-bold italic text-foreground">{latinName}</p>
+        <p className="text-xs text-muted-foreground">{collection.count} {collection.count === 1 ? 'find' : 'finds'}</p>
+      </div>
+
+      {/* Species description */}
+      {speciesNote && (
+        <p className="text-xs leading-relaxed text-foreground/80">{speciesNote}</p>
+      )}
+
+      {/* Photo carousel */}
+      {allPhotos.length > 0 && (
+        <div className="flex flex-col gap-1">
+          {photoSrc ? (
+            <img
+              src={photoSrc}
+              alt=""
+              className="h-[130px] w-full rounded object-cover"
+            />
+          ) : (
+            <div className="h-[130px] w-full rounded bg-secondary" />
+          )}
+          {allPhotos.length > 1 && (
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                aria-label="Previous photo"
+                onClick={() => setPhotoIdx((i) => (i - 1 + allPhotos.length) % allPhotos.length)}
+                className="rounded p-0.5 hover:bg-secondary"
+              >
+                <ChevronLeft className="h-4 w-4 text-foreground" />
+              </button>
+              <span className="text-xs text-muted-foreground">
+                {photoIdx + 1} / {allPhotos.length}
+              </span>
+              <button
+                type="button"
+                aria-label="Next photo"
+                onClick={() => setPhotoIdx((i) => (i + 1) % allPhotos.length)}
+                className="rounded p-0.5 hover:bg-secondary"
+              >
+                <ChevronRight className="h-4 w-4 text-foreground" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const OVERLAP_PX = 130;
 
 function computeCrowded(map: L.Map, collections: Collection[]): Set<string> {
@@ -100,6 +179,8 @@ function computeCrowded(map: L.Map, collections: Collection[]): Set<string> {
 function CollectionPinsInner({ collections }: { collections: Collection[] }) {
   const map = useMap();
   const [crowded, setCrowded] = useState<Set<string>>(new Set());
+  const { data: speciesNotesData } = useSpeciesNotes();
+  const storagePath = useAppStore((s) => s.storagePath) ?? '';
 
   const update = useCallback(() => {
     setCrowded(computeCrowded(map, collections));
@@ -118,19 +199,19 @@ function CollectionPinsInner({ collections }: { collections: Collection[] }) {
     <>
       {collections.map((c) => {
         const showLabel = !crowded.has(c.name);
+        const speciesNote = speciesNotesData?.find((sn) => sn.species_name === c.name)?.notes;
         return (
           <Marker
             key={`col-${c.name}`}
             position={[c.lat, c.lng]}
             icon={collectionIcon(c.name, showLabel)}
           >
-            <Popup>
-              <div style={{ fontFamily: 'serif', minWidth: '120px' }}>
-                <strong style={{ display: 'block', marginBottom: '2px' }}>{c.name}</strong>
-                <span style={{ fontSize: '12px', opacity: 0.7 }}>
-                  {c.count} {c.count === 1 ? 'find' : 'finds'}
-                </span>
-              </div>
+            <Popup minWidth={220}>
+              <CollectionPopup
+                collection={c}
+                speciesNote={speciesNote}
+                storagePath={storagePath}
+              />
             </Popup>
           </Marker>
         );
@@ -145,19 +226,21 @@ export function CollectionPins({ finds }: { finds: Find[] }) {
 }
 
 function collections_from_finds(finds: Find[]): Collection[] {
-  const map = new Map<string, { lats: number[]; lngs: number[]; count: number }>();
+  const map = new Map<string, { lats: number[]; lngs: number[]; count: number; finds: Find[] }>();
   for (const f of finds) {
     if (f.lat == null || f.lng == null) continue;
-    if (!map.has(f.species_name)) map.set(f.species_name, { lats: [], lngs: [], count: 0 });
+    if (!map.has(f.species_name)) map.set(f.species_name, { lats: [], lngs: [], count: 0, finds: [] });
     const entry = map.get(f.species_name)!;
     entry.lats.push(f.lat);
     entry.lngs.push(f.lng);
     entry.count++;
+    entry.finds.push(f);
   }
-  return Array.from(map.entries()).map(([name, { lats, lngs, count }]) => ({
+  return Array.from(map.entries()).map(([name, { lats, lngs, count, finds }]) => ({
     name,
     lat: lats.reduce((a, b) => a + b, 0) / lats.length,
     lng: lngs.reduce((a, b) => a + b, 0) / lngs.length,
     count,
+    finds,
   }));
 }
