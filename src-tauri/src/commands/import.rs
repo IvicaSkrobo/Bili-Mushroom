@@ -65,6 +65,7 @@ const MIGRATION_0002: &str = include_str!("../../migrations/0002_finds.sql");
 const MIGRATION_0003: &str = include_str!("../../migrations/0003_find_photos.sql");
 const MIGRATION_0004: &str = include_str!("../../migrations/0004_location_note.sql");
 const MIGRATION_0005: &str = include_str!("../../migrations/0005_species_notes.sql");
+const MIGRATION_0006: &str = include_str!("../../migrations/0006_tile_cache.sql");
 
 /// Apply all migrations to an open connection using rusqlite's user_version pragma
 /// as a lightweight migration tracker. Idempotent — safe to call on every open.
@@ -102,6 +103,12 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
             .map_err(|e| format!("Migration 0005 failed: {}", e))?;
         conn.execute_batch("PRAGMA user_version = 5")
             .map_err(|e| format!("Failed to set user_version=5: {}", e))?;
+    }
+    if version < 6 {
+        conn.execute_batch(MIGRATION_0006)
+            .map_err(|e| format!("Migration 0006 failed: {}", e))?;
+        conn.execute_batch("PRAGMA user_version = 6")
+            .map_err(|e| format!("Failed to set user_version=6: {}", e))?;
     }
 
     Ok(())
@@ -497,12 +504,16 @@ pub(crate) mod test_helpers {
     const MIGRATION_0001: &str = include_str!("../../migrations/0001_initial.sql");
     const MIGRATION_0002: &str = include_str!("../../migrations/0002_finds.sql");
     const MIGRATION_0003: &str = include_str!("../../migrations/0003_find_photos.sql");
+    const MIGRATION_0004: &str = include_str!("../../migrations/0004_location_note.sql");
+    const MIGRATION_0005: &str = include_str!("../../migrations/0005_species_notes.sql");
 
     pub(crate) fn setup_in_memory_db() -> Connection {
         let conn = Connection::open_in_memory().expect("in-memory DB");
         conn.execute_batch(MIGRATION_0001).expect("migration 0001");
         conn.execute_batch(MIGRATION_0002).expect("migration 0002");
         conn.execute_batch(MIGRATION_0003).expect("migration 0003");
+        conn.execute_batch(MIGRATION_0004).expect("migration 0004");
+        conn.execute_batch(MIGRATION_0005).expect("migration 0005");
         conn
     }
 
@@ -595,6 +606,7 @@ mod tests {
                     lng: row.get(7)?,
                     notes: row.get(8)?,
                     created_at: row.get(9)?,
+                    location_note: String::new(),
                     photos: vec![],
                 }),
             )
@@ -777,6 +789,7 @@ mod tests {
                     lng: row.get(7)?,
                     notes: row.get(8)?,
                     created_at: row.get(9)?,
+                    location_note: String::new(),
                     photos: vec![],
                 })
             },
