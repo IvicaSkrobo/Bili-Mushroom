@@ -19,6 +19,11 @@ pub fn run() {
             commands::finds::quit_app,
             commands::finds::bulk_rename_species,
             commands::finds::move_find_files,
+            commands::tile_proxy::fetch_tile,
+            commands::tile_proxy::get_tile_cache_stats,
+            commands::tile_proxy::clear_tile_cache,
+            commands::tile_proxy::set_cache_max,
+            commands::tile_proxy::get_cache_max_bytes,
         ])
         .setup(|_app| Ok(()))
         .run(tauri::generate_context!())
@@ -56,7 +61,7 @@ mod smoke {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .expect("user_version");
-        assert_eq!(version, 3, "user_version must be 3 after all migrations");
+        assert_eq!(version, 6, "user_version must be 6 after all migrations");
     }
 
     #[test]
