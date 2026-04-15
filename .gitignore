@@ -60,3 +60,6 @@ $RECYCLE.BIN/
 # GSD / Claude
 .claude/settings.local.json
 .aider*
+
+# Graphify output
+graphify-out/
