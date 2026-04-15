@@ -37,5 +37,11 @@
   "phase_naming": "sequential",
   "agent_skills": {},
   "mode": "interactive",
-  "granularity": "standard"
+  "granularity": "standard",
+  "features": {
+    "graphify": true
+  },
+  "graphify": {
+    "enabled": true
+  }
 }
