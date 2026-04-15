@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
 import { ImportDialog } from '@/components/import/ImportDialog';
 import { FindCard } from '@/components/finds/FindCard';
+import { PhotoLightbox, type LightboxPhoto } from '@/components/finds/PhotoLightbox';
 import { EditFindDialog } from '@/components/finds/EditFindDialog';
 import { FolderEditDialog } from '@/components/finds/FolderEditDialog';
 import { DeleteFindDialog } from '@/components/finds/DeleteFindDialog';
@@ -46,6 +47,33 @@ export default function CollectionTab() {
   const [moveDropdownOpen, setMoveDropdownOpen] = useState(false);
   const [moveHighlight, setMoveHighlight] = useState(0);
   const bulkRename = useBulkRenameSpecies();
+
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [lightboxPhotos, setLightboxPhotos] = useState<LightboxPhoto[]>([]);
+
+  const openLightbox = (speciesFinds: Find[], findId: number, photoIndex: number) => {
+    const flat: LightboxPhoto[] = [];
+    for (const f of speciesFinds) {
+      for (const p of f.photos) {
+        flat.push({ photo: p, find: f });
+      }
+    }
+    // Find the global index matching the clicked find + photoIndex
+    let globalIndex = 0;
+    let counted = 0;
+    for (const f of speciesFinds) {
+      for (let pi = 0; pi < f.photos.length; pi++) {
+        if (f.id === findId && pi === photoIndex) {
+          globalIndex = counted;
+        }
+        counted++;
+      }
+    }
+    setLightboxPhotos(flat);
+    setLightboxIndex(globalIndex);
+    setLightboxOpen(true);
+  };
 
   const toggleSelect = (id: number) => {
     setSelectedIds((prev) => {
@@ -410,6 +438,7 @@ export default function CollectionTab() {
                         isSelected={selectedIds.has(f.id)}
                         onToggleSelect={toggleSelect}
                         onLongPress={enterSelectModeWith}
+                        onPhotoClick={(findId, photoIdx) => openLightbox(speciesFinds, findId, photoIdx)}
                       />
                     ))}
                   </div>
@@ -444,6 +473,14 @@ export default function CollectionTab() {
         open={bulkDeleteOpen}
         onOpenChange={setBulkDeleteOpen}
         onSuccess={handleBulkDeleteSuccess}
+      />
+      <PhotoLightbox
+        open={lightboxOpen}
+        onOpenChange={setLightboxOpen}
+        photos={lightboxPhotos}
+        currentIndex={lightboxIndex}
+        onIndexChange={setLightboxIndex}
+        storagePath={storagePath!}
       />
     </div>
   );

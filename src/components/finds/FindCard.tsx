@@ -14,9 +14,10 @@ interface FindCardProps {
   isSelected?: boolean;
   onToggleSelect?: (id: number) => void;
   onLongPress?: (id: number) => void;
+  onPhotoClick?: (findId: number, photoIndex: number) => void;
 }
 
-export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSelected, onToggleSelect, onLongPress }: FindCardProps) {
+export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSelected, onToggleSelect, onLongPress, onPhotoClick }: FindCardProps) {
   const t = useT();
   const primaryPhoto = find.photos[0] ?? null;
   const absolutePath = primaryPhoto ? `${storagePath}/${primaryPhoto.photo_path}` : '';
@@ -58,7 +59,10 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
       <div className={`absolute left-0 top-0 bottom-0 w-0.5 rounded-l-sm bg-primary transition-opacity duration-200 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} />
 
       {/* Thumbnail */}
-      <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-sm bg-muted flex items-center justify-center">
+      <div
+        className={`relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-sm bg-muted flex items-center justify-center ${!selectMode && onPhotoClick && primaryPhoto ? 'cursor-pointer' : ''}`}
+        onClick={!selectMode && onPhotoClick && primaryPhoto ? (e) => { e.stopPropagation(); onPhotoClick(find.id, 0); } : undefined}
+      >
         {primaryPhoto === null ? (
           <Image className="h-7 w-7 text-muted-foreground/30" />
         ) : heic ? (
