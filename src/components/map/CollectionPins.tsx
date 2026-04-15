@@ -15,16 +15,19 @@ interface Collection {
   finds: Find[];
 }
 
-function collectionIcon(name: string, showLabel: boolean): L.DivIcon {
+function collectionIcon(name: string, showLabel: boolean, isSatellite: boolean): L.DivIcon {
   // Latin name only — species_name may include Croatian after comma e.g. "Agaricus bohusii, Busenasta rudnjača"
   const latinName = name.split(',')[0].trim();
   const opacity = showLabel ? '1' : '0.35';
-  // Visual styles live in index.css `.bili-col-label` — inline styles limited to positional + opacity.
+  // Color controlled via CSS class — satellite gets white text, street/topo gets dark.
+  const markerClass = isSatellite
+    ? 'bili-collection-marker bili-collection-marker--satellite'
+    : 'bili-collection-marker';
   const pill = `position:absolute;transform:translate(-50%,-50%);opacity:${opacity};transition:opacity 0.15s ease;`;
 
   return L.divIcon({
     html: `<div class="bili-col-label" style="${pill}">${latinName}</div>`,
-    className: 'bili-collection-marker',
+    className: markerClass,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
     popupAnchor: [0, -10],
@@ -135,6 +138,7 @@ function CollectionPinsInner({ collections }: { collections: Collection[] }) {
   const [crowded, setCrowded] = useState<Set<string>>(new Set());
   const { data: speciesNotesData } = useSpeciesNotes();
   const storagePath = useAppStore((s) => s.storagePath) ?? '';
+  const isSatellite = useAppStore((s) => s.mapLayer === 'Satellite');
   const update = useCallback(() => {
     setCrowded(computeCrowded(map, collections));
   }, [map, collections]);
@@ -157,7 +161,7 @@ function CollectionPinsInner({ collections }: { collections: Collection[] }) {
           <Marker
             key={`col-${c.name}`}
             position={[c.lat, c.lng]}
-            icon={collectionIcon(c.name, showLabel)}
+            icon={collectionIcon(c.name, showLabel, isSatellite)}
           >
             <Popup minWidth={220}>
               <CollectionPopup
