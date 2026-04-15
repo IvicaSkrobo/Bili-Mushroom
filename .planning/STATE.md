@@ -106,6 +106,7 @@ Recent decisions affecting current work:
 | 260415-rns pill-text-layer-aware-css-class | 2026-04-15 | Dark text on street/topo, white on satellite via CSS class; bili-collection-marker--satellite on divIcon className. |
 | 260415-rpv crowded-pins-dot-hover-reveal | 2026-04-15 | Crowded pins collapse to amber dot; hover expands full pill via max-width CSS transition. |
 | 260415-sj5 map-species-filter-panel | 2026-04-15 | Species filter panel on map: search + checkboxes, See all, filtered finds passed to CollectionPins. |
+| 260415-syy collection-photo-lightbox-within-folder | 2026-04-15 | PhotoLightbox overlay in collection folders: click thumbnail → enlarged photo + metadata panel (species, date, notes, coords); prev/next (buttons + keyboard); Esc/click-outside closes. |
 
 ### Roadmap Evolution
 
