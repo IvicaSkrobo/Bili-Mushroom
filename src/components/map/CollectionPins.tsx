@@ -11,52 +11,21 @@ interface Collection {
 }
 
 function collectionIcon(name: string, showLabel: boolean): L.DivIcon {
-  const badgeStyle = [
-    'background:oklch(0.72 0.12 80)',
-    'color:oklch(0.12 0.02 80)',
-    'border-radius:3px',
-    'width:28px',
-    'height:28px',
-    'display:flex',
-    'align-items:center',
-    'justify-content:center',
-    'font-weight:700',
-    'font-size:11px',
-    'border:2px solid oklch(0.12 0.02 80)',
-    'font-family:serif',
-    'text-transform:uppercase',
-    'letter-spacing:0.05em',
-    'box-shadow:0 1px 4px rgba(0,0,0,0.5)',
-    'flex-shrink:0',
-  ].join(';');
-
-  const labelStyle = [
-    'background:oklch(0.72 0.12 80)',
-    'color:oklch(0.12 0.02 80)',
-    'border-radius:999px',
-    'padding:2px 7px',
-    'font-size:11px',
-    'font-family:serif',
-    'font-weight:600',
-    'white-space:nowrap',
-    'box-shadow:0 1px 3px rgba(0,0,0,0.5)',
-    'max-width:120px',
-    'overflow:hidden',
-    'text-overflow:ellipsis',
-    'display:block',
-  ].join(';');
-
+  const AMBER = 'oklch(0.72 0.12 80)';
+  const DARK = 'oklch(0.12 0.02 80)';
   const abbr = name.slice(0, 2).toUpperCase();
-  const crowdedClass = showLabel ? 'bili-collection-pin' : 'bili-collection-pin crowded';
+
+  const badge = `<div style="position:absolute;top:0;left:0;width:28px;height:28px;background:${AMBER};color:${DARK};border-radius:3px;border:2px solid ${DARK};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;font-family:serif;text-transform:uppercase;letter-spacing:0.05em;box-shadow:0 1px 4px rgba(0,0,0,0.5);">${abbr}</div>`;
+
+  const labelOpacity = showLabel ? '1' : '0';
+  const labelPointerEvents = showLabel ? 'auto' : 'none';
+  const label = `<div class="bili-col-label" style="position:absolute;top:32px;left:50%;transform:translateX(-50%);background:${AMBER};color:${DARK};border-radius:999px;padding:2px 8px;font-size:11px;font-family:serif;font-weight:600;white-space:nowrap;box-shadow:0 2px 4px rgba(0,0,0,0.6);opacity:${labelOpacity};pointer-events:${labelPointerEvents};transition:opacity 0.15s ease;">${name}</div>`;
 
   return L.divIcon({
-    html: `<div class="${crowdedClass}" style="display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer">
-      <div style="${badgeStyle}">${abbr}</div>
-      <span class="bili-col-label" style="${labelStyle}">${name}</span>
-    </div>`,
-    className: '',
-    iconSize: [130, 52],
-    iconAnchor: [65, 28],
+    html: `<div class="bili-collection-pin" style="position:relative;width:28px;height:28px;overflow:visible;cursor:pointer;">${badge}${label}</div>`,
+    className: 'bili-collection-marker',
+    iconSize: [28, 28],
+    iconAnchor: [14, 28],
     popupAnchor: [0, -32],
   });
 }
