@@ -15,15 +15,12 @@ interface Collection {
   finds: Find[];
 }
 
-function collectionIcon(name: string, showLabel: boolean, isSatellite: boolean): L.DivIcon {
+function collectionIcon(name: string, showLabel: boolean): L.DivIcon {
   // Latin name only — species_name may include Croatian after comma e.g. "Agaricus bohusii, Busenasta rudnjača"
   const latinName = name.split(',')[0].trim();
   const opacity = showLabel ? '1' : '0.35';
-  // Satellite: white text + shadow for contrast against amber pill on dark imagery; street/topo: dark (CSS default)
-  const colorOverride = isSatellite ? 'color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.7);' : '';
-
-  // Visual styles live in index.css `.bili-col-label` — inline styles limited to positional + opacity + color override.
-  const pill = `position:absolute;transform:translate(-50%,-50%);opacity:${opacity};transition:opacity 0.15s ease;${colorOverride}`;
+  // Visual styles live in index.css `.bili-col-label` — inline styles limited to positional + opacity.
+  const pill = `position:absolute;transform:translate(-50%,-50%);opacity:${opacity};transition:opacity 0.15s ease;`;
 
   return L.divIcon({
     html: `<div class="bili-col-label" style="${pill}">${latinName}</div>`,
@@ -138,8 +135,6 @@ function CollectionPinsInner({ collections }: { collections: Collection[] }) {
   const [crowded, setCrowded] = useState<Set<string>>(new Set());
   const { data: speciesNotesData } = useSpeciesNotes();
   const storagePath = useAppStore((s) => s.storagePath) ?? '';
-  const isSatellite = useAppStore((s) => s.mapLayer === 'Satellite');
-
   const update = useCallback(() => {
     setCrowded(computeCrowded(map, collections));
   }, [map, collections]);
@@ -162,7 +157,7 @@ function CollectionPinsInner({ collections }: { collections: Collection[] }) {
           <Marker
             key={`col-${c.name}`}
             position={[c.lat, c.lng]}
-            icon={collectionIcon(c.name, showLabel, isSatellite)}
+            icon={collectionIcon(c.name, showLabel)}
           >
             <Popup minWidth={220}>
               <CollectionPopup
