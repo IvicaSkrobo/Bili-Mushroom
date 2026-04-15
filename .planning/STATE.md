@@ -98,6 +98,7 @@ Recent decisions affecting current work:
 | 260415-q4k fix-collection-pin-icon-badge-visible-la | 2026-04-15 | Rewrote collectionIcon: iconSize 28x28, absolute positioning, overflow:visible — badge renders correctly, label flows below pin. |
 | 260415-qb3 fix-collection-pin-icon-zero-size-anchor | 2026-04-15 | iconSize:[0,0]+iconAnchor:[0,0] — 0x0 div at coordinate; badge floats above via bottom:4px; label below via top:4px; escapes Leaflet clipping. |
 | 260415-qf3 collection-pin-badge-latin-name-bg | 2026-04-15 | hex colors replace oklch in DivIcon (WebView reliability); text-align+line-height replaces display:flex for badge centering; Latin name extracted (before comma) for abbr + label. |
+| 260415-ql0 collection-pin-popup-species-note-photo-carousel | 2026-04-15 | CollectionPopup with species description (SpeciesNote.notes) + photo carousel (all finds' photos, prev/next); Collection carries finds[]; hooks called inside CollectionPinsInner. |
 
 ### Roadmap Evolution
 
