@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Settings as SettingsIcon } from 'lucide-react';
+import { Settings as SettingsIcon, Sun, Moon } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { useAppStore, type Tab } from '@/stores/appStore';
@@ -24,6 +24,8 @@ export function AppShell() {
   const t = useT();
   const activeTab = useAppStore((s) => s.activeTab);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
+  const theme = useAppStore((s) => s.theme);
+  const setTheme = useAppStore((s) => s.setTheme);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
@@ -34,15 +36,26 @@ export function AppShell() {
           <span className="font-serif text-2xl font-bold italic text-primary tracking-tight">Bili</span>
           <span className="text-[10px] font-medium tracking-[0.3em] uppercase text-muted-foreground">Mushroom</span>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={t('nav.settings')}
-          onClick={() => setSettingsOpen(true)}
-          className="text-muted-foreground hover:text-foreground"
-        >
-          <SettingsIcon className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Toggle theme"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="text-muted-foreground hover:text-primary transition-colors"
+          >
+            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t('nav.settings')}
+            onClick={() => setSettingsOpen(true)}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <SettingsIcon className="h-4 w-4" />
+          </Button>
+        </div>
       </header>
 
       {/* Tabs */}

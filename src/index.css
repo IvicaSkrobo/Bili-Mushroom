@@ -25,49 +25,52 @@
   --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
 }
 
-/* ── Light mode (default) ─ Botanical Field Guide ── */
+/* ── Light mode ─ Warm Parchment ── */
 :root {
-  --background: oklch(0.97 0.012 80);
-  --foreground: oklch(0.18 0.06 155);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.06 155);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.06 155);
-  --primary: oklch(0.56 0.15 75);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.92 0.025 130);
-  --secondary-foreground: oklch(0.22 0.05 150);
-  --muted: oklch(0.93 0.01 85);
-  --muted-foreground: oklch(0.48 0.04 140);
-  --accent: oklch(0.90 0.025 130);
-  --accent-foreground: oklch(0.22 0.05 150);
-  --destructive: oklch(0.55 0.20 25);
-  --border: oklch(0.87 0.015 90);
-  --input: oklch(0.96 0.01 80);
-  --ring: oklch(0.56 0.15 75);
+  --background: oklch(0.92 0.042 84);
+  --foreground: oklch(0.14 0.048 55);
+  --card: oklch(0.95 0.030 82);
+  --card-foreground: oklch(0.14 0.048 55);
+  --popover: oklch(0.95 0.030 82);
+  --popover-foreground: oklch(0.14 0.048 55);
+  --primary: oklch(0.57 0.135 76);
+  --primary-foreground: oklch(0.97 0.015 85);
+  --secondary: oklch(0.30 0.095 145);
+  --secondary-foreground: oklch(0.94 0.025 82);
+  --muted: oklch(0.87 0.038 80);
+  --muted-foreground: oklch(0.44 0.042 72);
+  --accent: oklch(0.85 0.040 82);
+  --accent-foreground: oklch(0.20 0.048 60);
+  --destructive: oklch(0.52 0.20 25);
+  --border: oklch(0.76 0.052 76);
+  --input: oklch(0.90 0.030 82);
+  --ring: oklch(0.57 0.135 76);
   --radius: 0.4rem;
+  /* parchment texture overlay */
+  --texture-opacity: 0.045;
 }
 
-/* ── Dark mode ─ Forest Codex (high contrast) ── */
+/* ── Dark mode ─ Forest Night ── */
 .dark {
-  --background: oklch(0.13 0.015 135);
-  --foreground: oklch(0.94 0.01 90);
-  --card: oklch(0.18 0.02 132);
-  --card-foreground: oklch(0.94 0.01 90);
-  --popover: oklch(0.18 0.02 132);
-  --popover-foreground: oklch(0.94 0.01 90);
-  --primary: oklch(0.80 0.14 78);
-  --primary-foreground: oklch(0.12 0.02 80);
-  --secondary: oklch(0.24 0.03 130);
-  --secondary-foreground: oklch(0.85 0.03 110);
-  --muted: oklch(0.21 0.02 132);
-  --muted-foreground: oklch(0.62 0.04 125);
-  --accent: oklch(0.27 0.03 130);
-  --accent-foreground: oklch(0.94 0.01 90);
-  --destructive: oklch(0.60 0.20 25);
-  --border: oklch(0.30 0.025 130);
-  --input: oklch(0.21 0.02 132);
-  --ring: oklch(0.80 0.14 78);
+  --background: oklch(0.09 0.016 62);
+  --foreground: oklch(0.92 0.022 82);
+  --card: oklch(0.13 0.020 65);
+  --card-foreground: oklch(0.92 0.022 82);
+  --popover: oklch(0.13 0.020 65);
+  --popover-foreground: oklch(0.92 0.022 82);
+  --primary: oklch(0.78 0.170 78);
+  --primary-foreground: oklch(0.10 0.018 62);
+  --secondary: oklch(0.24 0.085 145);
+  --secondary-foreground: oklch(0.88 0.035 85);
+  --muted: oklch(0.17 0.020 65);
+  --muted-foreground: oklch(0.56 0.055 82);
+  --accent: oklch(0.20 0.025 65);
+  --accent-foreground: oklch(0.92 0.022 82);
+  --destructive: oklch(0.58 0.20 25);
+  --border: oklch(0.28 0.058 74);
+  --input: oklch(0.17 0.020 65);
+  --ring: oklch(0.78 0.170 78);
+  --texture-opacity: 0.03;
 }
 
 /* Base */
@@ -79,6 +82,23 @@ body {
   color: var(--foreground);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Parchment grain overlay */
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  background-blend-mode: overlay;
+  background-size: 300px 300px;
+  opacity: 1;
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  opacity: var(--texture-opacity);
+  mix-blend-mode: overlay;
 }
 
 /* Date input — suppress browser's per-segment colour highlighting */
