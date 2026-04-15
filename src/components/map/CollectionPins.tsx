@@ -49,7 +49,7 @@ function CollectionPopup({
     () => collection.finds.flatMap((f) => f.photos.map((p) => ({ photo: p, findNotes: f.notes }))),
     [collection.finds],
   );
-  const latinName = collection.name.split(',')[0].trim();
+  const [latinName, croatianName] = collection.name.split(',').map((s) => s.trim());
   const current = allPhotos[photoIdx] ?? null;
   const photo = current?.photo ?? null;
   const photoSrc = photo && storagePath
@@ -62,6 +62,7 @@ function CollectionPopup({
       {/* Header */}
       <div>
         <p className="font-serif text-sm font-bold italic text-foreground">{latinName}</p>
+        {croatianName && <p className="text-xs text-muted-foreground/80 italic">{croatianName}</p>}
         <p className="text-xs text-muted-foreground">{collection.count} {collection.count === 1 ? 'find' : 'finds'}</p>
       </div>
 
