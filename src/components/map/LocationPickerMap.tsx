@@ -1,11 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import L from 'leaflet';
-import { MapContainer, Marker, useMapEvents, useMap } from 'react-leaflet';
-import { tileLayerOffline } from 'leaflet.offline';
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-import { LocateFixed } from 'lucide-react';
-import { toast } from 'sonner';
+import { MapContainer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import {
   Dialog,
   DialogContent,
@@ -14,42 +9,38 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { useAppStore } from '@/stores/appStore';
+import { applyLeafletIconFix } from './leafletIconFix';
+import { createRustProxyTileLayer } from './RustProxyTileLayer';
 
-// Fix Leaflet default icon broken by Vite's asset pipeline
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-});
+applyLeafletIconFix();
 
-interface LocationPickerMapProps {
+const CROATIA_CENTER: [number, number] = [45.1, 15.2];
+const CROATIA_ZOOM = 7;
+const EXISTING_PIN_ZOOM = 13;
+const OSM_TEMPLATE = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+export interface LocationPickerMapProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialLatLng?: { lat: number; lng: number } | null;
   onConfirm: (lat: number, lng: number) => void;
 }
 
-/** Adds an offline-capable OSM tile layer using leaflet.offline.
- *  Tiles are cached in IndexedDB on first load and served from cache when offline.
- *  Uncached areas show grey boxes but the map stays fully interactive. */
-function OfflineTileLayer() {
+function RustProxyOsmLayer({ storagePath }: { storagePath: string }) {
   const map = useMap();
-
   useEffect(() => {
-    const layer = tileLayerOffline(
-      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        maxZoom: 19,
-        // Attempt network first; fall back to IndexedDB automatically
-      },
-    );
+    const layer = createRustProxyTileLayer({
+      urlTemplate: OSM_TEMPLATE,
+      storagePath,
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19,
+    });
     layer.addTo(map);
     return () => {
       layer.remove();
     };
-  }, [map]);
-
+  }, [map, storagePath]);
   return null;
 }
 
@@ -62,97 +53,71 @@ function ClickHandler({ onPick }: { onPick: (latlng: L.LatLng) => void }) {
   return null;
 }
 
-function LocateMeButton({ onLocate }: { onLocate: (latlng: L.LatLng) => void }) {
-  const map = useMap();
-  const [locating, setLocating] = useState(false);
-
-  const handleLocate = () => {
-    if (!navigator.geolocation) {
-      toast.error('Geolocation not supported');
-      return;
-    }
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
-        map.flyTo(latlng, 13);
-        onLocate(latlng);
-        setLocating(false);
-      },
-      (err) => {
-        toast.error(`Location unavailable: ${err.message}`);
-        setLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000 },
-    );
-  };
-
-  return (
-    <div className="absolute top-2 right-2 z-[1000]">
-      <Button
-        type="button"
-        variant="secondary"
-        size="icon"
-        onClick={handleLocate}
-        disabled={locating}
-        aria-label="Use my location"
-        title="Use my location"
-        className="h-8 w-8 shadow-md"
-      >
-        <LocateFixed className={`h-4 w-4 ${locating ? 'animate-pulse' : ''}`} />
-      </Button>
-    </div>
-  );
-}
-
 export function LocationPickerMap({
   open,
   onOpenChange,
   initialLatLng,
   onConfirm,
 }: LocationPickerMapProps) {
-  const [pin, setPin] = useState<L.LatLng | null>(
-    initialLatLng ? L.latLng(initialLatLng.lat, initialLatLng.lng) : null,
+  const storagePath = useAppStore((s) => s.storagePath);
+  const [pin, setPin] = useState<{ lat: number; lng: number } | null>(
+    initialLatLng ?? null,
   );
 
-  // Default center: Croatia (45.1, 15.2) — zoom 7 shows the whole country
-  const center: [number, number] = initialLatLng
-    ? [initialLatLng.lat, initialLatLng.lng]
-    : [45.1, 15.2];
+  // Reset pin when the dialog opens (so reopening doesn't keep stale state)
+  useEffect(() => {
+    if (open) setPin(initialLatLng ?? null);
+  }, [open, initialLatLng]);
 
-  const handleConfirm = () => {
-    if (pin) {
-      onConfirm(pin.lat, pin.lng);
-      onOpenChange(false);
-    }
-  };
+  const initialCenter: [number, number] = initialLatLng
+    ? [initialLatLng.lat, initialLatLng.lng]
+    : CROATIA_CENTER;
+  const initialZoom = initialLatLng ? EXISTING_PIN_ZOOM : CROATIA_ZOOM;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Pick location</DialogTitle>
+      <DialogContent className="flex h-screen max-h-screen w-screen max-w-none flex-col p-0">
+        <DialogHeader className="px-6 py-4">
+          <DialogTitle className="text-xl font-semibold">Pick a location</DialogTitle>
         </DialogHeader>
-        <div style={{ height: 400, position: 'relative' }}>
-          {open && (
+        <div className="flex-1" style={{ minHeight: 0 }}>
+          {open && storagePath && (
             <MapContainer
-              key={String(open)}
-              center={center}
-              zoom={initialLatLng ? 13 : 7}
+              center={initialCenter}
+              zoom={initialZoom}
               style={{ height: '100%', width: '100%' }}
             >
-              <OfflineTileLayer />
-              <ClickHandler onPick={setPin} />
-              <LocateMeButton onLocate={setPin} />
-              {pin && <Marker position={pin} />}
+              <RustProxyOsmLayer storagePath={storagePath} />
+              <ClickHandler
+                onPick={(latlng) => setPin({ lat: latlng.lat, lng: latlng.lng })}
+              />
+              {pin && (
+                <Marker
+                  position={[pin.lat, pin.lng]}
+                  draggable
+                  eventHandlers={{
+                    dragend: (e) => {
+                      const ll = (e.target as L.Marker).getLatLng();
+                      setPin({ lat: ll.lat, lng: ll.lng });
+                    },
+                  }}
+                />
+              )}
             </MapContainer>
           )}
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button disabled={!pin} onClick={handleConfirm}>
+        <DialogFooter className="flex flex-col gap-2 px-6 py-4">
+          <div className="font-mono text-xs text-muted-foreground">
+            Selected:{' '}
+            {pin
+              ? `${pin.lat.toFixed(6)}, ${pin.lng.toFixed(6)}`
+              : '—'}
+          </div>
+          <Button
+            disabled={!pin}
+            onClick={() => pin && onConfirm(pin.lat, pin.lng)}
+            className="w-full"
+          >
             Confirm location
           </Button>
         </DialogFooter>
@@ -160,3 +125,5 @@ export function LocationPickerMap({
     </Dialog>
   );
 }
+
+export default LocationPickerMap;
