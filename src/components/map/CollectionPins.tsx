@@ -14,19 +14,64 @@ function collectionIcon(name: string, showLabel: boolean): L.DivIcon {
   const AMBER = 'oklch(0.72 0.12 80)';
   const DARK = 'oklch(0.12 0.02 80)';
   const abbr = name.slice(0, 2).toUpperCase();
-
-  const badge = `<div style="position:absolute;top:0;left:0;width:28px;height:28px;background:${AMBER};color:${DARK};border-radius:3px;border:2px solid ${DARK};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;font-family:serif;text-transform:uppercase;letter-spacing:0.05em;box-shadow:0 1px 4px rgba(0,0,0,0.5);">${abbr}</div>`;
-
   const labelOpacity = showLabel ? '1' : '0';
-  const labelPointerEvents = showLabel ? 'auto' : 'none';
-  const label = `<div class="bili-col-label" style="position:absolute;top:32px;left:50%;transform:translateX(-50%);background:${AMBER};color:${DARK};border-radius:999px;padding:2px 8px;font-size:11px;font-family:serif;font-weight:600;white-space:nowrap;box-shadow:0 2px 4px rgba(0,0,0,0.6);opacity:${labelOpacity};pointer-events:${labelPointerEvents};transition:opacity 0.15s ease;">${name}</div>`;
+  const labelEvents = showLabel ? 'auto' : 'none';
+
+  // iconSize:[0,0] iconAnchor:[0,0] → the 0×0 div sits AT the coordinate.
+  // Badge: position:absolute bottom:4px left:-14px → 28px wide, centered above coord.
+  // Label: position:absolute top:4px left:50% transform:translateX(-50%) → centered below coord.
+  // parent width:0 → left:50% = 0px from coord → translateX(-50%) centers label over coord.
+
+  const badge = [
+    'position:absolute',
+    'bottom:4px',
+    'left:-14px',
+    'width:28px',
+    'height:28px',
+    `background:${AMBER}`,
+    `color:${DARK}`,
+    'border-radius:4px',
+    `border:2px solid ${DARK}`,
+    'display:flex',
+    'align-items:center',
+    'justify-content:center',
+    'font-weight:700',
+    'font-size:11px',
+    'font-family:serif',
+    'text-transform:uppercase',
+    'letter-spacing:0.05em',
+    'box-shadow:0 2px 6px rgba(0,0,0,0.6)',
+    'cursor:pointer',
+  ].join(';');
+
+  const label = [
+    'position:absolute',
+    'top:4px',
+    'left:50%',
+    'transform:translateX(-50%)',
+    `background:${AMBER}`,
+    `color:${DARK}`,
+    'border-radius:999px',
+    'padding:2px 9px',
+    'font-size:11px',
+    'font-family:serif',
+    'font-weight:600',
+    'white-space:nowrap',
+    'box-shadow:0 2px 6px rgba(0,0,0,0.6)',
+    `opacity:${labelOpacity}`,
+    'transition:opacity 0.15s ease',
+    `pointer-events:${labelEvents}`,
+  ].join(';');
 
   return L.divIcon({
-    html: `<div class="bili-collection-pin" style="position:relative;width:28px;height:28px;overflow:visible;cursor:pointer;">${badge}${label}</div>`,
+    html: `<div style="position:relative;width:0;height:0;overflow:visible;">
+      <div style="${badge}">${abbr}</div>
+      <div class="bili-col-label" style="${label}">${name}</div>
+    </div>`,
     className: 'bili-collection-marker',
-    iconSize: [28, 28],
-    iconAnchor: [14, 28],
-    popupAnchor: [0, -32],
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+    popupAnchor: [0, -36],
   });
 }
 
