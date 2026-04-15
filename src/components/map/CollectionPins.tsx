@@ -11,16 +11,18 @@ interface Collection {
 }
 
 function collectionIcon(name: string, showLabel: boolean): L.DivIcon {
-  const AMBER = 'oklch(0.72 0.12 80)';
-  const DARK = 'oklch(0.12 0.02 80)';
-  const abbr = name.slice(0, 2).toUpperCase();
+  // Use hex colors — oklch() in Leaflet DivIcon inline styles is unreliable in Tauri WebView
+  const AMBER = '#D4941A';
+  const DARK = '#1C1A0C';
+  // Latin name only — species_name may include Croatian after comma e.g. "Agaricus bohusii, Busenasta rudnjača"
+  const latinName = name.split(',')[0].trim();
+  const abbr = latinName.slice(0, 2).toUpperCase();
   const labelOpacity = showLabel ? '1' : '0';
   const labelEvents = showLabel ? 'auto' : 'none';
 
   // iconSize:[0,0] iconAnchor:[0,0] → the 0×0 div sits AT the coordinate.
   // Badge: position:absolute bottom:4px left:-14px → 28px wide, centered above coord.
   // Label: position:absolute top:4px left:50% transform:translateX(-50%) → centered below coord.
-  // parent width:0 → left:50% = 0px from coord → translateX(-50%) centers label over coord.
 
   const badge = [
     'position:absolute',
@@ -32,9 +34,8 @@ function collectionIcon(name: string, showLabel: boolean): L.DivIcon {
     `color:${DARK}`,
     'border-radius:4px',
     `border:2px solid ${DARK}`,
-    'display:flex',
-    'align-items:center',
-    'justify-content:center',
+    'text-align:center',
+    'line-height:28px',
     'font-weight:700',
     'font-size:11px',
     'font-family:serif',
@@ -66,7 +67,7 @@ function collectionIcon(name: string, showLabel: boolean): L.DivIcon {
   return L.divIcon({
     html: `<div style="position:relative;width:0;height:0;overflow:visible;">
       <div style="${badge}">${abbr}</div>
-      <div class="bili-col-label" style="${label}">${name}</div>
+      <div class="bili-col-label" style="${label}">${latinName}</div>
     </div>`,
     className: 'bili-collection-marker',
     iconSize: [0, 0],
