@@ -83,6 +83,7 @@ Recent decisions affecting current work:
 - [ ] Add Clear All button to import photo picker — removes all queued photos in one click
 - [ ] Batch metadata cascade in import picker — shared name+location header above card list, pre-filled from folder name, cascades to all cards; each card still individually editable
 - [ ] Folder hierarchy import mode — main folder > mushroom sub-folders > photos; each sub-folder becomes one find batch, folder name = default mushroom name; collection reflects this structure
+- [ ] Implement dark and light color themes Forest Codex — high-contrast dark + warm parchment light; use frontend-design skill + ask user for reference image at task start
 
 ### Quick Tasks Completed
 
