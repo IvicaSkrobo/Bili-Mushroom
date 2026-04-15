@@ -32,6 +32,8 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange }: FolderEdi
   const [country, setCountry] = useState('');
   const [region, setRegion] = useState('');
   const [overwriteExisting, setOverwriteExisting] = useState(false);
+  const [pickedLat, setPickedLat] = useState<number | null>(null);
+  const [pickedLng, setPickedLng] = useState<number | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +45,8 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange }: FolderEdi
       setCountry('');
       setRegion('');
       setOverwriteExisting(false);
+      setPickedLat(null);
+      setPickedLng(null);
       setError(null);
     }
   }, [speciesName]);
@@ -62,15 +66,15 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange }: FolderEdi
         });
       }
 
-      // Step 2: Update country/region on individual finds
-      if (country || region) {
+      // Step 2: Update location fields (country, region, and/or lat/lng)
+      const hasLocationUpdate = country || region || (pickedLat !== null && pickedLng !== null);
+      if (hasLocationUpdate) {
         const updates = finds.filter((f) => {
           if (overwriteExisting) return true;
-          // Skip finds that already have both country and region filled
           const needsCountry = country && !f.country;
           const needsRegion = region && !f.region;
-          // Apply if any targeted field is empty
-          return needsCountry || needsRegion;
+          const needsLatLng = pickedLat !== null && (f.lat === null || f.lng === null);
+          return needsCountry || needsRegion || needsLatLng;
         });
 
         await Promise.all(
@@ -82,8 +86,8 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange }: FolderEdi
               country: country ? (overwriteExisting ? country : country || f.country) : f.country,
               region: region ? (overwriteExisting ? region : region || f.region) : f.region,
               location_note: f.location_note,
-              lat: f.lat,
-              lng: f.lng,
+              lat: pickedLat !== null ? pickedLat : f.lat,
+              lng: pickedLng !== null ? pickedLng : f.lng,
               notes: f.notes,
             }),
           ),
@@ -125,8 +129,13 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange }: FolderEdi
                 className="flex items-center gap-1"
               >
                 <MapPin className="h-4 w-4" />
-                Pick on map
+                {pickedLat !== null ? 'Change location' : 'Pick on map'}
               </Button>
+              {pickedLat !== null && (
+                <p className="mt-0.5 text-xs text-muted-foreground pl-1">
+                  {pickedLat.toFixed(4)}, {pickedLng!.toFixed(4)}
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -148,7 +157,7 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange }: FolderEdi
               </div>
             </div>
 
-            {(country || region) && (
+            {(country || region || pickedLat !== null) && (
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -166,9 +175,9 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange }: FolderEdi
               </div>
             )}
 
-            {(country || region) && !overwriteExisting && (
+            {(country || region || pickedLat !== null) && !overwriteExisting && (
               <p className="text-xs text-muted-foreground/70">
-                Will only fill empty fields. Enable overwrite to apply to all {finds.length} finds.
+                Will only fill empty fields (country, region, coordinates). Enable overwrite to apply to all {finds.length} finds.
               </p>
             )}
           </div>
@@ -196,6 +205,8 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange }: FolderEdi
         initialLatLng={null}
         onConfirm={async (lat, lng) => {
           setPickerOpen(false);
+          setPickedLat(lat);
+          setPickedLng(lng);
           const geo = await reverseGeocode(lat, lng, lang);
           if (geo.country) setCountry(geo.country);
           if (geo.region) setRegion(geo.region);
