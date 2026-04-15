@@ -147,6 +147,9 @@ input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: po
 }
 
 /* ── Collection pin labels ──────────────────────────────── */
+.bili-collection-marker {
+  overflow: visible !important;
+}
 .bili-collection-marker .bili-col-label {
   transition: opacity 0.15s ease;
 }

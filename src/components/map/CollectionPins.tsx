@@ -25,14 +25,10 @@ function collectionIcon(name: string, showLabel: boolean): L.DivIcon {
   const labelOpacity = showLabel ? '1' : '0';
   const labelEvents = showLabel ? 'auto' : 'none';
 
-  // iconSize:[0,0] iconAnchor:[0,0] → the 0×0 div sits AT the coordinate.
-  // Badge: position:absolute bottom:4px left:-14px → 28px wide, centered above coord.
-  // Label: position:absolute top:4px left:50% transform:translateX(-50%) → centered below coord.
+  // iconSize:[28,28] iconAnchor:[14,28] → badge fills the 28×28 box, anchor at bottom-center.
+  // Label: absolute, centered below badge via top:32px (badge 28px + 4px gap).
 
   const badge = [
-    'position:absolute',
-    'bottom:4px',
-    'left:-14px',
     'width:28px',
     'height:28px',
     `background:${AMBER}`,
@@ -40,7 +36,7 @@ function collectionIcon(name: string, showLabel: boolean): L.DivIcon {
     'border-radius:4px',
     `border:2px solid ${DARK}`,
     'text-align:center',
-    'line-height:28px',
+    'line-height:24px',
     'font-weight:700',
     'font-size:11px',
     'font-family:serif',
@@ -52,7 +48,7 @@ function collectionIcon(name: string, showLabel: boolean): L.DivIcon {
 
   const label = [
     'position:absolute',
-    'top:4px',
+    'top:32px',
     'left:50%',
     'transform:translateX(-50%)',
     `background:${AMBER}`,
@@ -70,13 +66,13 @@ function collectionIcon(name: string, showLabel: boolean): L.DivIcon {
   ].join(';');
 
   return L.divIcon({
-    html: `<div style="position:relative;width:0;height:0;overflow:visible;">
+    html: `<div style="position:relative;width:28px;height:28px;overflow:visible;">
       <div style="${badge}">${abbr}</div>
       <div class="bili-col-label" style="${label}">${latinName}</div>
     </div>`,
     className: 'bili-collection-marker',
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
+    iconSize: [28, 28],
+    iconAnchor: [14, 28],
     popupAnchor: [0, -36],
   });
 }
@@ -92,14 +88,16 @@ function CollectionPopup({
 }) {
   const [photoIdx, setPhotoIdx] = useState(0);
   const allPhotos = useMemo(
-    () => collection.finds.flatMap((f) => f.photos),
+    () => collection.finds.flatMap((f) => f.photos.map((p) => ({ photo: p, findNotes: f.notes }))),
     [collection.finds],
   );
   const latinName = collection.name.split(',')[0].trim();
-  const photo = allPhotos[photoIdx] ?? null;
+  const current = allPhotos[photoIdx] ?? null;
+  const photo = current?.photo ?? null;
   const photoSrc = photo && storagePath
     ? convertFileSrc(`${storagePath}/${photo.photo_path}`)
     : null;
+  const displayNote = (current?.findNotes?.trim()) || speciesNote;
 
   return (
     <div className="flex w-[220px] flex-col gap-2 font-sans">
@@ -109,9 +107,11 @@ function CollectionPopup({
         <p className="text-xs text-muted-foreground">{collection.count} {collection.count === 1 ? 'find' : 'finds'}</p>
       </div>
 
-      {/* Species description */}
-      {speciesNote && (
-        <p className="text-xs leading-relaxed text-foreground/80">{speciesNote}</p>
+      {/* Description — scrollable, per-photo notes or species fallback */}
+      {displayNote && (
+        <div className="max-h-[90px] overflow-y-auto rounded border border-border/40 bg-secondary/30 p-2 text-xs leading-relaxed text-foreground/80">
+          {displayNote}
+        </div>
       )}
 
       {/* Photo carousel */}
