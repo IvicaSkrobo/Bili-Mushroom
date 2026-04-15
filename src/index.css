@@ -163,12 +163,22 @@ input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: po
   white-space: nowrap;
   box-shadow: 0 2px 6px rgba(0,0,0,0.5);
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition: max-width 0.2s ease, padding 0.2s ease, font-size 0.15s ease;
 }
 .bili-collection-marker--satellite .bili-col-label {
   color: #fff;
   text-shadow: 0 1px 3px rgba(0,0,0,0.7);
 }
-.bili-collection-marker:hover .bili-col-label {
-  opacity: 1 !important;
+.bili-collection-marker--crowded .bili-col-label {
+  max-width: 10px;
+  height: 10px;
+  padding: 3px;
+  font-size: 0;
+  overflow: hidden;
+}
+.bili-collection-marker--crowded:hover .bili-col-label {
+  max-width: 200px;
+  height: auto;
+  padding: 3px 10px;
+  font-size: 11px;
 }

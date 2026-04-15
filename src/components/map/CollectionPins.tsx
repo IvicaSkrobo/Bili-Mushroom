@@ -18,16 +18,17 @@ interface Collection {
 function collectionIcon(name: string, showLabel: boolean, isSatellite: boolean): L.DivIcon {
   // Latin name only — species_name may include Croatian after comma e.g. "Agaricus bohusii, Busenasta rudnjača"
   const latinName = name.split(',')[0].trim();
-  const opacity = showLabel ? '1' : '0.35';
-  // Color controlled via CSS class — satellite gets white text, street/topo gets dark.
-  const markerClass = isSatellite
-    ? 'bili-collection-marker bili-collection-marker--satellite'
-    : 'bili-collection-marker';
-  const pill = `position:absolute;transform:translate(-50%,-50%);opacity:${opacity};transition:opacity 0.15s ease;`;
+  // CSS classes drive color (satellite) and crowded dot state — no inline opacity hack.
+  const classes = [
+    'bili-collection-marker',
+    isSatellite ? 'bili-collection-marker--satellite' : '',
+    !showLabel ? 'bili-collection-marker--crowded' : '',
+  ].filter(Boolean).join(' ');
+  const pill = `position:absolute;transform:translate(-50%,-50%);`;
 
   return L.divIcon({
     html: `<div class="bili-col-label" style="${pill}">${latinName}</div>`,
-    className: markerClass,
+    className: classes,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
     popupAnchor: [0, -10],
