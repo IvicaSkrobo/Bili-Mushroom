@@ -3,6 +3,7 @@ import type { Lang } from '@/i18n/index';
 
 export type Tab = 'collection' | 'map' | 'species' | 'browse' | 'stats';
 export type Theme = 'light' | 'dark';
+export type MapLayer = 'Satellite' | 'Topo' | 'Street';
 
 export interface AppState {
   activeTab: Tab;
@@ -11,6 +12,7 @@ export interface AppState {
   dbError: string | null;
   language: Lang;
   theme: Theme;
+  mapLayer: MapLayer;
   pendingScan: boolean;
   editingFindId: number | null;
   setActiveTab: (tab: Tab) => void;
@@ -19,6 +21,7 @@ export interface AppState {
   setDbError: (error: string | null) => void;
   setLanguage: (lang: Lang) => void;
   setTheme: (theme: Theme) => void;
+  setMapLayer: (layer: MapLayer) => void;
   setPendingScan: (v: boolean) => void;
   setEditingFindId: (id: number | null) => void;
 }
@@ -39,6 +42,14 @@ function loadTheme(): Theme {
   return 'light';
 }
 
+function loadMapLayer(): MapLayer {
+  try {
+    const v = localStorage.getItem('bili_map_layer');
+    if (v === 'Satellite' || v === 'Topo' || v === 'Street') return v;
+  } catch { /* ignore */ }
+  return 'Satellite';
+}
+
 export const useAppStore = create<AppState>((set) => ({
   activeTab: 'collection',
   storagePath: null,
@@ -46,6 +57,7 @@ export const useAppStore = create<AppState>((set) => ({
   dbError: null,
   language: loadLang(),
   theme: loadTheme(),
+  mapLayer: loadMapLayer(),
   pendingScan: false,
   editingFindId: null,
   setActiveTab: (activeTab) => set({ activeTab }),
@@ -61,5 +73,9 @@ export const useAppStore = create<AppState>((set) => ({
   setTheme: (theme) => {
     try { localStorage.setItem('bili_theme', theme); } catch { /* ignore */ }
     set({ theme });
+  },
+  setMapLayer: (mapLayer) => {
+    try { localStorage.setItem('bili_map_layer', mapLayer); } catch { /* ignore */ }
+    set({ mapLayer });
   },
 }));
