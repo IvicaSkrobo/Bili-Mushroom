@@ -21,59 +21,34 @@ function collectionIcon(name: string, showLabel: boolean): L.DivIcon {
   const DARK = '#1C1A0C';
   // Latin name only — species_name may include Croatian after comma e.g. "Agaricus bohusii, Busenasta rudnjača"
   const latinName = name.split(',')[0].trim();
-  const abbr = latinName.slice(0, 2).toUpperCase();
-  const labelOpacity = showLabel ? '1' : '0';
-  const labelEvents = showLabel ? 'auto' : 'none';
+  const opacity = showLabel ? '1' : '0.35';
 
-  // iconSize:[28,28] iconAnchor:[14,28] → badge fills the 28×28 box, anchor at bottom-center.
-  // Label: absolute, centered below badge via top:32px (badge 28px + 4px gap).
-
-  const badge = [
-    'width:28px',
-    'height:28px',
-    `background:${AMBER}`,
-    `color:${DARK}`,
-    'border-radius:4px',
-    `border:2px solid ${DARK}`,
-    'text-align:center',
-    'line-height:24px',
-    'font-weight:700',
-    'font-size:11px',
-    'font-family:serif',
-    'text-transform:uppercase',
-    'letter-spacing:0.05em',
-    'box-shadow:0 2px 6px rgba(0,0,0,0.6)',
-    'cursor:pointer',
-  ].join(';');
-
-  const label = [
+  // Single amber pill centered on the coordinate via transform:translate(-50%,-50%).
+  // iconSize:[0,0] iconAnchor:[0,0] — anchor sits at coord; pill floats around it.
+  // leaflet-div-icon default styles neutralised in index.css.
+  const pill = [
     'position:absolute',
-    'top:32px',
-    'left:50%',
-    'transform:translateX(-50%)',
+    'transform:translate(-50%,-50%)',
     `background:${AMBER}`,
     `color:${DARK}`,
     'border-radius:999px',
-    'padding:2px 9px',
+    'padding:3px 10px',
     'font-size:11px',
     'font-family:serif',
     'font-weight:600',
     'white-space:nowrap',
-    'box-shadow:0 2px 6px rgba(0,0,0,0.6)',
-    `opacity:${labelOpacity}`,
+    'box-shadow:0 2px 6px rgba(0,0,0,0.5)',
+    `opacity:${opacity}`,
     'transition:opacity 0.15s ease',
-    `pointer-events:${labelEvents}`,
+    'cursor:pointer',
   ].join(';');
 
   return L.divIcon({
-    html: `<div style="position:relative;width:28px;height:28px;overflow:visible;">
-      <div style="${badge}">${abbr}</div>
-      <div class="bili-col-label" style="${label}">${latinName}</div>
-    </div>`,
+    html: `<div class="bili-col-label" style="${pill}">${latinName}</div>`,
     className: 'bili-collection-marker',
-    iconSize: [28, 28],
-    iconAnchor: [14, 28],
-    popupAnchor: [0, -36],
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+    popupAnchor: [0, -10],
   });
 }
 
