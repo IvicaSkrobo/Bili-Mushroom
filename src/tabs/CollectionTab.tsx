@@ -19,6 +19,8 @@ export default function CollectionTab() {
   const t = useT();
   const lang = useAppStore((s) => s.language);
   const storagePath = useAppStore((s) => s.storagePath);
+  const editingFindId = useAppStore((s) => s.editingFindId);
+  const setEditingFindId = useAppStore((s) => s.setEditingFindId);
   const { data: finds, isLoading, isError, error } = useFinds();
   const { data: speciesNotesData } = useSpeciesNotes();
   const upsertNote = useUpsertSpeciesNote();
@@ -104,6 +106,17 @@ export default function CollectionTab() {
       return next;
     });
   }, [speciesNotesData]);
+
+  // Map popup "Edit find" round-trip: when editingFindId is set from the map tab,
+  // find the record and open EditFindDialog, then clear the store value.
+  useEffect(() => {
+    if (!editingFindId || !finds) return;
+    const target = finds.find((f) => f.id === editingFindId);
+    if (target) {
+      setEditing(target);
+    }
+    setEditingFindId(null);
+  }, [editingFindId, finds, setEditingFindId]);
 
   const groups = useMemo(() => {
     const map = new Map<string, Find[]>();

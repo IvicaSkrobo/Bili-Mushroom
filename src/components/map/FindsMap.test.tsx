@@ -11,13 +11,11 @@ vi.mock('react-leaflet', () => ({
   useMap: () => ({ addLayer: vi.fn(), removeLayer: vi.fn() }),
 }));
 
-// Stub the tile layer factory so useEffect doesn't call real Leaflet
-vi.mock('./RustProxyTileLayer', () => ({
-  createRustProxyTileLayer: vi.fn(() => ({
-    addTo: vi.fn(),
-    remove: vi.fn(),
-  })),
-}));
+// Stub all child components so they don't try to call real Leaflet
+vi.mock('./LayerSwitcher', () => ({ LayerSwitcher: () => null }));
+vi.mock('./FindPins', () => ({ FindPins: () => null }));
+vi.mock('./FitBoundsControl', () => ({ FitBoundsControl: () => null }));
+vi.mock('./OnlineStatusBadge', () => ({ OnlineStatusBadge: () => null }));
 
 import { FindsMap } from './FindsMap';
 

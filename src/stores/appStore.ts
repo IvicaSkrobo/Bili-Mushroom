@@ -12,6 +12,7 @@ export interface AppState {
   language: Lang;
   theme: Theme;
   pendingScan: boolean;
+  editingFindId: number | null;
   setActiveTab: (tab: Tab) => void;
   setStoragePath: (path: string | null) => void;
   setDbReady: (ready: boolean) => void;
@@ -19,6 +20,7 @@ export interface AppState {
   setLanguage: (lang: Lang) => void;
   setTheme: (theme: Theme) => void;
   setPendingScan: (v: boolean) => void;
+  setEditingFindId: (id: number | null) => void;
 }
 
 function loadLang(): Lang {
@@ -45,11 +47,13 @@ export const useAppStore = create<AppState>((set) => ({
   language: loadLang(),
   theme: loadTheme(),
   pendingScan: false,
+  editingFindId: null,
   setActiveTab: (activeTab) => set({ activeTab }),
   setStoragePath: (storagePath) => set({ storagePath }),
   setDbReady: (dbReady) => set({ dbReady }),
   setDbError: (dbError) => set({ dbError }),
   setPendingScan: (pendingScan) => set({ pendingScan }),
+  setEditingFindId: (editingFindId) => set({ editingFindId }),
   setLanguage: (language) => {
     try { localStorage.setItem('bili_lang', language); } catch { /* ignore */ }
     set({ language });
