@@ -15,6 +15,8 @@ import { useUpdateFind } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
 import type { Find } from '@/lib/finds';
+import { LocationPickerMap } from '@/components/map/LocationPickerMap';
+import { MapPin } from 'lucide-react';
 
 interface FormState {
   species_name: string;
@@ -52,6 +54,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
   const [folderHighlight, setFolderHighlight] = useState(0);
 
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [form, setForm] = useState<FormState>({
     species_name: '',
     date_found: '',
@@ -214,6 +217,18 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
             </div>
           </div>
           <div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setPickerOpen(true)}
+              className="flex items-center gap-1"
+            >
+              <MapPin className="h-4 w-4" />
+              Pick on map
+            </Button>
+          </div>
+          <div>
             <label className="text-sm font-medium">{t('edit.notes')}</label>
             <Textarea
               value={form.notes}
@@ -239,6 +254,19 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
           </Button>
         </DialogFooter>
       </DialogContent>
+      <LocationPickerMap
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        initialLatLng={
+          form.lat !== '' && form.lng !== ''
+            ? { lat: parseFloat(form.lat), lng: parseFloat(form.lng) }
+            : null
+        }
+        onConfirm={(lat, lng) => {
+          setForm((f) => ({ ...f, lat: String(lat), lng: String(lng) }));
+          setPickerOpen(false);
+        }}
+      />
     </Dialog>
   );
 }
