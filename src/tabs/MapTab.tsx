@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { FindsMap } from '@/components/map/FindsMap';
 import { SpeciesFilterPanel } from '@/components/map/SpeciesFilterPanel';
 import { useAppStore } from '@/stores/appStore';
@@ -8,6 +8,19 @@ export default function MapTab() {
   const storagePath = useAppStore((s) => s.storagePath);
   const { data: finds } = useFinds();
   const [selectedSpecies, setSelectedSpecies] = useState<Set<string>>(new Set());
+  const [filterOpen, setFilterOpen] = useState(false);
+
+  // Space toggles filter panel when map tab is active
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.code === 'Space' && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
+        e.preventDefault();
+        setFilterOpen((v) => !v);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const allSpecies = useMemo(() => {
     const names = new Set<string>();
@@ -50,6 +63,8 @@ export default function MapTab() {
       <SpeciesFilterPanel
         allSpecies={allSpecies}
         selected={selectedSpecies}
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
         onToggle={handleToggle}
         onSelectAll={handleSelectAll}
       />

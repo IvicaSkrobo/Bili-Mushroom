@@ -4,12 +4,20 @@ import { Search, SlidersHorizontal, X } from 'lucide-react';
 interface SpeciesFilterPanelProps {
   allSpecies: string[];
   selected: Set<string>;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
   onToggle: (name: string) => void;
   onSelectAll: () => void;
 }
 
-export function SpeciesFilterPanel({ allSpecies, selected, onToggle, onSelectAll }: SpeciesFilterPanelProps) {
-  const [open, setOpen] = useState(false);
+export function SpeciesFilterPanel({
+  allSpecies,
+  selected,
+  open,
+  onOpenChange,
+  onToggle,
+  onSelectAll,
+}: SpeciesFilterPanelProps) {
   const [search, setSearch] = useState('');
 
   const isAll = selected.size === 0;
@@ -18,25 +26,11 @@ export function SpeciesFilterPanel({ allSpecies, selected, onToggle, onSelectAll
     : allSpecies;
 
   return (
-    <div className="absolute bottom-8 left-3 z-[1001] font-sans select-none">
-      {/* Toggle button */}
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold shadow-md transition-colors"
-        style={{
-          background: 'oklch(0.15 0.02 135)',
-          color: '#F5E6C8',
-          border: `1px solid ${selected.size > 0 ? '#D4941A' : 'rgba(212,148,26,0.4)'}`,
-        }}
-      >
-        <SlidersHorizontal className="h-3.5 w-3.5" />
-        {selected.size > 0 ? `${selected.size} selected` : 'All species'}
-      </button>
-
-      {/* Dropdown panel */}
+    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[1001] font-sans select-none flex flex-col items-center">
+      {/* Dropdown panel — opens upward */}
       {open && (
         <div
-          className="mb-1.5 w-60 rounded-md shadow-xl absolute bottom-full left-0"
+          className="mb-1.5 w-64 rounded-md shadow-xl"
           style={{
             background: 'oklch(0.15 0.02 135)',
             border: '1px solid rgba(212,148,26,0.35)',
@@ -118,6 +112,21 @@ export function SpeciesFilterPanel({ allSpecies, selected, onToggle, onSelectAll
           </div>
         </div>
       )}
+
+      {/* Toggle button */}
+      <button
+        onClick={() => onOpenChange(!open)}
+        className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold shadow-md transition-colors"
+        style={{
+          background: 'oklch(0.15 0.02 135)',
+          color: '#F5E6C8',
+          border: `1px solid ${selected.size > 0 ? '#D4941A' : 'rgba(212,148,26,0.4)'}`,
+        }}
+      >
+        <SlidersHorizontal className="h-3.5 w-3.5" />
+        {selected.size > 0 ? `${selected.size} selected` : 'All species'}
+        <span className="ml-1 opacity-40 text-[10px]">Space</span>
+      </button>
     </div>
   );
 }
