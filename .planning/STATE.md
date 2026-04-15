@@ -5,7 +5,7 @@ milestone_name: milestone
 status: executing
 stopped_at: Phase 3 UI-SPEC approved
 last_updated: "2026-04-13T12:55:13.656Z"
-last_activity: 2026-04-13 -- Phase 03 planning complete
+last_activity: 2026-04-15 -- Completed quick task 260415-li5: Folder edit dialog, EditFindDialog reverse geocode fix, OpenTopoMap layer
 progress:
   total_phases: 7
   completed_phases: 3
@@ -91,6 +91,7 @@ Recent decisions affecting current work:
 | 260410-flf import-workflow-improvements | 2026-04-10 | Location mark field, species folder autocomplete, folder path in collection, Rust location_note fix |
 | 260410-ftm shared-header-cascade | 2026-04-10 | Date/country/region/location_note in shared header; reverse geocode → shared state; per-card field lock with amber indicator + unlock button |
 | 260411-uat-review-fixes | 2026-04-11 | PostImportReviewDialog: per-find delete (record-only, filters list), photo thumbnails, Import more button. ImportDialog: date picker (type=date, black text), delete-source checkbox (default checked, skips in-place files). BulkMetadataBar removed (shared header is primary bulk approach). |
+| 260415-li5 folder-edit-dialog-editfinddialog-revers | 2026-04-15 | FolderEditDialog: bulk rename species + map pick → reverse geocode → country/region for folder (overwrite toggle). EditFindDialog: reverse geocode auto-fill on map pick. OpenTopoMap tile layer added to LayerSwitcher + LocationPickerMap. |
 
 ### Roadmap Evolution
 
