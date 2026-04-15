@@ -18,7 +18,7 @@ export function SpeciesFilterPanel({ allSpecies, selected, onToggle, onSelectAll
     : allSpecies;
 
   return (
-    <div className="absolute right-3 top-3 z-[1001] font-sans select-none">
+    <div className="absolute bottom-8 left-3 z-[1001] font-sans select-none">
       {/* Toggle button */}
       <button
         onClick={() => setOpen((v) => !v)}
@@ -36,7 +36,7 @@ export function SpeciesFilterPanel({ allSpecies, selected, onToggle, onSelectAll
       {/* Dropdown panel */}
       {open && (
         <div
-          className="mt-1.5 w-60 rounded-md shadow-xl"
+          className="mb-1.5 w-60 rounded-md shadow-xl absolute bottom-full left-0"
           style={{
             background: 'oklch(0.15 0.02 135)',
             border: '1px solid rgba(212,148,26,0.35)',
