@@ -96,6 +96,7 @@ Recent decisions affecting current work:
 | 260415-psr collection-pin-labels-amber-pill-overlap | 2026-04-15 | Amber pill label below each collection pin; overlap detection hides labels on crowded pins; hover/focus-within reveals label via CSS transition. |
 | 260415-pv9 satellite-map-default-persist-last-picked | 2026-04-15 | MapLayer type + loadMapLayer() in appStore; Satellite as default; baselayerchange persists selection to localStorage. |
 | 260415-q4k fix-collection-pin-icon-badge-visible-la | 2026-04-15 | Rewrote collectionIcon: iconSize 28x28, absolute positioning, overflow:visible — badge renders correctly, label flows below pin. |
+| 260415-qb3 fix-collection-pin-icon-zero-size-anchor | 2026-04-15 | iconSize:[0,0]+iconAnchor:[0,0] — 0x0 div at coordinate; badge floats above via bottom:4px; label below via top:4px; escapes Leaflet clipping. |
 
 ### Roadmap Evolution
 
