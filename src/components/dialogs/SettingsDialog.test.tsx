@@ -4,22 +4,29 @@ import React from 'react';
 import { SettingsDialog } from './SettingsDialog';
 import { formatMb } from '@/lib/tileCache';
 
-// Mock tileCache module
-const getStats = vi.fn().mockResolvedValue({ sizeBytes: 44040192, tileCount: 5 }); // 42 MB
-const clear = vi.fn().mockResolvedValue(undefined);
-
+// vi.mock is hoisted — cannot reference outer variables in factory
 vi.mock('@/lib/tileCache', async () => {
   const actual = await vi.importActual<typeof import('@/lib/tileCache')>('@/lib/tileCache');
   return {
     ...actual,
-    getTileCacheStats: getStats,
-    clearTileCache: clear,
+    getTileCacheStats: vi.fn().mockResolvedValue({ sizeBytes: 44040192, tileCount: 5 }),
+    clearTileCache: vi.fn().mockResolvedValue(undefined),
   };
 });
 
 // Mock appStore
 vi.mock('@/stores/appStore', () => ({
-  useAppStore: (selector: (s: { storagePath: string; setStoragePath: () => void; setDbReady: () => void; setDbError: () => void; setPendingScan: () => void; language: string; setLanguage: () => void; theme: string; setTheme: () => void }) => unknown) =>
+  useAppStore: (selector: (s: {
+    storagePath: string;
+    setStoragePath: () => void;
+    setDbReady: () => void;
+    setDbError: () => void;
+    setPendingScan: () => void;
+    language: string;
+    setLanguage: () => void;
+    theme: string;
+    setTheme: () => void;
+  }) => unknown) =>
     selector({
       storagePath: '/tmp/storage',
       setStoragePath: vi.fn(),
@@ -45,10 +52,13 @@ vi.mock('@/i18n/index', () => ({
 }));
 
 describe('SettingsDialog', () => {
-  beforeEach(() => {
+  let tileCacheMock: typeof import('@/lib/tileCache');
+
+  beforeEach(async () => {
     vi.clearAllMocks();
-    getStats.mockResolvedValue({ sizeBytes: 44040192, tileCount: 5 });
-    clear.mockResolvedValue(undefined);
+    tileCacheMock = await import('@/lib/tileCache');
+    vi.mocked(tileCacheMock.getTileCacheStats).mockResolvedValue({ sizeBytes: 44040192, tileCount: 5 });
+    vi.mocked(tileCacheMock.clearTileCache).mockResolvedValue(undefined);
   });
 
   it('displays the Map Cache section heading', () => {
@@ -84,8 +94,8 @@ describe('SettingsDialog', () => {
     });
     fireEvent.click(screen.getByText('Clear cache'));
     await waitFor(() => {
-      expect(clear).toHaveBeenCalledWith('/tmp/storage');
-      expect(getStats.mock.calls.length).toBeGreaterThanOrEqual(2);
+      expect(tileCacheMock.clearTileCache).toHaveBeenCalledWith('/tmp/storage');
+      expect(vi.mocked(tileCacheMock.getTileCacheStats).mock.calls.length).toBeGreaterThanOrEqual(2);
     });
   });
 

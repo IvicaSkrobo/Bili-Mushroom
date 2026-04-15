@@ -1,16 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Info } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
   AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
+  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAppStore } from '@/stores/appStore';
 import { pickAndSaveStoragePath, clearStoragePath } from '@/lib/storage';
 import { useT } from '@/i18n/index';
 import type { Lang } from '@/i18n/index';
+import { getTileCacheStats, clearTileCache, formatMb, type TileCacheStats } from '@/lib/tileCache';
 
 export interface SettingsDialogProps {
   open: boolean;
@@ -30,6 +34,19 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const setTheme = useAppStore((s) => s.setTheme);
   const [picking, setPicking] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [stats, setStats] = useState<TileCacheStats>({ sizeBytes: 0, tileCount: 0 });
+
+  useEffect(() => {
+    if (!open || !storagePath) return;
+    getTileCacheStats(storagePath).then(setStats).catch(() => {});
+  }, [open, storagePath]);
+
+  async function handleClear() {
+    if (!storagePath) return;
+    await clearTileCache(storagePath);
+    const fresh = await getTileCacheStats(storagePath);
+    setStats(fresh);
+  }
 
   async function handleReset() {
     await clearStoragePath();
@@ -115,6 +132,45 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
               ))}
             </div>
           </div>
+
+          <div className="pt-2 border-t">
+            <section className="flex flex-col gap-3">
+              <h3 className="text-sm font-medium">Map Cache</h3>
+              <div className="flex items-center justify-between">
+                <Label>Tile cache size</Label>
+                <span className="text-sm text-muted-foreground" data-testid="tile-cache-size">
+                  {formatMb(stats.sizeBytes)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="max-cache-size">Max cache size</Label>
+                <div className="flex items-center gap-2">
+                  <Input id="max-cache-size" className="w-20" value="200" readOnly />
+                  <span className="text-sm text-muted-foreground">MB</span>
+                </div>
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" className="w-fit">
+                    Clear tile cache
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Clear tile cache?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will delete all cached map tiles. Areas you've previously viewed will need to reload when you're next online.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleClear}>Clear cache</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </section>
+          </div>
+
           <div className="pt-2 border-t">
             <div className="text-xs font-medium text-muted-foreground mb-2">{t('settings.resetSection')}</div>
             <Button
