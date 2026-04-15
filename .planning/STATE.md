@@ -93,6 +93,7 @@ Recent decisions affecting current work:
 | 260411-uat-review-fixes | 2026-04-11 | PostImportReviewDialog: per-find delete (record-only, filters list), photo thumbnails, Import more button. ImportDialog: date picker (type=date, black text), delete-source checkbox (default checked, skips in-place files). BulkMetadataBar removed (shared header is primary bulk approach). |
 | 260415-li5 folder-edit-dialog-editfinddialog-revers | 2026-04-15 | FolderEditDialog: bulk rename species + map pick → reverse geocode → country/region for folder (overwrite toggle). EditFindDialog: reverse geocode auto-fill on map pick. OpenTopoMap tile layer added to LayerSwitcher + LocationPickerMap. |
 | 260415-pf0 map-topo-default-collection-pins-on-map | 2026-04-15 | Topo as default map layer; amber collection-level pins at species centroid; amber left border + warm bg on open collection folders. |
+| 260415-psr collection-pin-labels-amber-pill-overlap | 2026-04-15 | Amber pill label below each collection pin; overlap detection hides labels on crowded pins; hover/focus-within reveals label via CSS transition. |
 
 ### Roadmap Evolution
 
