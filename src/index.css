@@ -153,6 +153,16 @@ input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: po
   border: none !important;
 }
 .bili-collection-marker .bili-col-label {
+  background: #D4941A;
+  color: #1C1A0C;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-family: serif;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  cursor: pointer;
   transition: opacity 0.15s ease;
 }
 .bili-collection-marker:hover .bili-col-label {

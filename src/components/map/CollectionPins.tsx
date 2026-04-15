@@ -16,31 +16,18 @@ interface Collection {
 }
 
 function collectionIcon(name: string, showLabel: boolean): L.DivIcon {
-  // Use hex colors — oklch() in Leaflet DivIcon inline styles is unreliable in Tauri WebView
-  const AMBER = '#D4941A';
-  const DARK = '#1C1A0C';
   // Latin name only — species_name may include Croatian after comma e.g. "Agaricus bohusii, Busenasta rudnjača"
   const latinName = name.split(',')[0].trim();
   const opacity = showLabel ? '1' : '0.35';
 
-  // Single amber pill centered on the coordinate via transform:translate(-50%,-50%).
+  // Visual styles live in index.css `.bili-col-label` — inline styles limited to positional + opacity.
   // iconSize:[0,0] iconAnchor:[0,0] — anchor sits at coord; pill floats around it.
   // leaflet-div-icon default styles neutralised in index.css.
   const pill = [
     'position:absolute',
     'transform:translate(-50%,-50%)',
-    `background:${AMBER}`,
-    `color:${DARK}`,
-    'border-radius:999px',
-    'padding:3px 10px',
-    'font-size:11px',
-    'font-family:serif',
-    'font-weight:600',
-    'white-space:nowrap',
-    'box-shadow:0 2px 6px rgba(0,0,0,0.5)',
     `opacity:${opacity}`,
     'transition:opacity 0.15s ease',
-    'cursor:pointer',
   ].join(';');
 
   return L.divIcon({
