@@ -34,17 +34,17 @@ export function LayerSwitcher({ storagePath }: { storagePath: string }) {
       attribution: '© OpenTopoMap contributors',
       maxZoom: 17,
     });
-    osmLayer.addTo(map);
+    topoLayer.addTo(map);
     const control = L.control
       .layers(
-        { Street: osmLayer, Satellite: esriLayer, Topo: topoLayer },
+        { Topo: topoLayer, Street: osmLayer, Satellite: esriLayer },
         undefined,
         { position: 'topright' },
       )
       .addTo(map);
     return () => {
       control.remove();
-      map.removeLayer(osmLayer);
+      if (map.hasLayer(osmLayer)) map.removeLayer(osmLayer);
       if (map.hasLayer(esriLayer)) map.removeLayer(esriLayer);
       if (map.hasLayer(topoLayer)) map.removeLayer(topoLayer);
     };

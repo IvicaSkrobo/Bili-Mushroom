@@ -329,11 +329,11 @@ export default function CollectionTab() {
           return (
             <div
               key={speciesName}
-              className="stagger-item overflow-hidden rounded-sm border border-border/70 bg-card"
+              className={`stagger-item overflow-hidden rounded-sm border bg-card ${isOpen ? 'border-primary/60 border-l-[3px]' : 'border-border/70'}`}
               style={{ animationDelay: `${Math.min(idx * 30, 300)}ms` }}
             >
               {/* Folder header */}
-              <div className="group relative flex w-full items-center gap-3 px-4 py-3 transition-colors duration-150 hover:bg-accent/60">
+              <div className={`group relative flex w-full items-center gap-3 px-4 py-3 transition-colors duration-150 hover:bg-accent/60 ${isOpen ? 'bg-accent/20' : ''}`}>
                 <button
                   type="button"
                   className="flex flex-1 min-w-0 items-center gap-3 text-left"

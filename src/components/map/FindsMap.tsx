@@ -2,6 +2,7 @@ import { MapContainer } from 'react-leaflet';
 import type { Find } from '@/lib/finds';
 import { applyLeafletIconFix } from './leafletIconFix';
 import { FindPins } from './FindPins';
+import { CollectionPins } from './CollectionPins';
 import { FitBoundsControl } from './FitBoundsControl';
 import { LayerSwitcher } from './LayerSwitcher';
 import { OnlineStatusBadge } from './OnlineStatusBadge';
@@ -27,6 +28,7 @@ export function FindsMap({ finds, storagePath }: FindsMapProps) {
       >
         <LayerSwitcher storagePath={storagePath} />
         <FindPins finds={finds} storagePath={storagePath} />
+        <CollectionPins finds={finds} />
         <FitBoundsControl finds={finds} />
         <OnlineStatusBadge />
       </MapContainer>
