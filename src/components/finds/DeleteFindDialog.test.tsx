@@ -45,8 +45,9 @@ describe('DeleteFindDialog', () => {
 
   beforeEach(() => {
     onOpenChange.mockClear();
-    useAppStore.setState({ storagePath: '/storage/test', dbReady: true });
+    useAppStore.setState({ storagePath: '/storage/test', dbReady: true, language: 'en' });
     invokeHandlers['delete_find'] = (_args: unknown) => undefined;
+    invokeHandlers['move_find_files'] = (_args: unknown) => undefined;
   });
 
   function renderDialog(find: Find | null = sampleFind) {
@@ -74,14 +75,15 @@ describe('DeleteFindDialog', () => {
     renderDialog(sampleFind);
     expect(screen.getByText(/delete record only/i)).toBeInTheDocument();
     expect(screen.getByText(/delete record \+ files/i)).toBeInTheDocument();
+    expect(screen.getByText(/move files to another folder/i)).toBeInTheDocument();
   });
 
   it('"Delete record only" is selected by default', () => {
     renderDialog(sampleFind);
     const radios = screen.getAllByRole('radio');
-    // First radio = "record only" = checked by default
     expect(radios[0]).toHaveAttribute('data-state', 'checked');
     expect(radios[1]).toHaveAttribute('data-state', 'unchecked');
+    expect(radios[2]).toHaveAttribute('data-state', 'unchecked');
   });
 
   it('Cancel button calls onOpenChange(false) without calling delete_find', async () => {
@@ -127,6 +129,32 @@ describe('DeleteFindDialog', () => {
     });
     const args = capturedArgs[0] as { findId: number; deleteFiles: boolean };
     expect(args.deleteFiles).toBe(true);
+  });
+
+  it('Confirm with "Move files to another folder" calls move_find_files', async () => {
+    const capturedArgs: unknown[] = [];
+    invokeHandlers['move_find_files'] = (args: unknown) => {
+      capturedArgs.push(args);
+      return undefined;
+    };
+
+    renderDialog(sampleFind);
+    fireEvent.click(screen.getByText(/move files to another folder/i));
+    fireEvent.click(screen.getByRole('button', { name: /choose destination folder/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/test-mushroom-library/i)).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }));
+
+    await waitFor(() => {
+      expect(capturedArgs.length).toBe(1);
+    });
+
+    expect(capturedArgs[0]).toEqual({
+      storagePath: '/storage/test',
+      findId: sampleFind.id,
+      destFolder: '/tmp/test-mushroom-library',
+    });
   });
 
   it('shows success toast and calls onOpenChange(false) after delete', async () => {

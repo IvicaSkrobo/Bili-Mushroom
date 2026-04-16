@@ -3,6 +3,18 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { LocationPickerMap } from './LocationPickerMap';
 
+vi.mock('leaflet', () => ({
+  default: {
+    control: {
+      layers: () => ({
+        addTo: () => ({
+          remove: vi.fn(),
+        }),
+      }),
+    },
+  },
+}));
+
 // Mock react-leaflet to avoid DOM rendering issues in jsdom
 vi.mock('react-leaflet', () => ({
   MapContainer: ({
@@ -38,6 +50,7 @@ vi.mock('react-leaflet', () => ({
   useMap: () => ({
     addLayer: vi.fn(),
     removeLayer: vi.fn(),
+    hasLayer: vi.fn(() => false),
   }),
   useMapEvents: (_handlers: Record<string, unknown>) => null,
 }));

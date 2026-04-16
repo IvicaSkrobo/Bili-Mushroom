@@ -6,9 +6,18 @@ import { Button } from '@/components/ui/button';
 export interface MigrationErrorDialogProps {
   errorMessage: string;
   onReset: () => void;
+  onQuit?: () => void;
 }
 
-export function MigrationErrorDialog({ errorMessage, onReset }: MigrationErrorDialogProps) {
+export function MigrationErrorDialog({ errorMessage, onReset, onQuit }: MigrationErrorDialogProps) {
+  async function handleQuit() {
+    if (onQuit) {
+      onQuit();
+      return;
+    }
+    await invoke('quit_app');
+  }
+
   return (
     <Dialog open={true}>
       <DialogContent
@@ -32,7 +41,7 @@ export function MigrationErrorDialog({ errorMessage, onReset }: MigrationErrorDi
         </pre>
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onReset}>Try Again</Button>
-          <Button variant="destructive" onClick={() => invoke('quit_app')}>Quit App</Button>
+          <Button variant="destructive" onClick={handleQuit}>Quit App</Button>
         </div>
       </DialogContent>
     </Dialog>

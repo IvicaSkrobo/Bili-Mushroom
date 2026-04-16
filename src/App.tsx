@@ -76,6 +76,7 @@ export default function App() {
           setDbReady(false);
           setPendingScan(false);
         }}
+        onQuit={handleQuit}
       />
     );
   }

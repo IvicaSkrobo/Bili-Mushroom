@@ -4,6 +4,7 @@ import { reverseGeocode } from './geocoding';
 describe('reverseGeocode', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    localStorage.clear();
   });
 
   it('resolves with country and region (state) on success', async () => {

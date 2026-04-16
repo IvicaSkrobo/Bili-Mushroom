@@ -41,7 +41,8 @@ describe.skipIf(!INTEGRATION)('A5 — finds table reachable via JS Database.load
     // Dynamic import so the mock infrastructure does not get in the way on
     // normal Vitest runs (the module references @tauri-apps/plugin-sql which is
     // mocked in tauri-mocks.ts for unit tests).
-    const { default: Database } = await import('@tauri-apps/plugin-sql');
+    const pluginName = '@tauri-apps/plugin-sql';
+    const { default: Database } = await import(/* @vite-ignore */ pluginName);
     const db: Awaited<ReturnType<typeof Database.load>> = await Database.load(
       `sqlite:${dbPath!}`,
     );

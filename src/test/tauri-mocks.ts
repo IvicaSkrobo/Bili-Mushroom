@@ -36,7 +36,11 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
     photos: [],
   }),
   delete_find: (_args: unknown) => undefined,
+  move_find_files: (_args: unknown) => undefined,
   get_find_photos: (_args: unknown) => [],
+  get_species_notes: (_args: unknown) => [],
+  upsert_species_note: (_args: unknown) => undefined,
+  bulk_rename_species: (_args: unknown) => undefined,
   fetch_tile: async (_args: { url: string; storagePath: string }) => {
     // 1x1 transparent PNG data URI for tests
     return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgAAIAAAUAAen63NgAAAAASUVORK5CYII=';

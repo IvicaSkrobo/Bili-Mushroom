@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { FindCard } from './FindCard';
 import type { Find } from '@/lib/finds';
+import { useAppStore } from '@/stores/appStore';
 
 import '@/test/tauri-mocks';
 
@@ -30,6 +31,7 @@ describe('FindCard', () => {
   beforeEach(() => {
     onEdit.mockClear();
     onDelete.mockClear();
+    useAppStore.setState({ language: 'en' });
   });
 
   it('renders species name', () => {
@@ -44,7 +46,7 @@ describe('FindCard', () => {
 
   it('renders country / region', () => {
     render(<FindCard find={sampleFind} storagePath={storageRoot} onEdit={onEdit} onDelete={onDelete} />);
-    expect(screen.getByText('Croatia / Istria')).toBeInTheDocument();
+    expect(screen.getByText('Croatia · Istria')).toBeInTheDocument();
   });
 
   it('renders an img tag with convertFileSrc path from photos[0].photo_path', () => {
@@ -101,11 +103,11 @@ describe('FindCard', () => {
       ],
     };
     render(<FindCard find={multiFind} storagePath={storageRoot} onEdit={onEdit} onDelete={onDelete} />);
-    expect(screen.getByText('+2 more')).toBeInTheDocument();
+    expect(screen.getByText('+2')).toBeInTheDocument();
   });
 
   it('does not show count badge when photos.length === 1', () => {
     render(<FindCard find={sampleFind} storagePath={storageRoot} onEdit={onEdit} onDelete={onDelete} />);
-    expect(screen.queryByText(/\+\d+ more/)).toBeNull();
+    expect(screen.queryByText(/\+\d+/)).toBeNull();
   });
 });

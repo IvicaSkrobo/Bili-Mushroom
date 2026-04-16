@@ -81,7 +81,8 @@ function renderTab(qc?: QueryClient) {
 
 describe('CollectionTab', () => {
   beforeEach(() => {
-    useAppStore.setState({ storagePath: '/storage/test', dbReady: true });
+    useAppStore.setState({ storagePath: '/storage/test', dbReady: true, language: 'en' });
+    invokeHandlers['get_species_notes'] = () => [];
   });
 
   it('shows EmptyState and Import Photos button when finds is empty', async () => {
@@ -119,9 +120,10 @@ describe('CollectionTab', () => {
     invokeHandlers['get_finds'] = () => [find1];
     renderTab();
     await waitFor(() => {
-      expect(screen.getByText('Amanita muscaria')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /amanita muscaria/i })).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByRole('button', { name: /edit/i }));
+    fireEvent.click(screen.getByRole('button', { name: /amanita muscaria/i }));
+    fireEvent.click(screen.getAllByRole('button', { name: /^edit$/i, hidden: true })[0]);
     await waitFor(() => {
       expect(screen.getByRole('dialog')).toBeInTheDocument();
       expect(screen.getByDisplayValue('Amanita muscaria')).toBeInTheDocument();

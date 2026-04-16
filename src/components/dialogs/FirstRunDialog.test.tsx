@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { FirstRunDialog } from './FirstRunDialog';
 import * as storageLib from '@/lib/storage';
+import { useAppStore } from '@/stores/appStore';
 
 vi.mock('@/lib/storage', () => ({
   loadStoragePath: vi.fn(),
@@ -10,7 +11,10 @@ vi.mock('@/lib/storage', () => ({
 }));
 
 describe('FirstRunDialog', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useAppStore.setState({ language: 'en' });
+  });
 
   it('renders the Choose Your Mushroom Library headline', () => {
     render(<FirstRunDialog onFolderSelected={vi.fn()} />);

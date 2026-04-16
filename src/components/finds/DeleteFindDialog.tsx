@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import { useDeleteFind, useMoveFindToFolder } from '@/hooks/useFinds';
 import { useT } from '@/i18n/index';
 import type { Find } from '@/lib/finds';
@@ -59,7 +60,12 @@ export function DeleteFindDialog({ find, onOpenChange }: DeleteFindDialogProps) 
     } else {
       deleteMutation.mutate(
         { findId: find.id, deleteFiles: mode === 'files' },
-        { onSuccess: () => onOpenChange(false) },
+        {
+          onSuccess: () => {
+            toast.success(mode === 'files' ? t('delete.successFiles') : t('delete.successRecord'));
+            onOpenChange(false);
+          },
+        },
       );
     }
   }

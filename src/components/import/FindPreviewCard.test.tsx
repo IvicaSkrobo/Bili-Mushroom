@@ -22,6 +22,7 @@ vi.mock('@/components/map/LocationPickerMap', () => ({
 
 import { FindPreviewCard } from './FindPreviewCard';
 import type { ImportPayload } from '@/lib/finds';
+import { useAppStore } from '@/stores/appStore';
 
 const basePayload: ImportPayload = {
   source_path: '/photos/shroom.jpg',
@@ -47,6 +48,7 @@ describe('FindPreviewCard', () => {
     onChange = vi.fn();
     onRemove = vi.fn();
     onUnlock = vi.fn();
+    useAppStore.setState({ language: 'en' });
   });
 
   it('renders a thumbnail img tag for a jpg file with src from convertFileSrc', () => {
@@ -179,7 +181,7 @@ describe('FindPreviewCard', () => {
         onRemove={onRemove}
       />,
     );
-    const removeBtn = screen.getByRole('button', { name: /Remove/i });
+    const removeBtn = screen.getByRole('button', { name: /remove from list/i });
     fireEvent.click(removeBtn);
     expect(onRemove).toHaveBeenCalledTimes(1);
   });

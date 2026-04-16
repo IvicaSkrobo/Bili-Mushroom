@@ -43,7 +43,7 @@ describe('EditFindDialog', () => {
 
   beforeEach(() => {
     onOpenChange.mockClear();
-    useAppStore.setState({ storagePath: '/storage/test', dbReady: true });
+    useAppStore.setState({ storagePath: '/storage/test', dbReady: true, language: 'en' });
     invokeHandlers['update_find'] = () => ({ ...sampleFind, species_name: 'Updated species' });
   });
 

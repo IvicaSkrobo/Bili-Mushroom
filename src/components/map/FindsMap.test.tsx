@@ -13,7 +13,7 @@ vi.mock('react-leaflet', () => ({
 
 // Stub all child components so they don't try to call real Leaflet
 vi.mock('./LayerSwitcher', () => ({ LayerSwitcher: () => null }));
-vi.mock('./FindPins', () => ({ FindPins: () => null }));
+vi.mock('./CollectionPins', () => ({ CollectionPins: () => null }));
 vi.mock('./FitBoundsControl', () => ({ FitBoundsControl: () => null }));
 vi.mock('./OnlineStatusBadge', () => ({ OnlineStatusBadge: () => null }));
 
