@@ -16,6 +16,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 2: Import & Organization** - Photo import, EXIF parsing, metadata preview, file organization into Location/Date folders
 - [ ] **Phase 3: Map** - Interactive Leaflet map, Rust tile proxy, offline tile cache, pins, location picker
 - [ ] **Phase 4: Stats & Export** - Stats dashboard, per-species stats, PDF and CSV export
+- [ ] **Phase 04.1: UX Governance & Performance Hardening (INSERTED)** - Design system governance, bundle/code-splitting, E2E critical path coverage
+- [ ] **Phase 04.2: Seasonal Insights & Field Hints (INSERTED)** - Seasonality insights and lightweight "go-to-spot" species reminders
 
 ## Phase Details
 
@@ -90,6 +92,39 @@ Plans:
 - [x] 04-01-PLAN.md — Rust stat aggregation commands, TS types/IPC wrappers, TanStack Query hooks, test mocks + tests
 - [x] 04-02-PLAN.md — StatsTab UI: stat cards, ranked lists, seasonal calendar, per-species stats
 - [x] 04-03-PLAN.md — PDF and CSV export with Comlink Web Worker, export action bar in StatsTab
+Post-phase UI work:
+- [x] 260416-ui-identity-refresh — New visual identity pass (fonts/tokens/shell/stats polish) recorded in quick task log
+**UI hint**: yes
+
+### Phase 04.1: UX Governance & Performance Hardening (INSERTED)
+
+**Goal:** Stabilize the new visual identity and improve runtime confidence before net-new UX features
+**Depends on:** Phase 4
+**Requirements**: UX-01, ENG-01, ENG-02
+**Success Criteria** (what must be TRUE):
+  1. A design-token/component governance doc exists and is referenced by future UI changes
+  2. Startup and tab-switching performance improves via code-splitting/lazy-loading of heavy surfaces
+  3. End-to-end tests cover first-run, import, and edit/delete→stats update critical paths
+**Plans**: 3 plans
+Plans:
+- [ ] 04.1-01-PLAN.md — Design token + component variant governance
+- [ ] 04.1-02-PLAN.md — Bundle/perf hardening (lazy loading + chunk budget)
+- [ ] 04.1-03-PLAN.md — E2E critical path suite
+**UI hint**: yes
+
+### Phase 04.2: Seasonal Insights & Field Hints (INSERTED)
+
+**Goal:** Turn stats from passive reporting into actionable field guidance
+**Depends on:** Phase 04.1
+**Requirements**: INS-01, INS-02
+**Success Criteria** (what must be TRUE):
+  1. Stats include seasonality insight cards (e.g., species activity by month and "coming into season")
+  2. App shows lightweight reminders recommending likely spots for selected species based on historical finds
+  3. Reminder suggestions are explainable (species + month/spot rationale shown to the user)
+**Plans**: 2 plans
+Plans:
+- [ ] 04.2-01-PLAN.md — Seasonal insight models + stats UI blocks
+- [ ] 04.2-02-PLAN.md — "Go to this spot for species X" hint/reminder system
 **UI hint**: yes
 
 ## Progress
@@ -103,7 +138,9 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 2. Import & Organization | 3/3 | Complete | 2026-04-09 |
 | 02.1. Import Workflow Refinements | 5/5 | Complete | 2026-04-09 |
 | 3. Map | 4/4 | Complete | 2026-04-15 |
-| 4. Stats & Export | 0/3 | Not started | - |
+| 4. Stats & Export | 3/3 | Complete | 2026-04-16 |
+| 04.1 UX Governance & Performance Hardening | 0/3 | Planned | - |
+| 04.2 Seasonal Insights & Field Hints | 0/2 | Planned | - |
 
 ## Backlog
 
