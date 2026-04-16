@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import { Settings as SettingsIcon, Sun, Moon } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { useAppStore, type Tab } from '@/stores/appStore';
-import CollectionTab from '@/tabs/CollectionTab';
-import MapTab from '@/tabs/MapTab';
-import StatsTab from '@/tabs/StatsTab';
 import { SettingsDialog } from '@/components/dialogs/SettingsDialog';
 import { useT } from '@/i18n/index';
+
+const CollectionTab = lazy(() => import('@/tabs/CollectionTab'));
+const MapTab = lazy(() => import('@/tabs/MapTab'));
+const StatsTab = lazy(() => import('@/tabs/StatsTab'));
 
 const TAB_VALUES: Tab[] = ['collection', 'map', 'stats'];
 const TAB_KEYS: Record<Tab, string> = {
@@ -75,9 +76,21 @@ export function AppShell() {
           ))}
         </TabsList>
 
-        <TabsContent value="collection" className="flex-1 min-h-0 overflow-auto"><CollectionTab /></TabsContent>
-        <TabsContent value="map" className="flex-1 min-h-0"><MapTab /></TabsContent>
-<TabsContent value="stats" className="flex-1 min-h-0"><StatsTab /></TabsContent>
+        <TabsContent value="collection" className="flex-1 min-h-0 overflow-auto">
+          <Suspense fallback={<div className="h-full w-full animate-pulse bg-card/20" />}>
+            <CollectionTab />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="map" className="flex-1 min-h-0">
+          <Suspense fallback={<div className="h-full w-full animate-pulse bg-card/20" />}>
+            <MapTab />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="stats" className="flex-1 min-h-0">
+          <Suspense fallback={<div className="h-full w-full animate-pulse bg-card/20" />}>
+            <StatsTab />
+          </Suspense>
+        </TabsContent>
       </Tabs>
 
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />

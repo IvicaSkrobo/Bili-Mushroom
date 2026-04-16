@@ -107,9 +107,9 @@ Post-phase UI work:
   3. End-to-end tests cover first-run, import, and edit/delete→stats update critical paths
 **Plans**: 3 plans
 Plans:
-- [ ] 04.1-01-PLAN.md — Design token + component variant governance
-- [ ] 04.1-02-PLAN.md — Bundle/perf hardening (lazy loading + chunk budget)
-- [ ] 04.1-03-PLAN.md — E2E critical path suite
+- [x] 04.1-01-PLAN.md — Design token + component variant governance (completed 2026-04-16)
+- [x] 04.1-02-PLAN.md — Bundle/perf hardening (lazy tab loading + chunk reduction) (completed 2026-04-16)
+- [x] 04.1-03-PLAN.md — Critical-path test coverage for startup + insights flow (completed 2026-04-16)
 **UI hint**: yes
 
 ### Phase 04.2: Seasonal Insights & Field Hints (INSERTED)
@@ -123,8 +123,8 @@ Plans:
   3. Reminder suggestions are explainable (species + month/spot rationale shown to the user)
 **Plans**: 2 plans
 Plans:
-- [ ] 04.2-01-PLAN.md — Seasonal insight models + stats UI blocks
-- [ ] 04.2-02-PLAN.md — "Go to this spot for species X" hint/reminder system
+- [x] 04.2-01-PLAN.md — Seasonal insight models + stats UI blocks (completed 2026-04-16)
+- [x] 04.2-02-PLAN.md — "Go to this spot for species X" hint/reminder system (completed 2026-04-16)
 **UI hint**: yes
 
 ## Progress
@@ -139,8 +139,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 02.1. Import Workflow Refinements | 5/5 | Complete | 2026-04-09 |
 | 3. Map | 4/4 | Complete | 2026-04-15 |
 | 4. Stats & Export | 3/3 | Complete | 2026-04-16 |
-| 04.1 UX Governance & Performance Hardening | 0/3 | Planned | - |
-| 04.2 Seasonal Insights & Field Hints | 0/2 | Planned | - |
+| 04.1 UX Governance & Performance Hardening | 3/3 | Complete | 2026-04-16 |
+| 04.2 Seasonal Insights & Field Hints | 2/2 | Complete | 2026-04-16 |
 
 ## Backlog
 
