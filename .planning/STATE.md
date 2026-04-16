@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 4 UI-SPEC approved
-last_updated: "2026-04-16T16:25:00.000Z"
-last_activity: 2026-04-16 -- Implemented 04.1-02/04.1-03 and 04.2 seasonal insights + reminder hints
+last_updated: "2026-04-16T17:40:00.000Z"
+last_activity: 2026-04-16 -- Fixed startup DB error dialog quit path and synced stale planning handoff/state notes
 progress:
   total_phases: 7
   completed_phases: 4
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-09)
 
 **Core value:** A forager's personal mushroom journal — every find stored, organized, searchable, and mapped so that nothing collected is ever forgotten.
-**Current focus:** Phase 04 — stats-export
+**Current focus:** Post-Phase 04 backlog maintenance and planning sync
 
 ## Current Position
 
-Phase: 04 (stats-export) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 04
-Last activity: 2026-04-16 -- Phase 04 execution started
+Phase: 04.2 complete — MAINTENANCE
+Plan: Post-phase backlog triage
+Status: Completed planned phase work; addressing maintenance fixes and syncing planning artifacts
+Last activity: 2026-04-16 -- Fixed startup DB error dialog quit path and updated handoff/state snapshots
 
 Progress: [█░░░░░░░░░] 17%
 
@@ -79,7 +79,7 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-- [ ] Fix quit button in error dialog — button unresponsive when DB/startup error is shown
+- [x] Fix quit button in error dialog — dialog now calls backend quit_app directly for reliable app exit
 - [ ] Add Clear All button to import photo picker — removes all queued photos in one click
 - [ ] Batch metadata cascade in import picker — shared name+location header above card list, pre-filled from folder name, cascades to all cards; each card still individually editable
 - [ ] Folder hierarchy import mode — main folder > mushroom sub-folders > photos; each sub-folder becomes one find batch, folder name = default mushroom name; collection reflects this structure
@@ -111,6 +111,7 @@ Recent decisions affecting current work:
 | 260416-gsd-priority-sync | 2026-04-16 | Captured user-approved priorities: Seasonality insights + spot reminders; inserted Phase 04.1 (UX governance/perf/E2E) and 04.2 (insights/hints) into planning docs. |
 | 260416-04.1-01-ui-governance | 2026-04-16 | Published governance baseline (tokens, variants, motion/accessibility rules, review checklist) for Phase 04.1-01. |
 | 260416-full-implementation-pass | 2026-04-16 | Implemented lazy-loaded tab bundles, added seasonality insights + species spot hints in Stats, and added/updated critical-path tests for App and insights logic. |
+| 260416-startup-quit-fix | 2026-04-16 | Startup DB error dialog Quit button now invokes backend quit_app directly; synced HANDOFF/STATE notes to current post-04.2 reality. |
 
 ### Roadmap Evolution
 

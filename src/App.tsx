@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Toaster } from 'sonner';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAppStore } from '@/stores/appStore';
@@ -62,10 +61,6 @@ export default function App() {
     return () => { cancelled = true; };
   }, [storagePath, setDbReady, setDbError]);
 
-  function handleQuit() {
-    getCurrentWindow().close();
-  }
-
   if (dbError) {
     return (
       <MigrationErrorDialog
@@ -76,7 +71,6 @@ export default function App() {
           setDbReady(false);
           setPendingScan(false);
         }}
-        onQuit={handleQuit}
       />
     );
   }

@@ -6,15 +6,10 @@ import { Button } from '@/components/ui/button';
 export interface MigrationErrorDialogProps {
   errorMessage: string;
   onReset: () => void;
-  onQuit?: () => void;
 }
 
-export function MigrationErrorDialog({ errorMessage, onReset, onQuit }: MigrationErrorDialogProps) {
+export function MigrationErrorDialog({ errorMessage, onReset }: MigrationErrorDialogProps) {
   async function handleQuit() {
-    if (onQuit) {
-      onQuit();
-      return;
-    }
     await invoke('quit_app');
   }
 
