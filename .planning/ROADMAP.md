@@ -87,7 +87,7 @@ Plans:
   5. User can export their full collection (or a filtered subset) to Excel/CSV format
 **Plans**: 3 plans
 Plans:
-- [ ] 04-01-PLAN.md — Rust stat aggregation commands, TS types/IPC wrappers, TanStack Query hooks, test mocks + tests
+- [x] 04-01-PLAN.md — Rust stat aggregation commands, TS types/IPC wrappers, TanStack Query hooks, test mocks + tests
 - [ ] 04-02-PLAN.md — StatsTab UI: stat cards, ranked lists, seasonal calendar, per-species stats
 - [ ] 04-03-PLAN.md — PDF and CSV export with Comlink Web Worker, export action bar in StatsTab
 **UI hint**: yes
