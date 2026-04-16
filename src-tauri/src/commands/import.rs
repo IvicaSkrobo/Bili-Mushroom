@@ -122,10 +122,10 @@ pub(crate) fn open_db(storage_path: &str) -> Result<Connection, String> {
     Ok(conn)
 }
 
-fn is_duplicate(conn: &Connection, filename: &str, date_found: &str) -> rusqlite::Result<bool> {
+fn has_existing_photo_path(conn: &Connection, photo_path: &str) -> rusqlite::Result<bool> {
     let count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM finds WHERE original_filename = ?1 AND date_found = ?2",
-        params![filename, date_found],
+        "SELECT COUNT(*) FROM find_photos WHERE photo_path = ?1",
+        params![photo_path],
         |row| row.get(0),
     )?;
     Ok(count > 0)
@@ -176,31 +176,37 @@ pub async fn import_find(
     let mut skipped: Vec<String> = Vec::new();
 
     let conn = open_db(&storage_path)?;
+    let storage_path_buf = Path::new(&storage_path);
 
     for (i, payload) in payloads.iter().enumerate() {
-        // Duplicate check
-        match is_duplicate(&conn, &payload.original_filename, &payload.date_found) {
-            Ok(true) => {
-                skipped.push(payload.original_filename.clone());
-                let _ = app.emit(
-                    "import-progress",
-                    ImportProgress {
-                        current: i + 1,
-                        total,
-                        filename: payload.original_filename.clone(),
-                    },
-                );
-                continue;
-            }
-            Ok(false) => {}
-            Err(e) => return Err(format!("Duplicate check failed: {}", e)),
-        }
-
         // If source is already inside storage_path, register it in-place — no copy, no delete.
         // This handles auto-import where the user picks their existing mushroom library folder.
         let src_path = Path::new(&payload.source_path);
-        let storage_path_buf = Path::new(&storage_path);
         let is_already_in_storage = src_path.starts_with(storage_path_buf);
+
+        if is_already_in_storage {
+            let existing_photo_path = src_path
+                .strip_prefix(storage_path_buf)
+                .map(|p| p.to_string_lossy().replace('\\', "/").trim_start_matches('/').to_string())
+                .unwrap_or_else(|_| payload.source_path.clone());
+
+            match has_existing_photo_path(&conn, &existing_photo_path) {
+                Ok(true) => {
+                    skipped.push(payload.original_filename.clone());
+                    let _ = app.emit(
+                        "import-progress",
+                        ImportProgress {
+                            current: i + 1,
+                            total,
+                            filename: payload.original_filename.clone(),
+                        },
+                    );
+                    continue;
+                }
+                Ok(false) => {}
+                Err(e) => return Err(format!("Duplicate check failed: {}", e)),
+            }
+        }
 
         let primary_photo_path = if is_already_in_storage {
             src_path
@@ -546,31 +552,32 @@ mod tests {
     const MIGRATION_0003: &str = include_str!("../../migrations/0003_find_photos.sql");
 
     #[test]
-    fn test_is_duplicate_returns_true_when_exists() {
+    fn test_has_existing_photo_path_returns_true_when_exists() {
         let conn = setup_in_memory_db();
         let record = make_find_record("photo.jpg", "2024-05-10");
-        insert_find_row(&conn, &record).expect("insert");
+        let id = insert_find_row(&conn, &record).expect("insert");
+        insert_find_photo(&conn, id, "Boletus_edulis/2024-05-10_001.jpg", true).expect("insert photo");
 
-        let dup = is_duplicate(&conn, "photo.jpg", "2024-05-10").expect("check");
+        let dup = has_existing_photo_path(&conn, "Boletus_edulis/2024-05-10_001.jpg").expect("check");
         assert!(dup, "should be duplicate");
     }
 
     #[test]
-    fn test_is_duplicate_returns_false_when_not_exists() {
+    fn test_has_existing_photo_path_returns_false_when_not_exists() {
         let conn = setup_in_memory_db();
-        let dup = is_duplicate(&conn, "nonexistent.jpg", "2024-05-10").expect("check");
+        let dup = has_existing_photo_path(&conn, "Boletus_edulis/2024-05-10_999.jpg").expect("check");
         assert!(!dup, "should not be duplicate");
     }
 
     #[test]
-    fn test_is_duplicate_different_date_not_duplicate() {
+    fn test_duplicate_detection_does_not_block_same_filename_and_date_without_matching_photo_path() {
         let conn = setup_in_memory_db();
         let record = make_find_record("photo.jpg", "2024-05-10");
-        insert_find_row(&conn, &record).expect("insert");
+        let id = insert_find_row(&conn, &record).expect("insert");
+        insert_find_photo(&conn, id, "Boletus_edulis/2024-05-10_001.jpg", true).expect("insert photo");
 
-        // Same filename, different date — not a duplicate
-        let dup = is_duplicate(&conn, "photo.jpg", "2024-06-15").expect("check");
-        assert!(!dup, "different date should not be duplicate");
+        let dup = has_existing_photo_path(&conn, "external/burst/photo.jpg").expect("check");
+        assert!(!dup, "same filename/date alone should not be treated as duplicate");
     }
 
     #[test]

@@ -142,6 +142,29 @@ describe('ImportDialog', () => {
     });
   });
 
+  it('shows Clear All when queue is non-empty and clears pending items on click', async () => {
+    vi.mocked(mockOpen).mockResolvedValueOnce(['/photos/shroom.jpg']);
+    renderDialog();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Clear All/i })).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Species name')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Clear All/i }));
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /Clear All/i })).not.toBeInTheDocument();
+      expect(screen.queryByPlaceholderText('Species name')).not.toBeInTheDocument();
+    });
+  });
+
   it('EXIF date and lat/lng pre-fill the preview card', async () => {
     vi.mocked(mockOpen).mockResolvedValueOnce(['/photos/gps.jpg']);
     invokeHandlers['parse_exif'] = () => ({ date: '2024-05-10', lat: 45.1, lng: 13.9 });
