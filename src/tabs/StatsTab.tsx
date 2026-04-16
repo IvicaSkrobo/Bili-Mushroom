@@ -1,9 +1,11 @@
-import { Loader2, BarChart3 } from 'lucide-react';
+import { useState } from 'react';
+import { Loader2, BarChart3, Download, FileText } from 'lucide-react';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { StatCard } from '@/components/stats/StatCard';
 import { RankedList } from '@/components/stats/RankedList';
 import { SeasonalCalendar } from '@/components/stats/SeasonalCalendar';
 import { SpeciesStatRow } from '@/components/stats/SpeciesStatRow';
+import { Button } from '@/components/ui/button';
 import {
   useStatsCards,
   useTopSpots,
@@ -11,6 +13,10 @@ import {
   useCalendar,
   useSpeciesStats,
 } from '@/hooks/useStats';
+import { useFinds } from '@/hooks/useFinds';
+import { useAppStore } from '@/stores/appStore';
+import { exportToCsv } from '@/lib/exportCsv';
+import { generateAndSavePdf } from '@/lib/exportPdf';
 import type { TopSpot, BestMonth } from '@/lib/stats';
 
 // ---------------------------------------------------------------------------
@@ -54,6 +60,55 @@ export default function StatsTab() {
   const { data: bestMonths } = useBestMonths();
   const { data: calendar } = useCalendar();
   const { data: speciesStats } = useSpeciesStats();
+  const { data: finds } = useFinds();
+  const storagePath = useAppStore((s) => s.storagePath);
+
+  const [pdfExporting, setPdfExporting] = useState(false);
+  const [pdfStage, setPdfStage] = useState<string>('');
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const handleExportCsv = async () => {
+    if (!finds || finds.length === 0) return;
+    setExportError(null);
+    try {
+      const path = await exportToCsv(finds);
+      if (path) {
+        setStatusMessage(`CSV saved to ${path}`);
+        setTimeout(() => setStatusMessage(null), 3000);
+      }
+    } catch {
+      setExportError('CSV export failed. Try again.');
+      setTimeout(() => setExportError(null), 5000);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    if (!finds || finds.length === 0 || !storagePath) return;
+    setPdfExporting(true);
+    setExportError(null);
+    try {
+      const path = await generateAndSavePdf(finds, storagePath, (stage) => {
+        setPdfStage(
+          stage === 'photos'
+            ? 'Loading photos...'
+            : stage === 'rendering'
+              ? 'Generating PDF...'
+              : 'Saving...',
+        );
+      });
+      if (path) {
+        setStatusMessage(`PDF saved to ${path}`);
+        setTimeout(() => setStatusMessage(null), 3000);
+      }
+    } catch {
+      setExportError('PDF export failed. Try again.');
+      setTimeout(() => setExportError(null), 5000);
+    } finally {
+      setPdfExporting(false);
+      setPdfStage('');
+    }
+  };
 
   // Loading state
   if (statsLoading) {
@@ -79,72 +134,117 @@ export default function StatsTab() {
   const bestMonthsFormatted = formatBestMonths(bestMonths);
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
-      <div className="animate-fade-up px-6 pt-12 pb-8 space-y-8">
-        {/* Page heading */}
-        <h1 className="font-serif text-4xl font-bold italic text-primary">Your Foraging Story</h1>
+    <div className="flex flex-col h-full">
+      {/* Scrollable content area */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="animate-fade-up px-6 pt-12 pb-8 space-y-8">
+          {/* Page heading */}
+          <h1 className="font-serif text-4xl font-bold italic text-primary">Your Foraging Story</h1>
 
-        {/* Stat cards: 4-column grid */}
-        <div className="grid grid-cols-4 gap-6">
-          <StatCard label="TOTAL FINDS" value={statsCards.total_finds} index={0} />
-          <StatCard label="UNIQUE SPECIES" value={statsCards.unique_species} index={1} />
-          <StatCard label="LOCATIONS VISITED" value={statsCards.locations_visited} index={2} />
-          <StatCard
-            label="MOST ACTIVE MONTH"
-            value={formatMonth(statsCards.most_active_month)}
-            index={3}
-            sublabel={statsCards.most_active_month ? undefined : 'No data yet'}
-          />
-        </div>
-
-        {/* Divider */}
-        <div className="border-b border-border" />
-
-        {/* Ranked lists: 2-column flex */}
-        <div className="flex gap-4">
-          <div className="flex-1">
-            <RankedList
-              title="Top Spots"
-              items={topSpotsFormatted}
-              emptyMessage="Start foraging to see your favourite spots appear here."
+          {/* Stat cards: 4-column grid */}
+          <div className="grid grid-cols-4 gap-6">
+            <StatCard label="TOTAL FINDS" value={statsCards.total_finds} index={0} />
+            <StatCard label="UNIQUE SPECIES" value={statsCards.unique_species} index={1} />
+            <StatCard label="LOCATIONS VISITED" value={statsCards.locations_visited} index={2} />
+            <StatCard
+              label="MOST ACTIVE MONTH"
+              value={formatMonth(statsCards.most_active_month)}
+              index={3}
+              sublabel={statsCards.most_active_month ? undefined : 'No data yet'}
             />
           </div>
-          <div className="flex-1">
-            <RankedList
-              title="Best Months"
-              items={bestMonthsFormatted}
-              emptyMessage="Your most active months will appear here as you record more finds."
-            />
-          </div>
-        </div>
 
-        {/* Divider */}
-        <div className="border-b border-border" />
+          {/* Divider */}
+          <div className="border-b border-border" />
 
-        {/* Seasonal calendar */}
-        {calendar && <SeasonalCalendar entries={calendar} />}
-
-        {/* Divider */}
-        <div className="border-b border-border" />
-
-        {/* Per-species section */}
-        {speciesStats && speciesStats.length > 0 && (
-          <div>
-            <h3 className="text-base font-bold uppercase tracking-[0.12em] text-foreground mb-4">
-              Your Species
-            </h3>
-            <div className="space-y-2">
-              {speciesStats.map((s, idx) => (
-                <SpeciesStatRow
-                  key={s.species_name}
-                  stat={s}
-                  rank={idx + 1}
-                  index={idx}
-                />
-              ))}
+          {/* Ranked lists: 2-column flex */}
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <RankedList
+                title="Top Spots"
+                items={topSpotsFormatted}
+                emptyMessage="Start foraging to see your favourite spots appear here."
+              />
+            </div>
+            <div className="flex-1">
+              <RankedList
+                title="Best Months"
+                items={bestMonthsFormatted}
+                emptyMessage="Your most active months will appear here as you record more finds."
+              />
             </div>
           </div>
-        )}
+
+          {/* Divider */}
+          <div className="border-b border-border" />
+
+          {/* Seasonal calendar */}
+          {calendar && <SeasonalCalendar entries={calendar} />}
+
+          {/* Divider */}
+          <div className="border-b border-border" />
+
+          {/* Per-species section */}
+          {speciesStats && speciesStats.length > 0 && (
+            <div>
+              <h3 className="text-base font-bold uppercase tracking-[0.12em] text-foreground mb-4">
+                Your Species
+              </h3>
+              <div className="space-y-2">
+                {speciesStats.map((s, idx) => (
+                  <SpeciesStatRow
+                    key={s.species_name}
+                    stat={s}
+                    rank={idx + 1}
+                    index={idx}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Export action bar — sticky footer per UI-SPEC R-03 */}
+      <div className="border-t border-border bg-card px-6 py-4 flex items-center justify-end gap-3 shrink-0">
+        {/* Status / error messages */}
+        <div className="flex-1 text-xs text-muted-foreground">
+          {statusMessage && !exportError && !pdfExporting && (
+            <span className="animate-fade-up">{statusMessage}</span>
+          )}
+          {exportError && <span className="text-destructive">{exportError}</span>}
+          {pdfExporting && <span>{pdfStage}</span>}
+          {!statusMessage && !exportError && !pdfExporting && (
+            <span>Export your full collection</span>
+          )}
+        </div>
+
+        {/* CSV export button — outline variant */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleExportCsv}
+          disabled={pdfExporting || !finds || finds.length === 0}
+          className="text-sm"
+        >
+          <Download className="h-4 w-4 mr-1.5" />
+          Export CSV
+        </Button>
+
+        {/* PDF export button — primary/amber variant */}
+        <Button
+          size="sm"
+          onClick={handleExportPdf}
+          disabled={pdfExporting || !finds || finds.length === 0}
+          className="text-sm"
+        >
+          {pdfExporting ? (
+            <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+          ) : (
+            <FileText className="h-4 w-4 mr-1.5" />
+          )}
+          {pdfExporting ? 'Generating PDF...' : 'Export PDF'}
+        </Button>
       </div>
     </div>
   );
