@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 4 UI-SPEC approved
-last_updated: "2026-04-16T12:42:20.767Z"
-last_activity: 2026-04-16 -- Phase 04 execution started
+last_updated: "2026-04-16T16:25:00.000Z"
+last_activity: 2026-04-16 -- Implemented 04.1-02/04.1-03 and 04.2 seasonal insights + reminder hints
 progress:
   total_phases: 7
   completed_phases: 4
@@ -83,7 +83,7 @@ Recent decisions affecting current work:
 - [ ] Add Clear All button to import photo picker — removes all queued photos in one click
 - [ ] Batch metadata cascade in import picker — shared name+location header above card list, pre-filled from folder name, cascades to all cards; each card still individually editable
 - [ ] Folder hierarchy import mode — main folder > mushroom sub-folders > photos; each sub-folder becomes one find batch, folder name = default mushroom name; collection reflects this structure
-- [ ] Implement dark and light color themes Forest Codex — high-contrast dark + warm parchment light; use frontend-design skill + ask user for reference image at task start
+- [ ] Confirm duplicate strategy: avoid strict timestamp+location duplicate blocking because users intentionally capture bursts at same time/place
 
 ### Quick Tasks Completed
 
@@ -107,6 +107,10 @@ Recent decisions affecting current work:
 | 260415-rpv crowded-pins-dot-hover-reveal | 2026-04-15 | Crowded pins collapse to amber dot; hover expands full pill via max-width CSS transition. |
 | 260415-sj5 map-species-filter-panel | 2026-04-15 | Species filter panel on map: search + checkboxes, See all, filtered finds passed to CollectionPins. |
 | 260415-syy collection-photo-lightbox-within-folder | 2026-04-15 | PhotoLightbox overlay in collection folders: click thumbnail → enlarged photo + metadata panel (species, date, notes, coords); prev/next (buttons + keyboard); Esc/click-outside closes. |
+| 260416-ui-identity-refresh | 2026-04-16 | Frontend identity refresh applied: typography swap, token/palette overhaul, shell chrome updates, and stats visual polish (header/tabs/footer cohesion). |
+| 260416-gsd-priority-sync | 2026-04-16 | Captured user-approved priorities: Seasonality insights + spot reminders; inserted Phase 04.1 (UX governance/perf/E2E) and 04.2 (insights/hints) into planning docs. |
+| 260416-04.1-01-ui-governance | 2026-04-16 | Published governance baseline (tokens, variants, motion/accessibility rules, review checklist) for Phase 04.1-01. |
+| 260416-full-implementation-pass | 2026-04-16 | Implemented lazy-loaded tab bundles, added seasonality insights + species spot hints in Stats, and added/updated critical-path tests for App and insights logic. |
 
 ### Roadmap Evolution
 

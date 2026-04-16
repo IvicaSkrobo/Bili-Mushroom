@@ -56,11 +56,19 @@
 - [ ] **STA-02**: Dashboard shows top spots (most finds by location) and best months (most finds by month)
 - [ ] **STA-03**: Seasonal calendar view showing which species are typically found in each month
 - [ ] **STA-04**: Per-species stats: total find count, all locations found, date of first find
+- [ ] **INS-01**: Stats should generate seasonality insight hints (e.g., species currently entering peak period)
+- [ ] **INS-02**: App should show lightweight spot reminders (suggested place for a species with rationale)
 
 ### Export
 
 - [ ] **EXP-01**: User can export their collection (or a filtered subset) to a PDF report with photos
 - [ ] **EXP-02**: User can export their collection (or a filtered subset) to Excel/CSV
+
+### UX Governance & Engineering Quality
+
+- [ ] **UX-01**: Visual system governance doc must define canonical tokens/components to avoid UI drift across future changes
+- [ ] **ENG-01**: Heavy surfaces should be code-split/lazy-loaded to improve startup and tab-switch responsiveness
+- [ ] **ENG-02**: End-to-end tests must cover first-run setup, import flow, and edit/delete→stats update critical path
 
 ## v2 Requirements
 
@@ -126,3 +134,8 @@
 | STA-04 | Phase 6 - Stats & Export | Pending |
 | EXP-01 | Phase 6 - Stats & Export | Pending |
 | EXP-02 | Phase 6 - Stats & Export | Pending |
+| UX-01 | Phase 04.1 - UX Governance & Performance Hardening | Pending |
+| ENG-01 | Phase 04.1 - UX Governance & Performance Hardening | Pending |
+| ENG-02 | Phase 04.1 - UX Governance & Performance Hardening | Pending |
+| INS-01 | Phase 04.2 - Seasonal Insights & Field Hints | Pending |
+| INS-02 | Phase 04.2 - Seasonal Insights & Field Hints | Pending |

@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { Loader2, BarChart3, Download, FileText } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Loader2, BarChart3, Download, FileText, Compass } from 'lucide-react';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { StatCard } from '@/components/stats/StatCard';
 import { RankedList } from '@/components/stats/RankedList';
 import { SeasonalCalendar } from '@/components/stats/SeasonalCalendar';
 import { SpeciesStatRow } from '@/components/stats/SpeciesStatRow';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
   useStatsCards,
@@ -18,6 +19,7 @@ import { useAppStore } from '@/stores/appStore';
 import { exportToCsv } from '@/lib/exportCsv';
 import { generateAndSavePdf } from '@/lib/exportPdf';
 import type { TopSpot, BestMonth } from '@/lib/stats';
+import { buildSeasonalityInsights, buildSpeciesSpotHint } from '@/lib/insights';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -132,6 +134,14 @@ export default function StatsTab() {
 
   const topSpotsFormatted = formatTopSpots(topSpots);
   const bestMonthsFormatted = formatBestMonths(bestMonths);
+  const seasonalityInsights = useMemo(
+    () => buildSeasonalityInsights(bestMonths, speciesStats),
+    [bestMonths, speciesStats],
+  );
+  const speciesSpotHint = useMemo(
+    () => buildSpeciesSpotHint(speciesStats, topSpots),
+    [speciesStats, topSpots],
+  );
 
   return (
     <div className="flex flex-col h-full">
@@ -139,7 +149,7 @@ export default function StatsTab() {
       <div className="flex-1 overflow-y-auto">
         <div className="animate-fade-up px-6 pt-12 pb-8 space-y-8">
           {/* Page heading */}
-          <h1 className="font-serif text-4xl font-bold italic text-primary">Your Foraging Story</h1>
+          <h1 className="font-serif text-5xl font-semibold italic text-primary tracking-[0.01em]">Your Foraging Story</h1>
 
           {/* Stat cards: 4-column grid */}
           <div className="grid grid-cols-4 gap-6">
@@ -178,6 +188,33 @@ export default function StatsTab() {
           {/* Divider */}
           <div className="border-b border-border" />
 
+          {/* Seasonal Insights */}
+          {seasonalityInsights.length > 0 && (
+            <div>
+              <h3 className="text-base font-bold uppercase tracking-[0.12em] text-foreground mb-4">
+                Seasonal Insights
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                {seasonalityInsights.map((insight) => (
+                  <div key={insight.title} className="rounded-lg border border-border/70 bg-card/60 p-4">
+                    <p className="text-sm font-semibold text-primary">{insight.title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{insight.body}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Hint reminder */}
+          {speciesSpotHint && (
+            <Alert className="border-primary/35 bg-primary/8">
+              <Compass className="h-4 w-4 text-primary" />
+              <AlertDescription className="text-sm">{speciesSpotHint}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="border-b border-border" />
+
           {/* Seasonal calendar */}
           {calendar && <SeasonalCalendar entries={calendar} />}
 
@@ -206,7 +243,7 @@ export default function StatsTab() {
       </div>
 
       {/* Export action bar — sticky footer per UI-SPEC R-03 */}
-      <div className="border-t border-border bg-card px-6 py-4 flex items-center justify-end gap-3 shrink-0">
+      <div className="border-t border-border/70 bg-card/60 backdrop-blur-md px-6 py-4 flex items-center justify-end gap-3 shrink-0">
         {/* Status / error messages */}
         <div className="flex-1 text-xs text-muted-foreground">
           {statusMessage && !exportError && !pdfExporting && (

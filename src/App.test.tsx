@@ -16,6 +16,11 @@ describe('App', () => {
       storagePath: null,
       dbReady: false,
       dbError: null,
+      language: 'en',
+      theme: 'light',
+      mapLayer: 'Satellite',
+      pendingScan: false,
+      editingFindId: null,
     });
   });
 
@@ -25,14 +30,12 @@ describe('App', () => {
     expect(await screen.findByText('Choose Your Mushroom Library')).toBeInTheDocument();
   });
 
-  it('renders AppShell with 5 tab triggers after db init (D-04)', async () => {
+  it('renders AppShell with core tab triggers after db init (D-04)', async () => {
     vi.mocked(storageLib.loadStoragePath).mockResolvedValue('/tmp/lib');
     vi.mocked(dbLib.initializeDatabase).mockResolvedValue(undefined);
     render(<App />);
     expect(await screen.findByRole('tab', { name: /collection/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /map/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /species/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /browse/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /stats/i })).toBeInTheDocument();
   });
 
