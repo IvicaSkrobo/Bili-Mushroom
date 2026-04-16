@@ -35,6 +35,17 @@ function collectionIcon(name: string, showLabel: boolean, isSatellite: boolean):
   });
 }
 
+const collectionIconCache = new Map<string, L.DivIcon>();
+
+function getCollectionIcon(name: string, showLabel: boolean, isSatellite: boolean): L.DivIcon {
+  const cacheKey = `${name}|${showLabel ? 'l' : 'd'}|${isSatellite ? 's' : 'n'}`;
+  const cached = collectionIconCache.get(cacheKey);
+  if (cached) return cached;
+  const created = collectionIcon(name, showLabel, isSatellite);
+  collectionIconCache.set(cacheKey, created);
+  return created;
+}
+
 function CollectionPopup({
   collection,
   speciesNote,
@@ -141,6 +152,13 @@ function CollectionPinsInner({ collections }: { collections: Collection[] }) {
   const { data: speciesNotesData } = useSpeciesNotes();
   const storagePath = useAppStore((s) => s.storagePath) ?? '';
   const isSatellite = useAppStore((s) => s.mapLayer === 'Satellite');
+  const speciesNotesByName = useMemo(() => {
+    const notes = new Map<string, string>();
+    for (const entry of speciesNotesData ?? []) {
+      notes.set(entry.species_name, entry.notes);
+    }
+    return notes;
+  }, [speciesNotesData]);
   const update = useCallback(() => {
     setCrowded(computeCrowded(map, collections));
   }, [map, collections]);
@@ -158,12 +176,12 @@ function CollectionPinsInner({ collections }: { collections: Collection[] }) {
     <>
       {collections.map((c) => {
         const showLabel = !crowded.has(c.name);
-        const speciesNote = speciesNotesData?.find((sn) => sn.species_name === c.name)?.notes;
+        const speciesNote = speciesNotesByName.get(c.name);
         return (
           <Marker
             key={`col-${c.name}`}
             position={[c.lat, c.lng]}
-            icon={collectionIcon(c.name, showLabel, isSatellite)}
+            icon={getCollectionIcon(c.name, showLabel, isSatellite)}
           >
             <Popup minWidth={220}>
               <CollectionPopup

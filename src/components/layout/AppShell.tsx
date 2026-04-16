@@ -3,12 +3,14 @@ import { Settings as SettingsIcon, Sun, Moon } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { useAppStore, type Tab } from '@/stores/appStore';
-import { SettingsDialog } from '@/components/dialogs/SettingsDialog';
 import { useT } from '@/i18n/index';
 
 const CollectionTab = lazy(() => import('@/tabs/CollectionTab'));
 const MapTab = lazy(() => import('@/tabs/MapTab'));
 const StatsTab = lazy(() => import('@/tabs/StatsTab'));
+const SettingsDialog = lazy(() =>
+  import('@/components/dialogs/SettingsDialog').then((m) => ({ default: m.SettingsDialog })),
+);
 
 const TAB_VALUES: Tab[] = ['collection', 'map', 'stats'];
 const TAB_KEYS: Record<Tab, string> = {
@@ -93,7 +95,11 @@ export function AppShell() {
         </TabsContent>
       </Tabs>
 
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      {settingsOpen && (
+        <Suspense fallback={null}>
+          <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+        </Suspense>
+      )}
     </div>
   );
 }

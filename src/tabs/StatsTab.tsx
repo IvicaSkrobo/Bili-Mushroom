@@ -17,7 +17,6 @@ import {
 import { useFinds } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { exportToCsv } from '@/lib/exportCsv';
-import { generateAndSavePdf } from '@/lib/exportPdf';
 import type { TopSpot, BestMonth } from '@/lib/stats';
 import { buildSeasonalityInsights, buildSpeciesSpotHint } from '@/lib/insights';
 
@@ -69,6 +68,16 @@ export default function StatsTab() {
   const [pdfStage, setPdfStage] = useState<string>('');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const topSpotsFormatted = useMemo(() => formatTopSpots(topSpots), [topSpots]);
+  const bestMonthsFormatted = useMemo(() => formatBestMonths(bestMonths), [bestMonths]);
+  const seasonalityInsights = useMemo(
+    () => buildSeasonalityInsights(bestMonths, speciesStats),
+    [bestMonths, speciesStats],
+  );
+  const speciesSpotHint = useMemo(
+    () => buildSpeciesSpotHint(speciesStats, topSpots),
+    [speciesStats, topSpots],
+  );
 
   const handleExportCsv = async () => {
     if (!finds || finds.length === 0) return;
@@ -90,6 +99,7 @@ export default function StatsTab() {
     setPdfExporting(true);
     setExportError(null);
     try {
+      const { generateAndSavePdf } = await import('@/lib/exportPdf');
       const path = await generateAndSavePdf(finds, storagePath, (stage) => {
         setPdfStage(
           stage === 'photos'
@@ -131,17 +141,6 @@ export default function StatsTab() {
       />
     );
   }
-
-  const topSpotsFormatted = formatTopSpots(topSpots);
-  const bestMonthsFormatted = formatBestMonths(bestMonths);
-  const seasonalityInsights = useMemo(
-    () => buildSeasonalityInsights(bestMonths, speciesStats),
-    [bestMonths, speciesStats],
-  );
-  const speciesSpotHint = useMemo(
-    () => buildSpeciesSpotHint(speciesStats, topSpots),
-    [speciesStats, topSpots],
-  );
 
   return (
     <div className="flex flex-col h-full">
