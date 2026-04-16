@@ -37,14 +37,13 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const [stats, setStats] = useState<TileCacheStats>({ sizeBytes: 0, tileCount: 0 });
 
   useEffect(() => {
-    if (!open || !storagePath) return;
-    getTileCacheStats(storagePath).then(setStats).catch(() => {});
-  }, [open, storagePath]);
+    if (!open) return;
+    getTileCacheStats().then(setStats).catch(() => {});
+  }, [open]);
 
   async function handleClear() {
-    if (!storagePath) return;
     await clearTileCache(storagePath);
-    const fresh = await getTileCacheStats(storagePath);
+    const fresh = await getTileCacheStats();
     setStats(fresh);
   }
 

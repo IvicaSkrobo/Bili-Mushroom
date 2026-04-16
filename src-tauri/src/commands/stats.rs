@@ -3,6 +3,9 @@ use base64::Engine;
 
 use crate::commands::import::open_db;
 
+const INTERNAL_SPECIES_FILTER: &str =
+    "LOWER(TRIM(species_name)) NOT IN ('tile-cache', '.bili-cache', '.bili-cache-tiles')";
+
 // ---------------------------------------------------------------------------
 // Structs
 // ---------------------------------------------------------------------------
@@ -62,16 +65,31 @@ pub async fn get_stats_cards(storage_path: String) -> Result<StatsCards, String>
     let conn = open_db(&storage_path)?;
 
     let total_finds: i64 = conn
-        .query_row("SELECT COUNT(*) FROM finds", [], |row| row.get(0))
+        .query_row(
+            &format!("SELECT COUNT(*) FROM finds WHERE {}", INTERNAL_SPECIES_FILTER),
+            [],
+            |row| row.get(0),
+        )
         .map_err(|e| e.to_string())?;
 
     let unique_species: i64 = conn
-        .query_row("SELECT COUNT(DISTINCT species_name) FROM finds", [], |row| row.get(0))
+        .query_row(
+            &format!(
+                "SELECT COUNT(DISTINCT species_name) FROM finds WHERE {}",
+                INTERNAL_SPECIES_FILTER
+            ),
+            [],
+            |row| row.get(0),
+        )
         .map_err(|e| e.to_string())?;
 
     let locations_visited: i64 = conn
         .query_row(
-            "SELECT COUNT(DISTINCT country || '|' || region || '|' || location_note) FROM finds",
+            &format!(
+                "SELECT COUNT(DISTINCT country || '|' || region || '|' || location_note) \
+                 FROM finds WHERE {}",
+                INTERNAL_SPECIES_FILTER
+            ),
             [],
             |row| row.get(0),
         )
@@ -79,7 +97,11 @@ pub async fn get_stats_cards(storage_path: String) -> Result<StatsCards, String>
 
     let most_active_month: Option<String> = conn
         .query_row(
-            "SELECT strftime('%Y-%m', date_found) as ym, COUNT(*) as cnt FROM finds GROUP BY ym ORDER BY cnt DESC LIMIT 1",
+            &format!(
+                "SELECT strftime('%Y-%m', date_found) as ym, COUNT(*) as cnt \
+                 FROM finds WHERE {} GROUP BY ym ORDER BY cnt DESC LIMIT 1",
+                INTERNAL_SPECIES_FILTER
+            ),
             [],
             |row| row.get(0),
         )
@@ -98,8 +120,11 @@ pub async fn get_top_spots(storage_path: String) -> Result<Vec<TopSpot>, String>
     let conn = open_db(&storage_path)?;
     let mut stmt = conn
         .prepare(
-            "SELECT country, region, location_note, COUNT(*) as cnt FROM finds \
-             GROUP BY country, region, location_note ORDER BY cnt DESC LIMIT 10",
+            &format!(
+                "SELECT country, region, location_note, COUNT(*) as cnt FROM finds \
+                 WHERE {} GROUP BY country, region, location_note ORDER BY cnt DESC LIMIT 10",
+                INTERNAL_SPECIES_FILTER
+            ),
         )
         .map_err(|e| e.to_string())?;
 
@@ -124,8 +149,11 @@ pub async fn get_best_months(storage_path: String) -> Result<Vec<BestMonth>, Str
     let conn = open_db(&storage_path)?;
     let mut stmt = conn
         .prepare(
-            "SELECT CAST(strftime('%m', date_found) AS INTEGER) as month_num, COUNT(*) as cnt \
-             FROM finds GROUP BY month_num ORDER BY cnt DESC",
+            &format!(
+                "SELECT CAST(strftime('%m', date_found) AS INTEGER) as month_num, COUNT(*) as cnt \
+                 FROM finds WHERE {} GROUP BY month_num ORDER BY cnt DESC",
+                INTERNAL_SPECIES_FILTER
+            ),
         )
         .map_err(|e| e.to_string())?;
 
@@ -148,8 +176,11 @@ pub async fn get_calendar(storage_path: String) -> Result<Vec<CalendarEntry>, St
     let conn = open_db(&storage_path)?;
     let mut stmt = conn
         .prepare(
-            "SELECT CAST(strftime('%m', date_found) AS INTEGER) as month, species_name, date_found, location_note \
-             FROM finds ORDER BY month ASC, date_found ASC",
+            &format!(
+                "SELECT CAST(strftime('%m', date_found) AS INTEGER) as month, species_name, date_found, location_note \
+                 FROM finds WHERE {} ORDER BY month ASC, date_found ASC",
+                INTERNAL_SPECIES_FILTER
+            ),
         )
         .map_err(|e| e.to_string())?;
 
@@ -176,8 +207,11 @@ pub async fn get_species_stats(storage_path: String) -> Result<Vec<SpeciesStatSu
     // First query: aggregate per species
     let mut stmt = conn
         .prepare(
-            "SELECT species_name, COUNT(*) as find_count, MIN(date_found) as first_find \
-             FROM finds GROUP BY species_name ORDER BY find_count DESC",
+            &format!(
+                "SELECT species_name, COUNT(*) as find_count, MIN(date_found) as first_find \
+                 FROM finds WHERE {} GROUP BY species_name ORDER BY find_count DESC",
+                INTERNAL_SPECIES_FILTER
+            ),
         )
         .map_err(|e| e.to_string())?;
 
@@ -206,8 +240,11 @@ pub async fn get_species_stats(storage_path: String) -> Result<Vec<SpeciesStatSu
         // Best month sub-query
         let best_month: Option<String> = conn
             .query_row(
-                "SELECT strftime('%Y-%m', date_found) as ym, COUNT(*) as cnt \
-                 FROM finds WHERE species_name = ?1 GROUP BY ym ORDER BY cnt DESC LIMIT 1",
+                &format!(
+                    "SELECT strftime('%Y-%m', date_found) as ym, COUNT(*) as cnt \
+                     FROM finds WHERE {} AND species_name = ?1 GROUP BY ym ORDER BY cnt DESC LIMIT 1",
+                    INTERNAL_SPECIES_FILTER
+                ),
                 params![row.species_name],
                 |r| r.get(0),
             )
@@ -216,8 +253,11 @@ pub async fn get_species_stats(storage_path: String) -> Result<Vec<SpeciesStatSu
         // Locations sub-query
         let mut loc_stmt = conn
             .prepare(
-                "SELECT DISTINCT country, region, location_note \
-                 FROM finds WHERE species_name = ?1",
+                &format!(
+                    "SELECT DISTINCT country, region, location_note \
+                     FROM finds WHERE {} AND species_name = ?1",
+                    INTERNAL_SPECIES_FILTER
+                ),
             )
             .map_err(|e| e.to_string())?;
 

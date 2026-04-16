@@ -16,7 +16,7 @@ const TOPO_TEMPLATE = 'https://tile.opentopomap.org/{z}/{x}/{y}.png';
  * All route through the Rust tile proxy. Persists the user's last picked
  * layer to localStorage via appStore. Does not render any React DOM directly.
  */
-export function LayerSwitcher({ storagePath }: { storagePath: string }) {
+export function LayerSwitcher() {
   const map = useMap();
   const mapLayer = useAppStore((s) => s.mapLayer);
   const setMapLayer = useAppStore((s) => s.setMapLayer);
@@ -24,19 +24,16 @@ export function LayerSwitcher({ storagePath }: { storagePath: string }) {
   useEffect(() => {
     const osmLayer = createRustProxyTileLayer({
       urlTemplate: OSM_TEMPLATE,
-      storagePath,
       attribution: '© OpenStreetMap contributors',
       maxZoom: 19,
     });
     const esriLayer = createRustProxyTileLayer({
       urlTemplate: ESRI_TEMPLATE,
-      storagePath,
       attribution: 'Tiles © Esri',
       maxZoom: 19,
     });
     const topoLayer = createRustProxyTileLayer({
       urlTemplate: TOPO_TEMPLATE,
-      storagePath,
       attribution: '© OpenTopoMap contributors',
       maxZoom: 17,
     });
@@ -74,7 +71,7 @@ export function LayerSwitcher({ storagePath }: { storagePath: string }) {
       if (map.hasLayer(esriLayer)) map.removeLayer(esriLayer);
       if (map.hasLayer(topoLayer)) map.removeLayer(topoLayer);
     };
-  }, [map, storagePath]); // NOTE: intentionally omit mapLayer/setMapLayer from deps — only read on mount
+  }, [map]); // NOTE: intentionally omit mapLayer/setMapLayer from deps — only read on mount
 
   return null;
 }

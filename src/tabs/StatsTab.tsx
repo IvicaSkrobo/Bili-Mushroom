@@ -100,22 +100,18 @@ export default function StatsTab() {
     setExportError(null);
     try {
       const { generateAndSavePdf } = await import('@/lib/exportPdf');
-      const path = await generateAndSavePdf(finds, storagePath, (stage) => {
-        setPdfStage(
-          stage === 'photos'
-            ? 'Loading photos...'
-            : stage === 'rendering'
-              ? 'Generating PDF...'
-              : 'Saving...',
-        );
+      const path = await generateAndSavePdf(finds, storagePath, (msg) => {
+        setPdfStage(msg);
       });
       if (path) {
         setStatusMessage(`PDF saved to ${path}`);
         setTimeout(() => setStatusMessage(null), 3000);
       }
-    } catch {
-      setExportError('PDF export failed. Try again.');
-      setTimeout(() => setExportError(null), 5000);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[PDF export error]', err);
+      setExportError(`PDF export failed: ${msg}`);
+      setTimeout(() => setExportError(null), 15000);
     } finally {
       setPdfExporting(false);
       setPdfStage('');

@@ -20,6 +20,7 @@ export class DatabaseInitError extends Error {
 export async function initializeDatabase(storageFolderPath: string): Promise<void> {
   try {
     await invoke('get_finds', { storagePath: storageFolderPath });
+    await invoke('cleanup_internal_records', { storagePath: storageFolderPath });
   } catch (err) {
     throw new DatabaseInitError('Failed to initialise database', err);
   }

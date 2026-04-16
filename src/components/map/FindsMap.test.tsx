@@ -21,14 +21,14 @@ import { FindsMap } from './FindsMap';
 
 describe('FindsMap', () => {
   it('renders MapContainer with Croatia center [45.1, 15.2] zoom 7 when finds is empty', () => {
-    render(<FindsMap finds={[]} storagePath="/tmp/x" />);
+    render(<FindsMap finds={[]} />);
     const container = screen.getByTestId('map-container');
     expect(container.getAttribute('data-center')).toBe('[45.1,15.2]');
     expect(container.getAttribute('data-zoom')).toBe('7');
   });
 
   it('wraps the map in an animate-fade-up container', () => {
-    const { container } = render(<FindsMap finds={[]} storagePath="/tmp/x" />);
+    const { container } = render(<FindsMap finds={[]} />);
     expect(container.querySelector('.animate-fade-up')).not.toBeNull();
   });
 });

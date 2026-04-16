@@ -18,6 +18,7 @@ pub fn run() {
             commands::finds::quit_app,
             commands::finds::bulk_rename_species,
             commands::finds::move_find_files,
+            commands::finds::cleanup_internal_records,
             commands::tile_proxy::fetch_tile,
             commands::tile_proxy::get_tile_cache_stats,
             commands::tile_proxy::clear_tile_cache,

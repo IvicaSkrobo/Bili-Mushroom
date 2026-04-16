@@ -41,18 +41,19 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
   get_species_notes: (_args: unknown) => [],
   upsert_species_note: (_args: unknown) => undefined,
   bulk_rename_species: (_args: unknown) => undefined,
+  cleanup_internal_records: (_args: unknown) => 0,
   quit_app: (_args: unknown) => undefined,
-  fetch_tile: async (_args: { url: string; storagePath: string }) => {
+  fetch_tile: async (_args: { url: string }) => {
     // 1x1 transparent PNG data URI for tests
     return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgAAIAAAUAAen63NgAAAAASUVORK5CYII=';
   },
-  get_tile_cache_stats: async (_args: { storagePath: string }) => ({
+  get_tile_cache_stats: async () => ({
     size_bytes: 0,
     tile_count: 0,
   }),
-  clear_tile_cache: async (_args: { storagePath: string }) => undefined,
-  set_cache_max: async (_args: { storagePath: string; maxBytes: number }) => undefined,
-  get_cache_max_bytes: async (_args: { storagePath: string }) => 200 * 1024 * 1024,
+  clear_tile_cache: async (_args: { storagePath?: string | null }) => undefined,
+  set_cache_max: async (_args: { maxBytes: number }) => undefined,
+  get_cache_max_bytes: async () => 200 * 1024 * 1024,
   get_stats_cards: (_args: unknown) => ({
     total_finds: 0, unique_species: 0, locations_visited: 0, most_active_month: null,
   }),

@@ -33,6 +33,7 @@ import { reverseGeocode } from '@/lib/geocoding';
 import { useAppStore } from '@/stores/appStore';
 import { useFinds, useSpeciesNotes } from '@/hooks/useFinds';
 import { useT } from '@/i18n/index';
+import { isInternalLibraryName } from '@/lib/internalEntries';
 
 export type LockableField = 'date_found' | 'country' | 'region' | 'location_note';
 
@@ -80,7 +81,11 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     const seen = new Set<string>();
     return findsData
       .map((f) => f.species_name)
-      .filter((name) => { if (!name || seen.has(name)) return false; seen.add(name); return true; });
+      .filter((name) => {
+        if (!name || seen.has(name) || isInternalLibraryName(name)) return false;
+        seen.add(name);
+        return true;
+      });
   }, [findsData]);
 
   const [pending, setPending] = useState<PendingItem[]>([]);

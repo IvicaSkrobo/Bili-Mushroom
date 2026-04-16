@@ -2,8 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
 vi.mock('@/components/map/FindsMap', () => ({
-  FindsMap: ({ storagePath }: { storagePath: string }) => (
-    <div data-testid="finds-map" data-storage={storagePath} />
+  FindsMap: () => (
+    <div data-testid="finds-map" />
   ),
 }));
 
@@ -33,6 +33,5 @@ describe('MapTab', () => {
     render(<MapTab />);
     const map = screen.getByTestId('finds-map');
     expect(map).toBeInTheDocument();
-    expect(map.getAttribute('data-storage')).toBe('/tmp/storage');
   });
 });

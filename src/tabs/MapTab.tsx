@@ -3,6 +3,7 @@ import { FindsMap } from '@/components/map/FindsMap';
 import { SpeciesFilterPanel } from '@/components/map/SpeciesFilterPanel';
 import { useAppStore } from '@/stores/appStore';
 import { useFinds } from '@/hooks/useFinds';
+import { isInternalLibraryName } from '@/lib/internalEntries';
 
 export default function MapTab() {
   const storagePath = useAppStore((s) => s.storagePath);
@@ -24,13 +25,17 @@ export default function MapTab() {
 
   const allSpecies = useMemo(() => {
     const names = new Set<string>();
-    for (const f of finds ?? []) names.add(f.species_name);
+    for (const f of finds ?? []) {
+      if (isInternalLibraryName(f.species_name)) continue;
+      names.add(f.species_name);
+    }
     return Array.from(names).sort();
   }, [finds]);
 
   const filteredFinds = useMemo(() => {
-    if (selectedSpecies.size === 0) return finds ?? [];
-    return (finds ?? []).filter((f) => selectedSpecies.has(f.species_name));
+    const visibleFinds = (finds ?? []).filter((f) => !isInternalLibraryName(f.species_name));
+    if (selectedSpecies.size === 0) return visibleFinds;
+    return visibleFinds.filter((f) => selectedSpecies.has(f.species_name));
   }, [finds, selectedSpecies]);
 
   function handleToggle(name: string) {
@@ -59,7 +64,7 @@ export default function MapTab() {
 
   return (
     <div className="relative h-full w-full">
-      <FindsMap finds={filteredFinds} storagePath={storagePath} />
+      <FindsMap finds={filteredFinds} />
       <SpeciesFilterPanel
         allSpecies={allSpecies}
         selected={selectedSpecies}

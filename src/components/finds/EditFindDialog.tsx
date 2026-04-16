@@ -18,6 +18,7 @@ import type { Find } from '@/lib/finds';
 import { reverseGeocode } from '@/lib/geocoding';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
 import { MapPin } from 'lucide-react';
+import { isInternalLibraryName } from '@/lib/internalEntries';
 
 interface FormState {
   species_name: string;
@@ -76,7 +77,9 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     readDir(storagePath)
       .then((entries) => {
         setSpeciesFolders(
-          entries.filter((e) => e.isDirectory && e.name).map((e) => e.name as string),
+          entries
+            .filter((e) => e.isDirectory && e.name && !isInternalLibraryName(e.name))
+            .map((e) => e.name as string),
         );
       })
       .catch(() => setSpeciesFolders([]));

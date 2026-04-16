@@ -3,6 +3,9 @@ use chrono::Utc;
 
 use crate::commands::import::{open_db, FindPhoto};
 
+const INTERNAL_SPECIES_FILTER: &str =
+    "LOWER(TRIM(species_name)) IN ('tile-cache', '.bili-cache', '.bili-cache-tiles')";
+
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct SpeciesNote {
     pub species_name: String,
@@ -176,6 +179,30 @@ pub async fn bulk_rename_species(
     }
     tx.commit().map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+pub async fn cleanup_internal_records(storage_path: String) -> Result<i64, String> {
+    let mut conn = open_db(&storage_path)?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| e.to_string())?;
+
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    let deleted_finds = tx
+        .execute(
+            &format!("DELETE FROM finds WHERE {}", INTERNAL_SPECIES_FILTER),
+            [],
+        )
+        .map_err(|e| format!("Failed to delete internal finds: {}", e))? as i64;
+
+    tx.execute(
+        &format!("DELETE FROM species_notes WHERE {}", INTERNAL_SPECIES_FILTER),
+        [],
+    )
+    .map_err(|e| format!("Failed to delete internal species notes: {}", e))?;
+
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(deleted_finds)
 }
 
 #[cfg(test)]

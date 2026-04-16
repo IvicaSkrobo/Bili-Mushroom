@@ -1,5 +1,6 @@
 import { readDir } from '@tauri-apps/plugin-fs';
 import { parseExif, importFind, SUPPORTED_EXTENSIONS, type ImportPayload } from './finds';
+import { isInternalLibraryName } from './internalEntries';
 
 export interface AutoImportProgress {
   species: string;
@@ -20,7 +21,9 @@ export async function scanAndImport(
   const today = new Date().toISOString().slice(0, 10);
 
   const entries = await readDir(storagePath);
-  const subfolders = entries.filter((e) => e.isDirectory && e.name && !e.name.startsWith('.'));
+  const subfolders = entries.filter(
+    (e) => e.isDirectory && e.name && !e.name.startsWith('.') && !isInternalLibraryName(e.name),
+  );
 
   let totalImported = 0;
   let totalSkipped = 0;

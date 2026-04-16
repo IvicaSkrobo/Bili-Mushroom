@@ -16,6 +16,7 @@ import { useFinds, useSpeciesNotes, useUpsertSpeciesNote, useBulkRenameSpecies }
 import { useAppStore } from '@/stores/appStore';
 import { useT, tFindsCount } from '@/i18n/index';
 import type { Find } from '@/lib/finds';
+import { isInternalLibraryName } from '@/lib/internalEntries';
 
 export default function CollectionTab() {
   const t = useT();
@@ -153,6 +154,7 @@ export default function CollectionTab() {
     const map = new Map<string, Find[]>();
     for (const f of finds ?? []) {
       const key = f.species_name || '(unnamed)';
+      if (isInternalLibraryName(key)) continue;
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(f);
     }

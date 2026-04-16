@@ -3,7 +3,6 @@ import { invoke } from '@tauri-apps/api/core';
 
 export interface RustProxyTileLayerOptions {
   urlTemplate: string;
-  storagePath: string;
   attribution?: string;
   minZoom?: number;
   maxZoom?: number;
@@ -37,17 +36,24 @@ export function createRustProxyTileLayer(
       const img = document.createElement('img');
       img.setAttribute('role', 'presentation');
       img.alt = '';
+      img.referrerPolicy = 'no-referrer';
       const url = resolveTileUrl(options.urlTemplate, coords);
+
+      const loadDirect = () => {
+        img.src = url;
+        done(undefined, img);
+      };
+
       invoke<string>('fetch_tile', {
         url,
-        storagePath: options.storagePath,
       })
         .then((dataUri) => {
           img.src = dataUri;
           done(undefined, img);
         })
         .catch((err: unknown) => {
-          done(err instanceof Error ? err : new Error(String(err)), img);
+          console.warn('Tile proxy failed, falling back to direct tile URL.', err);
+          loadDirect();
         });
       return img;
     },

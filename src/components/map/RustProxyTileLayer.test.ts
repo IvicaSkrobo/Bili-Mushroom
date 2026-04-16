@@ -37,7 +37,6 @@ describe('createRustProxyTileLayer', () => {
   it('returns a Leaflet GridLayer', () => {
     const layer = createRustProxyTileLayer({
       urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-      storagePath: '/tmp/storage',
     });
     // Duck-type check: GridLayer exposes getTileSize()
     expect(typeof (layer as unknown as { getTileSize: unknown }).getTileSize).toBe('function');
@@ -49,7 +48,6 @@ describe('createRustProxyTileLayer', () => {
     );
     const layer = createRustProxyTileLayer({
       urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-      storagePath: '/tmp/storage',
     });
     const done = vi.fn();
     // Call createTile directly — it is a method on the prototype
@@ -59,7 +57,6 @@ describe('createRustProxyTileLayer', () => {
     expect(img).toBeInstanceOf(HTMLElement);
     expect(invoke).toHaveBeenCalledWith('fetch_tile', {
       url: 'https://tile.openstreetmap.org/3/1/2.png',
-      storagePath: '/tmp/storage',
     });
     // Flush microtasks so the .then runs
     await new Promise((r) => setTimeout(r, 0));
@@ -67,19 +64,16 @@ describe('createRustProxyTileLayer', () => {
     expect((img as HTMLImageElement).src).toContain('data:image/png;base64,AAAA');
   });
 
-  it('forwards errors from invoke to the done callback', async () => {
+  it('falls back to the direct tile URL when the proxy fails', async () => {
     (invoke as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('boom'));
     const layer = createRustProxyTileLayer({
       urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-      storagePath: '/tmp/storage',
     });
     const done = vi.fn();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (layer as any).createTile({ x: 0, y: 0, z: 0 } as L.Coords, done);
+    const img = (layer as any).createTile({ x: 0, y: 0, z: 0 } as L.Coords, done);
     await new Promise((r) => setTimeout(r, 0));
-    expect(done).toHaveBeenCalled();
-    const firstArg = done.mock.calls[0][0];
-    expect(firstArg).toBeInstanceOf(Error);
-    expect((firstArg as Error).message).toBe('boom');
+    expect(done).toHaveBeenCalledWith(undefined, img);
+    expect((img as HTMLImageElement).src).toContain('https://tile.openstreetmap.org/0/0/0.png');
   });
 });

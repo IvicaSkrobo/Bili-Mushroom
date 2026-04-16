@@ -10,13 +10,15 @@ interface RustTileCacheStats {
   tile_count: number;
 }
 
-export async function getTileCacheStats(storagePath: string): Promise<TileCacheStats> {
-  const raw = await invoke<RustTileCacheStats>('get_tile_cache_stats', { storagePath });
+export async function getTileCacheStats(): Promise<TileCacheStats> {
+  const raw = await invoke<RustTileCacheStats>('get_tile_cache_stats');
   return { sizeBytes: raw.size_bytes, tileCount: raw.tile_count };
 }
 
-export async function clearTileCache(storagePath: string): Promise<void> {
-  await invoke('clear_tile_cache', { storagePath });
+export async function clearTileCache(storagePath?: string | null): Promise<void> {
+  await invoke('clear_tile_cache', {
+    storagePath: storagePath ?? null,
+  });
 }
 
 export function formatMb(bytes: number): string {

@@ -13,10 +13,9 @@ const CROATIA_ZOOM = 7;
 
 interface FindsMapProps {
   finds: Find[];
-  storagePath: string;
 }
 
-export function FindsMap({ finds, storagePath }: FindsMapProps) {
+export function FindsMap({ finds }: FindsMapProps) {
   return (
     <div className="animate-fade-up h-full w-full">
       <MapContainer
@@ -25,7 +24,7 @@ export function FindsMap({ finds, storagePath }: FindsMapProps) {
         style={{ height: '100%', width: '100%' }}
         className="rounded-md"
       >
-        <LayerSwitcher storagePath={storagePath} />
+        <LayerSwitcher />
         <CollectionPins finds={finds} />
         <FitBoundsControl finds={finds} />
         <OnlineStatusBadge />
