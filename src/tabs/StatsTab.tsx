@@ -139,7 +139,7 @@ export default function StatsTab() {
       <div className="flex-1 overflow-y-auto">
         <div className="animate-fade-up px-6 pt-12 pb-8 space-y-8">
           {/* Page heading */}
-          <h1 className="font-serif text-4xl font-bold italic text-primary">Your Foraging Story</h1>
+          <h1 className="font-serif text-5xl font-semibold italic text-primary tracking-[0.01em]">Your Foraging Story</h1>
 
           {/* Stat cards: 4-column grid */}
           <div className="grid grid-cols-4 gap-6">
@@ -206,7 +206,7 @@ export default function StatsTab() {
       </div>
 
       {/* Export action bar — sticky footer per UI-SPEC R-03 */}
-      <div className="border-t border-border bg-card px-6 py-4 flex items-center justify-end gap-3 shrink-0">
+      <div className="border-t border-border/70 bg-card/60 backdrop-blur-md px-6 py-4 flex items-center justify-end gap-3 shrink-0">
         {/* Status / error messages */}
         <div className="flex-1 text-xs text-muted-foreground">
           {statusMessage && !exportError && !pdfExporting && (
