@@ -10,6 +10,7 @@ vi.mock('@tauri-apps/plugin-store', () => ({
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({
   open: vi.fn().mockResolvedValue('/tmp/test-mushroom-library'),
+  save: vi.fn().mockResolvedValue('/tmp/bili-export.csv'),
 }));
 
 // ---------------------------------------------------------------------------
@@ -47,6 +48,14 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
   clear_tile_cache: async (_args: { storagePath: string }) => undefined,
   set_cache_max: async (_args: { storagePath: string; maxBytes: number }) => undefined,
   get_cache_max_bytes: async (_args: { storagePath: string }) => 200 * 1024 * 1024,
+  get_stats_cards: (_args: unknown) => ({
+    total_finds: 0, unique_species: 0, locations_visited: 0, most_active_month: null,
+  }),
+  get_top_spots: (_args: unknown) => [],
+  get_best_months: (_args: unknown) => [],
+  get_calendar: (_args: unknown) => [],
+  get_species_stats: (_args: unknown) => [],
+  read_photos_as_base64: (_args: unknown) => [],
 };
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -92,4 +101,6 @@ export function emitMockEvent<T>(eventName: string, payload: T): void {
 vi.mock('@tauri-apps/plugin-fs', () => ({
   readDir: vi.fn().mockResolvedValue([]),
   remove: vi.fn().mockResolvedValue(undefined),
+  writeTextFile: vi.fn().mockResolvedValue(undefined),
+  writeFile: vi.fn().mockResolvedValue(undefined),
 }));
