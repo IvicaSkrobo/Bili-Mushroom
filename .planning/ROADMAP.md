@@ -85,7 +85,11 @@ Plans:
   3. Per-species stats page shows total find count, all locations where a species was found, and date of first find
   4. User can export their full collection (or a filtered subset) to a PDF report that includes photos
   5. User can export their full collection (or a filtered subset) to Excel/CSV format
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 04-01-PLAN.md — Rust stat aggregation commands, TS types/IPC wrappers, TanStack Query hooks, test mocks + tests
+- [ ] 04-02-PLAN.md — StatsTab UI: stat cards, ranked lists, seasonal calendar, per-species stats
+- [ ] 04-03-PLAN.md — PDF and CSV export with Comlink Web Worker, export action bar in StatsTab
 **UI hint**: yes
 
 ## Progress
@@ -99,7 +103,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 2. Import & Organization | 3/3 | Complete | 2026-04-09 |
 | 02.1. Import Workflow Refinements | 5/5 | Complete | 2026-04-09 |
 | 3. Map | 4/4 | Complete | 2026-04-15 |
-| 4. Stats & Export | 0/TBD | Not started | - |
+| 4. Stats & Export | 0/3 | Not started | - |
 
 ## Backlog
 
