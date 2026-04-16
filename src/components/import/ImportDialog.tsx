@@ -342,6 +342,10 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
           <DialogTitle>{t('import.title')}</DialogTitle>
         </DialogHeader>
 
+        <p className="text-xs text-muted-foreground flex-shrink-0">
+          {t('import.summaryHint')}
+        </p>
+
         {/* Picker buttons */}
         <div className="flex gap-2 flex-shrink-0">
           <Button variant="secondary" onClick={handlePickFiles} disabled={importing}>

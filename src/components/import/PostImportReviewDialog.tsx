@@ -13,6 +13,7 @@ import { EditFindDialog } from '@/components/finds/EditFindDialog';
 import { useAppStore } from '@/stores/appStore';
 import { deleteFind } from '@/lib/finds';
 import type { ImportSummary, Find } from '@/lib/finds';
+import { useT } from '@/i18n/index';
 
 interface PostImportReviewDialogProps {
   summary: ImportSummary | null;
@@ -21,6 +22,7 @@ interface PostImportReviewDialogProps {
 }
 
 export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: PostImportReviewDialogProps) {
+  const t = useT();
   const [editingFind, setEditingFind] = useState<Find | null>(null);
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
   const storagePath = useAppStore((s) => s.storagePath);
@@ -38,6 +40,7 @@ export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: 
   }
 
   const visibleFinds = summary?.imported.filter((f) => !deletedIds.has(f.id)) ?? [];
+  const visiblePhotoCount = visibleFinds.reduce((sum, find) => sum + Math.max(find.photos?.length ?? 0, 1), 0);
 
   return (
     <>
@@ -45,9 +48,9 @@ export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: 
         <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>
-              Import complete — {visibleFinds.length} imported
-              {(summary?.skipped.length ?? 0) > 0 && `, ${summary!.skipped.length} skipped`}
-              {deletedIds.size > 0 && ` (${deletedIds.size} deleted)`}
+              {t('import.reviewTitle', { finds: visibleFinds.length, photos: visiblePhotoCount })}
+              {(summary?.skipped.length ?? 0) > 0 && t('import.reviewSkipped', { n: summary!.skipped.length })}
+              {deletedIds.size > 0 && t('import.reviewDeleted', { n: deletedIds.size })}
             </DialogTitle>
           </DialogHeader>
 
@@ -55,7 +58,7 @@ export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: 
             {/* Imported finds list */}
             {visibleFinds.length > 0 && (
               <div className="space-y-2 p-1">
-                <p className="text-sm font-medium text-muted-foreground">Imported</p>
+                <p className="text-sm font-medium text-muted-foreground">{t('import.reviewImportedSection')}</p>
                 {visibleFinds.map((find) => {
                   const primaryPhoto = find.photos?.[0];
                   const thumbSrc = primaryPhoto && storagePath
@@ -109,7 +112,7 @@ export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: 
             {/* Skipped files */}
             {summary && summary.skipped.length > 0 && (
               <div className="space-y-1 p-1 mt-3">
-                <p className="text-sm font-medium text-muted-foreground">Skipped</p>
+                <p className="text-sm font-medium text-muted-foreground">{t('import.reviewSkippedSection')}</p>
                 {summary.skipped.map((path, i) => (
                   <p key={i} className="text-xs text-muted-foreground truncate">{path}</p>
                 ))}
@@ -120,7 +123,7 @@ export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: 
           <DialogFooter className="gap-2">
             {onImportMore && (
               <Button variant="outline" onClick={onImportMore}>
-                Import more
+                {t('import.importMore')}
               </Button>
             )}
             <Button onClick={() => onOpenChange(false)}>Done</Button>

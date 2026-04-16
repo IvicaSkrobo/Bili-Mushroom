@@ -23,6 +23,7 @@ const hr: Translations = {
   'collection.finds.many': 'nalaza',
   'collection.folderNotes': 'Bilješke o {name}…',
   'collection.imported': 'Uvezeno {n}',
+  'collection.importSummary': 'Uvezeno {finds} nalaza, {photos} fotografija',
   'collection.skipped': ' · Preskočeno {n}',
   'collection.deletedToast': 'Obrisano {n}',
   'collection.movedToast': 'Premješteno {n} u {name}',
@@ -48,6 +49,13 @@ const hr: Translations = {
   'import.folderNotes': 'Bilješke mape…',
   'import.nameRequired': 'Sve fotografije moraju imati naziv gljive prije uvoza.',
   'import.importAll': 'Uvezi sve',
+  'import.reviewTitle': 'Uvoz završen — {finds} nalaza, {photos} fotografija',
+  'import.reviewSkipped': ', {n} preskočeno',
+  'import.reviewDeleted': ' ({n} obrisano)',
+  'import.reviewImportedSection': 'Uvezeno',
+  'import.reviewSkippedSection': 'Preskočeno',
+  'import.importMore': 'Uvezi još',
+  'import.summaryHint': 'Svaka fotografija se uvozi kao zaseban nalaz. Nalazi s istim nazivom vrste bit će grupirani zajedno u zbirci.',
 
   // find preview card
   'preview.speciesName': 'Naziv vrste',
@@ -157,6 +165,7 @@ const en: Translations = {
   'collection.finds.many': 'finds',
   'collection.folderNotes': 'Notes about {name}…',
   'collection.imported': 'Imported {n}',
+  'collection.importSummary': 'Imported {finds} finds, {photos} photos',
   'collection.skipped': ' · Skipped {n}',
   'collection.deletedToast': 'Deleted {n}',
   'collection.movedToast': 'Moved {n} to {name}',
@@ -182,6 +191,13 @@ const en: Translations = {
   'import.folderNotes': 'Folder notes…',
   'import.nameRequired': 'All photos must have a mushroom name before importing.',
   'import.importAll': 'Import All',
+  'import.reviewTitle': 'Import complete — {finds} finds, {photos} photos',
+  'import.reviewSkipped': ', {n} skipped',
+  'import.reviewDeleted': ' ({n} deleted)',
+  'import.reviewImportedSection': 'Imported',
+  'import.reviewSkippedSection': 'Skipped',
+  'import.importMore': 'Import more',
+  'import.summaryHint': 'Each photo is imported as its own find. Finds with the same species name will be grouped together in the collection.',
 
   // find preview card
   'preview.speciesName': 'Species name',

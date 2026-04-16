@@ -117,6 +117,7 @@ describe('importFind', () => {
     expect(invoke).toHaveBeenCalledWith('import_find', {
       storagePath: '/storage',
       payloads: [samplePayload],
+      deleteSource: false,
     });
   });
 

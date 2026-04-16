@@ -81,7 +81,7 @@ describe('PostImportReviewDialog', () => {
         <PostImportReviewDialog summary={sampleSummary} onOpenChange={vi.fn()} />
       </Wrapper>,
     );
-    expect(screen.getByText(/1 imported/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /1.+1.+(photo|fotograf)/i })).toBeInTheDocument();
   });
 
   it('renders each imported find species_name', () => {

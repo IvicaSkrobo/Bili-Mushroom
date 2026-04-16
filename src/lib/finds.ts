@@ -95,8 +95,9 @@ export async function parseExif(path: string): Promise<ExifData> {
 export async function importFind(
   storagePath: string,
   payloads: ImportPayload[],
+  deleteSource = false,
 ): Promise<ImportSummary> {
-  return invoke<ImportSummary>('import_find', { storagePath, payloads });
+  return invoke<ImportSummary>('import_find', { storagePath, payloads, deleteSource });
 }
 
 /**

@@ -188,7 +188,10 @@ export default function CollectionTab() {
 
   const handleImportComplete = (imported: number, skipped: number) => {
     if (importMsgTimer.current) clearTimeout(importMsgTimer.current);
-    setImportMsg(t('collection.imported', { n: imported }) + (skipped > 0 ? t('collection.skipped', { n: skipped }) : ''));
+    setImportMsg(
+      t('collection.importSummary', { finds: imported, photos: imported }) +
+      (skipped > 0 ? t('collection.skipped', { n: skipped }) : ''),
+    );
     importMsgTimer.current = setTimeout(() => setImportMsg(null), 5000);
   };
 

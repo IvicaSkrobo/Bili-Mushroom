@@ -214,7 +214,7 @@ describe('ImportDialog', () => {
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith(
         'import_find',
-        expect.objectContaining({ storagePath: '/test-storage' }),
+        expect.objectContaining({ storagePath: '/test-storage', deleteSource: false }),
       );
     });
   });
