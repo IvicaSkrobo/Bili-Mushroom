@@ -44,6 +44,17 @@ function clusterIcon(count: number): L.DivIcon {
   });
 }
 
+const SINGLE_ICON = singleIcon();
+const clusterIconCache = new Map<number, L.DivIcon>();
+
+function getClusterIcon(count: number): L.DivIcon {
+  const cached = clusterIconCache.get(count);
+  if (cached) return cached;
+  const created = clusterIcon(count);
+  clusterIconCache.set(count, created);
+  return created;
+}
+
 export function FindPins({
   finds,
   storagePath,
@@ -56,7 +67,7 @@ export function FindPins({
     <>
       {groups.map((group) => {
         const icon =
-          group.finds.length === 1 ? singleIcon() : clusterIcon(group.finds.length);
+          group.finds.length === 1 ? SINGLE_ICON : getClusterIcon(group.finds.length);
         return (
           <Marker
             key={group.key}
