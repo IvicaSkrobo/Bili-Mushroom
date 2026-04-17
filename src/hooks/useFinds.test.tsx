@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactNode } from 'react';
-import { useFinds, useUpdateFind } from './useFinds';
+import { useFinds, useUpdateFind, useSetFindFavorite } from './useFinds';
 import { invokeHandlers } from '@/test/tauri-mocks';
 import { useAppStore } from '@/stores/appStore';
 import type { Find, UpdateFindPayload } from '@/lib/finds';
@@ -34,7 +34,6 @@ function makeWrapper(queryClient: QueryClient) {
 
 const sampleFind: Find = {
   id: 1,
-  photo_path: 'Croatia/Istria/2024-05-10/Amanita_muscaria_2024-05-10_001.jpg',
   original_filename: 'shroom.jpg',
   species_name: 'Amanita muscaria',
   date_found: '2024-05-10',
@@ -43,7 +42,10 @@ const sampleFind: Find = {
   lat: 45.1,
   lng: 13.9,
   notes: 'Found near oak tree',
+  location_note: '',
+  is_favorite: false,
   created_at: '2024-05-10T14:00:00Z',
+  photos: [],
 };
 
 const sampleUpdatePayload: UpdateFindPayload = {
@@ -55,6 +57,7 @@ const sampleUpdatePayload: UpdateFindPayload = {
   lat: 46.3,
   lng: 14.1,
   notes: 'Updated note',
+  location_note: '',
 };
 
 // ---------------------------------------------------------------------------
@@ -154,5 +157,28 @@ describe('useUpdateFind', () => {
     });
 
     await waitFor(() => expect(result.current.isError).toBe(true));
+  });
+});
+
+describe('useSetFindFavorite', () => {
+  beforeEach(() => {
+    useAppStore.setState({ storagePath: '/storage/test', dbReady: true });
+    invokeHandlers['set_find_favorite'] = () => ({ ...sampleFind, is_favorite: true });
+  });
+
+  it('calls set_find_favorite and invalidates the finds query', async () => {
+    const qc = makeQueryClient();
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    const wrapper = makeWrapper(qc);
+    const { result } = renderHook(() => useSetFindFavorite(), { wrapper });
+
+    await act(async () => {
+      result.current.mutate({ findId: 1, isFavorite: true });
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ['finds', '/storage/test'] }),
+    );
   });
 });

@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: active
 stopped_at: null
-last_updated: "2026-04-17T12:30:00.000Z"
-last_activity: 2026-04-17 -- Stabilized PDF export and redesigned the journal PDF pacing/content
+last_updated: "2026-04-17T13:05:00.000Z"
+last_activity: 2026-04-17 -- Stabilized PDF export, redesigned the journal PDF, and finished favorites support in collection/finds
 progress:
   total_phases: 9
   completed_phases: 6
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-04-09)
 Phase: 04.2 complete — MAINTENANCE
 Plan: Post-phase backlog triage
 Status: Completed planned phase work; addressing maintenance fixes and syncing planning artifacts
-Last activity: 2026-04-17 -- PDF export now works in-app with fallback rendering and redesigned journal pages
+Last activity: 2026-04-17 -- PDF export now works in-app with fallback rendering and redesigned journal pages; favorites support is ready as a separate commit
 
 Progress: [█░░░░░░░░░] 17%
 
@@ -86,6 +86,7 @@ Recent decisions affecting current work:
 - [ ] Confirm duplicate strategy: avoid strict timestamp+location duplicate blocking because users intentionally capture bursts at same time/place
 - [x] Stabilize PDF export path — keep `@react-pdf/renderer`, add smoke-test diagnostics, and fall back to main-thread rendering when the worker stalls in Tauri
 - [x] Redesign PDF journal pacing/content — interleave stats pages with highlight spreads and photo ribbons, convert the trailing page into a species list, and align labels with photo-count semantics
+- [x] Add favorites support for finds — migration + backend command + collection UI toggle/filter + tests
 
 ### Quick Tasks Completed
 
@@ -116,6 +117,7 @@ Recent decisions affecting current work:
 | 260416-startup-quit-fix | 2026-04-16 | Startup DB error dialog Quit button now invokes backend quit_app directly; synced HANDOFF/STATE notes to current post-04.2 reality. |
 | 260417-pdf-export-stabilization | 2026-04-17 | Added worker smoke test + timeout fallback to main-thread `react-pdf` rendering, kept Quick PDF as a dev-only aid, and confirmed production builds succeed. |
 | 260417-pdf-journal-redesign | 2026-04-17 | Reworked the PDF into mixed stats/photo pacing with highlight spreads, photo ribbons, a species-list tail page, and photo-count labeling where users expect totals. |
+| 260417-favorites-support | 2026-04-17 | Added `is_favorite` migration/command wiring, favorite toggles in find cards, favorites-only collection filter, i18n strings, and supporting tests/mocks. |
 
 ### Roadmap Evolution
 
@@ -127,6 +129,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-17T12:30:00.000Z
+Last session: 2026-04-17T13:05:00.000Z
 Stopped at: null
 Resume file: None

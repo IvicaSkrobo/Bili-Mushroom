@@ -17,6 +17,7 @@ pub fn run() {
             commands::finds::trash_source_file,
             commands::finds::quit_app,
             commands::finds::bulk_rename_species,
+            commands::finds::set_find_favorite,
             commands::finds::move_find_files,
             commands::finds::cleanup_internal_records,
             commands::tile_proxy::fetch_tile,
@@ -67,7 +68,7 @@ mod smoke {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .expect("user_version");
-        assert_eq!(version, 6, "user_version must be 6 after all migrations");
+        assert_eq!(version, 7, "user_version must be 7 after all migrations");
     }
 
     #[test]

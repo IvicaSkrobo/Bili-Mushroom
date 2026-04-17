@@ -43,6 +43,7 @@ pub struct FindRecord {
     pub lng: Option<f64>,
     pub notes: String,
     pub location_note: String,
+    pub is_favorite: bool,
     pub created_at: String,
     pub photos: Vec<FindPhoto>,
 }
@@ -66,6 +67,7 @@ const MIGRATION_0003: &str = include_str!("../../migrations/0003_find_photos.sql
 const MIGRATION_0004: &str = include_str!("../../migrations/0004_location_note.sql");
 const MIGRATION_0005: &str = include_str!("../../migrations/0005_species_notes.sql");
 const MIGRATION_0006: &str = include_str!("../../migrations/0006_tile_cache.sql");
+const MIGRATION_0007: &str = include_str!("../../migrations/0007_find_favorites.sql");
 
 /// Apply all migrations to an open connection using rusqlite's user_version pragma
 /// as a lightweight migration tracker. Idempotent — safe to call on every open.
@@ -110,6 +112,21 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
         conn.execute_batch("PRAGMA user_version = 6")
             .map_err(|e| format!("Failed to set user_version=6: {}", e))?;
     }
+    if version < 7 {
+        let finds_table_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='finds'",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(|e| format!("Failed to inspect finds table for migration 0007: {}", e))?;
+        if finds_table_exists > 0 {
+            conn.execute_batch(MIGRATION_0007)
+                .map_err(|e| format!("Migration 0007 failed: {}", e))?;
+        }
+        conn.execute_batch("PRAGMA user_version = 7")
+            .map_err(|e| format!("Failed to set user_version=7: {}", e))?;
+    }
 
     Ok(())
 }
@@ -133,8 +150,8 @@ fn has_existing_photo_path(conn: &Connection, photo_path: &str) -> rusqlite::Res
 
 pub(crate) fn insert_find_row(conn: &Connection, record: &FindRecord) -> rusqlite::Result<i64> {
     conn.execute(
-        "INSERT INTO finds (original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        "INSERT INTO finds (original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, is_favorite, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
         params![
             record.original_filename,
             record.species_name,
@@ -145,6 +162,7 @@ pub(crate) fn insert_find_row(conn: &Connection, record: &FindRecord) -> rusqlit
             record.lng,
             record.notes,
             record.location_note,
+            if record.is_favorite { 1i64 } else { 0i64 },
             record.created_at,
         ],
     )?;
@@ -271,6 +289,7 @@ pub async fn import_find(
             lng: payload.lng,
             notes: payload.notes.clone(),
             location_note: payload.location_note.clone(),
+            is_favorite: false,
             created_at,
             photos: vec![],
         };
@@ -353,7 +372,7 @@ pub async fn get_finds(storage_path: String) -> Result<Vec<FindRecord>, String> 
 
     let mut find_stmt = conn
         .prepare(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, created_at
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, is_favorite, created_at
              FROM finds ORDER BY date_found DESC, id DESC",
         )
         .map_err(|e| format!("Failed to prepare finds query: {}", e))?;
@@ -371,7 +390,8 @@ pub async fn get_finds(storage_path: String) -> Result<Vec<FindRecord>, String> 
                 lng: row.get(7)?,
                 notes: row.get(8)?,
                 location_note: row.get(9)?,
-                created_at: row.get(10)?,
+                is_favorite: row.get::<_, i64>(10)? == 1,
+                created_at: row.get(11)?,
                 photos: vec![],
             })
         })
@@ -456,7 +476,7 @@ pub async fn update_find(
 
     let mut record = conn
         .query_row(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, created_at FROM finds WHERE id = ?1",
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, is_favorite, created_at FROM finds WHERE id = ?1",
             params![payload.id],
             |row| {
                 Ok(FindRecord {
@@ -470,7 +490,8 @@ pub async fn update_find(
                     lng: row.get(7)?,
                     notes: row.get(8)?,
                     location_note: row.get(9)?,
-                    created_at: row.get(10)?,
+                    is_favorite: row.get::<_, i64>(10)? == 1,
+                    created_at: row.get(11)?,
                     photos: vec![],
                 })
             },
@@ -512,6 +533,7 @@ pub(crate) mod test_helpers {
     const MIGRATION_0003: &str = include_str!("../../migrations/0003_find_photos.sql");
     const MIGRATION_0004: &str = include_str!("../../migrations/0004_location_note.sql");
     const MIGRATION_0005: &str = include_str!("../../migrations/0005_species_notes.sql");
+    const MIGRATION_0007: &str = include_str!("../../migrations/0007_find_favorites.sql");
 
     pub(crate) fn setup_in_memory_db() -> Connection {
         let conn = Connection::open_in_memory().expect("in-memory DB");
@@ -520,6 +542,7 @@ pub(crate) mod test_helpers {
         conn.execute_batch(MIGRATION_0003).expect("migration 0003");
         conn.execute_batch(MIGRATION_0004).expect("migration 0004");
         conn.execute_batch(MIGRATION_0005).expect("migration 0005");
+        conn.execute_batch(MIGRATION_0007).expect("migration 0007");
         conn
     }
 
@@ -535,6 +558,7 @@ pub(crate) mod test_helpers {
             lng: Some(16.0),
             notes: "Test note".to_string(),
             location_note: "".to_string(),
+            is_favorite: false,
             created_at: "2024-05-10T14:23:00Z".to_string(),
             photos: vec![],
         }
@@ -600,7 +624,7 @@ mod tests {
 
         let retrieved: FindRecord = conn
             .query_row(
-                "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, created_at FROM finds WHERE id = ?1",
+                "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, is_favorite, created_at FROM finds WHERE id = ?1",
                 params![id],
                 |row| Ok(FindRecord {
                     id: row.get(0)?,
@@ -612,7 +636,8 @@ mod tests {
                     lat: row.get(6)?,
                     lng: row.get(7)?,
                     notes: row.get(8)?,
-                    created_at: row.get(9)?,
+                    is_favorite: row.get::<_, i64>(9)? == 1,
+                    created_at: row.get(10)?,
                     location_note: String::new(),
                     photos: vec![],
                 }),
@@ -782,7 +807,7 @@ mod tests {
         }
 
         let mut record = conn.query_row(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, created_at FROM finds WHERE id = ?1",
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, is_favorite, created_at FROM finds WHERE id = ?1",
             params![payload.id],
             |row| {
                 Ok(FindRecord {
@@ -795,7 +820,8 @@ mod tests {
                     lat: row.get(6)?,
                     lng: row.get(7)?,
                     notes: row.get(8)?,
-                    created_at: row.get(9)?,
+                    is_favorite: row.get::<_, i64>(9)? == 1,
+                    created_at: row.get(10)?,
                     location_note: String::new(),
                     photos: vec![],
                 })

@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { Pencil, Image, Trash2, Square, CheckSquare } from 'lucide-react';
+import { Pencil, Image, Trash2, Square, CheckSquare, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { isHeic, type Find } from '@/lib/finds';
 import { useT } from '@/i18n/index';
@@ -13,11 +13,12 @@ interface FindCardProps {
   selectMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: (id: number) => void;
+  onToggleFavorite?: (find: Find) => void;
   onLongPress?: (id: number) => void;
   onPhotoClick?: (findId: number, photoIndex: number) => void;
 }
 
-export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSelected, onToggleSelect, onLongPress, onPhotoClick }: FindCardProps) {
+export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSelected, onToggleSelect, onToggleFavorite, onLongPress, onPhotoClick }: FindCardProps) {
   const t = useT();
   const primaryPhoto = find.photos[0] ?? null;
   const absolutePath = primaryPhoto ? `${storagePath}/${primaryPhoto.photo_path}` : '';
@@ -88,7 +89,10 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
       {/* Info */}
       <div className="flex-1 min-w-0 space-y-1">
         <p className="font-serif text-base font-semibold leading-tight truncate text-foreground">
-          {find.species_name || t('findCard.unnamed')}
+          <span className="inline-flex max-w-full items-center gap-1.5">
+            {find.is_favorite ? <Star className="h-3.5 w-3.5 flex-shrink-0 fill-primary text-primary" /> : null}
+            <span className="truncate">{find.species_name || t('findCard.unnamed')}</span>
+          </span>
         </p>
         <div className="flex flex-wrap gap-x-3 gap-y-0.5">
           {find.date_found && (
@@ -123,6 +127,18 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
         </div>
       ) : (
         <div className="flex flex-shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+          <Button
+            variant="ghost"
+            size="icon"
+            className={`h-7 w-7 ${find.is_favorite ? 'text-primary hover:text-primary' : 'text-muted-foreground hover:text-primary'}`}
+            aria-label={find.is_favorite ? t('findCard.unfavorite') : t('findCard.favorite')}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite?.(find);
+            }}
+          >
+            <Star className={`h-3.5 w-3.5 ${find.is_favorite ? 'fill-primary' : ''}`} />
+          </Button>
           <Button
             variant="ghost"
             size="icon"

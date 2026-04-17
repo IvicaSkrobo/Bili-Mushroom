@@ -1,7 +1,7 @@
 use rusqlite::params;
 use chrono::Utc;
 
-use crate::commands::import::{open_db, FindPhoto};
+use crate::commands::import::{open_db, FindPhoto, FindRecord};
 
 const INTERNAL_SPECIES_FILTER: &str =
     "LOWER(TRIM(species_name)) IN ('tile-cache', '.bili-cache', '.bili-cache-tiles')";
@@ -182,6 +182,72 @@ pub async fn bulk_rename_species(
 }
 
 #[tauri::command]
+pub async fn set_find_favorite(
+    storage_path: String,
+    find_id: i64,
+    is_favorite: bool,
+) -> Result<FindRecord, String> {
+    let conn = open_db(&storage_path)?;
+    let favorite_value = if is_favorite { 1i64 } else { 0i64 };
+
+    let rows_affected = conn
+        .execute(
+            "UPDATE finds SET is_favorite = ?1 WHERE id = ?2",
+            params![favorite_value, find_id],
+        )
+        .map_err(|e| format!("Favorite update failed: {}", e))?;
+
+    if rows_affected == 0 {
+        return Err("find not found".into());
+    }
+
+    let mut record = conn
+        .query_row(
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, is_favorite, created_at FROM finds WHERE id = ?1",
+            params![find_id],
+            |row| {
+                Ok(FindRecord {
+                    id: row.get(0)?,
+                    original_filename: row.get(1)?,
+                    species_name: row.get(2)?,
+                    date_found: row.get(3)?,
+                    country: row.get(4)?,
+                    region: row.get(5)?,
+                    lat: row.get(6)?,
+                    lng: row.get(7)?,
+                    notes: row.get(8)?,
+                    location_note: row.get(9)?,
+                    is_favorite: row.get::<_, i64>(10)? == 1,
+                    created_at: row.get(11)?,
+                    photos: vec![],
+                })
+            },
+        )
+        .map_err(|e| format!("Failed to read updated favorite record: {}", e))?;
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let photos: Vec<FindPhoto> = stmt
+        .query_map(params![find_id], |row| {
+            Ok(FindPhoto {
+                id: row.get(0)?,
+                find_id: row.get(1)?,
+                photo_path: row.get(2)?,
+                is_primary: row.get::<_, i64>(3)? == 1,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    record.photos = photos;
+
+    Ok(record)
+}
+
+#[tauri::command]
 pub async fn cleanup_internal_records(storage_path: String) -> Result<i64, String> {
     let mut conn = open_db(&storage_path)?;
     conn.execute_batch("PRAGMA foreign_keys = ON;")
@@ -290,5 +356,28 @@ mod tests {
         assert!(photos[0].is_primary, "first photo should be primary");
         assert!(!photos[1].is_primary, "second photo should not be primary");
         assert_eq!(photos[0].find_id, find_id);
+    }
+
+    #[test]
+    fn test_favorite_flag_can_be_updated() {
+        let conn = setup_in_memory_db();
+        let record = make_find_record("favorite.jpg", "2024-05-10");
+        let find_id = insert_find_row(&conn, &record).expect("insert find");
+
+        conn.execute(
+            "UPDATE finds SET is_favorite = 1 WHERE id = ?1",
+            params![find_id],
+        )
+        .expect("set favorite");
+
+        let is_favorite: i64 = conn
+            .query_row(
+                "SELECT is_favorite FROM finds WHERE id = ?1",
+                params![find_id],
+                |row| row.get(0),
+            )
+            .expect("query favorite");
+
+        assert_eq!(is_favorite, 1, "favorite flag should persist");
     }
 }

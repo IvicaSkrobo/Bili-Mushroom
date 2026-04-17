@@ -42,6 +42,7 @@ export interface Find {
   lat: number | null;
   lng: number | null;
   notes: string;
+  is_favorite: boolean;
   created_at: string;
   photos: FindPhoto[];
 }
@@ -203,4 +204,12 @@ export async function bulkRenameSpecies(
   newSpeciesName: string,
 ): Promise<void> {
   return invoke<void>('bulk_rename_species', { storagePath, findIds, newSpeciesName });
+}
+
+export async function setFindFavorite(
+  storagePath: string,
+  findId: number,
+  isFavorite: boolean,
+): Promise<Find> {
+  return invoke<Find>('set_find_favorite', { storagePath, findId, isFavorite });
 }

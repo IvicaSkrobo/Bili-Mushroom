@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getFinds, updateFind, deleteFind, getSpeciesNotes, upsertSpeciesNote,
-  bulkRenameSpecies, moveFindToFolder,
+  bulkRenameSpecies, moveFindToFolder, setFindFavorite,
   FINDS_QUERY_KEY, SPECIES_NOTES_QUERY_KEY,
   type Find, type UpdateFindPayload,
 } from '@/lib/finds';
@@ -106,6 +106,18 @@ export function useUpsertSpeciesNote() {
       upsertSpeciesNote(storagePath!, speciesName, notes),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [SPECIES_NOTES_QUERY_KEY, storagePath] });
+    },
+  });
+}
+
+export function useSetFindFavorite() {
+  const storagePath = useAppStore((s) => s.storagePath);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ findId, isFavorite }: { findId: number; isFavorite: boolean }) =>
+      setFindFavorite(storagePath!, findId, isFavorite),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
     },
   });
 }

@@ -33,6 +33,8 @@ const hr: Translations = {
   'collection.moveToSpecies': 'Premjesti u vrstu…',
   'collection.moveTargetPlaceholder': 'Naziv ciljne vrste',
   'collection.bulkMoveBtn': 'Premjesti {n}',
+  'collection.favoritesFilter': 'Favoriti ({n})',
+  'collection.noFavorites': 'Još nema označenih favorita.',
 
   // import dialog
   'import.title': 'Uvezi fotografije',
@@ -72,6 +74,8 @@ const hr: Translations = {
   // find card
   'findCard.unnamed': '(neimenovano)',
   'findCard.edit': 'Uredi',
+  'findCard.favorite': 'Dodaj u favorite',
+  'findCard.unfavorite': 'Ukloni iz favorita',
 
   // edit dialog
   'edit.title': 'Uredi nalaz',
@@ -175,6 +179,8 @@ const en: Translations = {
   'collection.moveToSpecies': 'Move to species…',
   'collection.moveTargetPlaceholder': 'Target species name',
   'collection.bulkMoveBtn': 'Move {n}',
+  'collection.favoritesFilter': 'Favorites ({n})',
+  'collection.noFavorites': 'No favorites marked yet.',
 
   // import dialog
   'import.title': 'Import Photos',
@@ -214,6 +220,8 @@ const en: Translations = {
   // find card
   'findCard.unnamed': '(unnamed)',
   'findCard.edit': 'Edit',
+  'findCard.favorite': 'Add to favorites',
+  'findCard.unfavorite': 'Remove from favorites',
 
   // edit dialog
   'edit.title': 'Edit Find',

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { GalleryHorizontal, Plus, ChevronDown, ChevronRight, FolderOpen, Search, X, CheckSquare, Pencil } from 'lucide-react';
+import { GalleryHorizontal, Plus, ChevronDown, ChevronRight, FolderOpen, Search, X, CheckSquare, Pencil, Star } from 'lucide-react';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -12,7 +12,7 @@ import { EditFindDialog } from '@/components/finds/EditFindDialog';
 import { FolderEditDialog } from '@/components/finds/FolderEditDialog';
 import { DeleteFindDialog } from '@/components/finds/DeleteFindDialog';
 import { BulkDeleteDialog } from '@/components/finds/BulkDeleteDialog';
-import { useFinds, useSpeciesNotes, useUpsertSpeciesNote, useBulkRenameSpecies } from '@/hooks/useFinds';
+import { useFinds, useSpeciesNotes, useUpsertSpeciesNote, useBulkRenameSpecies, useSetFindFavorite } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { useT, tFindsCount } from '@/i18n/index';
 import type { Find } from '@/lib/finds';
@@ -27,6 +27,7 @@ export default function CollectionTab() {
   const { data: finds, isLoading, isError, error } = useFinds();
   const { data: speciesNotesData } = useSpeciesNotes();
   const upsertNote = useUpsertSpeciesNote();
+  const setFindFavorite = useSetFindFavorite();
 
   const [importOpen, setImportOpen] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
@@ -36,6 +37,7 @@ export default function CollectionTab() {
   const [deleting, setDeleting] = useState<Find | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
 
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
 
@@ -155,11 +157,12 @@ export default function CollectionTab() {
     for (const f of finds ?? []) {
       const key = f.species_name || '(unnamed)';
       if (isInternalLibraryName(key)) continue;
+      if (favoritesOnly && !f.is_favorite) continue;
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(f);
     }
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [finds]);
+  }, [favoritesOnly, finds]);
 
   const filteredGroups = useMemo(() => {
     if (!search.trim()) return groups;
@@ -178,6 +181,10 @@ export default function CollectionTab() {
   }, [speciesNames, moveTarget]);
 
   const isSearching = search.trim().length > 0;
+  const favoriteCount = useMemo(
+    () => (finds ?? []).filter((find) => find.is_favorite && !isInternalLibraryName(find.species_name)).length,
+    [finds],
+  );
 
   const toggleExpand = (name: string) => {
     setExpanded((prev) => {
@@ -247,6 +254,15 @@ export default function CollectionTab() {
             <Button variant="ghost" size="sm" onClick={enterSelectMode} className="gap-1.5 flex-shrink-0 text-muted-foreground hover:text-foreground">
               <CheckSquare className="h-3.5 w-3.5" />
               {t('collection.selectFinds')}
+            </Button>
+            <Button
+              variant={favoritesOnly ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setFavoritesOnly((prev) => !prev)}
+              className={`gap-1.5 flex-shrink-0 ${favoritesOnly ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              <Star className={`h-3.5 w-3.5 ${favoritesOnly ? 'fill-primary' : ''}`} />
+              {t('collection.favoritesFilter', { n: favoriteCount })}
             </Button>
             <Button onClick={() => setImportOpen(true)} size="sm" className="gap-1.5 flex-shrink-0">
               <Plus className="h-3.5 w-3.5" />
@@ -349,6 +365,11 @@ export default function CollectionTab() {
             {lang === 'hr' ? `Nema rezultata za "${search}"` : `No results for "${search}"`}
           </p>
         )}
+        {!isLoading && !isError && favoritesOnly && filteredGroups.length === 0 && !isSearching && (
+          <p className="text-sm text-muted-foreground px-1 pt-4 text-center">
+            {t('collection.noFavorites')}
+          </p>
+        )}
 
         {/* Species folders */}
         {filteredGroups.map(([speciesName, speciesFinds], idx) => {
@@ -439,6 +460,9 @@ export default function CollectionTab() {
                         storagePath={storagePath!}
                         onEdit={() => setEditing(f)}
                         onDelete={() => setDeleting(f)}
+                        onToggleFavorite={(find) =>
+                          setFindFavorite.mutate({ findId: find.id, isFavorite: !find.is_favorite })
+                        }
                         selectMode={selectMode}
                         isSelected={selectedIds.has(f.id)}
                         onToggleSelect={toggleSelect}
