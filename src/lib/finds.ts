@@ -28,6 +28,7 @@ export interface ImportPayload {
   lat: number | null;
   lng: number | null;
   notes: string;
+  observed_count: number | null;
   additional_photos: string[];  // Mode A: extra source paths for same find
 }
 
@@ -42,6 +43,7 @@ export interface Find {
   lat: number | null;
   lng: number | null;
   notes: string;
+  observed_count: number | null;
   is_favorite: boolean;
   created_at: string;
   photos: FindPhoto[];
@@ -56,6 +58,12 @@ export interface ImportProgress {
   current: number;
   total: number;
   filename: string;
+}
+
+export interface SpeciesProfile {
+  species_name: string;
+  cover_photo_id: number | null;
+  tags: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -123,6 +131,7 @@ export interface UpdateFindPayload {
   lat: number | null;
   lng: number | null;
   notes: string;
+  observed_count: number | null;
 }
 
 /**
@@ -181,6 +190,25 @@ export async function upsertSpeciesNote(
 }
 
 export const SPECIES_NOTES_QUERY_KEY = 'species_notes' as const;
+export const SPECIES_PROFILES_QUERY_KEY = 'species_profiles' as const;
+
+export async function getSpeciesProfiles(storagePath: string): Promise<SpeciesProfile[]> {
+  return invoke<SpeciesProfile[]>('get_species_profiles', { storagePath });
+}
+
+export async function upsertSpeciesProfile(
+  storagePath: string,
+  speciesName: string,
+  coverPhotoId: number | null,
+  tags: string[],
+): Promise<void> {
+  return invoke<void>('upsert_species_profile', {
+    storagePath,
+    speciesName,
+    coverPhotoId,
+    tags,
+  });
+}
 
 /**
  * Calls the Rust `bulk_rename_species` command.

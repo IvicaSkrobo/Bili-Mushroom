@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Lang } from '@/i18n/index';
 
-export type Tab = 'collection' | 'map' | 'stats';
+export type Tab = 'collection' | 'species' | 'map' | 'stats';
 export type Theme = 'light' | 'dark';
 export type MapLayer = 'Satellite' | 'Topo' | 'Street';
 
@@ -15,6 +15,7 @@ export interface AppState {
   mapLayer: MapLayer;
   pendingScan: boolean;
   editingFindId: number | null;
+  selectedCollectionSpecies: string | null;
   setActiveTab: (tab: Tab) => void;
   setStoragePath: (path: string | null) => void;
   setDbReady: (ready: boolean) => void;
@@ -24,6 +25,7 @@ export interface AppState {
   setMapLayer: (layer: MapLayer) => void;
   setPendingScan: (v: boolean) => void;
   setEditingFindId: (id: number | null) => void;
+  setSelectedCollectionSpecies: (species: string | null) => void;
 }
 
 function loadLang(): Lang {
@@ -60,12 +62,14 @@ export const useAppStore = create<AppState>((set) => ({
   mapLayer: loadMapLayer(),
   pendingScan: false,
   editingFindId: null,
+  selectedCollectionSpecies: null,
   setActiveTab: (activeTab) => set({ activeTab }),
   setStoragePath: (storagePath) => set({ storagePath }),
   setDbReady: (dbReady) => set({ dbReady }),
   setDbError: (dbError) => set({ dbError }),
   setPendingScan: (pendingScan) => set({ pendingScan }),
   setEditingFindId: (editingFindId) => set({ editingFindId }),
+  setSelectedCollectionSpecies: (selectedCollectionSpecies) => set({ selectedCollectionSpecies }),
   setLanguage: (language) => {
     try { localStorage.setItem('bili_lang', language); } catch { /* ignore */ }
     set({ language });

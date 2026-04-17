@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { readDir, remove } from '@tauri-apps/plugin-fs';
 import { useQueryClient } from '@tanstack/react-query';
-import { MapPin, Images, FolderOpen } from 'lucide-react';
+import { MapPin, Images, FolderOpen, Info } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -35,7 +35,7 @@ import { useFinds, useSpeciesNotes } from '@/hooks/useFinds';
 import { useT } from '@/i18n/index';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 
-export type LockableField = 'date_found' | 'country' | 'region' | 'location_note';
+export type LockableField = 'date_found' | 'country' | 'region' | 'location_note' | 'observed_count';
 
 
 interface PendingItem {
@@ -63,6 +63,7 @@ function buildInitialPayload(path: string, exif: Awaited<ReturnType<typeof parse
     lat: exif.lat,
     lng: exif.lng,
     notes: '',
+    observed_count: null,
     additional_photos: [],
   };
 }
@@ -101,6 +102,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   const [sharedCountry, setSharedCountry] = useState('');
   const [sharedRegion, setSharedRegion] = useState('');
   const [sharedLocationNote, setSharedLocationNote] = useState('');
+  const [sharedObservedCount, setSharedObservedCount] = useState('');
   const [sharedFolderNotes, setSharedFolderNotes] = useState('');
   const [sharedMapOpen, setSharedMapOpen] = useState(false);
   const [sharedLocation, setSharedLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -172,6 +174,19 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     );
   }, [sharedLocationNote]);
 
+  // Cascade shared observed count to unlocked cards
+  useEffect(() => {
+    if (sharedObservedCount === '') return;
+    const parsed = parseObservedCount(sharedObservedCount);
+    setPending((prev) =>
+      prev.map((item) =>
+        item.locked.observed_count
+          ? item
+          : { ...item, payload: { ...item.payload, observed_count: parsed } },
+      ),
+    );
+  }, [sharedObservedCount]);
+
   const handleSharedMapConfirm = async (lat: number, lng: number) => {
     setSharedLocation({ lat, lng });
     setPending((prev) =>
@@ -193,7 +208,14 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     country: sharedCountry || payload.country,
     region: sharedRegion || payload.region,
     location_note: sharedLocationNote || payload.location_note,
+    observed_count: payload.observed_count ?? parseObservedCount(sharedObservedCount),
   });
+
+  function parseObservedCount(value: string): number | null {
+    if (value.trim() === '') return null;
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+  }
 
   /** Extract folder name from a file path */
   function folderFromPath(path: string): string {
@@ -318,6 +340,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
       setSharedCountry('');
       setSharedRegion('');
       setSharedLocationNote('');
+      setSharedObservedCount('');
       setSharedFolderNotes('');
       setSharedLocation(null);
       setImportSummary(null);
@@ -333,6 +356,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     setSharedCountry('');
     setSharedRegion('');
     setSharedLocationNote('');
+    setSharedObservedCount('');
     setSharedFolderNotes('');
     setSharedLocation(null);
     setImportSummary(null);
@@ -444,7 +468,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
             <p className="text-xs text-muted-foreground">{t('import.newFolderHint')}</p>
           )}
 
-          {/* Row 2: date + country + region + location note */}
+          {/* Row 2: date + country + region + location note + observed count */}
           <div className="grid grid-cols-2 gap-2">
             <Input
               type="date"
@@ -467,6 +491,25 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
               value={sharedLocationNote}
               onChange={(e) => setSharedLocationNote(e.target.value)}
             />
+            <div className="col-span-2">
+              <div className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
+                <span>{t('import.observedCount')}</span>
+                <span
+                  title={t('import.observedCountHelp')}
+                  aria-label={t('import.observedCountHelp')}
+                >
+                  <Info className="h-3.5 w-3.5" />
+                </span>
+              </div>
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                placeholder={t('import.observedCountPlaceholder')}
+                value={sharedObservedCount}
+                onChange={(e) => setSharedObservedCount(e.target.value)}
+              />
+            </div>
           </div>
 
           {/* Folder-level notes — saved to species_notes on import */}

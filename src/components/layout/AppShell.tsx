@@ -6,15 +6,17 @@ import { useAppStore, type Tab } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
 
 const CollectionTab = lazy(() => import('@/tabs/CollectionTab'));
+const SpeciesTab = lazy(() => import('@/tabs/SpeciesTab'));
 const MapTab = lazy(() => import('@/tabs/MapTab'));
 const StatsTab = lazy(() => import('@/tabs/StatsTab'));
 const SettingsDialog = lazy(() =>
   import('@/components/dialogs/SettingsDialog').then((m) => ({ default: m.SettingsDialog })),
 );
 
-const TAB_VALUES: Tab[] = ['collection', 'map', 'stats'];
+const TAB_VALUES: Tab[] = ['collection', 'species', 'map', 'stats'];
 const TAB_KEYS: Record<Tab, string> = {
   collection: 'nav.collection',
+  species: 'nav.species',
   map: 'nav.map',
   stats: 'nav.stats',
 };
@@ -81,6 +83,11 @@ export function AppShell() {
         <TabsContent value="collection" className="flex-1 min-h-0 overflow-auto">
           <Suspense fallback={<div className="h-full w-full animate-pulse bg-card/20" />}>
             <CollectionTab />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="species" className="flex-1 min-h-0 overflow-auto">
+          <Suspense fallback={<div className="h-full w-full animate-pulse bg-card/20" />}>
+            <SpeciesTab />
           </Suspense>
         </TabsContent>
         <TabsContent value="map" className="flex-1 min-h-0">

@@ -26,9 +26,12 @@ const samplePayload: ImportPayload = {
   date_found: '2024-05-10',
   country: 'Croatia',
   region: 'Istria',
+  location_note: '',
   lat: 45.1,
   lng: 13.9,
   notes: 'Found near oak tree',
+  observed_count: null,
+  additional_photos: [],
 };
 
 const sampleFind: Find = {
@@ -39,10 +42,14 @@ const sampleFind: Find = {
   date_found: '2024-05-10',
   country: 'Croatia',
   region: 'Istria',
+  location_note: '',
   lat: 45.1,
   lng: 13.9,
   notes: 'Found near oak tree',
+  observed_count: null,
+  is_favorite: false,
   created_at: '2024-05-10T14:00:00Z',
+  photos: [],
 };
 
 describe('SUPPORTED_EXTENSIONS', () => {
@@ -165,9 +172,11 @@ const sampleUpdatePayload: UpdateFindPayload = {
   date_found: '2024-06-01',
   country: 'Slovenia',
   region: 'Triglav',
+  location_note: '',
   lat: 46.3,
   lng: 14.1,
   notes: 'Updated note',
+  observed_count: 12,
 };
 
 describe('updateFind', () => {
@@ -180,6 +189,7 @@ describe('updateFind', () => {
     lat: 46.3,
     lng: 14.1,
     notes: 'Updated note',
+    observed_count: 12,
   };
 
   beforeEach(() => {

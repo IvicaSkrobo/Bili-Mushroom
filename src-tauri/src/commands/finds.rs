@@ -12,6 +12,13 @@ pub struct SpeciesNote {
     pub notes: String,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct SpeciesProfile {
+    pub species_name: String,
+    pub cover_photo_id: Option<i64>,
+    pub tags: Vec<String>,
+}
+
 #[tauri::command]
 pub async fn get_species_notes(storage_path: String) -> Result<Vec<SpeciesNote>, String> {
     let conn = open_db(&storage_path)?;
@@ -24,6 +31,47 @@ pub async fn get_species_notes(storage_path: String) -> Result<Vec<SpeciesNote>,
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
     Ok(notes)
+}
+
+#[tauri::command]
+pub async fn get_species_profiles(storage_path: String) -> Result<Vec<SpeciesProfile>, String> {
+    let conn = open_db(&storage_path)?;
+    let mut stmt = conn
+        .prepare("SELECT species_name, cover_photo_id, tags_json FROM species_profiles ORDER BY species_name")
+        .map_err(|e| e.to_string())?;
+    let profiles = stmt
+        .query_map([], |row| {
+            let tags_json: String = row.get(2)?;
+            Ok(SpeciesProfile {
+                species_name: row.get(0)?,
+                cover_photo_id: row.get(1)?,
+                tags: serde_json::from_str(&tags_json).unwrap_or_default(),
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    Ok(profiles)
+}
+
+#[tauri::command]
+pub async fn upsert_species_profile(
+    storage_path: String,
+    species_name: String,
+    cover_photo_id: Option<i64>,
+    tags: Vec<String>,
+) -> Result<(), String> {
+    let conn = open_db(&storage_path)?;
+    let updated_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let tags_json = serde_json::to_string(&tags)
+        .map_err(|e| format!("Failed to encode species tags: {}", e))?;
+    conn.execute(
+        "INSERT INTO species_profiles (species_name, cover_photo_id, tags_json, updated_at) VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(species_name) DO UPDATE SET cover_photo_id=excluded.cover_photo_id, tags_json=excluded.tags_json, updated_at=excluded.updated_at",
+        params![species_name, cover_photo_id, tags_json, updated_at],
+    )
+    .map_err(|e| format!("Upsert species profile failed: {}", e))?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -203,7 +251,7 @@ pub async fn set_find_favorite(
 
     let mut record = conn
         .query_row(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, is_favorite, created_at FROM finds WHERE id = ?1",
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, is_favorite, created_at FROM finds WHERE id = ?1",
             params![find_id],
             |row| {
                 Ok(FindRecord {
@@ -217,8 +265,9 @@ pub async fn set_find_favorite(
                     lng: row.get(7)?,
                     notes: row.get(8)?,
                     location_note: row.get(9)?,
-                    is_favorite: row.get::<_, i64>(10)? == 1,
-                    created_at: row.get(11)?,
+                    observed_count: row.get(10)?,
+                    is_favorite: row.get::<_, i64>(11)? == 1,
+                    created_at: row.get(12)?,
                     photos: vec![],
                 })
             },

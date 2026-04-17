@@ -1,8 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getFinds, updateFind, deleteFind, getSpeciesNotes, upsertSpeciesNote,
+  getSpeciesProfiles, upsertSpeciesProfile,
   bulkRenameSpecies, moveFindToFolder, setFindFavorite,
-  FINDS_QUERY_KEY, SPECIES_NOTES_QUERY_KEY,
+  FINDS_QUERY_KEY, SPECIES_NOTES_QUERY_KEY, SPECIES_PROFILES_QUERY_KEY,
   type Find, type UpdateFindPayload,
 } from '@/lib/finds';
 import { useAppStore } from '@/stores/appStore';
@@ -44,6 +45,15 @@ export function useSpeciesNotes() {
   return useQuery({
     queryKey: [SPECIES_NOTES_QUERY_KEY, storagePath],
     queryFn: () => getSpeciesNotes(storagePath!),
+    enabled: !!storagePath,
+  });
+}
+
+export function useSpeciesProfiles() {
+  const storagePath = useAppStore((s) => s.storagePath);
+  return useQuery({
+    queryKey: [SPECIES_PROFILES_QUERY_KEY, storagePath],
+    queryFn: () => getSpeciesProfiles(storagePath!),
     enabled: !!storagePath,
   });
 }
@@ -106,6 +116,25 @@ export function useUpsertSpeciesNote() {
       upsertSpeciesNote(storagePath!, speciesName, notes),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [SPECIES_NOTES_QUERY_KEY, storagePath] });
+    },
+  });
+}
+
+export function useUpsertSpeciesProfile() {
+  const storagePath = useAppStore((s) => s.storagePath);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      speciesName,
+      coverPhotoId,
+      tags,
+    }: {
+      speciesName: string;
+      coverPhotoId: number | null;
+      tags: string[];
+    }) => upsertSpeciesProfile(storagePath!, speciesName, coverPhotoId, tags),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [SPECIES_PROFILES_QUERY_KEY, storagePath] });
     },
   });
 }

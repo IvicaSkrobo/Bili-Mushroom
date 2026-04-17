@@ -13,7 +13,9 @@ pub fn run() {
             commands::finds::delete_find,
             commands::finds::get_find_photos,
             commands::finds::get_species_notes,
+            commands::finds::get_species_profiles,
             commands::finds::upsert_species_note,
+            commands::finds::upsert_species_profile,
             commands::finds::trash_source_file,
             commands::finds::quit_app,
             commands::finds::bulk_rename_species,
@@ -68,7 +70,7 @@ mod smoke {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .expect("user_version");
-        assert_eq!(version, 7, "user_version must be 7 after all migrations");
+        assert_eq!(version, 10, "user_version must be 10 after all migrations");
     }
 
     #[test]

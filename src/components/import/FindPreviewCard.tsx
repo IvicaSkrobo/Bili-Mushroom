@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { Image, MapPin, X, Unlock, Trash2 } from 'lucide-react';
+import { Image, Info, MapPin, X, Unlock, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -53,7 +53,14 @@ export function FindPreviewCard({
   const [trashing, setTrashing] = useState(false);
 
   const updateLockable = <K extends LockableField>(key: K, value: string) => {
-    onChange({ ...payload, [key]: value }, key);
+    const nextValue = key === 'observed_count'
+      ? (() => {
+          if (value.trim() === '') return null;
+          const parsed = Number.parseInt(value, 10);
+          return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+        })()
+      : value;
+    onChange({ ...payload, [key]: nextValue }, key);
   };
 
   const handleMapConfirm = async (lat: number, lng: number) => {
@@ -89,20 +96,21 @@ export function FindPreviewCard({
 
   const isHeicFile = isHeic(payload.original_filename);
 
-  function LockableInput({
-    field,
-    ...inputProps
-  }: { field: LockableField } & React.InputHTMLAttributes<HTMLInputElement>) {
-    const isDate = field === 'date_found';
-    const rawValue = payload[field] as string;
-    return (
-      <div className="flex items-center gap-1">
-        <Input
-          {...inputProps}
-          value={isDate ? isoToDisplay(rawValue) : rawValue}
-          onChange={(e) => updateLockable(field, isDate ? displayToIso(e.target.value) : e.target.value)}
-          className={locked[field] ? 'border-amber-400 focus-visible:ring-amber-400' : ''}
-        />
+    function LockableInput({
+      field,
+      ...inputProps
+    }: { field: LockableField } & React.InputHTMLAttributes<HTMLInputElement>) {
+      const isDate = field === 'date_found';
+      const isObservedCount = field === 'observed_count';
+      const rawValue = payload[field] as string;
+      return (
+        <div className="flex items-center gap-1">
+          <Input
+            {...inputProps}
+            value={isObservedCount ? (payload.observed_count ?? '') : (isDate ? isoToDisplay(rawValue) : rawValue)}
+            onChange={(e) => updateLockable(field, isDate ? displayToIso(e.target.value) : e.target.value)}
+            className={locked[field] ? 'border-amber-400 focus-visible:ring-amber-400' : ''}
+          />
         {locked[field] && (
           <Button
             type="button"
@@ -209,6 +217,25 @@ export function FindPreviewCard({
 
               <div>
                 <LockableInput field="location_note" placeholder={t('preview.locationMark')} />
+              </div>
+
+              <div>
+                <div className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
+                  <span>{t('preview.observedCount')}</span>
+                  <span
+                    title={t('preview.observedCountHelp')}
+                    aria-label={t('preview.observedCountHelp')}
+                  >
+                    <Info className="h-3.5 w-3.5" />
+                  </span>
+                </div>
+                <LockableInput
+                  field="observed_count"
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder={t('preview.observedCountPlaceholder')}
+                />
               </div>
 
               <div className="col-span-2 flex items-center gap-2">

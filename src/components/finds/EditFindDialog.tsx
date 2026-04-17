@@ -17,7 +17,7 @@ import { useT } from '@/i18n/index';
 import type { Find } from '@/lib/finds';
 import { reverseGeocode } from '@/lib/geocoding';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
-import { MapPin } from 'lucide-react';
+import { Info, MapPin } from 'lucide-react';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 
 interface FormState {
@@ -29,18 +29,20 @@ interface FormState {
   lat: string;
   lng: string;
   notes: string;
+  observed_count: string;
 }
 
 function findToFormState(find: Find): FormState {
   return {
-    species_name: find.species_name,
-    date_found: find.date_found,
-    country: find.country,
-    region: find.region,
-    location_note: find.location_note,
+    species_name: find.species_name ?? '',
+    date_found: find.date_found ?? '',
+    country: find.country ?? '',
+    region: find.region ?? '',
+    location_note: find.location_note ?? '',
     lat: find.lat !== null ? String(find.lat) : '',
     lng: find.lng !== null ? String(find.lng) : '',
-    notes: find.notes,
+    notes: find.notes ?? '',
+    observed_count: find.observed_count != null ? String(find.observed_count) : '',
   };
 }
 
@@ -66,6 +68,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     lat: '',
     lng: '',
     notes: '',
+    observed_count: '',
   });
 
   useEffect(() => {
@@ -106,6 +109,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
         lat: form.lat !== '' ? parseFloat(form.lat) : null,
         lng: form.lng !== '' ? parseFloat(form.lng) : null,
         notes: form.notes,
+        observed_count: form.observed_count !== '' ? parseInt(form.observed_count, 10) : null,
       },
       { onSuccess: () => onOpenChange(false) },
     );
@@ -239,6 +243,26 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
               onChange={(e) => handleChange('notes', e.target.value)}
               placeholder={t('edit.notes')}
               rows={3}
+            />
+          </div>
+          <div>
+            <div className="mb-1 flex items-center gap-1 text-sm font-medium">
+              <label>{t('edit.observedCount')}</label>
+              <span
+                className="text-muted-foreground"
+                title={t('edit.observedCountHelp')}
+                aria-label={t('edit.observedCountHelp')}
+              >
+                <Info className="h-3.5 w-3.5" />
+              </span>
+            </div>
+            <Input
+              type="number"
+              min="0"
+              step="1"
+              value={form.observed_count}
+              onChange={(e) => handleChange('observed_count', e.target.value)}
+              placeholder={t('edit.observedCountPlaceholder')}
             />
           </div>
         </div>

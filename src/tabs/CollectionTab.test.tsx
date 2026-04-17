@@ -81,8 +81,15 @@ function renderTab(qc?: QueryClient) {
 
 describe('CollectionTab', () => {
   beforeEach(() => {
-    useAppStore.setState({ storagePath: '/storage/test', dbReady: true, language: 'en' });
+    useAppStore.setState({
+      storagePath: '/storage/test',
+      dbReady: true,
+      language: 'en',
+      selectedCollectionSpecies: null,
+    });
     invokeHandlers['get_species_notes'] = () => [];
+    invokeHandlers['get_species_profiles'] = () => [];
+    invokeHandlers['upsert_species_profile'] = () => undefined;
   });
 
   it('shows EmptyState and Import Photos button when finds is empty', async () => {
@@ -102,6 +109,26 @@ describe('CollectionTab', () => {
       expect(screen.getByText('Boletus edulis')).toBeInTheDocument();
     });
     expect(screen.queryByText('Your collection is empty')).toBeNull();
+  });
+
+  it('shows species-level favorite badge and uses representative photo from species profile', async () => {
+    invokeHandlers['get_finds'] = () => [
+      { ...find1, is_favorite: true },
+      find2,
+    ];
+    invokeHandlers['get_species_profiles'] = () => [
+      { species_name: 'Amanita muscaria', cover_photo_id: 1, tags: [] },
+    ];
+    renderTab();
+
+    await waitFor(() => {
+      expect(screen.getByTitle('favorites 1')).toBeInTheDocument();
+    });
+
+    expect(screen.getByAltText('Amanita muscaria')).toHaveAttribute(
+      'src',
+      expect.stringContaining('Amanita_muscaria_001.jpg'),
+    );
   });
 
   it('clicking Import Photos opens ImportDialog', async () => {
@@ -144,6 +171,53 @@ describe('CollectionTab', () => {
     renderTab();
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeInTheDocument();
+    });
+  });
+
+  it('opens and filters the requested species when jumping from Species tab', async () => {
+    useAppStore.setState({ selectedCollectionSpecies: 'Boletus edulis' });
+    invokeHandlers['get_finds'] = () => [find1, find2];
+    renderTab();
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Boletus edulis')).toBeInTheDocument();
+      expect(screen.getAllByText('Boletus edulis').length).toBeGreaterThan(0);
+    });
+
+    expect(screen.queryByText('Amanita muscaria')).not.toBeInTheDocument();
+    expect(useAppStore.getState().selectedCollectionSpecies).toBeNull();
+  });
+
+  it('allows setting the representative species photo from the collection lightbox', async () => {
+    invokeHandlers['get_finds'] = () => [
+      {
+        ...find1,
+        photos: [
+          { id: 1, find_id: 1, photo_path: 'Croatia/Istria/2024-05-10/Amanita_muscaria_001.jpg', is_primary: true },
+          { id: 3, find_id: 1, photo_path: 'Croatia/Istria/2024-05-10/Amanita_muscaria_002.jpg', is_primary: false },
+        ],
+      },
+    ];
+    const upsertSpy = vi.fn();
+    invokeHandlers['upsert_species_profile'] = upsertSpy;
+    renderTab();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /amanita muscaria/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /amanita muscaria/i }));
+    fireEvent.click(screen.getByAltText('shroom1.jpg'));
+    fireEvent.click(screen.getByRole('button', { name: /set as species representative photo/i }));
+
+    await waitFor(() => {
+      expect(upsertSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          speciesName: 'Amanita muscaria',
+          coverPhotoId: 1,
+          tags: [],
+        }),
+      );
     });
   });
 

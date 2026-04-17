@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Image, X } from 'lucide-react';
 import {
   Dialog,
   DialogClose,
@@ -8,6 +8,7 @@ import {
   DialogPortal,
 } from '@/components/ui/dialog';
 import { Dialog as DialogPrimitive } from 'radix-ui';
+import { Button } from '@/components/ui/button';
 import { isHeic, type Find, type FindPhoto } from '@/lib/finds';
 import { useT } from '@/i18n/index';
 
@@ -23,6 +24,8 @@ interface PhotoLightboxProps {
   currentIndex: number;
   onIndexChange: (index: number) => void;
   storagePath: string;
+  onSetAsSpeciesCover?: (photo: LightboxPhoto) => void;
+  isCurrentSpeciesCover?: (photo: LightboxPhoto) => boolean;
 }
 
 export function PhotoLightbox({
@@ -32,6 +35,8 @@ export function PhotoLightbox({
   currentIndex,
   onIndexChange,
   storagePath,
+  onSetAsSpeciesCover,
+  isCurrentSpeciesCover,
 }: PhotoLightboxProps) {
   const t = useT();
   const [visible, setVisible] = useState(true);
@@ -78,6 +83,7 @@ export function PhotoLightbox({
   const absolutePath = `${storagePath}/${photo.photo_path}`;
   const heic = isHeic(photo.photo_path);
   const photoSrc = heic ? null : convertFileSrc(absolutePath);
+  const isSpeciesCover = isCurrentSpeciesCover?.(current) ?? false;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -89,6 +95,13 @@ export function PhotoLightbox({
           className="fixed top-[50%] left-[50%] z-50 flex w-full max-w-4xl max-h-[85vh] translate-x-[-50%] translate-y-[-50%] rounded-lg border border-border/40 bg-background shadow-2xl outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 overflow-hidden"
           onEscapeKeyDown={() => onOpenChange(false)}
         >
+          <DialogPrimitive.Title className="sr-only">
+            {find.species_name || t('findCard.unnamed')}
+          </DialogPrimitive.Title>
+          <DialogPrimitive.Description className="sr-only">
+            {t('lightbox.photoCount', { current: currentIndex + 1, total: photos.length })}
+          </DialogPrimitive.Description>
+
           {/* Photo area */}
           <div className="relative flex flex-1 min-w-0 flex-col items-center justify-center bg-black/60 min-h-0">
 
@@ -188,6 +201,21 @@ export function PhotoLightbox({
                   <p className="text-sm italic text-muted-foreground/70 leading-relaxed">
                     {find.notes}
                   </p>
+                </div>
+              )}
+
+              {onSetAsSpeciesCover && (
+                <div className="border-t border-border/30 pt-3">
+                  <Button
+                    type="button"
+                    variant={isSpeciesCover ? 'secondary' : 'outline'}
+                    className="w-full justify-start gap-2"
+                    onClick={() => onSetAsSpeciesCover(current)}
+                    disabled={isSpeciesCover}
+                  >
+                    {isSpeciesCover ? <Check className="h-4 w-4" /> : <Image className="h-4 w-4" />}
+                    {isSpeciesCover ? t('collection.currentRepresentativePhoto') : t('collection.setRepresentativePhoto')}
+                  </Button>
                 </div>
               )}
             </div>

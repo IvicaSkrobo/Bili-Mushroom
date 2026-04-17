@@ -67,6 +67,7 @@ export async function scanAndImport(
           lat: exif.lat,
           lng: exif.lng,
           notes: '',
+          observed_count: null,
           additional_photos: [],
         };
       }),

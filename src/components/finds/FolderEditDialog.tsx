@@ -89,6 +89,7 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange }: FolderEdi
               lat: pickedLat !== null ? pickedLat : f.lat,
               lng: pickedLng !== null ? pickedLng : f.lng,
               notes: f.notes,
+              observed_count: f.observed_count,
             }),
           ),
         );

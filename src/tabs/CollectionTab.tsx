@@ -12,7 +12,7 @@ import { EditFindDialog } from '@/components/finds/EditFindDialog';
 import { FolderEditDialog } from '@/components/finds/FolderEditDialog';
 import { DeleteFindDialog } from '@/components/finds/DeleteFindDialog';
 import { BulkDeleteDialog } from '@/components/finds/BulkDeleteDialog';
-import { useFinds, useSpeciesNotes, useUpsertSpeciesNote, useBulkRenameSpecies, useSetFindFavorite } from '@/hooks/useFinds';
+import { useFinds, useSpeciesNotes, useSpeciesProfiles, useUpsertSpeciesNote, useUpsertSpeciesProfile, useBulkRenameSpecies, useSetFindFavorite } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { useT, tFindsCount } from '@/i18n/index';
 import type { Find } from '@/lib/finds';
@@ -24,9 +24,13 @@ export default function CollectionTab() {
   const storagePath = useAppStore((s) => s.storagePath);
   const editingFindId = useAppStore((s) => s.editingFindId);
   const setEditingFindId = useAppStore((s) => s.setEditingFindId);
+  const selectedCollectionSpecies = useAppStore((s) => s.selectedCollectionSpecies);
+  const setSelectedCollectionSpecies = useAppStore((s) => s.setSelectedCollectionSpecies);
   const { data: finds, isLoading, isError, error } = useFinds();
   const { data: speciesNotesData } = useSpeciesNotes();
+  const { data: speciesProfiles } = useSpeciesProfiles();
   const upsertNote = useUpsertSpeciesNote();
+  const upsertSpeciesProfile = useUpsertSpeciesProfile();
   const setFindFavorite = useSetFindFavorite();
 
   const [importOpen, setImportOpen] = useState(false);
@@ -54,6 +58,7 @@ export default function CollectionTab() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [lightboxPhotos, setLightboxPhotos] = useState<LightboxPhoto[]>([]);
+  const [lightboxSpeciesName, setLightboxSpeciesName] = useState<string | null>(null);
 
   const openLightbox = (speciesFinds: Find[], findId: number, photoIndex: number) => {
     const flat: LightboxPhoto[] = [];
@@ -75,6 +80,7 @@ export default function CollectionTab() {
     }
     setLightboxPhotos(flat);
     setLightboxIndex(globalIndex);
+    setLightboxSpeciesName(speciesFinds[0]?.species_name ?? null);
     setLightboxOpen(true);
   };
 
@@ -152,6 +158,18 @@ export default function CollectionTab() {
     setEditingFindId(null);
   }, [editingFindId, finds, setEditingFindId]);
 
+  useEffect(() => {
+    if (!selectedCollectionSpecies) return;
+    setExpanded((prev) => {
+      if (prev.has(selectedCollectionSpecies)) return prev;
+      const next = new Set(prev);
+      next.add(selectedCollectionSpecies);
+      return next;
+    });
+    setSearch(selectedCollectionSpecies);
+    setSelectedCollectionSpecies(null);
+  }, [selectedCollectionSpecies, setSelectedCollectionSpecies]);
+
   const groups = useMemo(() => {
     const map = new Map<string, Find[]>();
     for (const f of finds ?? []) {
@@ -207,6 +225,17 @@ export default function CollectionTab() {
   const handleNoteSave = (speciesName: string) => {
     const notes = noteDrafts[speciesName] ?? '';
     upsertNote.mutate({ speciesName, notes });
+  };
+
+  const handleSetSpeciesCover = (photo: LightboxPhoto) => {
+    const speciesName = lightboxSpeciesName ?? photo.find.species_name;
+    if (!speciesName) return;
+    const existingTags = speciesProfiles?.find((entry) => entry.species_name === speciesName)?.tags ?? [];
+    upsertSpeciesProfile.mutate({
+      speciesName,
+      coverPhotoId: photo.photo.id,
+      tags: existingTags,
+    });
   };
 
   return (
@@ -375,15 +404,28 @@ export default function CollectionTab() {
         {filteredGroups.map(([speciesName, speciesFinds], idx) => {
           // When searching: always show expanded. When not: use accordion.
           const isOpen = isSearching || expanded.has(speciesName);
-          const primaryPhoto = speciesFinds[0]?.photos[0] ?? null;
+          const profile = speciesProfiles?.find((entry) => entry.species_name === speciesName) ?? null;
+          const coverPhotoId = profile?.cover_photo_id ?? null;
+          const representativePhoto = speciesFinds
+            .flatMap((find) => find.photos)
+            .find((photo) => photo.id === coverPhotoId) ?? speciesFinds[0]?.photos[0] ?? null;
+          const primaryPhoto = representativePhoto;
           const thumbSrc = primaryPhoto
             ? convertFileSrc(`${storagePath}/${primaryPhoto.photo_path}`)
             : null;
+          const isJumpTarget = speciesName === selectedCollectionSpecies;
+          const speciesFavoriteCount = speciesFinds.filter((find) => find.is_favorite).length;
 
           return (
             <div
               key={speciesName}
-              className={`stagger-item overflow-hidden rounded-sm border bg-card ${isOpen ? 'border-primary/60 border-l-[3px]' : 'border-border/70'}`}
+              className={`stagger-item overflow-hidden rounded-sm border bg-card ${
+                isJumpTarget
+                  ? 'border-primary border-l-[3px] ring-1 ring-primary/30'
+                  : isOpen
+                    ? 'border-primary/60 border-l-[3px]'
+                    : 'border-border/70'
+              }`}
               style={{ animationDelay: `${Math.min(idx * 30, 300)}ms` }}
             >
               {/* Folder header */}
@@ -407,9 +449,20 @@ export default function CollectionTab() {
                   )}
 
                   <div className="flex-1 min-w-0">
-                    <p className="font-serif text-base font-semibold leading-tight truncate text-foreground">
-                      {speciesName}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-serif text-base font-semibold leading-tight truncate text-foreground">
+                        {speciesName}
+                      </p>
+                      {speciesFavoriteCount > 0 && (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full border border-amber-500/35 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600"
+                          title={t('species.favoriteCountLabel', { count: speciesFavoriteCount })}
+                        >
+                          <Star className="h-3 w-3 fill-current" />
+                          <span>{speciesFavoriteCount}</span>
+                        </span>
+                      )}
+                    </div>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
                       {tFindsCount(speciesFinds.length, lang)}
                     </p>
@@ -505,11 +558,20 @@ export default function CollectionTab() {
       />
       <PhotoLightbox
         open={lightboxOpen}
-        onOpenChange={setLightboxOpen}
+        onOpenChange={(open) => {
+          setLightboxOpen(open);
+          if (!open) setLightboxSpeciesName(null);
+        }}
         photos={lightboxPhotos}
         currentIndex={lightboxIndex}
         onIndexChange={setLightboxIndex}
         storagePath={storagePath!}
+        onSetAsSpeciesCover={handleSetSpeciesCover}
+        isCurrentSpeciesCover={(entry) => {
+          const speciesName = lightboxSpeciesName ?? entry.find.species_name;
+          const profile = speciesProfiles?.find((item) => item.species_name === speciesName);
+          return profile?.cover_photo_id === entry.photo.id;
+        }}
       />
     </div>
   );

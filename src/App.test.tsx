@@ -21,6 +21,7 @@ describe('App', () => {
       mapLayer: 'Satellite',
       pendingScan: false,
       editingFindId: null,
+      selectedCollectionSpecies: null,
     });
   });
 
@@ -35,6 +36,7 @@ describe('App', () => {
     vi.mocked(dbLib.initializeDatabase).mockResolvedValue(undefined);
     render(<App />);
     expect(await screen.findByRole('tab', { name: /collection/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /species/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /map/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /stats/i })).toBeInTheDocument();
   });

@@ -20,6 +20,8 @@ pub struct ImportPayload {
     #[serde(default)]
     pub location_note: String,
     #[serde(default)]
+    pub observed_count: Option<i64>,
+    #[serde(default)]
     pub additional_photos: Vec<String>, // Mode A: extra source paths for same find
 }
 
@@ -43,6 +45,7 @@ pub struct FindRecord {
     pub lng: Option<f64>,
     pub notes: String,
     pub location_note: String,
+    pub observed_count: Option<i64>,
     pub is_favorite: bool,
     pub created_at: String,
     pub photos: Vec<FindPhoto>,
@@ -68,6 +71,9 @@ const MIGRATION_0004: &str = include_str!("../../migrations/0004_location_note.s
 const MIGRATION_0005: &str = include_str!("../../migrations/0005_species_notes.sql");
 const MIGRATION_0006: &str = include_str!("../../migrations/0006_tile_cache.sql");
 const MIGRATION_0007: &str = include_str!("../../migrations/0007_find_favorites.sql");
+const MIGRATION_0008: &str = include_str!("../../migrations/0008_observed_count.sql");
+const MIGRATION_0009: &str = include_str!("../../migrations/0009_species_profiles.sql");
+const MIGRATION_0010: &str = include_str!("../../migrations/0010_species_profile_tags.sql");
 
 /// Apply all migrations to an open connection using rusqlite's user_version pragma
 /// as a lightweight migration tracker. Idempotent — safe to call on every open.
@@ -127,6 +133,42 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
         conn.execute_batch("PRAGMA user_version = 7")
             .map_err(|e| format!("Failed to set user_version=7: {}", e))?;
     }
+    if version < 8 {
+        let finds_table_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='finds'",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(|e| format!("Failed to inspect finds table for migration 0008: {}", e))?;
+        if finds_table_exists > 0 {
+            conn.execute_batch(MIGRATION_0008)
+                .map_err(|e| format!("Migration 0008 failed: {}", e))?;
+        }
+        conn.execute_batch("PRAGMA user_version = 8")
+            .map_err(|e| format!("Failed to set user_version=8: {}", e))?;
+    }
+    if version < 9 {
+        conn.execute_batch(MIGRATION_0009)
+            .map_err(|e| format!("Migration 0009 failed: {}", e))?;
+        conn.execute_batch("PRAGMA user_version = 9")
+            .map_err(|e| format!("Failed to set user_version=9: {}", e))?;
+    }
+    if version < 10 {
+        let profiles_table_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='species_profiles'",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(|e| format!("Failed to inspect species_profiles table for migration 0010: {}", e))?;
+        if profiles_table_exists > 0 {
+            conn.execute_batch(MIGRATION_0010)
+                .map_err(|e| format!("Migration 0010 failed: {}", e))?;
+        }
+        conn.execute_batch("PRAGMA user_version = 10")
+            .map_err(|e| format!("Failed to set user_version=10: {}", e))?;
+    }
 
     Ok(())
 }
@@ -150,8 +192,8 @@ fn has_existing_photo_path(conn: &Connection, photo_path: &str) -> rusqlite::Res
 
 pub(crate) fn insert_find_row(conn: &Connection, record: &FindRecord) -> rusqlite::Result<i64> {
     conn.execute(
-        "INSERT INTO finds (original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, is_favorite, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        "INSERT INTO finds (original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, is_favorite, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
         params![
             record.original_filename,
             record.species_name,
@@ -162,6 +204,7 @@ pub(crate) fn insert_find_row(conn: &Connection, record: &FindRecord) -> rusqlit
             record.lng,
             record.notes,
             record.location_note,
+            record.observed_count,
             if record.is_favorite { 1i64 } else { 0i64 },
             record.created_at,
         ],
@@ -289,6 +332,7 @@ pub async fn import_find(
             lng: payload.lng,
             notes: payload.notes.clone(),
             location_note: payload.location_note.clone(),
+            observed_count: payload.observed_count,
             is_favorite: false,
             created_at,
             photos: vec![],
@@ -372,7 +416,7 @@ pub async fn get_finds(storage_path: String) -> Result<Vec<FindRecord>, String> 
 
     let mut find_stmt = conn
         .prepare(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, is_favorite, created_at
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, is_favorite, created_at
              FROM finds ORDER BY date_found DESC, id DESC",
         )
         .map_err(|e| format!("Failed to prepare finds query: {}", e))?;
@@ -390,8 +434,9 @@ pub async fn get_finds(storage_path: String) -> Result<Vec<FindRecord>, String> 
                 lng: row.get(7)?,
                 notes: row.get(8)?,
                 location_note: row.get(9)?,
-                is_favorite: row.get::<_, i64>(10)? == 1,
-                created_at: row.get(11)?,
+                observed_count: row.get(10)?,
+                is_favorite: row.get::<_, i64>(11)? == 1,
+                created_at: row.get(12)?,
                 photos: vec![],
             })
         })
@@ -444,6 +489,7 @@ pub struct UpdateFindPayload {
     pub lng: Option<f64>,
     pub notes: String,
     pub location_note: String,
+    pub observed_count: Option<i64>,
 }
 
 #[tauri::command]
@@ -455,7 +501,7 @@ pub async fn update_find(
 
     let rows_affected = conn
         .execute(
-            "UPDATE finds SET species_name=?1, date_found=?2, country=?3, region=?4, lat=?5, lng=?6, notes=?7, location_note=?8 WHERE id=?9",
+            "UPDATE finds SET species_name=?1, date_found=?2, country=?3, region=?4, lat=?5, lng=?6, notes=?7, location_note=?8, observed_count=?9 WHERE id=?10",
             params![
                 payload.species_name,
                 payload.date_found,
@@ -465,6 +511,7 @@ pub async fn update_find(
                 payload.lng,
                 payload.notes,
                 payload.location_note,
+                payload.observed_count,
                 payload.id,
             ],
         )
@@ -476,7 +523,7 @@ pub async fn update_find(
 
     let mut record = conn
         .query_row(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, is_favorite, created_at FROM finds WHERE id = ?1",
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, is_favorite, created_at FROM finds WHERE id = ?1",
             params![payload.id],
             |row| {
                 Ok(FindRecord {
@@ -490,8 +537,9 @@ pub async fn update_find(
                     lng: row.get(7)?,
                     notes: row.get(8)?,
                     location_note: row.get(9)?,
-                    is_favorite: row.get::<_, i64>(10)? == 1,
-                    created_at: row.get(11)?,
+                    observed_count: row.get(10)?,
+                    is_favorite: row.get::<_, i64>(11)? == 1,
+                    created_at: row.get(12)?,
                     photos: vec![],
                 })
             },
@@ -534,6 +582,9 @@ pub(crate) mod test_helpers {
     const MIGRATION_0004: &str = include_str!("../../migrations/0004_location_note.sql");
     const MIGRATION_0005: &str = include_str!("../../migrations/0005_species_notes.sql");
     const MIGRATION_0007: &str = include_str!("../../migrations/0007_find_favorites.sql");
+    const MIGRATION_0008: &str = include_str!("../../migrations/0008_observed_count.sql");
+    const MIGRATION_0009: &str = include_str!("../../migrations/0009_species_profiles.sql");
+    const MIGRATION_0010: &str = include_str!("../../migrations/0010_species_profile_tags.sql");
 
     pub(crate) fn setup_in_memory_db() -> Connection {
         let conn = Connection::open_in_memory().expect("in-memory DB");
@@ -543,6 +594,9 @@ pub(crate) mod test_helpers {
         conn.execute_batch(MIGRATION_0004).expect("migration 0004");
         conn.execute_batch(MIGRATION_0005).expect("migration 0005");
         conn.execute_batch(MIGRATION_0007).expect("migration 0007");
+        conn.execute_batch(MIGRATION_0008).expect("migration 0008");
+        conn.execute_batch(MIGRATION_0009).expect("migration 0009");
+        conn.execute_batch(MIGRATION_0010).expect("migration 0010");
         conn
     }
 
@@ -558,6 +612,7 @@ pub(crate) mod test_helpers {
             lng: Some(16.0),
             notes: "Test note".to_string(),
             location_note: "".to_string(),
+            observed_count: None,
             is_favorite: false,
             created_at: "2024-05-10T14:23:00Z".to_string(),
             photos: vec![],
@@ -624,7 +679,7 @@ mod tests {
 
         let retrieved: FindRecord = conn
             .query_row(
-                "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, is_favorite, created_at FROM finds WHERE id = ?1",
+                "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, observed_count, is_favorite, created_at FROM finds WHERE id = ?1",
                 params![id],
                 |row| Ok(FindRecord {
                     id: row.get(0)?,
@@ -636,8 +691,9 @@ mod tests {
                     lat: row.get(6)?,
                     lng: row.get(7)?,
                     notes: row.get(8)?,
-                    is_favorite: row.get::<_, i64>(9)? == 1,
-                    created_at: row.get(10)?,
+                    observed_count: row.get(9)?,
+                    is_favorite: row.get::<_, i64>(10)? == 1,
+                    created_at: row.get(11)?,
                     location_note: String::new(),
                     photos: vec![],
                 }),
@@ -788,7 +844,7 @@ mod tests {
     fn update_find_on_conn(conn: &Connection, payload: &UpdateFindPayload) -> Result<FindRecord, String> {
         let rows_affected = conn
             .execute(
-                "UPDATE finds SET species_name=?1, date_found=?2, country=?3, region=?4, lat=?5, lng=?6, notes=?7 WHERE id=?8",
+                "UPDATE finds SET species_name=?1, date_found=?2, country=?3, region=?4, lat=?5, lng=?6, notes=?7, location_note=?8, observed_count=?9 WHERE id=?10",
                 params![
                     payload.species_name,
                     payload.date_found,
@@ -797,6 +853,8 @@ mod tests {
                     payload.lat,
                     payload.lng,
                     payload.notes,
+                    payload.location_note,
+                    payload.observed_count,
                     payload.id,
                 ],
             )
@@ -807,7 +865,7 @@ mod tests {
         }
 
         let mut record = conn.query_row(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, is_favorite, created_at FROM finds WHERE id = ?1",
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, is_favorite, created_at FROM finds WHERE id = ?1",
             params![payload.id],
             |row| {
                 Ok(FindRecord {
@@ -820,9 +878,10 @@ mod tests {
                     lat: row.get(6)?,
                     lng: row.get(7)?,
                     notes: row.get(8)?,
-                    is_favorite: row.get::<_, i64>(9)? == 1,
-                    created_at: row.get(10)?,
-                    location_note: String::new(),
+                    location_note: row.get(9)?,
+                    observed_count: row.get(10)?,
+                    is_favorite: row.get::<_, i64>(11)? == 1,
+                    created_at: row.get(12)?,
                     photos: vec![],
                 })
             },
@@ -870,6 +929,7 @@ mod tests {
             lng: Some(14.1),
             notes: "Updated note".to_string(),
             location_note: "Near the oak".to_string(),
+            observed_count: Some(12),
         };
 
         let updated = update_find_on_conn(&conn, &payload).expect("update");
@@ -882,6 +942,8 @@ mod tests {
         assert!((updated.lat.unwrap() - 46.3).abs() < 1e-9);
         assert!((updated.lng.unwrap() - 14.1).abs() < 1e-9);
         assert_eq!(updated.notes, "Updated note");
+        assert_eq!(updated.location_note, "Near the oak");
+        assert_eq!(updated.observed_count, Some(12));
         // original_filename, created_at must be unchanged
         assert_eq!(updated.original_filename, "mushroom.jpg");
         assert_eq!(updated.created_at, "2024-05-10T14:23:00Z");
@@ -904,6 +966,7 @@ mod tests {
             lng: None,
             notes: "".to_string(),
             location_note: "".to_string(),
+            observed_count: None,
         };
 
         let result = update_find_on_conn(&conn, &payload);

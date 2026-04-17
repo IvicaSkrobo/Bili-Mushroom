@@ -187,7 +187,7 @@ mod tests {
     }
 
     #[test]
-    fn test_migration_v7_creates_table() {
+    fn test_migration_v10_creates_table() {
         let dir = tempfile::tempdir().unwrap();
         let storage = dir.path().to_str().unwrap();
         let conn = crate::commands::import::open_db(storage).unwrap();
@@ -204,6 +204,6 @@ mod tests {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 7, "user_version must be 7 after all migrations");
+        assert_eq!(version, 10, "user_version must be 10 after all migrations");
     }
 }
