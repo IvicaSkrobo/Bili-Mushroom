@@ -56,6 +56,7 @@ function formatBestMonths(months: BestMonth[] | undefined): { label: string; cou
 // ---------------------------------------------------------------------------
 
 export default function StatsTab() {
+  const showDebugPdf = import.meta.env.DEV;
   const { data: statsCards, isLoading: statsLoading } = useStatsCards();
   const { data: topSpots } = useTopSpots();
   const { data: bestMonths } = useBestMonths();
@@ -70,6 +71,10 @@ export default function StatsTab() {
   const [exportError, setExportError] = useState<string | null>(null);
   const topSpotsFormatted = useMemo(() => formatTopSpots(topSpots), [topSpots]);
   const bestMonthsFormatted = useMemo(() => formatBestMonths(bestMonths), [bestMonths]);
+  const totalPhotos = useMemo(
+    () => finds?.reduce((sum, find) => sum + find.photos.length, 0) ?? 0,
+    [finds],
+  );
   const seasonalityInsights = useMemo(
     () => buildSeasonalityInsights(bestMonths, speciesStats),
     [bestMonths, speciesStats],
@@ -118,6 +123,35 @@ export default function StatsTab() {
     }
   };
 
+  const handleExportPdfSmokeTest = async () => {
+    if (!finds || finds.length === 0 || !storagePath) return;
+    setPdfExporting(true);
+    setExportError(null);
+    try {
+      const { generateAndSavePdf } = await import('@/lib/exportPdf');
+      const path = await generateAndSavePdf(
+        finds,
+        storagePath,
+        (msg) => {
+          setPdfStage(msg);
+        },
+        { smokeTest: true },
+      );
+      if (path) {
+        setStatusMessage(`Smoke-test PDF saved to ${path}`);
+        setTimeout(() => setStatusMessage(null), 3000);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[PDF smoke-test export error]', err);
+      setExportError(`Smoke-test PDF failed: ${msg}`);
+      setTimeout(() => setExportError(null), 15000);
+    } finally {
+      setPdfExporting(false);
+      setPdfStage('');
+    }
+  };
+
   // Loading state
   if (statsLoading) {
     return (
@@ -148,7 +182,7 @@ export default function StatsTab() {
 
           {/* Stat cards: 4-column grid */}
           <div className="grid grid-cols-4 gap-6">
-            <StatCard label="TOTAL FINDS" value={statsCards.total_finds} index={0} />
+            <StatCard label="TOTAL PHOTOS" value={totalPhotos} index={0} />
             <StatCard label="UNIQUE SPECIES" value={statsCards.unique_species} index={1} />
             <StatCard label="LOCATIONS VISITED" value={statsCards.locations_visited} index={2} />
             <StatCard
@@ -262,6 +296,19 @@ export default function StatsTab() {
           <Download className="h-4 w-4 mr-1.5" />
           Export CSV
         </Button>
+
+        {showDebugPdf ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportPdfSmokeTest}
+            disabled={pdfExporting || !finds || finds.length === 0}
+            className="text-sm"
+          >
+            <FileText className="h-4 w-4 mr-1.5" />
+            Quick PDF
+          </Button>
+        ) : null}
 
         {/* PDF export button — primary/amber variant */}
         <Button

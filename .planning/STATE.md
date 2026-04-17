@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Phase 4 UI-SPEC approved
-last_updated: "2026-04-16T17:40:00.000Z"
-last_activity: 2026-04-16 -- Fixed startup DB error dialog quit path and synced stale planning handoff/state notes
+status: active
+stopped_at: null
+last_updated: "2026-04-17T12:30:00.000Z"
+last_activity: 2026-04-17 -- Stabilized PDF export and redesigned the journal PDF pacing/content
 progress:
-  total_phases: 7
-  completed_phases: 4
-  total_plans: 18
-  completed_plans: 17
-  percent: 94
+  total_phases: 9
+  completed_phases: 6
+  total_plans: 19
+  completed_plans: 19
+  percent: 100
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-09)
 
 **Core value:** A forager's personal mushroom journal — every find stored, organized, searchable, and mapped so that nothing collected is ever forgotten.
-**Current focus:** Post-Phase 04 backlog maintenance and planning sync
+**Current focus:** Post-Phase 04 backlog maintenance with PDF export stabilization/polish
 
 ## Current Position
 
 Phase: 04.2 complete — MAINTENANCE
 Plan: Post-phase backlog triage
 Status: Completed planned phase work; addressing maintenance fixes and syncing planning artifacts
-Last activity: 2026-04-16 -- Fixed startup DB error dialog quit path and updated handoff/state snapshots
+Last activity: 2026-04-17 -- PDF export now works in-app with fallback rendering and redesigned journal pages
 
 Progress: [█░░░░░░░░░] 17%
 
@@ -84,6 +84,8 @@ Recent decisions affecting current work:
 - [ ] Batch metadata cascade in import picker — shared name+location header above card list, pre-filled from folder name, cascades to all cards; each card still individually editable
 - [ ] Folder hierarchy import mode — main folder > mushroom sub-folders > photos; each sub-folder becomes one find batch, folder name = default mushroom name; collection reflects this structure
 - [ ] Confirm duplicate strategy: avoid strict timestamp+location duplicate blocking because users intentionally capture bursts at same time/place
+- [x] Stabilize PDF export path — keep `@react-pdf/renderer`, add smoke-test diagnostics, and fall back to main-thread rendering when the worker stalls in Tauri
+- [x] Redesign PDF journal pacing/content — interleave stats pages with highlight spreads and photo ribbons, convert the trailing page into a species list, and align labels with photo-count semantics
 
 ### Quick Tasks Completed
 
@@ -112,6 +114,8 @@ Recent decisions affecting current work:
 | 260416-04.1-01-ui-governance | 2026-04-16 | Published governance baseline (tokens, variants, motion/accessibility rules, review checklist) for Phase 04.1-01. |
 | 260416-full-implementation-pass | 2026-04-16 | Implemented lazy-loaded tab bundles, added seasonality insights + species spot hints in Stats, and added/updated critical-path tests for App and insights logic. |
 | 260416-startup-quit-fix | 2026-04-16 | Startup DB error dialog Quit button now invokes backend quit_app directly; synced HANDOFF/STATE notes to current post-04.2 reality. |
+| 260417-pdf-export-stabilization | 2026-04-17 | Added worker smoke test + timeout fallback to main-thread `react-pdf` rendering, kept Quick PDF as a dev-only aid, and confirmed production builds succeed. |
+| 260417-pdf-journal-redesign | 2026-04-17 | Reworked the PDF into mixed stats/photo pacing with highlight spreads, photo ribbons, a species-list tail page, and photo-count labeling where users expect totals. |
 
 ### Roadmap Evolution
 
@@ -123,6 +127,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-15T21:48:25.769Z
-Stopped at: Phase 4 UI-SPEC approved
-Resume file: .planning/phases/04-stats-export/04-UI-SPEC.md
+Last session: 2026-04-17T12:30:00.000Z
+Stopped at: null
+Resume file: None

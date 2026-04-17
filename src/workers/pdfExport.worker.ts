@@ -12,7 +12,7 @@ if (typeof navigator === 'undefined') {
 import React from 'react';
 import * as Comlink from 'comlink';
 import { pdf } from '@react-pdf/renderer';
-import { MushroomJournal } from '../components/stats/ExportDocument';
+import { MushroomJournal, SmokeTestDocument } from '../components/stats/ExportDocument';
 import type { FindForPdf, SpeciesNoteForPdf } from '../components/stats/ExportDocument';
 
 // ---------------------------------------------------------------------------
@@ -23,14 +23,17 @@ export interface PdfWorkerApi {
   generatePdf(
     finds: FindForPdf[],
     speciesNotes: SpeciesNoteForPdf[],
+    smokeTest?: boolean,
   ): Promise<Uint8Array>;
 }
 
 const api: PdfWorkerApi = {
-  async generatePdf(finds, speciesNotes): Promise<Uint8Array> {
+  async generatePdf(finds, speciesNotes, smokeTest = false): Promise<Uint8Array> {
     console.log('[PDF worker] start', { finds: finds.length, notes: speciesNotes.length });
     try {
-      const element = React.createElement(MushroomJournal, { finds, speciesNotes });
+      const element = smokeTest
+        ? React.createElement(SmokeTestDocument, { finds })
+        : React.createElement(MushroomJournal, { finds, speciesNotes });
       console.log('[PDF worker] element created');
 
       const instance = pdf(element);
