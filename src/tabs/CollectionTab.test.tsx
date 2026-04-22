@@ -221,6 +221,23 @@ describe('CollectionTab', () => {
     });
   });
 
+  it('lets the representative-photo action wrap inside the collection lightbox sidebar', async () => {
+    invokeHandlers['get_finds'] = () => [find1];
+    renderTab();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /amanita muscaria/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /amanita muscaria/i }));
+    fireEvent.click(screen.getByAltText('shroom1.jpg'));
+
+    const actionButton = screen.getByRole('button', { name: /set as species representative photo/i });
+    expect(actionButton.className).toContain('whitespace-normal');
+    expect(actionButton.className).toContain('text-left');
+    expect(actionButton.className).toContain('min-w-0');
+  });
+
   it('invalidateQueries is called after ImportDialog closes on successful import', async () => {
     invokeHandlers['get_finds'] = () => [];
     invokeHandlers['import_find'] = () => ({ imported: [find1], skipped: [] });

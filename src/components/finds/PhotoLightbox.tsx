@@ -158,11 +158,11 @@ export function PhotoLightbox({
           </div>
 
           {/* Metadata panel */}
-          <div className="flex w-64 flex-shrink-0 flex-col border-l border-primary/20 bg-card/80 backdrop-blur-sm overflow-y-auto">
+          <div className="flex w-64 min-w-0 flex-shrink-0 flex-col border-l border-primary/20 bg-card/80 backdrop-blur-sm overflow-y-auto">
             {/* Amber top border accent */}
             <div className="h-0.5 w-full bg-primary/40 flex-shrink-0" />
 
-            <div className="flex flex-col gap-3 p-5 flex-1 min-h-0">
+            <div className="flex min-h-0 flex-1 flex-col gap-3 p-5">
               {/* Species name */}
               <p className="font-serif text-lg font-semibold leading-snug text-foreground">
                 {find.species_name || t('findCard.unnamed')}
@@ -209,7 +209,7 @@ export function PhotoLightbox({
                   <Button
                     type="button"
                     variant={isSpeciesCover ? 'secondary' : 'outline'}
-                    className="w-full justify-start gap-2"
+                    className="h-auto w-full min-w-0 justify-start gap-2 whitespace-normal py-2 text-left"
                     onClick={() => onSetAsSpeciesCover(current)}
                     disabled={isSpeciesCover}
                   >
