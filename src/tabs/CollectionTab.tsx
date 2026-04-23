@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { convertFileSrc } from '@tauri-apps/api/core';
 import { GalleryHorizontal, Plus, ChevronDown, ChevronRight, FolderOpen, Search, X, CheckSquare, Pencil, Star } from 'lucide-react';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { Button } from '@/components/ui/button';
@@ -17,6 +16,7 @@ import { useAppStore } from '@/stores/appStore';
 import { useT, tFindsCount } from '@/i18n/index';
 import type { Find } from '@/lib/finds';
 import { isInternalLibraryName } from '@/lib/internalEntries';
+import { resolvePhotoSrc } from '@/lib/photoSrc';
 
 export default function CollectionTab() {
   const t = useT();
@@ -411,7 +411,7 @@ export default function CollectionTab() {
             .find((photo) => photo.id === coverPhotoId) ?? speciesFinds[0]?.photos[0] ?? null;
           const primaryPhoto = representativePhoto;
           const thumbSrc = primaryPhoto
-            ? convertFileSrc(`${storagePath}/${primaryPhoto.photo_path}`)
+            ? resolvePhotoSrc(storagePath!, primaryPhoto.photo_path)
             : null;
           const isJumpTarget = speciesName === selectedCollectionSpecies;
           const speciesFavoriteCount = speciesFinds.filter((find) => find.is_favorite).length;

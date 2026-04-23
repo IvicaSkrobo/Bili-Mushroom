@@ -2,7 +2,7 @@
 title: Collection photo lightbox within folder
 area: ui
 created: 2026-04-15
-status: pending
+status: completed
 ---
 
 ## Description

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { convertFileSrc } from '@tauri-apps/api/core';
 import { BookOpen, Calendar, Camera, Info, MapPin, Pencil, Search, Star } from 'lucide-react';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { Button } from '@/components/ui/button';
@@ -11,6 +10,7 @@ import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 import type { Find, FindPhoto } from '@/lib/finds';
+import { resolvePhotoSrc } from '@/lib/photoSrc';
 
 interface DateSummary {
   date: string;
@@ -455,7 +455,7 @@ export default function SpeciesTab() {
               <div className="space-y-2">
                 {filteredSpecies.map((entry) => {
                   const thumbSrc = entry.heroPhotoPath && storagePath
-                    ? convertFileSrc(`${storagePath}/${entry.heroPhotoPath}`)
+                    ? resolvePhotoSrc(storagePath, entry.heroPhotoPath)
                     : null;
                   const isActive = entry.speciesName === selectedJournal?.speciesName;
 
@@ -518,7 +518,7 @@ export default function SpeciesTab() {
                       aria-label={t('species.editCover')}
                     >
                       <img
-                        src={convertFileSrc(`${storagePath}/${selectedJournal.heroPhotoPath}`)}
+                        src={resolvePhotoSrc(storagePath, selectedJournal.heroPhotoPath)}
                         alt={selectedJournal.speciesName}
                         className="aspect-[5/4] max-h-[320px] w-full object-cover lg:max-h-[280px] xl:max-h-[320px]"
                       />
@@ -810,7 +810,7 @@ export default function SpeciesTab() {
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                 {selectedJournal.allPhotos.map(({ photo, find }) => {
                   const thumbSrc = storagePath
-                    ? convertFileSrc(`${storagePath}/${photo.photo_path}`)
+                    ? resolvePhotoSrc(storagePath, photo.photo_path)
                     : '';
                   const isActive = selectedJournal.heroPhotoId === photo.id;
 

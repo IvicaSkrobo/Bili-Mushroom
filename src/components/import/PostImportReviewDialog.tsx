@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { convertFileSrc } from '@tauri-apps/api/core';
 import { Trash2 } from 'lucide-react';
 import {
   Dialog,
@@ -13,6 +12,7 @@ import { EditFindDialog } from '@/components/finds/EditFindDialog';
 import { useAppStore } from '@/stores/appStore';
 import { deleteFind } from '@/lib/finds';
 import type { ImportSummary, Find } from '@/lib/finds';
+import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { useT } from '@/i18n/index';
 
 interface PostImportReviewDialogProps {
@@ -62,7 +62,7 @@ export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: 
                 {visibleFinds.map((find) => {
                   const primaryPhoto = find.photos?.[0];
                   const thumbSrc = primaryPhoto && storagePath
-                    ? convertFileSrc(`${storagePath}/${primaryPhoto.photo_path}`)
+                    ? resolvePhotoSrc(storagePath, primaryPhoto.photo_path)
                     : null;
 
                   return (

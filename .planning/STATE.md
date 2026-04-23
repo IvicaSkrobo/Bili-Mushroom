@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: active
 stopped_at: null
-last_updated: "2026-04-17T13:05:00.000Z"
-last_activity: 2026-04-17 -- Stabilized PDF export, redesigned the journal PDF, and finished favorites support in collection/finds
+last_updated: "2026-04-23T21:40:00.000Z"
+last_activity: 2026-04-23 -- Fixed Windows photo reload/thumbnail paths after app restart and synced GSD notes before commit
 progress:
   total_phases: 9
   completed_phases: 6
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-09)
 
 **Core value:** A forager's personal mushroom journal — every find stored, organized, searchable, and mapped so that nothing collected is ever forgotten.
-**Current focus:** Post-Phase 04 backlog maintenance with PDF export stabilization/polish
+**Current focus:** Post-Phase 04 maintenance and bug-fix follow-up
 
 ## Current Position
 
 Phase: 04.2 complete — MAINTENANCE
-Plan: Post-phase backlog triage
-Status: Completed planned phase work; addressing maintenance fixes and syncing planning artifacts
-Last activity: 2026-04-17 -- PDF export now works in-app with fallback rendering and redesigned journal pages; favorites support is ready as a separate commit
+Plan: Post-phase maintenance
+Status: Completed planned phase work; maintenance fixes and planning artifacts are synced to the current shipped behavior
+Last activity: 2026-04-23 -- Windows photo reopening bug fixed via normalized asset paths and expanded asset protocol scope
 
-Progress: [█░░░░░░░░░] 17%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -80,13 +80,13 @@ Recent decisions affecting current work:
 ### Pending Todos
 
 - [x] Fix quit button in error dialog — dialog now calls backend quit_app directly for reliable app exit
-- [ ] Add Clear All button to import photo picker — removes all queued photos in one click
-- [ ] Batch metadata cascade in import picker — shared name+location header above card list, pre-filled from folder name, cascades to all cards; each card still individually editable
-- [ ] Folder hierarchy import mode — main folder > mushroom sub-folders > photos; each sub-folder becomes one find batch, folder name = default mushroom name; collection reflects this structure
-- [ ] Confirm duplicate strategy: avoid strict timestamp+location duplicate blocking because users intentionally capture bursts at same time/place
+- [x] Add Clear All button to import photo picker — `ImportDialog` shows `Clear All` when the queue is non-empty and clears the pending list in one click
+- [x] Batch metadata cascade in import picker — shared import header now cascades species/date/location/observed count while preserving per-card field locks and edits
+- [x] Confirm duplicate strategy: strict timestamp+location blocking was rejected; current duplicate handling does not use burst-prone timestamp+location heuristics
 - [x] Stabilize PDF export path — keep `@react-pdf/renderer`, add smoke-test diagnostics, and fall back to main-thread rendering when the worker stalls in Tauri
 - [x] Redesign PDF journal pacing/content — interleave stats pages with highlight spreads and photo ribbons, convert the trailing page into a species list, and align labels with photo-count semantics
 - [x] Add favorites support for finds — migration + backend command + collection UI toggle/filter + tests
+- [x] Implement paired Forest Codex themes — light and dark theme tokens, persistence, and UI toggles are live in the app shell/settings
 
 ### Quick Tasks Completed
 
@@ -111,6 +111,8 @@ Recent decisions affecting current work:
 | 260415-sj5 map-species-filter-panel | 2026-04-15 | Species filter panel on map: search + checkboxes, See all, filtered finds passed to CollectionPins. |
 | 260415-syy collection-photo-lightbox-within-folder | 2026-04-15 | PhotoLightbox overlay in collection folders: click thumbnail → enlarged photo + metadata panel (species, date, notes, coords); prev/next (buttons + keyboard); Esc/click-outside closes. |
 | 260416-ui-identity-refresh | 2026-04-16 | Frontend identity refresh applied: typography swap, token/palette overhaul, shell chrome updates, and stats visual polish (header/tabs/footer cohesion). |
+| 260423-gsd-backlog-audit | 2026-04-23 | Re-audited backlog/todos against the repo: confirmed Clear All, shared import cascade, theme support, and lightbox are shipped; later removed the declined folder-hierarchy follow-up. |
+| 260423-windows-photo-reload-fix | 2026-04-23 | Normalized persisted photo asset paths across collection/species/map surfaces and widened Tauri asset scope so thumbnails/lightbox images still load after reopening the app on Windows. |
 | 260416-gsd-priority-sync | 2026-04-16 | Captured user-approved priorities: Seasonality insights + spot reminders; inserted Phase 04.1 (UX governance/perf/E2E) and 04.2 (insights/hints) into planning docs. |
 | 260416-04.1-01-ui-governance | 2026-04-16 | Published governance baseline (tokens, variants, motion/accessibility rules, review checklist) for Phase 04.1-01. |
 | 260416-full-implementation-pass | 2026-04-16 | Implemented lazy-loaded tab bundles, added seasonality insights + species spot hints in Stats, and added/updated critical-path tests for App and insights logic. |

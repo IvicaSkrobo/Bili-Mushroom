@@ -1,8 +1,8 @@
 import { useRef } from 'react';
-import { convertFileSrc } from '@tauri-apps/api/core';
 import { Pencil, Image, Trash2, Square, CheckSquare, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { isHeic, type Find } from '@/lib/finds';
+import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { useT } from '@/i18n/index';
 
 interface FindCardProps {
@@ -21,8 +21,8 @@ interface FindCardProps {
 export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSelected, onToggleSelect, onToggleFavorite, onLongPress, onPhotoClick }: FindCardProps) {
   const t = useT();
   const primaryPhoto = find.photos[0] ?? null;
-  const absolutePath = primaryPhoto ? `${storagePath}/${primaryPhoto.photo_path}` : '';
   const heic = primaryPhoto ? isHeic(primaryPhoto.photo_path) : false;
+  const photoSrc = primaryPhoto ? resolvePhotoSrc(storagePath, primaryPhoto.photo_path) : null;
   const extraCount = find.photos.length > 1 ? find.photos.length - 1 : 0;
 
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -74,7 +74,7 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
           </div>
         ) : (
           <img
-            src={convertFileSrc(absolutePath)}
+            src={photoSrc!}
             alt={find.original_filename}
             className="h-20 w-20 object-cover"
           />

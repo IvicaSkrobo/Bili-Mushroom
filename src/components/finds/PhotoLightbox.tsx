@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { convertFileSrc } from '@tauri-apps/api/core';
 import { Check, ChevronLeft, ChevronRight, Image, X } from 'lucide-react';
 import {
   Dialog,
@@ -10,6 +9,7 @@ import {
 import { Dialog as DialogPrimitive } from 'radix-ui';
 import { Button } from '@/components/ui/button';
 import { isHeic, type Find, type FindPhoto } from '@/lib/finds';
+import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { useT } from '@/i18n/index';
 
 export interface LightboxPhoto {
@@ -80,9 +80,8 @@ export function PhotoLightbox({
   if (!current) return null;
 
   const { photo, find } = current;
-  const absolutePath = `${storagePath}/${photo.photo_path}`;
   const heic = isHeic(photo.photo_path);
-  const photoSrc = heic ? null : convertFileSrc(absolutePath);
+  const photoSrc = heic ? null : resolvePhotoSrc(storagePath, photo.photo_path);
   const isSpeciesCover = isCurrentSpeciesCover?.(current) ?? false;
 
   return (

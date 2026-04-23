@@ -1,9 +1,9 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import L from 'leaflet';
 import { Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
-import { convertFileSrc } from '@tauri-apps/api/core';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Find } from '@/lib/finds';
+import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { useSpeciesNotes } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 
@@ -64,7 +64,7 @@ function CollectionPopup({
   const current = allPhotos[photoIdx] ?? null;
   const photo = current?.photo ?? null;
   const photoSrc = photo && storagePath
-    ? convertFileSrc(`${storagePath}/${photo.photo_path}`)
+    ? resolvePhotoSrc(storagePath, photo.photo_path)
     : null;
   const displayNote = (current?.findNotes?.trim()) || speciesNote;
 

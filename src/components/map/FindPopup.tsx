@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { convertFileSrc } from '@tauri-apps/api/core';
 import { ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/stores/appStore';
 import type { Find } from '@/lib/finds';
+import { resolvePhotoSrc } from '@/lib/photoSrc';
 import type { FindGroup } from './groupFindsByCoords';
 
 interface FindPopupProps {
@@ -50,7 +50,7 @@ function LevelTwoCard({
   const setEditingFindId = useAppStore((s) => s.setEditingFindId);
   const primaryPhoto = find.photos.find((p) => p.is_primary) ?? find.photos[0];
   const thumbSrc = primaryPhoto
-    ? convertFileSrc(`${storagePath}/${primaryPhoto.photo_path}`)
+    ? resolvePhotoSrc(storagePath, primaryPhoto.photo_path)
     : null;
   return (
     <div className="flex w-[240px] flex-col gap-2">
