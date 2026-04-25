@@ -38,15 +38,21 @@ function flatPhotoGroupKey(filename: string, exifDate: string | null): string {
 
   if (isGeneric) {
     // No meaningful name — group by date or fallback
-    if (exifDate) return exifDate;
-    // Try date embedded in original filename
+    if (exifDate) return `__date__${exifDate}`;
     const dateMatch = filename.match(/(\d{4})[_-]?(\d{2})[_-]?(\d{2})/);
-    if (dateMatch) return `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
-    return 'Uvezene fotografije';
+    if (dateMatch) return `__date__${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+    return '__generic__';
   }
 
-  // Meaningful name — append date so same species on different days = different finds
-  return exifDate ? `${base} — ${exifDate}` : base;
+  // Same species, different days = different finds — but species_name stays as `base`
+  return exifDate ? `${base}__${exifDate}` : base;
+}
+
+/** Species name to use in the payload — strips the internal date suffix from the key. */
+function groupKeyToSpeciesName(key: string, exifDate: string | null): string {
+  if (key.startsWith('__date__')) return exifDate ?? 'Uvezene fotografije';
+  if (key === '__generic__') return 'Uvezene fotografije';
+  return key.replace(/__\d{4}-\d{2}-\d{2}$/, '').trim() || 'Uvezene fotografije';
 }
 
 export async function scanAndImport(
@@ -135,12 +141,12 @@ export async function scanAndImport(
       groups.get(key)!.push(item);
     }
 
-    for (const [groupName, items] of groups) {
+    for (const [groupKey, items] of groups) {
       const first = items[0];
       const payload: ImportPayload = {
         source_path: first.path,
         original_filename: first.filename,
-        species_name: groupName,
+        species_name: groupKeyToSpeciesName(groupKey, first.exif.date),
         date_found: first.exif.date ?? today,
         country: '',
         region: '',
