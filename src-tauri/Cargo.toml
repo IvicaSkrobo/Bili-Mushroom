@@ -1,6 +1,6 @@
 [package]
 name = "bili-mushroom"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 
 [lib]
@@ -22,7 +22,7 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
 tauri-plugin-fs = "2"
 trash = "5"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip", "deflate"] }
 base64 = "0.22"
 sha2 = "0.10"
 tokio = { version = "1", features = ["rt", "macros"] }

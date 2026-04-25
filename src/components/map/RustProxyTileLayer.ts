@@ -40,19 +40,26 @@ export function createRustProxyTileLayer(
       const url = resolveTileUrl(options.urlTemplate, coords);
 
       const loadDirect = () => {
+        img.onerror = () => {
+          console.error('Direct tile load also failed:', url);
+          done(new Error(`Tile load failed: ${url}`), img);
+        };
         img.src = url;
         done(undefined, img);
       };
 
-      invoke<string>('fetch_tile', {
-        url,
-      })
+      invoke<string>('fetch_tile', { url })
         .then((dataUri) => {
+          if (!dataUri.startsWith('data:')) {
+            console.error('fetch_tile returned non-data-URI, falling back:', dataUri.slice(0, 80));
+            loadDirect();
+            return;
+          }
           img.src = dataUri;
           done(undefined, img);
         })
         .catch((err: unknown) => {
-          console.warn('Tile proxy failed, falling back to direct tile URL.', err);
+          console.warn('Tile proxy failed, falling back to direct tile URL.', url, err);
           loadDirect();
         });
       return img;

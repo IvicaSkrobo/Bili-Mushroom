@@ -1,6 +1,6 @@
 {
   "productName": "Bili Mushroom",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "identifier": "hr.biligrupa.bilimushroom",
   "build": {
     "frontendDist": "../dist",
@@ -21,18 +21,20 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost blob: data:; connect-src 'self' ipc: http://ipc.localhost https://nominatim.openstreetmap.org https://github.com https://objects.githubusercontent.com",
-        "assetProtocol": {
-          "enable": true,
-          "scope": [
-            "**"
-          ]
-        }
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost blob: data: https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://server.arcgisonline.com https://tile.opentopomap.org https://*.tile.opentopomap.org; connect-src 'self' ipc: http://ipc.localhost https://nominatim.openstreetmap.org https://github.com https://objects.githubusercontent.com",
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "**"
+        ]
+      }
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
