@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { GalleryHorizontal, Plus, ChevronDown, ChevronRight, FolderOpen, Search, X, CheckSquare, Pencil, Star } from 'lucide-react';
+import { GalleryHorizontal, Plus, ChevronDown, ChevronRight, FolderOpen, Search, X, CheckSquare, Pencil, Star, SquarePen } from 'lucide-react';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -513,25 +513,35 @@ export default function CollectionTab() {
                   <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-6">
                     {speciesFinds.flatMap((f) =>
                       f.photos.map((photo, photoIdx) => (
-                        <button
-                          key={photo.id}
-                          type="button"
-                          className="group relative aspect-square overflow-hidden rounded-sm bg-muted"
-                          onClick={() => openLightbox(speciesFinds, f.id, photoIdx)}
-                        >
-                          <img
-                            src={resolvePhotoSrc(storagePath!, photo.photo_path)}
-                            alt=""
-                            className="h-full w-full object-cover transition-transform duration-150 group-hover:scale-105"
-                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                          />
+                        <div key={photo.id} className="group relative aspect-square overflow-hidden rounded-sm bg-muted">
+                          <button
+                            type="button"
+                            className="absolute inset-0 w-full h-full"
+                            onClick={() => openLightbox(speciesFinds, f.id, photoIdx)}
+                          >
+                            <img
+                              src={resolvePhotoSrc(storagePath!, photo.photo_path)}
+                              alt=""
+                              className="h-full w-full object-cover transition-transform duration-150 group-hover:scale-105"
+                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                            />
+                          </button>
+                          {/* Edit button — shown on hover */}
+                          <button
+                            type="button"
+                            className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded p-0.5 text-white hover:bg-black/80 z-10"
+                            onClick={(e) => { e.stopPropagation(); setEditing(f); }}
+                            title="Edit find"
+                          >
+                            <SquarePen className="h-3 w-3" />
+                          </button>
                           {selectMode && (
                             <div
-                              className={`absolute inset-0 flex items-center justify-center transition-colors ${selectedIds.has(f.id) ? 'bg-primary/40' : 'bg-black/0 group-hover:bg-black/20'}`}
+                              className={`absolute inset-0 flex items-center justify-center transition-colors z-10 ${selectedIds.has(f.id) ? 'bg-primary/40' : 'bg-black/0 group-hover:bg-black/20'}`}
                               onClick={(e) => { e.stopPropagation(); toggleSelect(f.id); }}
                             />
                           )}
-                        </button>
+                        </div>
                       ))
                     )}
                   </div>
@@ -589,6 +599,7 @@ export default function CollectionTab() {
         currentIndex={lightboxIndex}
         onIndexChange={setLightboxIndex}
         storagePath={storagePath!}
+        onEditFind={(find) => setEditing(find)}
         onSetAsSpeciesCover={handleSetSpeciesCover}
         isCurrentSpeciesCover={(entry) => {
           const speciesName = lightboxSpeciesName ?? entry.find.species_name;
