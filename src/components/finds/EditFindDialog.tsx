@@ -176,6 +176,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
               type="date"
               value={form.date_found}
               onChange={(e) => handleChange('date_found', e.target.value)}
+              className="text-foreground [color-scheme:light]"
             />
           </div>
           <div className="grid grid-cols-2 gap-2">

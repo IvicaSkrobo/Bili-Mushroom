@@ -329,7 +329,6 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                   value={sharedName}
                   autoComplete="off"
                   onChange={(e) => { setSharedName(e.target.value); setNameDropdownOpen(true); setNameHighlight(0); }}
-                  onFocus={() => setNameDropdownOpen(true)}
                   onBlur={() => setTimeout(() => setNameDropdownOpen(false), 150)}
                   onKeyDown={(e) => {
                     const visible = filteredFolders.slice(0, 10);
