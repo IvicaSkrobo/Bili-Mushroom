@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: active
 stopped_at: null
-last_updated: "2026-04-23T21:40:00.000Z"
-last_activity: 2026-04-23 -- Fixed Windows photo reload/thumbnail paths after app restart and synced GSD notes before commit
+last_updated: "2026-04-23T22:27:00.000Z"
+last_activity: 2026-04-23 -- Reprioritized backlog for 5k+ photo scale; added large-library query/list strategy follow-up
 progress:
   total_phases: 9
   completed_phases: 6
@@ -83,6 +83,16 @@ Recent decisions affecting current work:
 - [x] Add Clear All button to import photo picker — `ImportDialog` shows `Clear All` when the queue is non-empty and clears the pending list in one click
 - [x] Batch metadata cascade in import picker — shared import header now cascades species/date/location/observed count while preserving per-card field locks and edits
 - [x] Confirm duplicate strategy: strict timestamp+location blocking was rejected; current duplicate handling does not use burst-prone timestamp+location heuristics
+- [ ] Change import flow to create one find with many photos per import batch, using explicit grouping instead of hard date+location dedupe
+- [ ] Add optional home location/default map region in first run + settings, with persisted map center fallback
+- [ ] Add place/country search to LocationPickerMap (forward geocoding)
+- [ ] Review map-side derived computation costs and centralize persisted user preferences before adding more settings
+- [ ] Audit map scalability path (grouping/clustering/render costs) before any major map-stack rewrite
+- [ ] Plan staged i18n expansion beyond hr/en, prioritizing de/it/sl with completeness and UI-fit checks
+- [ ] Do a post-grouped-import UX safety pass for mixed batches and future split/ungroup affordances
+- [ ] Review bulk operations for consistent confirmation, refresh, and cache-update behavior
+- [ ] Review map tile cache policy (limit, eviction, settings exposure, offline UX copy)
+- [ ] Rework query/list strategy for large libraries (5k+ photos): lighter query shapes, targeted cache updates, and/or virtualization where needed
 - [x] Stabilize PDF export path — keep `@react-pdf/renderer`, add smoke-test diagnostics, and fall back to main-thread rendering when the worker stalls in Tauri
 - [x] Redesign PDF journal pacing/content — interleave stats pages with highlight spreads and photo ribbons, convert the trailing page into a species list, and align labels with photo-count semantics
 - [x] Add favorites support for finds — migration + backend command + collection UI toggle/filter + tests
