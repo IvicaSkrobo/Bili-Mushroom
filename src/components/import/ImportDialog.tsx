@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { readDir, remove } from '@tauri-apps/plugin-fs';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { useQueryClient } from '@tanstack/react-query';
-import { MapPin, Images, FolderOpen, Info } from 'lucide-react';
+import { MapPin, Images, FolderOpen, Info, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -15,7 +16,6 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { FindPreviewCard } from './FindPreviewCard';
 import { PostImportReviewDialog } from './PostImportReviewDialog';
 import { useImportProgress } from './useImportProgress';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
@@ -35,37 +35,21 @@ import { useFinds, useSpeciesNotes } from '@/hooks/useFinds';
 import { useT } from '@/i18n/index';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 
-export type LockableField = 'date_found' | 'country' | 'region' | 'location_note' | 'observed_count';
-
-
-interface PendingItem {
-  sourcePath: string;
-  payload: ImportPayload;
-  locked: Partial<Record<LockableField, boolean>>;
-}
-
 interface ImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onImportComplete?: (imported: number, skipped: number) => void;
 }
 
-function buildInitialPayload(path: string, exif: Awaited<ReturnType<typeof parseExif>>): ImportPayload {
-  const filename = path.split('/').pop()?.split('\\').pop() ?? path;
-  return {
-    source_path: path,
-    original_filename: filename,
-    species_name: '',
-    date_found: exif.date ?? '',
-    country: '',
-    region: '',
-    location_note: '',
-    lat: exif.lat,
-    lng: exif.lng,
-    notes: '',
-    observed_count: null,
-    additional_photos: [],
-  };
+function parseObservedCount(value: string): number | null {
+  if (value.trim() === '') return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function isImagePath(name: string): boolean {
+  const ext = name.toLowerCase().slice(name.lastIndexOf('.'));
+  return SUPPORTED_EXTENSIONS.includes(ext as (typeof SUPPORTED_EXTENSIONS)[number]);
 }
 
 export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDialogProps) {
@@ -76,7 +60,6 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   const { data: speciesNotesData } = useSpeciesNotes();
   const { data: findsData } = useFinds();
 
-  // Unique species names from DB — used for autocomplete
   const speciesFolders = useMemo(() => {
     if (!findsData) return [];
     const seen = new Set<string>();
@@ -89,14 +72,15 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
       });
   }, [findsData]);
 
-  const [pending, setPending] = useState<PendingItem[]>([]);
+  // All photos for this single find
+  const [photos, setPhotos] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [deleteSource, setDeleteSource] = useState(true);
 
-  // Shared header state
+  // Find metadata
   const [sharedName, setSharedName] = useState('');
   const [sharedDate, setSharedDate] = useState('');
   const [sharedCountry, setSharedCountry] = useState('');
@@ -109,7 +93,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   const [nameDropdownOpen, setNameDropdownOpen] = useState(false);
   const [nameHighlight, setNameHighlight] = useState(0);
 
-  // When species name changes to a known folder, pre-fill folder notes from DB
+  // When species name changes to a known folder, pre-fill notes from DB
   useEffect(() => {
     if (!speciesNotesData || !sharedName) return;
     const existing = speciesNotesData.find(
@@ -124,104 +108,31 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
 
   const progress = useImportProgress(importing);
 
-  // Cascade shared name to all cards
-  useEffect(() => {
-    if (sharedName === '') return;
-    setPending((prev) =>
-      prev.map((item) => ({ ...item, payload: { ...item.payload, species_name: sharedName } })),
-    );
-  }, [sharedName]);
+  const canImport = photos.length > 0 && sharedName.trim() !== '' && sharedDate !== '' && !importing;
 
-  // Cascade shared date to unlocked cards
-  useEffect(() => {
-    if (sharedDate === '') return;
-    setPending((prev) =>
-      prev.map((item) =>
-        item.locked.date_found ? item : { ...item, payload: { ...item.payload, date_found: sharedDate } },
-      ),
-    );
-  }, [sharedDate]);
-
-  // Cascade shared country to unlocked cards
-  useEffect(() => {
-    if (sharedCountry === '') return;
-    setPending((prev) =>
-      prev.map((item) =>
-        item.locked.country ? item : { ...item, payload: { ...item.payload, country: sharedCountry } },
-      ),
-    );
-  }, [sharedCountry]);
-
-  // Cascade shared region to unlocked cards
-  useEffect(() => {
-    if (sharedRegion === '') return;
-    setPending((prev) =>
-      prev.map((item) =>
-        item.locked.region ? item : { ...item, payload: { ...item.payload, region: sharedRegion } },
-      ),
-    );
-  }, [sharedRegion]);
-
-  // Cascade shared location note to unlocked cards
-  useEffect(() => {
-    if (sharedLocationNote === '') return;
-    setPending((prev) =>
-      prev.map((item) =>
-        item.locked.location_note
-          ? item
-          : { ...item, payload: { ...item.payload, location_note: sharedLocationNote } },
-      ),
-    );
-  }, [sharedLocationNote]);
-
-  // Cascade shared observed count to unlocked cards
-  useEffect(() => {
-    if (sharedObservedCount === '') return;
-    const parsed = parseObservedCount(sharedObservedCount);
-    setPending((prev) =>
-      prev.map((item) =>
-        item.locked.observed_count
-          ? item
-          : { ...item, payload: { ...item.payload, observed_count: parsed } },
-      ),
-    );
-  }, [sharedObservedCount]);
+  /** Auto-fill date + location from first photo's EXIF when photos are first added */
+  async function prefillFromExif(paths: string[]) {
+    if (paths.length === 0) return;
+    try {
+      const exif = await parseExif(paths[0]);
+      if (exif.date && !sharedDate) setSharedDate(exif.date);
+      if (exif.lat != null && exif.lng != null && !sharedLocation) {
+        setSharedLocation({ lat: exif.lat, lng: exif.lng });
+        const geo = await reverseGeocode(exif.lat, exif.lng, lang);
+        if (geo.country && !sharedCountry) setSharedCountry(geo.country);
+        if (geo.region && !sharedRegion) setSharedRegion(geo.region);
+      }
+    } catch {
+      // EXIF unavailable — user fills manually
+    }
+  }
 
   const handleSharedMapConfirm = async (lat: number, lng: number) => {
     setSharedLocation({ lat, lng });
-    setPending((prev) =>
-      prev.map((item) => ({ ...item, payload: { ...item.payload, lat, lng } })),
-    );
     const geo = await reverseGeocode(lat, lng, lang);
     if (geo.country) setSharedCountry(geo.country);
     if (geo.region) setSharedRegion(geo.region);
   };
-
-  const allDatesSet = pending.length > 0 && pending.every((item) => item.payload.date_found !== '');
-  const allNamed = pending.length > 0 && pending.every((item) => item.payload.species_name.trim() !== '');
-  const canImport = pending.length > 0 && allDatesSet && allNamed && !importing;
-
-  const applyShared = (payload: ImportPayload): ImportPayload => ({
-    ...payload,
-    species_name: sharedName || payload.species_name,
-    date_found: payload.date_found || sharedDate,
-    country: sharedCountry || payload.country,
-    region: sharedRegion || payload.region,
-    location_note: sharedLocationNote || payload.location_note,
-    observed_count: payload.observed_count ?? parseObservedCount(sharedObservedCount),
-  });
-
-  function parseObservedCount(value: string): number | null {
-    if (value.trim() === '') return null;
-    const parsed = Number.parseInt(value, 10);
-    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
-  }
-
-  /** Extract folder name from a file path */
-  function folderFromPath(path: string): string {
-    const segments = path.replace(/\\/g, '/').split('/');
-    return segments.length >= 2 ? segments[segments.length - 2] : '';
-  }
 
   async function handlePickFiles() {
     try {
@@ -231,21 +142,12 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
       });
       if (!selected) return;
       const paths = Array.isArray(selected) ? selected : [selected];
-      const items: PendingItem[] = await Promise.all(
-        paths.map(async (path) => {
-          const exif = await parseExif(path);
-          return { sourcePath: path, payload: applyShared(buildInitialPayload(path, exif)), locked: {} };
-        }),
-      );
-      setPending((prev) => [...prev, ...items]);
+      const isFirst = photos.length === 0;
+      setPhotos((prev) => [...prev, ...paths]);
+      if (isFirst) await prefillFromExif(paths);
     } catch (e) {
       setError(String(e));
     }
-  }
-
-  function isImageEntry(name: string): boolean {
-    const ext = name.toLowerCase().slice(name.lastIndexOf('.'));
-    return SUPPORTED_EXTENSIONS.includes(ext as (typeof SUPPORTED_EXTENSIONS)[number]);
   }
 
   async function handlePickFolder() {
@@ -254,95 +156,71 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
       if (!dir || typeof dir !== 'string') return;
       const entries = await readDir(dir);
 
-      // Collect images from the selected folder directly
       const directImages = entries
-        .filter((e) => e.isFile && e.name && isImageEntry(e.name))
+        .filter((e) => e.isFile && e.name && isImagePath(e.name))
         .map((e) => `${dir}/${e.name}`);
 
-      // Also collect images one level deep in subfolders
       const subfolderImages: string[] = [];
-      const subdirs = entries.filter((e) => e.isDirectory && e.name);
-      for (const sub of subdirs) {
+      for (const sub of entries.filter((e) => e.isDirectory && e.name)) {
         try {
           const subEntries = await readDir(`${dir}/${sub.name}`);
           for (const se of subEntries) {
-            if (se.isFile && se.name && isImageEntry(se.name)) {
+            if (se.isFile && se.name && isImagePath(se.name)) {
               subfolderImages.push(`${dir}/${sub.name}/${se.name}`);
             }
           }
-        } catch {
-          // skip unreadable subfolders
-        }
+        } catch { /* skip unreadable */ }
       }
 
-      const imagePaths = [...directImages, ...subfolderImages];
-      const items: PendingItem[] = await Promise.all(
-        imagePaths.map(async (path) => {
-          const exif = await parseExif(path);
-          return { sourcePath: path, payload: applyShared(buildInitialPayload(path, exif)), locked: {} };
-        }),
-      );
-      // Always update name from picked folder
+      const paths = [...directImages, ...subfolderImages];
+      const isFirst = photos.length === 0;
       const folderName = dir.split('/').pop()?.split('\\').pop() ?? '';
-      if (folderName) setSharedName(folderName);
-      setPending((prev) => [...prev, ...items]);
+      if (folderName && !sharedName) setSharedName(folderName);
+      setPhotos((prev) => [...prev, ...paths]);
+      if (isFirst) await prefillFromExif(paths);
     } catch (e) {
       setError(String(e));
     }
   }
 
-  const updateAt = (index: number, updated: ImportPayload, lockField?: LockableField) => {
-    setPending((prev) =>
-      prev.map((item, i) => {
-        if (i !== index) return item;
-        return {
-          ...item,
-          payload: updated,
-          locked: lockField ? { ...item.locked, [lockField]: true } : item.locked,
-        };
-      }),
-    );
-  };
-
-  const unlockAt = (index: number, field: LockableField) => {
-    setPending((prev) =>
-      prev.map((item, i) => {
-        if (i !== index) return item;
-        const locked = { ...item.locked };
-        delete locked[field];
-        return { ...item, locked };
-      }),
-    );
-  };
-
-  const removeAt = (index: number) => {
-    setPending((prev) => prev.filter((_, i) => i !== index));
-  };
-
   async function handleImportAll() {
-    if (!storagePath) return;
+    if (!storagePath || photos.length === 0) return;
     setError(null);
     setImporting(true);
     try {
-      const payloads = pending.map((item) => item.payload);
-      const summary = await importFind(storagePath, payloads);
-      // Save folder-level notes if provided
+      const payload: ImportPayload = {
+        source_path: photos[0],
+        original_filename: photos[0].split('/').pop()?.split('\\').pop() ?? photos[0],
+        species_name: sharedName.trim(),
+        date_found: sharedDate,
+        country: sharedCountry,
+        region: sharedRegion,
+        location_note: sharedLocationNote,
+        lat: sharedLocation?.lat ?? null,
+        lng: sharedLocation?.lng ?? null,
+        notes: sharedFolderNotes,
+        observed_count: parseObservedCount(sharedObservedCount),
+        additional_photos: photos.slice(1),
+      };
+
+      const summary = await importFind(storagePath, [payload]);
+
       if (sharedName && sharedFolderNotes.trim()) {
         await upsertSpeciesNote(storagePath, sharedName, sharedFolderNotes.trim());
         qc.invalidateQueries({ queryKey: [SPECIES_NOTES_QUERY_KEY, storagePath] });
       }
+
       onImportComplete?.(summary.imported.length, summary.skipped.length);
       qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
-      // Delete source files if checkbox checked (skip in-place files already inside storagePath)
+
       if (deleteSource) {
-        const sourcePaths = pending.map((item) => item.sourcePath);
         await Promise.allSettled(
-          sourcePaths
+          photos
             .filter((p) => !p.startsWith(storagePath))
             .map((p) => remove(p)),
         );
       }
-      // Store summary and open review dialog — pending cleared when review closes
+
       setImportSummary(summary);
       setReviewOpen(true);
     } catch (e) {
@@ -352,25 +230,8 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     }
   }
 
-  function handleReviewClose(open: boolean) {
-    if (!open) {
-      setPending([]);
-      setSharedName('');
-      setSharedDate('');
-      setSharedCountry('');
-      setSharedRegion('');
-      setSharedLocationNote('');
-      setSharedObservedCount('');
-      setSharedFolderNotes('');
-      setSharedLocation(null);
-      setImportSummary(null);
-      setReviewOpen(false);
-      onOpenChange(false);
-    }
-  }
-
-  function handleImportMore() {
-    setPending([]);
+  function resetState() {
+    setPhotos([]);
     setSharedName('');
     setSharedDate('');
     setSharedCountry('');
@@ -381,232 +242,244 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     setSharedLocation(null);
     setImportSummary(null);
     setReviewOpen(false);
+    setError(null);
+  }
+
+  function handleReviewClose(open: boolean) {
+    if (!open) {
+      resetState();
+      onOpenChange(false);
+    }
+  }
+
+  function handleImportMore() {
+    resetState();
   }
 
   return (
     <>
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
-        <DialogHeader>
-          <DialogTitle>{t('import.title')}</DialogTitle>
-        </DialogHeader>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>{t('import.title')}</DialogTitle>
+          </DialogHeader>
 
-        <p className="text-xs text-muted-foreground flex-shrink-0">
-          {t('import.summaryHint')}
-        </p>
+          <p className="text-xs text-muted-foreground flex-shrink-0">
+            {t('import.summaryHint')}
+          </p>
 
-        {/* Picker buttons */}
-        <div className="flex gap-2 flex-shrink-0">
-          <Button variant="secondary" onClick={handlePickFiles} disabled={importing}>
-            <Images className="h-4 w-4" />
-            {t('import.pickPhotos')}
-          </Button>
-          <Button variant="secondary" onClick={handlePickFolder} disabled={importing}>
-            <FolderOpen className="h-4 w-4" />
-            {t('import.pickFolder')}
-          </Button>
-          {pending.length > 0 && (
-            <Button
-              variant="ghost"
-              onClick={() => { setPending([]); setSharedName(''); }}
-              disabled={importing}
-              className="ml-auto text-destructive"
-            >
-              {t('import.clearAll')}
+          {/* Picker buttons */}
+          <div className="flex gap-2 flex-shrink-0">
+            <Button variant="secondary" onClick={handlePickFiles} disabled={importing}>
+              <Images className="h-4 w-4" />
+              {t('import.pickPhotos')}
             </Button>
-          )}
-        </div>
+            <Button variant="secondary" onClick={handlePickFolder} disabled={importing}>
+              <FolderOpen className="h-4 w-4" />
+              {t('import.pickFolder')}
+            </Button>
+            {photos.length > 0 && (
+              <Button
+                variant="ghost"
+                onClick={() => setPhotos([])}
+                disabled={importing}
+                className="ml-auto text-destructive"
+              >
+                {t('import.clearAll')}
+              </Button>
+            )}
+          </div>
 
-        {/* Folder notes — shown always (even before picking photos) */}
-        <div className="p-3 rounded-md border bg-muted/50 space-y-2 flex-shrink-0">
-          {/* Row 1: name + map pin */}
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Input
-                placeholder={t('import.mushroomName')}
-                value={sharedName}
-                autoComplete="off"
-                onChange={(e) => { setSharedName(e.target.value); setNameDropdownOpen(true); setNameHighlight(0); }}
-                onFocus={() => setNameDropdownOpen(true)}
-                onBlur={() => setTimeout(() => setNameDropdownOpen(false), 150)}
-                onKeyDown={(e) => {
-                  const visible = filteredFolders.slice(0, 10);
-                  if (!nameDropdownOpen || visible.length === 0) return;
-                  if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    setNameHighlight((h) => Math.min(h + 1, visible.length - 1));
-                  } else if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    setNameHighlight((h) => Math.max(h - 1, 0));
-                  } else if (e.key === 'Enter' || e.key === 'Tab') {
-                    e.preventDefault();
-                    setSharedName(visible[nameHighlight]);
-                    setNameDropdownOpen(false);
-                  } else if (e.key === 'Escape') {
-                    setNameDropdownOpen(false);
-                  }
-                }}
-              />
-              {nameDropdownOpen && filteredFolders.length > 0 && (
-                <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto">
-                  {filteredFolders.slice(0, 10).map((f, i) => (
-                    <button
-                      key={f}
-                      type="button"
-                      className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${i === nameHighlight ? 'bg-accent' : 'hover:bg-accent'}`}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        setSharedName(f);
-                        setNameDropdownOpen(false);
-                      }}
-                      onMouseEnter={() => setNameHighlight(i)}
-                    >
-                      {f}
-                    </button>
-                  ))}
-                </div>
+          {/* Find metadata form */}
+          <div className="p-3 rounded-md border bg-muted/50 space-y-2 flex-shrink-0">
+            {/* Row 1: species name + map pin */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Input
+                  placeholder={t('import.mushroomName')}
+                  value={sharedName}
+                  autoComplete="off"
+                  onChange={(e) => { setSharedName(e.target.value); setNameDropdownOpen(true); setNameHighlight(0); }}
+                  onFocus={() => setNameDropdownOpen(true)}
+                  onBlur={() => setTimeout(() => setNameDropdownOpen(false), 150)}
+                  onKeyDown={(e) => {
+                    const visible = filteredFolders.slice(0, 10);
+                    if (!nameDropdownOpen || visible.length === 0) return;
+                    if (e.key === 'ArrowDown') { e.preventDefault(); setNameHighlight((h) => Math.min(h + 1, visible.length - 1)); }
+                    else if (e.key === 'ArrowUp') { e.preventDefault(); setNameHighlight((h) => Math.max(h - 1, 0)); }
+                    else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); setSharedName(visible[nameHighlight]); setNameDropdownOpen(false); }
+                    else if (e.key === 'Escape') { setNameDropdownOpen(false); }
+                  }}
+                />
+                {nameDropdownOpen && filteredFolders.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto">
+                    {filteredFolders.slice(0, 10).map((f, i) => (
+                      <button
+                        key={f}
+                        type="button"
+                        className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${i === nameHighlight ? 'bg-accent' : 'hover:bg-accent'}`}
+                        onMouseDown={(e) => { e.preventDefault(); setSharedName(f); setNameDropdownOpen(false); }}
+                        onMouseEnter={() => setNameHighlight(i)}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label={t('import.pickLocation')}
+                onClick={() => setSharedMapOpen(true)}
+              >
+                <MapPin className="h-4 w-4" />
+              </Button>
+              {sharedLocation && (
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  {sharedLocation.lat.toFixed(4)}, {sharedLocation.lng.toFixed(4)}
+                </span>
               )}
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              aria-label={t('import.pickLocation')}
-              onClick={() => setSharedMapOpen(true)}
-            >
-              <MapPin className="h-4 w-4" />
-            </Button>
-            {sharedLocation && (
-              <span className="text-xs text-muted-foreground whitespace-nowrap">
-                {sharedLocation.lat.toFixed(4)}, {sharedLocation.lng.toFixed(4)}
-              </span>
+
+            {nameDropdownOpen && sharedName && filteredFolders.length === 0 && (
+              <p className="text-xs text-muted-foreground">{t('import.newFolderHint')}</p>
             )}
-          </div>
 
-          {/* New folder hint when no matches */}
-          {nameDropdownOpen && sharedName && filteredFolders.length === 0 && (
-            <p className="text-xs text-muted-foreground">{t('import.newFolderHint')}</p>
-          )}
-
-          {/* Row 2: date + country + region + location note + observed count */}
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              type="date"
-              value={sharedDate}
-              onChange={(e) => setSharedDate(e.target.value)}
-              className="text-foreground [color-scheme:light]"
-            />
-            <Input
-              placeholder={t('import.country')}
-              value={sharedCountry}
-              onChange={(e) => setSharedCountry(e.target.value)}
-            />
-            <Input
-              placeholder={t('import.region')}
-              value={sharedRegion}
-              onChange={(e) => setSharedRegion(e.target.value)}
-            />
-            <Input
-              placeholder={t('import.locationMark')}
-              value={sharedLocationNote}
-              onChange={(e) => setSharedLocationNote(e.target.value)}
-            />
-            <div className="col-span-2">
-              <div className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
-                <span>{t('import.observedCount')}</span>
-                <span
-                  title={t('import.observedCountHelp')}
-                  aria-label={t('import.observedCountHelp')}
-                >
-                  <Info className="h-3.5 w-3.5" />
-                </span>
-              </div>
+            {/* Row 2: date + country + region + location note + observed count */}
+            <div className="grid grid-cols-2 gap-2">
               <Input
-                type="number"
-                min="0"
-                step="1"
-                placeholder={t('import.observedCountPlaceholder')}
-                value={sharedObservedCount}
-                onChange={(e) => setSharedObservedCount(e.target.value)}
+                type="date"
+                value={sharedDate}
+                onChange={(e) => setSharedDate(e.target.value)}
+                className="text-foreground [color-scheme:light]"
               />
+              <Input
+                placeholder={t('import.country')}
+                value={sharedCountry}
+                onChange={(e) => setSharedCountry(e.target.value)}
+              />
+              <Input
+                placeholder={t('import.region')}
+                value={sharedRegion}
+                onChange={(e) => setSharedRegion(e.target.value)}
+              />
+              <Input
+                placeholder={t('import.locationMark')}
+                value={sharedLocationNote}
+                onChange={(e) => setSharedLocationNote(e.target.value)}
+              />
+              <div className="col-span-2">
+                <div className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
+                  <span>{t('import.observedCount')}</span>
+                  <span title={t('import.observedCountHelp')} aria-label={t('import.observedCountHelp')}>
+                    <Info className="h-3.5 w-3.5" />
+                  </span>
+                </div>
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder={t('import.observedCountPlaceholder')}
+                  value={sharedObservedCount}
+                  onChange={(e) => setSharedObservedCount(e.target.value)}
+                />
+              </div>
             </div>
+
+            <Textarea
+              placeholder={t('import.folderNotes')}
+              rows={2}
+              value={sharedFolderNotes}
+              onChange={(e) => setSharedFolderNotes(e.target.value)}
+            />
           </div>
 
-          {/* Folder-level notes — saved to species_notes on import */}
-          <Textarea
-            placeholder={t('import.folderNotes')}
-            rows={2}
-            value={sharedFolderNotes}
-            onChange={(e) => setSharedFolderNotes(e.target.value)}
+          <LocationPickerMap
+            open={sharedMapOpen}
+            onOpenChange={setSharedMapOpen}
+            initialLatLng={sharedLocation}
+            onConfirm={handleSharedMapConfirm}
           />
-        </div>
 
-        <LocationPickerMap
-          open={sharedMapOpen}
-          onOpenChange={setSharedMapOpen}
-          initialLatLng={sharedLocation}
-          onConfirm={handleSharedMapConfirm}
-        />
+          {/* Photo thumbnails */}
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {photos.length > 0 && (
+              <div className="grid grid-cols-4 gap-2 py-1">
+                {photos.map((path, i) => (
+                  <div key={path} className="relative group aspect-square rounded-md overflow-hidden bg-muted">
+                    <img
+                      src={convertFileSrc(path)}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}
+                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-0.5 text-white"
+                      aria-label="Remove photo"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {photos.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                {t('import.summaryHint')}
+              </p>
+            )}
+          </div>
 
-        {/* Scrollable preview list */}
-        <div className="flex-1 overflow-y-auto min-h-0">
-          {pending.length > 0 && (
-            <div className="flex flex-col gap-3 py-1">
-              {pending.map((item, i) => (
-                <FindPreviewCard
-                  key={i}
-                  payload={item.payload}
-                  sourcePath={item.sourcePath}
-                  locked={item.locked}
-                  onChange={(p, lockField) => updateAt(i, p, lockField)}
-                  onUnlock={(field) => unlockAt(i, field)}
-                  onRemove={() => removeAt(i)}
-                />
-              ))}
+          {photos.length > 0 && (
+            <p className="text-xs text-muted-foreground flex-shrink-0">
+              {photos.length} {photos.length === 1 ? 'photo' : 'photos'} → 1 find
+            </p>
+          )}
+
+          {importing && progress && (
+            <div className="space-y-1 flex-shrink-0">
+              <Progress value={(progress.current / progress.total) * 100} />
+              <p className="text-xs text-muted-foreground">
+                {progress.current}/{progress.total} · {progress.filename}
+              </p>
             </div>
           )}
-        </div>
 
-        {/* Progress bar */}
-        {importing && progress && (
-          <div className="space-y-1 flex-shrink-0">
-            <Progress value={(progress.current / progress.total) * 100} />
-            <p className="text-xs text-muted-foreground">
-              {progress.current}/{progress.total} · {progress.filename}
-            </p>
-          </div>
-        )}
+          {error && (
+            <Alert variant="destructive" className="flex-shrink-0">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-        {/* Error alert */}
-        {error && (
-          <Alert variant="destructive" className="flex-shrink-0">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        <DialogFooter className="flex-shrink-0">
-          <div className="flex flex-col items-end gap-2 w-full">
-            {pending.length > 0 && !allNamed && (
-              <p className="text-sm text-destructive">{t('import.nameRequired')}</p>
-            )}
-            <div className="flex items-center justify-between w-full">
-              <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={deleteSource}
-                  onChange={(e) => setDeleteSource(e.target.checked)}
-                  className="h-4 w-4 rounded accent-primary cursor-pointer"
-                />
-                Delete from source folder after import
-              </label>
-              <Button onClick={handleImportAll} disabled={!canImport}>
-                {t('import.importAll')}
-              </Button>
+          <DialogFooter className="flex-shrink-0">
+            <div className="flex flex-col items-end gap-2 w-full">
+              {photos.length > 0 && !sharedName.trim() && (
+                <p className="text-sm text-destructive">{t('import.nameRequired')}</p>
+              )}
+              {photos.length > 0 && sharedName.trim() && !sharedDate && (
+                <p className="text-xs text-muted-foreground/60">{t('preview.dateRequired')}</p>
+              )}
+              <div className="flex items-center justify-between w-full">
+                <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={deleteSource}
+                    onChange={(e) => setDeleteSource(e.target.checked)}
+                    className="h-4 w-4 rounded accent-primary cursor-pointer"
+                  />
+                  Delete from source folder after import
+                </label>
+                <Button onClick={handleImportAll} disabled={!canImport}>
+                  {t('import.importAll')}
+                </Button>
+              </div>
             </div>
-          </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <PostImportReviewDialog
         summary={reviewOpen ? importSummary : null}
