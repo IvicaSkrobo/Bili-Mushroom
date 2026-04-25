@@ -19,23 +19,34 @@ function isImageFile(name: string): boolean {
   return SUPPORTED_EXTENSIONS.includes(ext as (typeof SUPPORTED_EXTENSIONS)[number]);
 }
 
-/** Derive a group name for a flat photo when no subfolder name is available.
- *  Priority: EXIF date → date in filename → filename prefix (strip trailing digits) → fallback.
+/** Derive a group key for a flat photo.
+ *  Photos with the same cleaned name + same date → one find.
+ *  Priority for name: strip Windows copy noise → meaningful prefix → date fallback.
  */
 function flatPhotoGroupKey(filename: string, exifDate: string | null): string {
-  if (exifDate) return exifDate;
+  // Remove extension
+  let base = filename.slice(0, filename.lastIndexOf('.'));
 
-  // Date embedded in filename: 20240415, 2024-04-15, 2024_04_15
-  const dateMatch = filename.match(/(\d{4})[_-]?(\d{2})[_-]?(\d{2})/);
-  if (dateMatch) return `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+  // Strip Windows "- Copy", "- Copy (N)", "Copy (N)" patterns (case-insensitive)
+  base = base.replace(/(\s*-\s*copy|\s+copy)(\s*\(\d+\))?/gi, '').trim();
 
-  // Strip extension + trailing digits/separators to get a meaningful prefix
-  const base = filename.slice(0, filename.lastIndexOf('.'));
-  const prefix = base.replace(/[\s_-]*\d+$/, '').trim();
-  const GENERIC_PREFIXES = ['img', 'dsc', 'dscn', 'pic', 'photo', 'image', 'p', 'mvc', 'pict'];
-  if (prefix && !GENERIC_PREFIXES.includes(prefix.toLowerCase())) return prefix;
+  // Strip trailing separators + digits (e.g. "_001", " 72")
+  base = base.replace(/[\s_-]*\d+$/, '').trim();
 
-  return 'Uvezene fotografije';
+  const GENERIC = ['img', 'dsc', 'dscn', 'pic', 'photo', 'image', 'p', 'mvc', 'pict'];
+  const isGeneric = !base || GENERIC.includes(base.toLowerCase());
+
+  if (isGeneric) {
+    // No meaningful name — group by date or fallback
+    if (exifDate) return exifDate;
+    // Try date embedded in original filename
+    const dateMatch = filename.match(/(\d{4})[_-]?(\d{2})[_-]?(\d{2})/);
+    if (dateMatch) return `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+    return 'Uvezene fotografije';
+  }
+
+  // Meaningful name — append date so same species on different days = different finds
+  return exifDate ? `${base} — ${exifDate}` : base;
 }
 
 export async function scanAndImport(
