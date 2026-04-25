@@ -132,6 +132,11 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
             </div>
           </div>
 
+          <div className="pt-2 border-t flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Bili Mushroom</span>
+            <span className="text-xs text-muted-foreground font-mono">v{__APP_VERSION__}</span>
+          </div>
+
           <div className="pt-2 border-t">
             <section className="flex flex-col gap-3">
               <h3 className="text-sm font-medium">Map Cache</h3>
