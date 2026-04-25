@@ -110,12 +110,20 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
 
   const canImport = photos.length > 0 && sharedName.trim() !== '' && sharedDate !== '' && !importing;
 
+  const [datFromExif, setDateFromExif] = useState(false);
+
   /** Auto-fill date + location from first photo's EXIF when photos are first added */
   async function prefillFromExif(paths: string[]) {
     if (paths.length === 0) return;
+    // Default to today immediately; override with EXIF if available
+    const today = new Date().toISOString().slice(0, 10);
+    if (!sharedDate) setSharedDate(today);
     try {
       const exif = await parseExif(paths[0]);
-      if (exif.date && !sharedDate) setSharedDate(exif.date);
+      if (exif.date) {
+        setSharedDate(exif.date);
+        setDateFromExif(true);
+      }
       if (exif.lat != null && exif.lng != null && !sharedLocation) {
         setSharedLocation({ lat: exif.lat, lng: exif.lng });
         const geo = await reverseGeocode(exif.lat, exif.lng, lang);
@@ -123,7 +131,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         if (geo.region && !sharedRegion) setSharedRegion(geo.region);
       }
     } catch {
-      // EXIF unavailable — user fills manually
+      // EXIF unavailable — today's date used as default
     }
   }
 
@@ -349,12 +357,17 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
 
             {/* Row 2: date + country + region + location note + observed count */}
             <div className="grid grid-cols-2 gap-2">
-              <Input
-                type="date"
-                value={sharedDate}
-                onChange={(e) => setSharedDate(e.target.value)}
-                className="text-foreground [color-scheme:light]"
-              />
+              <div>
+                <Input
+                  type="date"
+                  value={sharedDate}
+                  onChange={(e) => { setSharedDate(e.target.value); setDateFromExif(false); }}
+                  className="text-foreground [color-scheme:light]"
+                />
+                {sharedDate && !datFromExif && (
+                  <p className="text-xs text-muted-foreground/60 mt-0.5">Datum nije pronađen u fotografiji — provjeri</p>
+                )}
+              </div>
               <Input
                 placeholder={t('import.country')}
                 value={sharedCountry}

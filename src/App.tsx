@@ -77,12 +77,14 @@ export default function App() {
 
   if (!storagePath) {
     return (
-      <FirstRunDialog
-        onFolderSelected={(path) => {
-          setPendingScan(true);
-          setStoragePath(path);
-        }}
-      />
+      <div className="h-screen w-screen bg-background">
+        <FirstRunDialog
+          onFolderSelected={(path) => {
+            setPendingScan(true);
+            setStoragePath(path);
+          }}
+        />
+      </div>
     );
   }
 

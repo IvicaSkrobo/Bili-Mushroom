@@ -75,29 +75,28 @@ export async function scanAndImport(
 
     if (imagePaths.length === 0) continue;
 
-    const payloads: ImportPayload[] = await Promise.all(
-      imagePaths.map(async (path) => {
-        const filename = path.split('/').pop()?.split('\\').pop() ?? path;
-        let exif = { date: null as string | null, lat: null as number | null, lng: null as number | null };
-        try { exif = await parseExif(path); } catch { /* use defaults */ }
-        return {
-          source_path: path,
-          original_filename: filename,
-          species_name: speciesName,
-          date_found: exif.date ?? today,
-          country: '',
-          region: '',
-          location_note: '',
-          lat: exif.lat,
-          lng: exif.lng,
-          notes: '',
-          observed_count: null,
-          additional_photos: [],
-        };
-      }),
-    );
+    // Parse EXIF from first photo only — use it for the whole find
+    const firstPath = imagePaths[0];
+    const firstFilename = firstPath.split('/').pop()?.split('\\').pop() ?? firstPath;
+    let firstExif = { date: null as string | null, lat: null as number | null, lng: null as number | null };
+    try { firstExif = await parseExif(firstPath); } catch { /* use defaults */ }
 
-    const summary = await importFind(storagePath, payloads);
+    const payload: ImportPayload = {
+      source_path: firstPath,
+      original_filename: firstFilename,
+      species_name: speciesName,
+      date_found: firstExif.date ?? today,
+      country: '',
+      region: '',
+      location_note: '',
+      lat: firstExif.lat,
+      lng: firstExif.lng,
+      notes: '',
+      observed_count: null,
+      additional_photos: imagePaths.slice(1),
+    };
+
+    const summary = await importFind(storagePath, [payload]);
     totalImported += summary.imported.length;
     totalSkipped += summary.skipped.length;
   }
@@ -126,22 +125,23 @@ export async function scanAndImport(
     }
 
     for (const [groupName, items] of groups) {
-      const payloads: ImportPayload[] = items.map(({ path, filename, exif }) => ({
-        source_path: path,
-        original_filename: filename,
+      const first = items[0];
+      const payload: ImportPayload = {
+        source_path: first.path,
+        original_filename: first.filename,
         species_name: groupName,
-        date_found: exif.date ?? today,
+        date_found: first.exif.date ?? today,
         country: '',
         region: '',
         location_note: '',
-        lat: exif.lat,
-        lng: exif.lng,
+        lat: first.exif.lat,
+        lng: first.exif.lng,
         notes: '',
         observed_count: null,
-        additional_photos: [],
-      }));
+        additional_photos: items.slice(1).map((i) => i.path),
+      };
 
-      const summary = await importFind(storagePath, payloads);
+      const summary = await importFind(storagePath, [payload]);
       totalImported += summary.imported.length;
       totalSkipped += summary.skipped.length;
     }
