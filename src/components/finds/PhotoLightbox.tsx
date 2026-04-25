@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Image, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Image, Pencil, X } from 'lucide-react';
 import {
   Dialog,
   DialogClose,
@@ -26,6 +26,7 @@ interface PhotoLightboxProps {
   storagePath: string;
   onSetAsSpeciesCover?: (photo: LightboxPhoto) => void;
   isCurrentSpeciesCover?: (photo: LightboxPhoto) => boolean;
+  onEditFind?: (find: Find) => void;
 }
 
 export function PhotoLightbox({
@@ -37,6 +38,7 @@ export function PhotoLightbox({
   storagePath,
   onSetAsSpeciesCover,
   isCurrentSpeciesCover,
+  onEditFind,
 }: PhotoLightboxProps) {
   const t = useT();
   const [visible, setVisible] = useState(true);
@@ -203,8 +205,19 @@ export function PhotoLightbox({
                 </div>
               )}
 
-              {onSetAsSpeciesCover && (
-                <div className="border-t border-border/30 pt-3">
+              <div className="border-t border-border/30 pt-3 flex flex-col gap-2">
+                {onEditFind && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-auto w-full justify-start gap-2 py-2"
+                    onClick={() => { onEditFind(current.find); onOpenChange(false); }}
+                  >
+                    <Pencil className="h-4 w-4" />
+                    {t('edit.edit') || 'Edit find'}
+                  </Button>
+                )}
+                {onSetAsSpeciesCover && (
                   <Button
                     type="button"
                     variant={isSpeciesCover ? 'secondary' : 'outline'}
@@ -215,8 +228,8 @@ export function PhotoLightbox({
                     {isSpeciesCover ? <Check className="h-4 w-4" /> : <Image className="h-4 w-4" />}
                     {isSpeciesCover ? t('collection.currentRepresentativePhoto') : t('collection.setRepresentativePhoto')}
                   </Button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
 
