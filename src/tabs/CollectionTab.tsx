@@ -465,6 +465,10 @@ export default function CollectionTab() {
                     </div>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
                       {tFindsCount(speciesFinds.length, lang)}
+                      {' · '}
+                      {speciesFinds.flatMap(f => f.photos).length}
+                      {' '}
+                      {lang === 'hr' ? 'foto' : 'photos'}
                     </p>
                   </div>
                 </button>
@@ -505,23 +509,42 @@ export default function CollectionTab() {
                     onBlur={() => handleNoteSave(speciesName)}
                     className="text-sm placeholder:text-muted-foreground/40"
                   />
-                  <div className="flex flex-col gap-1.5">
+                  {/* Photo grid — all photos for this species */}
+                  <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-6">
+                    {speciesFinds.flatMap((f) =>
+                      f.photos.map((photo, photoIdx) => (
+                        <button
+                          key={photo.id}
+                          type="button"
+                          className="group relative aspect-square overflow-hidden rounded-sm bg-muted"
+                          onClick={() => openLightbox(speciesFinds, f.id, photoIdx)}
+                        >
+                          <img
+                            src={resolvePhotoSrc(storagePath!, photo.photo_path)}
+                            alt=""
+                            className="h-full w-full object-cover transition-transform duration-150 group-hover:scale-105"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                          />
+                          {selectMode && (
+                            <div
+                              className={`absolute inset-0 flex items-center justify-center transition-colors ${selectedIds.has(f.id) ? 'bg-primary/40' : 'bg-black/0 group-hover:bg-black/20'}`}
+                              onClick={(e) => { e.stopPropagation(); toggleSelect(f.id); }}
+                            />
+                          )}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                  {/* Per-find action row */}
+                  <div className="flex flex-col gap-1">
                     {speciesFinds.map((f) => (
-                      <FindCard
-                        key={f.id}
-                        find={f}
-                        storagePath={storagePath!}
-                        onEdit={() => setEditing(f)}
-                        onDelete={() => setDeleting(f)}
-                        onToggleFavorite={(find) =>
-                          setFindFavorite.mutate({ findId: find.id, isFavorite: !find.is_favorite })
-                        }
-                        selectMode={selectMode}
-                        isSelected={selectedIds.has(f.id)}
-                        onToggleSelect={toggleSelect}
-                        onLongPress={enterSelectModeWith}
-                        onPhotoClick={(findId, photoIdx) => openLightbox(speciesFinds, findId, photoIdx)}
-                      />
+                      <div key={f.id} className="group/row flex items-center justify-between text-xs text-muted-foreground px-0.5 hover:text-foreground/80 transition-colors">
+                        <span>{f.date_found}{f.location_note ? ` · ${f.location_note}` : ''}</span>
+                        <div className="flex gap-3 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                          <button type="button" onClick={() => setEditing(f)} className="hover:text-foreground">{lang === 'hr' ? 'Uredi' : 'Edit'}</button>
+                          <button type="button" onClick={() => setDeleting(f)} className="hover:text-destructive">{lang === 'hr' ? 'Obriši' : 'Delete'}</button>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>
