@@ -99,7 +99,9 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       {pendingScan ? (
-        <AutoImportDialog storagePath={storagePath} onDone={() => setPendingScan(false)} />
+        <div className="h-screen w-screen bg-background">
+          <AutoImportDialog storagePath={storagePath} onDone={() => setPendingScan(false)} />
+        </div>
       ) : (
         <>
           <AppShell />
