@@ -510,7 +510,7 @@ export default function CollectionTab() {
                     className="text-sm placeholder:text-muted-foreground/40"
                   />
                   {/* Photo grid — all photos for this species */}
-                  <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-6">
+                  <div className="grid grid-cols-8 gap-1 sm:grid-cols-10">
                     {speciesFinds.flatMap((f) =>
                       f.photos.map((photo, photoIdx) => (
                         <div key={photo.id} className="group relative aspect-square overflow-hidden rounded-sm bg-muted">
