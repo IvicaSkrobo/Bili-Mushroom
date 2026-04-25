@@ -77,6 +77,11 @@ export const SUPPORTED_EXTENSIONS = [
   '.webp',
   '.heic',
   '.heif',
+  '.svg',
+  '.tiff',
+  '.tif',
+  '.bmp',
+  '.avif',
 ] as const;
 
 /** Returns true if the file is a HEIC/HEIF image that WebView2 cannot render. */

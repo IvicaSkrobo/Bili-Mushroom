@@ -87,7 +87,11 @@ export default function App() {
   }
 
   if (!dbReady) {
-    return null;
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-background">
+        <div className="w-6 h-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      </div>
+    );
   }
 
   return (

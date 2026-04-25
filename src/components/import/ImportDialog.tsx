@@ -243,19 +243,39 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     }
   }
 
+  function isImageEntry(name: string): boolean {
+    const ext = name.toLowerCase().slice(name.lastIndexOf('.'));
+    return SUPPORTED_EXTENSIONS.includes(ext as (typeof SUPPORTED_EXTENSIONS)[number]);
+  }
+
   async function handlePickFolder() {
     try {
       const dir = await openDialog({ directory: true });
       if (!dir || typeof dir !== 'string') return;
       const entries = await readDir(dir);
-      const imagePaths = entries
-        .filter((entry) => {
-          const name = entry.name ?? '';
-          const ext = name.toLowerCase().slice(name.lastIndexOf('.'));
-          return SUPPORTED_EXTENSIONS.includes(ext as (typeof SUPPORTED_EXTENSIONS)[number]);
-        })
-        .map((entry) => `${dir}/${entry.name}`);
 
+      // Collect images from the selected folder directly
+      const directImages = entries
+        .filter((e) => e.isFile && e.name && isImageEntry(e.name))
+        .map((e) => `${dir}/${e.name}`);
+
+      // Also collect images one level deep in subfolders
+      const subfolderImages: string[] = [];
+      const subdirs = entries.filter((e) => e.isDirectory && e.name);
+      for (const sub of subdirs) {
+        try {
+          const subEntries = await readDir(`${dir}/${sub.name}`);
+          for (const se of subEntries) {
+            if (se.isFile && se.name && isImageEntry(se.name)) {
+              subfolderImages.push(`${dir}/${sub.name}/${se.name}`);
+            }
+          }
+        } catch {
+          // skip unreadable subfolders
+        }
+      }
+
+      const imagePaths = [...directImages, ...subfolderImages];
       const items: PendingItem[] = await Promise.all(
         imagePaths.map(async (path) => {
           const exif = await parseExif(path);
