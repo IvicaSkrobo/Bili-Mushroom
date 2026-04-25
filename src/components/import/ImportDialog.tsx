@@ -168,24 +168,45 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         .filter((e) => e.isFile && e.name && isImagePath(e.name))
         .map((e) => `${dir}/${e.name}`);
 
-      const subfolderImages: string[] = [];
-      for (const sub of entries.filter((e) => e.isDirectory && e.name)) {
+      // Scan named subfolders — folder name takes precedence over filenames
+      const subdirs = entries.filter((e) => e.isDirectory && e.name && !e.name.startsWith('.'));
+      const subfolderGroups: { name: string; paths: string[] }[] = [];
+      for (const sub of subdirs) {
         try {
           const subEntries = await readDir(`${dir}/${sub.name}`);
-          for (const se of subEntries) {
-            if (se.isFile && se.name && isImagePath(se.name)) {
-              subfolderImages.push(`${dir}/${sub.name}/${se.name}`);
-            }
-          }
+          const imgs = subEntries
+            .filter((se) => se.isFile && se.name && isImagePath(se.name))
+            .map((se) => `${dir}/${sub.name}/${se.name}`);
+          if (imgs.length > 0) subfolderGroups.push({ name: sub.name!, paths: imgs });
         } catch { /* skip unreadable */ }
       }
 
-      const paths = [...directImages, ...subfolderImages];
       const isFirst = photos.length === 0;
-      const folderName = dir.split('/').pop()?.split('\\').pop() ?? '';
-      if (folderName && !sharedName) setSharedName(folderName);
-      setPhotos((prev) => [...prev, ...paths]);
-      if (isFirst) await prefillFromExif(paths);
+
+      if (subfolderGroups.length === 1) {
+        // One named subfolder → use its name as species, add all its photos
+        if (!sharedName) setSharedName(subfolderGroups[0].name);
+        const paths = [...directImages, ...subfolderGroups[0].paths];
+        setPhotos((prev) => [...prev, ...paths]);
+        if (isFirst) await prefillFromExif(paths);
+      } else if (subfolderGroups.length > 1) {
+        // Multiple named subfolders = multi-species library → only take direct images,
+        // show a hint to use Settings > Change Folder for structured folders
+        const paths = directImages;
+        const folderName = dir.split('/').pop()?.split('\\').pop() ?? '';
+        if (folderName && !sharedName) setSharedName(folderName);
+        if (paths.length > 0) {
+          setPhotos((prev) => [...prev, ...paths]);
+          if (isFirst) await prefillFromExif(paths);
+        }
+        setError(`Mapa sadrži ${subfolderGroups.length} podmapa s vrstama. Za uvoz cijele knjižnice koristi Postavke → Promijeni mapu.`);
+      } else {
+        // No subfolders — flat folder, use folder name
+        const folderName = dir.split('/').pop()?.split('\\').pop() ?? '';
+        if (folderName && !sharedName) setSharedName(folderName);
+        setPhotos((prev) => [...prev, ...directImages]);
+        if (isFirst) await prefillFromExif(directImages);
+      }
     } catch (e) {
       setError(String(e));
     }
