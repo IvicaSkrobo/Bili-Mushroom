@@ -203,7 +203,7 @@ export function FindPreviewCard({
               <div>
                 <LockableInput field="date_found" type="text" placeholder="DD/MM/YYYY" />
                 {payload.date_found === '' && (
-                  <p className="text-xs text-destructive mt-1">{t('preview.dateRequired')}</p>
+                  <p className="text-xs text-muted-foreground/60 mt-0.5">{t('preview.dateRequired')}</p>
                 )}
               </div>
 
