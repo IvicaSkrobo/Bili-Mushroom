@@ -6,9 +6,16 @@ export interface RustProxyTileLayerOptions {
   attribution?: string;
   minZoom?: number;
   maxZoom?: number;
+  directFallback?: boolean;
 }
 
 export interface TileCoords { x: number; y: number; z: number; }
+
+declare global {
+  interface Window {
+    __TAURI_INTERNALS__?: unknown;
+  }
+}
 
 /**
  * Substitute {z}/{x}/{y}/{s} placeholders in a tile URL template.
@@ -20,6 +27,47 @@ export function resolveTileUrl(template: string, coords: TileCoords): string {
     .replace('{x}', String(coords.x))
     .replace('{y}', String(coords.y))
     .replace('{s}', 'a');
+}
+
+export function isTauriRuntime(): boolean {
+  return typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__);
+}
+
+export function createOfflineTileDataUri(coords: TileCoords): string {
+  const hueShift = (coords.x * 17 + coords.y * 29 + coords.z * 11) % 24;
+  const bg = hueShift > 12 ? '#d9ddd2' : '#d4dbcf';
+  const line = '#adb7a8';
+  const contour = '#9ca990';
+  const text = '#59634f';
+  const label = `${coords.z}/${coords.x}/${coords.y}`;
+  const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <rect width="256" height="256" fill="${bg}"/>
+  <path d="M-20 68C35 35 83 36 141 66S235 91 283 48" fill="none" stroke="${contour}" stroke-width="2" opacity=".42"/>
+  <path d="M-16 150C38 123 89 118 137 139S218 183 278 137" fill="none" stroke="${contour}" stroke-width="2" opacity=".34"/>
+  <path d="M-22 218C43 184 86 192 141 219S226 247 276 206" fill="none" stroke="${contour}" stroke-width="2" opacity=".3"/>
+  <path d="M64 0V256M128 0V256M192 0V256M0 64H256M0 128H256M0 192H256" stroke="${line}" stroke-width="1" opacity=".58"/>
+  <circle cx="198" cy="54" r="22" fill="#c28a33" opacity=".16"/>
+  <text x="16" y="232" font-family="monospace" font-size="12" fill="${text}" opacity=".72">cached atlas ${label}</text>
+</svg>`.trim();
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function loadImageTile(
+  img: HTMLImageElement,
+  src: string,
+  done: L.DoneCallback,
+  errorMessage: string,
+) {
+  let settled = false;
+  const finish = (err?: Error) => {
+    if (settled) return;
+    settled = true;
+    done(err, img);
+  };
+  img.onload = () => finish();
+  img.onerror = () => finish(new Error(errorMessage));
+  img.src = src;
 }
 
 /**
@@ -38,14 +86,22 @@ export function createRustProxyTileLayer(
       img.alt = '';
       img.referrerPolicy = 'no-referrer';
       const url = resolveTileUrl(options.urlTemplate, coords);
+      const directFallback = options.directFallback ?? !isTauriRuntime();
+      const offlineFallback = () => {
+        loadImageTile(
+          img,
+          createOfflineTileDataUri(coords),
+          done,
+          `Offline tile fallback failed: ${url}`,
+        );
+      };
 
       const loadDirect = () => {
-        img.onerror = () => {
-          console.error('Direct tile load also failed:', url);
-          done(new Error(`Tile load failed: ${url}`), img);
-        };
-        img.src = url;
-        done(undefined, img);
+        if (!directFallback) {
+          offlineFallback();
+          return;
+        }
+        loadImageTile(img, url, done, `Tile load failed: ${url}`);
       };
 
       invoke<string>('fetch_tile', { url })
@@ -55,11 +111,10 @@ export function createRustProxyTileLayer(
             loadDirect();
             return;
           }
-          img.src = dataUri;
-          done(undefined, img);
+          loadImageTile(img, dataUri, done, `Proxied tile data failed: ${url}`);
         })
         .catch((err: unknown) => {
-          console.warn('Tile proxy failed, falling back to direct tile URL.', url, err);
+          console.warn('Tile proxy failed; using fallback tile path.', url, err);
           loadDirect();
         });
       return img;
