@@ -46,7 +46,12 @@ fn hex_lower(bytes: &[u8]) -> String {
 }
 
 fn open_conn(storage_path: &str) -> Result<Connection, String> {
-    crate::commands::import::open_db(storage_path).map_err(|e| e.to_string())
+    let db_path = PathBuf::from(storage_path).join("bili-tile-cache.db");
+    let conn = Connection::open(&db_path)
+        .map_err(|e| format!("Failed to open tile cache DB at {}: {}", db_path.display(), e))?;
+    conn.execute_batch(include_str!("../../migrations/0006_tile_cache.sql"))
+        .map_err(|e| format!("Tile cache migration failed: {}", e))?;
+    Ok(conn)
 }
 
 fn cache_base_dir<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
@@ -264,7 +269,7 @@ mod tests {
 
     fn seed_cache_db(metadata_dir: &std::path::Path) -> rusqlite::Connection {
         std::fs::create_dir_all(metadata_dir).unwrap();
-        let db_path = metadata_dir.join("bili-mushroom.db");
+        let db_path = metadata_dir.join("bili-tile-cache.db");
         let conn = rusqlite::Connection::open(db_path).unwrap();
         conn.execute_batch(TILE_CACHE_SQL).unwrap();
         conn

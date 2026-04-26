@@ -10,6 +10,7 @@ node_modules/
 dist/
 dist-ssr/
 build/
+*.exe
 
 # Tauri
 src-tauri/target/
@@ -59,6 +60,7 @@ $RECYCLE.BIN/
 
 # GSD / Claude
 .claude/settings.local.json
+.claude/worktrees/
 .aider*
 
 # Graphify output
