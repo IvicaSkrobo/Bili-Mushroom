@@ -11,6 +11,8 @@ export interface RustProxyTileLayerOptions {
 
 export interface TileCoords { x: number; y: number; z: number; }
 
+export const TILE_PROXY_ERROR_EVENT = 'bili-tile-proxy-error';
+
 declare global {
   interface Window {
     __TAURI_INTERNALS__?: unknown;
@@ -51,6 +53,30 @@ export function createOfflineTileDataUri(coords: TileCoords): string {
   <text x="16" y="232" font-family="monospace" font-size="12" fill="${text}" opacity=".72">cached atlas ${label}</text>
 </svg>`.trim();
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function errorToMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
+}
+
+function reportTileProxyError(url: string, err: unknown) {
+  if (typeof window === 'undefined') return;
+  const message = errorToMessage(err);
+  window.dispatchEvent(
+    new CustomEvent(TILE_PROXY_ERROR_EVENT, {
+      detail: {
+        message,
+        url,
+        at: new Date().toISOString(),
+      },
+    }),
+  );
 }
 
 function loadImageTile(
@@ -107,7 +133,9 @@ export function createRustProxyTileLayer(
       invoke<string>('fetch_tile', { url })
         .then((dataUri) => {
           if (!dataUri.startsWith('data:')) {
-            console.error('fetch_tile returned non-data-URI, falling back:', dataUri.slice(0, 80));
+            const err = `fetch_tile returned non-data URI: ${dataUri.slice(0, 120)}`;
+            console.error(err);
+            reportTileProxyError(url, err);
             loadDirect();
             return;
           }
@@ -115,6 +143,7 @@ export function createRustProxyTileLayer(
         })
         .catch((err: unknown) => {
           console.warn('Tile proxy failed; using fallback tile path.', url, err);
+          reportTileProxyError(url, err);
           loadDirect();
         });
       return img;
