@@ -11,6 +11,11 @@ vi.mock('@/hooks/useFinds', () => ({
   useFinds: () => ({ data: [], isLoading: false }),
 }));
 
+vi.mock('@/hooks/useZones', () => ({
+  useZones: () => ({ data: [], isLoading: false }),
+  useUpsertZone: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+
 // Mock the store to allow per-test override of storagePath
 const storagePathRef = { current: null as string | null };
 vi.mock('@/stores/appStore', () => ({

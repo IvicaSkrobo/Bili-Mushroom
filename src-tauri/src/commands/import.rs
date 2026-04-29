@@ -74,6 +74,7 @@ const MIGRATION_0007: &str = include_str!("../../migrations/0007_find_favorites.
 const MIGRATION_0008: &str = include_str!("../../migrations/0008_observed_count.sql");
 const MIGRATION_0009: &str = include_str!("../../migrations/0009_species_profiles.sql");
 const MIGRATION_0010: &str = include_str!("../../migrations/0010_species_profile_tags.sql");
+const MIGRATION_0011: &str = include_str!("../../migrations/0011_zones.sql");
 
 /// Apply all migrations to an open connection using rusqlite's user_version pragma
 /// as a lightweight migration tracker. Idempotent — safe to call on every open.
@@ -168,6 +169,12 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
         }
         conn.execute_batch("PRAGMA user_version = 10")
             .map_err(|e| format!("Failed to set user_version=10: {}", e))?;
+    }
+    if version < 11 {
+        conn.execute_batch(MIGRATION_0011)
+            .map_err(|e| format!("Migration 0011 failed: {}", e))?;
+        conn.execute_batch("PRAGMA user_version = 11")
+            .map_err(|e| format!("Failed to set user_version=11: {}", e))?;
     }
 
     Ok(())

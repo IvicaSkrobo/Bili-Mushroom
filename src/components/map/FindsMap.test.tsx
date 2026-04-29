@@ -16,6 +16,7 @@ vi.mock('./LayerSwitcher', () => ({ LayerSwitcher: () => null }));
 vi.mock('./CollectionPins', () => ({ CollectionPins: () => null }));
 vi.mock('./FitBoundsControl', () => ({ FitBoundsControl: () => null }));
 vi.mock('./OnlineStatusBadge', () => ({ OnlineStatusBadge: () => null }));
+vi.mock('./ZoneLayers', () => ({ ZoneLayers: () => null }));
 
 import { FindsMap } from './FindsMap';
 

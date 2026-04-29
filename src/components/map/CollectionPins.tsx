@@ -3,6 +3,7 @@ import L from 'leaflet';
 import { Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Find } from '@/lib/finds';
+import type { Zone, ZoneType, ZoneViewMode } from '@/lib/zones';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { useSpeciesNotes } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
@@ -50,19 +51,33 @@ function CollectionPopup({
   collection,
   speciesNote,
   storagePath,
+  onCreateZoneForFind,
+  zones,
+  zoneMode,
 }: {
   collection: Collection;
   speciesNote: string | undefined;
   storagePath: string;
+  onCreateZoneForFind: (find: Find, zoneType: ZoneType) => void;
+  zones: Zone[];
+  zoneMode: ZoneViewMode;
 }) {
   const [photoIdx, setPhotoIdx] = useState(0);
   const allPhotos = useMemo(
-    () => collection.finds.flatMap((f) => f.photos.map((p) => ({ photo: p, findNotes: f.notes }))),
+    () => collection.finds.flatMap((f) => f.photos.map((p) => ({ find: f, photo: p, findNotes: f.notes }))),
     [collection.finds],
   );
   const [latinName, croatianName] = collection.name.split(',').map((s) => s.trim());
   const current = allPhotos[photoIdx] ?? null;
   const photo = current?.photo ?? null;
+  const pinZoneType: ZoneType = zoneMode === 'region' ? 'region' : 'local';
+  const existingPinZone = current?.find
+    ? zones.find((zone) => {
+      if (zone.zone_type !== pinZoneType) return false;
+      if (pinZoneType === 'region') return true;
+      return zone.source_find_id === current.find.id;
+    })
+    : null;
   const photoSrc = photo && storagePath
     ? resolvePhotoSrc(storagePath, photo.photo_path)
     : null;
@@ -121,6 +136,16 @@ function CollectionPopup({
           )}
         </div>
       )}
+
+      {current?.find.lat != null && current.find.lng != null && (
+        <button
+          type="button"
+          onClick={() => onCreateZoneForFind(current.find, pinZoneType)}
+          className="rounded border border-primary/45 px-2 py-1 text-xs font-semibold text-foreground hover:bg-primary/10"
+        >
+          {existingPinZone ? `Edit ${pinZoneType} zone` : `Add ${pinZoneType} zone`}
+        </button>
+      )}
     </div>
   );
 }
@@ -146,7 +171,19 @@ function computeCrowded(map: L.Map, collections: Collection[]): Set<string> {
   return crowded;
 }
 
-function CollectionPinsInner({ collections }: { collections: Collection[] }) {
+function CollectionPinsInner({
+  collections,
+  onCreateZoneForFind,
+  onSelectSpecies,
+  zones,
+  zoneMode,
+}: {
+  collections: Collection[];
+  onCreateZoneForFind: (find: Find, zoneType: ZoneType) => void;
+  onSelectSpecies: (speciesName: string) => void;
+  zones: Zone[];
+  zoneMode: ZoneViewMode;
+}) {
   const map = useMap();
   const [crowded, setCrowded] = useState<Set<string>>(new Set());
   const { data: speciesNotesData } = useSpeciesNotes();
@@ -177,17 +214,24 @@ function CollectionPinsInner({ collections }: { collections: Collection[] }) {
       {collections.map((c) => {
         const showLabel = !crowded.has(c.name);
         const speciesNote = speciesNotesByName.get(c.name);
+        const collectionZones = zones.filter((zone) => zone.species_name === c.name);
         return (
           <Marker
             key={`col-${c.name}`}
             position={[c.lat, c.lng]}
             icon={getCollectionIcon(c.name, showLabel, isSatellite)}
+            eventHandlers={{
+              click: () => onSelectSpecies(c.name),
+            }}
           >
             <Popup minWidth={220}>
               <CollectionPopup
                 collection={c}
                 speciesNote={speciesNote}
                 storagePath={storagePath}
+                onCreateZoneForFind={onCreateZoneForFind}
+                zones={collectionZones}
+                zoneMode={zoneMode}
               />
             </Popup>
           </Marker>
@@ -197,9 +241,29 @@ function CollectionPinsInner({ collections }: { collections: Collection[] }) {
   );
 }
 
-export function CollectionPins({ finds }: { finds: Find[] }) {
+export function CollectionPins({
+  finds,
+  zones = [],
+  zoneMode = 'pins',
+  onCreateZoneForFind = () => undefined,
+  onSelectSpecies = () => undefined,
+}: {
+  finds: Find[];
+  zones?: Zone[];
+  zoneMode?: ZoneViewMode;
+  onCreateZoneForFind?: (find: Find, zoneType: ZoneType) => void;
+  onSelectSpecies?: (speciesName: string) => void;
+}) {
   const collections = useMemo(() => collections_from_finds(finds), [finds]);
-  return <CollectionPinsInner collections={collections} />;
+  return (
+    <CollectionPinsInner
+      collections={collections}
+      onCreateZoneForFind={onCreateZoneForFind}
+      onSelectSpecies={onSelectSpecies}
+      zones={zones}
+      zoneMode={zoneMode}
+    />
+  );
 }
 
 function collections_from_finds(finds: Find[]): Collection[] {

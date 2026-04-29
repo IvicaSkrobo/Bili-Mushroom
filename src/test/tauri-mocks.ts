@@ -75,6 +75,17 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
   clear_tile_cache: async (_args: { storagePath?: string | null }) => undefined,
   set_cache_max: async (_args: { maxBytes: number }) => undefined,
   get_cache_max_bytes: async () => 200 * 1024 * 1024,
+  get_zones: (_args: unknown) => [],
+  upsert_zone: (args: unknown) => {
+    const payload = (args as { payload: Record<string, unknown> }).payload;
+    return {
+      id: payload.id ?? 1,
+      ...payload,
+      created_at: '2026-04-29T12:00:00Z',
+      updated_at: '2026-04-29T12:00:00Z',
+    };
+  },
+  delete_zone: (_args: unknown) => undefined,
   get_stats_cards: (_args: unknown) => ({
     total_finds: 0, unique_species: 0, locations_visited: 0, most_active_month: null,
   }),

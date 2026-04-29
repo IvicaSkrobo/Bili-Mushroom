@@ -27,6 +27,9 @@ pub fn run() {
             commands::tile_proxy::clear_tile_cache,
             commands::tile_proxy::set_cache_max,
             commands::tile_proxy::get_cache_max_bytes,
+            commands::zones::get_zones,
+            commands::zones::upsert_zone,
+            commands::zones::delete_zone,
             commands::stats::get_stats_cards,
             commands::stats::get_top_spots,
             commands::stats::get_best_months,
@@ -70,7 +73,7 @@ mod smoke {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .expect("user_version");
-        assert_eq!(version, 10, "user_version must be 10 after all migrations");
+        assert_eq!(version, 11, "user_version must be 11 after all migrations");
     }
 
     #[test]

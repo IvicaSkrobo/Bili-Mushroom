@@ -40,6 +40,11 @@ export default function App() {
   // Load persisted path on mount
   useEffect(() => {
     let cancelled = false;
+    if (!('__TAURI_INTERNALS__' in window)) {
+      setDbError('Bili Mushroom must be run inside the Tauri desktop app. The localhost browser view cannot access the local database bridge.');
+      return () => { cancelled = true; };
+    }
+
     loadStoragePath().then((path) => {
       if (cancelled) return;
       if (path) setStoragePath(path);

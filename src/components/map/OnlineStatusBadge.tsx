@@ -3,6 +3,8 @@ import L from 'leaflet';
 import { useMap } from 'react-leaflet';
 import { TILE_PROXY_ERROR_EVENT } from './RustProxyTileLayer';
 
+const SHOW_TILE_PROXY_ERRORS = import.meta.env.DEV;
+
 interface TileProxyErrorDetail {
   message: string;
   url: string;
@@ -32,6 +34,7 @@ export function OnlineStatusBadge() {
   }, []);
 
   useEffect(() => {
+    if (!SHOW_TILE_PROXY_ERRORS) return undefined;
     const handleTileError = (event: Event) => {
       const detail = (event as CustomEvent<TileProxyErrorDetail>).detail;
       if (!detail?.message) return;
@@ -77,7 +80,7 @@ export function OnlineStatusBadge() {
         ].join(';');
         const label = L.DomUtil.create('span', '', statusRow);
         label.textContent = online ? 'Online' : 'Cached';
-        if (tileError) {
+        if (SHOW_TILE_PROXY_ERRORS && tileError) {
           const error = L.DomUtil.create('div', '', div);
           error.style.cssText = [
             'margin-top:2px',

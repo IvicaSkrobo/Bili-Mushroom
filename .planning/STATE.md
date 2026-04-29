@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: active
 stopped_at: null
-last_updated: "2026-04-23T22:27:00.000Z"
-last_activity: 2026-04-23 -- Reprioritized backlog for 5k+ photo scale; added large-library query/list strategy follow-up
+last_updated: "2026-04-29T15:07:00.000Z"
+last_activity: 2026-04-29 -- Added GSD plan for species-specific map zones with circle-first local zones and polygon-ready region zones
 progress:
   total_phases: 9
   completed_phases: 6
@@ -93,6 +93,7 @@ Recent decisions affecting current work:
 - [ ] Review bulk operations for consistent confirmation, refresh, and cache-update behavior
 - [ ] Review map tile cache policy (limit, eviction, settings exposure, offline UX copy)
 - [ ] Rework query/list strategy for large libraries (5k+ photos): lighter query shapes, targeted cache updates, and/or virtualization where needed
+- [ ] Implement species-specific map zones: local circle zones first, polygon-ready region zones next, with map view modes for pins/local/region/all
 - [x] Stabilize PDF export path — keep `@react-pdf/renderer`, add smoke-test diagnostics, and fall back to main-thread rendering when the worker stalls in Tauri
 - [x] Redesign PDF journal pacing/content — interleave stats pages with highlight spreads and photo ribbons, convert the trailing page into a species list, and align labels with photo-count semantics
 - [x] Add favorites support for finds — migration + backend command + collection UI toggle/filter + tests
