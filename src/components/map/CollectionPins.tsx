@@ -52,6 +52,7 @@ function CollectionPopup({
   speciesNote,
   storagePath,
   onCreateZoneForFind,
+  onPickLocalTargetFind,
   zones,
   zoneMode,
 }: {
@@ -59,6 +60,7 @@ function CollectionPopup({
   speciesNote: string | undefined;
   storagePath: string;
   onCreateZoneForFind: (find: Find, zoneType: ZoneType) => void;
+  onPickLocalTargetFind: (find: Find) => void;
   zones: Zone[];
   zoneMode: ZoneViewMode;
 }) {
@@ -138,13 +140,25 @@ function CollectionPopup({
       )}
 
       {current?.find.lat != null && current.find.lng != null && (
-        <button
-          type="button"
-          onClick={() => onCreateZoneForFind(current.find, pinZoneType)}
-          className="rounded border border-primary/45 px-2 py-1 text-xs font-semibold text-foreground hover:bg-primary/10"
-        >
-          {existingPinZone ? `Edit ${pinZoneType} zone` : `Add ${pinZoneType} zone`}
-        </button>
+        <div className="flex flex-col gap-1.5">
+          {pinZoneType === 'local' ? (
+            <button
+              type="button"
+              onClick={() => onPickLocalTargetFind(current.find)}
+              className="rounded border border-secondary/45 bg-secondary/10 px-2 py-1 text-xs font-semibold text-foreground hover:bg-secondary/20"
+            >
+              {existingPinZone ? 'Pick this find for local zone' : 'Pick this find'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onCreateZoneForFind(current.find, pinZoneType)}
+              className="rounded border border-primary/45 px-2 py-1 text-xs font-semibold text-foreground hover:bg-primary/10"
+            >
+              {existingPinZone ? `Edit ${pinZoneType} zone` : `Add ${pinZoneType} zone`}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -174,12 +188,14 @@ function computeCrowded(map: L.Map, collections: Collection[]): Set<string> {
 function CollectionPinsInner({
   collections,
   onCreateZoneForFind,
+  onPickLocalTargetFind,
   onSelectSpecies,
   zones,
   zoneMode,
 }: {
   collections: Collection[];
   onCreateZoneForFind: (find: Find, zoneType: ZoneType) => void;
+  onPickLocalTargetFind: (find: Find) => void;
   onSelectSpecies: (speciesName: string) => void;
   zones: Zone[];
   zoneMode: ZoneViewMode;
@@ -230,6 +246,7 @@ function CollectionPinsInner({
                 speciesNote={speciesNote}
                 storagePath={storagePath}
                 onCreateZoneForFind={onCreateZoneForFind}
+                onPickLocalTargetFind={onPickLocalTargetFind}
                 zones={collectionZones}
                 zoneMode={zoneMode}
               />
@@ -246,12 +263,14 @@ export function CollectionPins({
   zones = [],
   zoneMode = 'pins',
   onCreateZoneForFind = () => undefined,
+  onPickLocalTargetFind = () => undefined,
   onSelectSpecies = () => undefined,
 }: {
   finds: Find[];
   zones?: Zone[];
   zoneMode?: ZoneViewMode;
   onCreateZoneForFind?: (find: Find, zoneType: ZoneType) => void;
+  onPickLocalTargetFind?: (find: Find) => void;
   onSelectSpecies?: (speciesName: string) => void;
 }) {
   const collections = useMemo(() => collections_from_finds(finds), [finds]);
@@ -259,6 +278,7 @@ export function CollectionPins({
     <CollectionPinsInner
       collections={collections}
       onCreateZoneForFind={onCreateZoneForFind}
+      onPickLocalTargetFind={onPickLocalTargetFind}
       onSelectSpecies={onSelectSpecies}
       zones={zones}
       zoneMode={zoneMode}

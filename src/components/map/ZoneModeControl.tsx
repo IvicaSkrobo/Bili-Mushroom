@@ -7,10 +7,22 @@ interface ZoneModeControlProps {
   mode: ZoneViewMode;
   visibleFinds: Find[];
   activeSpecies: string | null;
+  localTargetFind: Find | null;
+  hasLocalCircle: boolean;
+  hasLocalPolygon: boolean;
   hasRegionZone: boolean;
+  hasRegionPolygon: boolean;
   onModeChange: (mode: ZoneViewMode) => void;
+  onCreateLocalCircle: () => void;
+  onStartLocalPolygon: () => void;
   onCreateRegion: () => void;
+  onStartRegionPolygon: () => void;
+  onSaveRegionPolygon: () => void;
+  onUndoRegionPolygon: () => void;
+  onCancelRegionPolygon: () => void;
   creatingRegion: boolean;
+  drawingRegionPolygon: boolean;
+  regionPolygonPointCount: number;
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
 }
@@ -26,10 +38,22 @@ export function ZoneModeControl({
   mode,
   visibleFinds,
   activeSpecies,
+  localTargetFind,
+  hasLocalCircle,
+  hasLocalPolygon,
   hasRegionZone,
+  hasRegionPolygon,
+  onCreateLocalCircle,
+  onStartLocalPolygon,
   onModeChange,
   onCreateRegion,
+  onStartRegionPolygon,
+  onSaveRegionPolygon,
+  onUndoRegionPolygon,
+  onCancelRegionPolygon,
   creatingRegion,
+  drawingRegionPolygon,
+  regionPolygonPointCount,
   collapsed,
   onCollapsedChange,
 }: ZoneModeControlProps) {
@@ -38,6 +62,8 @@ export function ZoneModeControl({
   const canCreateRegion = targetSpecies != null && visibleFinds.some(
     (find) => find.species_name === targetSpecies && find.lat != null && find.lng != null,
   );
+  const showRegionTools = mode === 'region' || mode === 'all';
+  const showLocalTools = mode === 'local';
 
   return (
     <DraggablePanel
@@ -93,26 +119,106 @@ export function ZoneModeControl({
         </button>
       </div>
 
-      {mode !== 'pins' && (
-        <div className="w-fit max-w-[280px] rounded-md border border-border bg-card/95 p-2 text-xs text-muted-foreground shadow-xl backdrop-blur">
+      {showRegionTools && (
+        <div className="w-fit max-w-[250px] rounded-md border border-border bg-card/95 p-2 text-xs text-muted-foreground shadow-xl backdrop-blur">
           <div className="flex items-center gap-2">
             <MapPin className="h-3.5 w-3.5 text-primary" />
             <span className="truncate">
               {targetSpecies ? targetSpecies.split(',')[0] : `${species.length || 'No'} species visible`}
             </span>
           </div>
-          <button
-            type="button"
-            onClick={onCreateRegion}
-            disabled={!canCreateRegion || creatingRegion}
-            className="mt-2 inline-flex h-7 items-center gap-1.5 rounded border border-secondary/50 px-2 text-[11px] font-semibold text-foreground hover:bg-secondary/20 disabled:cursor-not-allowed disabled:opacity-45"
-          >
-            <PencilRuler className="h-3.5 w-3.5" />
-            {creatingRegion ? 'Opening' : hasRegionZone ? 'Edit region circle' : 'Add region circle'}
-          </button>
+          <div className="mt-2 flex flex-col gap-1.5">
+            <button
+              type="button"
+              onClick={drawingRegionPolygon ? onSaveRegionPolygon : onStartRegionPolygon}
+              disabled={!canCreateRegion || creatingRegion || (drawingRegionPolygon && regionPolygonPointCount < 3)}
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded border border-secondary/50 bg-secondary/10 px-2 text-[11px] font-semibold text-foreground hover:bg-secondary/20 disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <PencilRuler className="h-3.5 w-3.5" />
+              {drawingRegionPolygon
+                ? `Save polygon (${regionPolygonPointCount})`
+                : hasRegionPolygon
+                  ? 'Redraw region polygon'
+                  : 'Draw region polygon'}
+            </button>
+
+            {drawingRegionPolygon ? (
+              <div className="grid grid-cols-2 gap-1">
+                <button
+                  type="button"
+                  onClick={onUndoRegionPolygon}
+                  disabled={regionPolygonPointCount === 0}
+                  className="inline-flex h-7 items-center justify-center rounded border border-border/60 px-2 text-[11px] font-semibold text-foreground hover:bg-secondary/20 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  Undo point
+                </button>
+                <button
+                  type="button"
+                  onClick={onCancelRegionPolygon}
+                  className="inline-flex h-7 items-center justify-center rounded border border-border/60 px-2 text-[11px] font-semibold text-muted-foreground hover:bg-secondary/20 hover:text-foreground"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={onCreateRegion}
+                disabled={!canCreateRegion || creatingRegion}
+                className="inline-flex h-7 items-center justify-center gap-1.5 rounded border border-border/60 px-2 text-[11px] font-semibold text-foreground hover:bg-secondary/20 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                <PencilRuler className="h-3.5 w-3.5" />
+                {creatingRegion ? 'Opening' : hasRegionZone ? 'Edit region circle' : 'Add quick circle'}
+              </button>
+            )}
+          </div>
+
+          <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground/85">
+            {drawingRegionPolygon
+              ? 'Click the map to place boundary points, then save when the forest outline feels right.'
+              : 'Polygon is the preferred region shape. Circle stays available as a faster fallback.'}
+          </p>
         </div>
       )}
-        </>
+
+      {showLocalTools && (
+        <div className="w-fit max-w-[250px] rounded-md border border-border bg-card/95 p-2 text-xs text-muted-foreground shadow-xl backdrop-blur">
+          <div className="flex items-center gap-2">
+            <MapPin className="h-3.5 w-3.5 text-primary" />
+            <span className="truncate">
+              {localTargetFind
+                ? `${localTargetFind.species_name.split(',')[0]} / ${localTargetFind.date_found}`
+                : 'Pick a find or pin'}
+            </span>
+          </div>
+
+          {localTargetFind ? (
+            <div className="mt-2 flex flex-col gap-1.5">
+              <button
+                type="button"
+                onClick={onStartLocalPolygon}
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded border border-secondary/50 bg-secondary/10 px-2 text-[11px] font-semibold text-foreground hover:bg-secondary/20"
+              >
+                <PencilRuler className="h-3.5 w-3.5" />
+                {hasLocalPolygon ? 'Edit local polygon' : 'Draw local polygon'}
+              </button>
+              <button
+                type="button"
+                onClick={onCreateLocalCircle}
+                className="inline-flex h-7 items-center justify-center gap-1.5 rounded border border-border/60 px-2 text-[11px] font-semibold text-foreground hover:bg-secondary/20"
+              >
+                <PencilRuler className="h-3.5 w-3.5" />
+                {hasLocalCircle ? 'Edit local circle' : 'Add quick circle'}
+              </button>
+            </div>
+          ) : (
+            <div className="mt-2 rounded-md border border-border/60 bg-secondary/10 px-2 py-2 text-[10px] leading-relaxed text-muted-foreground/85">
+              Open a mushroom pin popup and choose `Pick this find`, then the local zone actions will appear here.
+            </div>
+          )}
+        </div>
+      )}
+      </>
       )}
       </>
       )}

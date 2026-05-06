@@ -4,6 +4,7 @@ import type { Find } from './finds';
 export type ZoneType = 'local' | 'region';
 export type ZoneGeometryType = 'circle' | 'polygon';
 export type ZoneViewMode = 'pins' | 'local' | 'region' | 'all';
+export type ZonePolygonPoint = [number, number];
 
 export interface Zone {
   id: number;
@@ -115,7 +116,9 @@ export function isFindInsideZone(find: Find, zone: Zone): boolean {
       zone.radius_meters,
     );
   }
-  return false;
+  const polygon = parsePolygonJson(zone.polygon_json);
+  if (polygon.length < 3) return false;
+  return pointInPolygon(find.lat, find.lng, polygon);
 }
 
 export function visibleZonesForMode(zones: Zone[], mode: ZoneViewMode): Zone[] {
@@ -128,4 +131,46 @@ export function formatRadius(radiusMeters: number | null): string {
   if (radiusMeters == null) return '';
   if (radiusMeters >= 1000) return `${(radiusMeters / 1000).toFixed(1)} km`;
   return `${Math.round(radiusMeters)} m`;
+}
+
+export function parsePolygonJson(polygonJson: string | null): ZonePolygonPoint[] {
+  if (!polygonJson) return [];
+  try {
+    const parsed = JSON.parse(polygonJson);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (point): point is [number, number] =>
+          Array.isArray(point) &&
+          point.length >= 2 &&
+          typeof point[0] === 'number' &&
+          typeof point[1] === 'number' &&
+          Number.isFinite(point[0]) &&
+          Number.isFinite(point[1]),
+      )
+      .map((point) => [point[0], point[1]]);
+  } catch {
+    return [];
+  }
+}
+
+export function stringifyPolygon(points: ZonePolygonPoint[]): string {
+  return JSON.stringify(points);
+}
+
+export function pointInPolygon(
+  lat: number,
+  lng: number,
+  polygon: ZonePolygonPoint[],
+): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [latI, lngI] = polygon[i];
+    const [latJ, lngJ] = polygon[j];
+    const intersects =
+      lngI > lng !== lngJ > lng &&
+      lat < ((latJ - latI) * (lng - lngI)) / ((lngJ - lngI) || Number.EPSILON) + latI;
+    if (intersects) inside = !inside;
+  }
+  return inside;
 }

@@ -9,6 +9,11 @@ vi.mock('react-leaflet', () => ({
     </div>
   ),
   useMap: () => ({ addLayer: vi.fn(), removeLayer: vi.fn() }),
+  useMapEvents: () => ({}),
+  Polygon: () => null,
+  Polyline: () => null,
+  CircleMarker: () => null,
+  Marker: () => null,
 }));
 
 // Stub all child components so they don't try to call real Leaflet

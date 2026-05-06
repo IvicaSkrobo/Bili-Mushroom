@@ -1,13 +1,19 @@
 import { Crosshair, GripHorizontal, Trash2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { Find } from '@/lib/finds';
-import { formatRadius, summarizeZone, type Zone } from '@/lib/zones';
+import { formatRadius, parsePolygonJson, summarizeZone, type Zone } from '@/lib/zones';
 import { useDeleteZone, useUpsertZone } from '@/hooks/useZones';
 import { DraggablePanel } from './DraggablePanel';
 
 interface ZoneEditorPanelProps {
   zone: Zone;
   finds: Find[];
+  polygonEditing?: boolean;
+  polygonPointCount?: number;
+  focusMode?: boolean;
+  onStartPolygonEdit?: () => void;
+  onCancelPolygonEdit?: () => void;
+  onSavePolygonEdit?: () => Promise<void>;
   onClose: () => void;
   onZoneSaved: (zone: Zone) => void;
   onZoneTypeSelected: (zone: Zone, zoneType: Zone['zone_type']) => void;
@@ -17,6 +23,12 @@ interface ZoneEditorPanelProps {
 export function ZoneEditorPanel({
   zone,
   finds,
+  polygonEditing = false,
+  polygonPointCount,
+  focusMode = false,
+  onStartPolygonEdit,
+  onCancelPolygonEdit,
+  onSavePolygonEdit,
   onClose,
   onZoneSaved,
   onZoneTypeSelected,
@@ -29,13 +41,17 @@ export function ZoneEditorPanel({
   const [notes, setNotes] = useState(zone.notes);
   const [name, setName] = useState(zone.name);
   const [saving, setSaving] = useState(false);
+  const [savingPolygon, setSavingPolygon] = useState(false);
   const isLocal = zone.zone_type === 'local';
+  const isPolygon = zone.geometry_type === 'polygon';
+  const polygonPoints = useMemo(() => parsePolygonJson(zone.polygon_json), [zone.polygon_json]);
   const accent = isLocal ? '#D4512A' : '#2D8C7C';
   const translucentAccent = isLocal ? 'rgba(212, 81, 42, 0.14)' : 'rgba(45, 140, 124, 0.14)';
+  const compactPolygonFocus = focusMode && polygonEditing && isPolygon;
 
   async function handleSave() {
     const parsedRadius = Number(radius);
-    if (!Number.isFinite(parsedRadius) || parsedRadius <= 0) return;
+    if (!isPolygon && (!Number.isFinite(parsedRadius) || parsedRadius <= 0)) return;
     setSaving(true);
     try {
       const savedZone = await upsertZone.mutateAsync({
@@ -46,7 +62,7 @@ export function ZoneEditorPanel({
         geometry_type: zone.geometry_type,
         center_lat: zone.center_lat,
         center_lng: zone.center_lng,
-        radius_meters: parsedRadius,
+        radius_meters: isPolygon ? null : parsedRadius,
         polygon_json: zone.polygon_json,
         source_find_id: zone.source_find_id,
         notes,
@@ -57,6 +73,16 @@ export function ZoneEditorPanel({
       onZoneSaved(savedZone);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSavePolygon() {
+    if (!onSavePolygonEdit) return;
+    setSavingPolygon(true);
+    try {
+      await onSavePolygonEdit();
+    } finally {
+      setSavingPolygon(false);
     }
   }
 
@@ -99,101 +125,154 @@ export function ZoneEditorPanel({
               {name || (isLocal ? 'Local zone' : 'Region zone')}
             </p>
             <p className="truncate text-xs text-muted-foreground">
-              {zone.species_name.split(',')[0]} / {formatRadius(Number(radius))}
+              {zone.species_name.split(',')[0]} / {isPolygon ? `${polygonPoints.length} points` : formatRadius(Number(radius))}
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => onZoomToZone(zone, zone.zone_type)}
-            className="mb-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded border px-2 text-[11px] font-semibold text-foreground hover:bg-secondary/20"
-            style={{ borderColor: accent }}
-          >
-            <Crosshair className="h-3.5 w-3.5" />
-            Zoom to {isLocal ? 'local zone' : 'region'}
-          </button>
+          {!compactPolygonFocus && (
+            <button
+              type="button"
+              onClick={() => onZoomToZone(zone, zone.zone_type)}
+              className="mb-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded border px-2 text-[11px] font-semibold text-foreground hover:bg-secondary/20"
+              style={{ borderColor: accent }}
+            >
+              <Crosshair className="h-3.5 w-3.5" />
+              Zoom to {isLocal ? 'local zone' : 'region'}
+            </button>
+          )}
 
-          <div className="mb-2 rounded border border-border bg-input p-1">
-            <div className="grid grid-cols-2 gap-1">
-              {(['local', 'region'] as const).map((type) => {
-                const active = zone.zone_type === type;
-                const color = type === 'local' ? '#D4512A' : '#2D8C7C';
-                return (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => onZoneTypeSelected(zone, type)}
-                    className="h-7 rounded text-[11px] font-bold uppercase tracking-[0.12em] transition-colors"
-                    style={{
-                      backgroundColor: active ? color : 'transparent',
-                      color: active ? '#FFFFFF' : 'var(--muted-foreground)',
-                    }}
-                  >
-                    {type}
-                  </button>
-                );
-              })}
+          {!compactPolygonFocus && (
+            <div className="mb-2 rounded border border-border bg-input p-1">
+              <div className="grid grid-cols-2 gap-1">
+                {(['local', 'region'] as const).map((type) => {
+                  const active = zone.zone_type === type;
+                  const color = type === 'local' ? '#D4512A' : '#2D8C7C';
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => onZoneTypeSelected(zone, type)}
+                      className="h-7 rounded text-[11px] font-bold uppercase tracking-[0.12em] transition-colors"
+                      style={{
+                        backgroundColor: active ? color : 'transparent',
+                        color: active ? '#FFFFFF' : 'var(--muted-foreground)',
+                      }}
+                    >
+                      {type}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
-          <div className="mb-2 grid grid-cols-3 gap-1 text-[11px] text-muted-foreground">
-            <ZoneStat label="Finds" value={String(summary.finds.length)} />
-            <ZoneStat label="First" value={summary.firstFound ?? '-'} />
-            <ZoneStat label="Last" value={summary.lastFound ?? '-'} />
-          </div>
+          {!compactPolygonFocus && (
+            <div className="mb-2 grid grid-cols-3 gap-1 text-[11px] text-muted-foreground">
+              <ZoneStat label="Finds" value={String(summary.finds.length)} />
+              <ZoneStat label="First" value={summary.firstFound ?? '-'} />
+              <ZoneStat label="Last" value={summary.lastFound ?? '-'} />
+            </div>
+          )}
 
-          <label className="mb-2 flex flex-col gap-1 text-[11px] text-muted-foreground">
-            Name
-            <input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              className="rounded border border-border bg-input px-2 py-1 text-xs text-foreground outline-none"
-            />
-          </label>
+          {!compactPolygonFocus && (
+            <label className="mb-2 flex flex-col gap-1 text-[11px] text-muted-foreground">
+              Name
+              <input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                className="rounded border border-border bg-input px-2 py-1 text-xs text-foreground outline-none"
+              />
+            </label>
+          )}
 
-          <label className="mb-2 flex flex-col gap-1 text-[11px] text-muted-foreground">
-            Radius meters
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={radius}
-              onChange={(event) => setRadius(event.target.value.replace(/[^\d.]/g, ''))}
-              className="rounded border border-border bg-input px-2 py-1 text-xs text-foreground outline-none"
-            />
-          </label>
+          {isPolygon ? (
+            <div className="mb-2 rounded border border-border/60 bg-secondary/15 px-2 py-2 text-[11px] text-muted-foreground">
+              <p className="font-semibold uppercase tracking-[0.12em] text-secondary">
+                {polygonEditing ? 'Shape Edit Active' : 'Boundary Shape'}
+              </p>
+              <p className="mt-1 leading-relaxed">
+                Polygon geometry is edited directly on the map.
+                This zone currently uses {polygonEditing ? polygonPointCount ?? polygonPoints.length : polygonPoints.length} boundary points.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {polygonEditing ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleSavePolygon}
+                      disabled={savingPolygon}
+                      className="rounded border border-primary/50 bg-primary/12 px-2 py-1 text-[11px] font-semibold text-foreground hover:bg-primary/18 disabled:opacity-60"
+                    >
+                      {savingPolygon ? 'Saving shape' : 'Save shape'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onCancelPolygonEdit}
+                      className="rounded border border-border/60 px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-secondary/20 hover:text-foreground"
+                    >
+                      Cancel shape
+                    </button>
+                  </>
+                ) : (
+                    <button
+                      type="button"
+                      onClick={onStartPolygonEdit}
+                      className="rounded border border-border/60 px-2 py-1 text-[11px] font-semibold text-foreground hover:bg-secondary/20"
+                    >
+                      Adjust points on map
+                    </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <label className="mb-2 flex flex-col gap-1 text-[11px] text-muted-foreground">
+              Radius meters
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={radius}
+                onChange={(event) => setRadius(event.target.value.replace(/[^\d.]/g, ''))}
+                className="rounded border border-border bg-input px-2 py-1 text-xs text-foreground outline-none"
+              />
+            </label>
+          )}
 
-          <label className="mb-2 flex flex-col gap-1 text-[11px] text-muted-foreground">
-            Notes
-            <textarea
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              rows={2}
-              className="resize-none rounded border border-border bg-input px-2 py-1 text-xs text-foreground outline-none"
-            />
-          </label>
+          {!compactPolygonFocus && (
+            <label className="mb-2 flex flex-col gap-1 text-[11px] text-muted-foreground">
+              Notes
+              <textarea
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                rows={2}
+                className="resize-none rounded border border-border bg-input px-2 py-1 text-xs text-foreground outline-none"
+              />
+            </label>
+          )}
 
-          <div className="flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving}
-              className="rounded bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground disabled:opacity-60"
-            >
-              {saving ? 'Saving' : 'Save'}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                deleteZone.mutate(zone.id);
-                onClose();
-              }}
-              className="inline-flex items-center gap-1 rounded border border-destructive/40 px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
-            >
-              <Trash2 className="h-3 w-3" />
-              Delete {isLocal ? 'local' : 'region'}
-            </button>
-          </div>
+          {!compactPolygonFocus && (
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="rounded bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+              >
+                {saving ? 'Saving' : isPolygon ? 'Save details' : 'Save'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteZone.mutate(zone.id);
+                  onClose();
+                }}
+                className="inline-flex items-center gap-1 rounded border border-destructive/40 px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="h-3 w-3" />
+                Delete {isLocal ? 'local' : 'region'}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </DraggablePanel>
