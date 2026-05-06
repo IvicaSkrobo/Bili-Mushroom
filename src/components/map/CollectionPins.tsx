@@ -3,7 +3,7 @@ import L from 'leaflet';
 import { Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Find } from '@/lib/finds';
-import type { Zone, ZoneType, ZoneViewMode } from '@/lib/zones';
+import type { Zone } from '@/lib/zones';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { useSpeciesNotes } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
@@ -51,18 +51,16 @@ function CollectionPopup({
   collection,
   speciesNote,
   storagePath,
-  onCreateZoneForFind,
-  onPickLocalTargetFind,
+  onStartLocalPolygonForFind,
+  onStartRegionPolygonForFind,
   zones,
-  zoneMode,
 }: {
   collection: Collection;
   speciesNote: string | undefined;
   storagePath: string;
-  onCreateZoneForFind: (find: Find, zoneType: ZoneType) => void;
-  onPickLocalTargetFind: (find: Find) => void;
+  onStartLocalPolygonForFind: (find: Find) => void;
+  onStartRegionPolygonForFind: (find: Find) => void;
   zones: Zone[];
-  zoneMode: ZoneViewMode;
 }) {
   const [photoIdx, setPhotoIdx] = useState(0);
   const allPhotos = useMemo(
@@ -72,13 +70,16 @@ function CollectionPopup({
   const [latinName, croatianName] = collection.name.split(',').map((s) => s.trim());
   const current = allPhotos[photoIdx] ?? null;
   const photo = current?.photo ?? null;
-  const pinZoneType: ZoneType = zoneMode === 'region' ? 'region' : 'local';
-  const existingPinZone = current?.find
-    ? zones.find((zone) => {
-      if (zone.zone_type !== pinZoneType) return false;
-      if (pinZoneType === 'region') return true;
-      return zone.source_find_id === current.find.id;
-    })
+  const existingLocalPolygon = current?.find
+    ? zones.find(
+      (zone) =>
+        zone.zone_type === 'local' &&
+        zone.geometry_type === 'polygon' &&
+        zone.source_find_id === current.find.id,
+    ) ?? null
+    : null;
+  const existingRegionPolygon = current?.find
+    ? zones.find((zone) => zone.zone_type === 'region' && zone.geometry_type === 'polygon') ?? null
     : null;
   const photoSrc = photo && storagePath
     ? resolvePhotoSrc(storagePath, photo.photo_path)
@@ -140,24 +141,21 @@ function CollectionPopup({
       )}
 
       {current?.find.lat != null && current.find.lng != null && (
-        <div className="flex flex-col gap-1.5">
-          {pinZoneType === 'local' ? (
-            <button
-              type="button"
-              onClick={() => onPickLocalTargetFind(current.find)}
-              className="rounded border border-secondary/45 bg-secondary/10 px-2 py-1 text-xs font-semibold text-foreground hover:bg-secondary/20"
-            >
-              {existingPinZone ? 'Pick this find for local zone' : 'Pick this find'}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onCreateZoneForFind(current.find, pinZoneType)}
-              className="rounded border border-primary/45 px-2 py-1 text-xs font-semibold text-foreground hover:bg-primary/10"
-            >
-              {existingPinZone ? `Edit ${pinZoneType} zone` : `Add ${pinZoneType} zone`}
-            </button>
-          )}
+        <div className="grid grid-cols-2 gap-1.5">
+          <button
+            type="button"
+            onClick={() => onStartLocalPolygonForFind(current.find)}
+            className="rounded border border-[#D4512A]/45 bg-[#D4512A]/10 px-2 py-1 text-xs font-semibold text-foreground hover:bg-[#D4512A]/18"
+          >
+            {existingLocalPolygon ? 'Edit local' : 'Draw local'}
+          </button>
+          <button
+            type="button"
+            onClick={() => onStartRegionPolygonForFind(current.find)}
+            className="rounded border border-primary/45 bg-primary/10 px-2 py-1 text-xs font-semibold text-foreground hover:bg-primary/18"
+          >
+            {existingRegionPolygon ? 'Edit region' : 'Draw region'}
+          </button>
         </div>
       )}
     </div>
@@ -187,18 +185,16 @@ function computeCrowded(map: L.Map, collections: Collection[]): Set<string> {
 
 function CollectionPinsInner({
   collections,
-  onCreateZoneForFind,
-  onPickLocalTargetFind,
+  onStartLocalPolygonForFind,
+  onStartRegionPolygonForFind,
   onSelectSpecies,
   zones,
-  zoneMode,
 }: {
   collections: Collection[];
-  onCreateZoneForFind: (find: Find, zoneType: ZoneType) => void;
-  onPickLocalTargetFind: (find: Find) => void;
+  onStartLocalPolygonForFind: (find: Find) => void;
+  onStartRegionPolygonForFind: (find: Find) => void;
   onSelectSpecies: (speciesName: string) => void;
   zones: Zone[];
-  zoneMode: ZoneViewMode;
 }) {
   const map = useMap();
   const [crowded, setCrowded] = useState<Set<string>>(new Set());
@@ -245,10 +241,9 @@ function CollectionPinsInner({
                 collection={c}
                 speciesNote={speciesNote}
                 storagePath={storagePath}
-                onCreateZoneForFind={onCreateZoneForFind}
-                onPickLocalTargetFind={onPickLocalTargetFind}
+                onStartLocalPolygonForFind={onStartLocalPolygonForFind}
+                onStartRegionPolygonForFind={onStartRegionPolygonForFind}
                 zones={collectionZones}
-                zoneMode={zoneMode}
               />
             </Popup>
           </Marker>
@@ -261,27 +256,24 @@ function CollectionPinsInner({
 export function CollectionPins({
   finds,
   zones = [],
-  zoneMode = 'pins',
-  onCreateZoneForFind = () => undefined,
-  onPickLocalTargetFind = () => undefined,
+  onStartLocalPolygonForFind = () => undefined,
+  onStartRegionPolygonForFind = () => undefined,
   onSelectSpecies = () => undefined,
 }: {
   finds: Find[];
   zones?: Zone[];
-  zoneMode?: ZoneViewMode;
-  onCreateZoneForFind?: (find: Find, zoneType: ZoneType) => void;
-  onPickLocalTargetFind?: (find: Find) => void;
+  onStartLocalPolygonForFind?: (find: Find) => void;
+  onStartRegionPolygonForFind?: (find: Find) => void;
   onSelectSpecies?: (speciesName: string) => void;
 }) {
   const collections = useMemo(() => collections_from_finds(finds), [finds]);
   return (
     <CollectionPinsInner
       collections={collections}
-      onCreateZoneForFind={onCreateZoneForFind}
-      onPickLocalTargetFind={onPickLocalTargetFind}
+      onStartLocalPolygonForFind={onStartLocalPolygonForFind}
+      onStartRegionPolygonForFind={onStartRegionPolygonForFind}
       onSelectSpecies={onSelectSpecies}
       zones={zones}
-      zoneMode={zoneMode}
     />
   );
 }

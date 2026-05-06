@@ -45,6 +45,7 @@ export default function MapTab() {
   const [selectedEditPointIndex, setSelectedEditPointIndex] = useState<number | null>(null);
   const [localTargetFind, setLocalTargetFind] = useState<Find | null>(null);
   const shapeEditFocus = editingPolygonZone != null;
+  const drawFocus = draftPolygonZone != null;
 
   // Space toggles filter panel when map tab is active
   useEffect(() => {
@@ -63,6 +64,12 @@ export default function MapTab() {
     setFilterOpen(false);
     setZoneControlsCollapsed(true);
   }, [shapeEditFocus]);
+
+  useEffect(() => {
+    if (!drawFocus) return;
+    setFilterOpen(false);
+    setZoneControlsCollapsed(true);
+  }, [drawFocus]);
 
   const allSpecies = useMemo(() => {
     const names = new Set<string>();
@@ -91,9 +98,12 @@ export default function MapTab() {
 
   const regionTargetSpecies = useMemo(() => {
     if (activeSpecies && visibleSpecies.has(activeSpecies)) return activeSpecies;
-    const species = Array.from(visibleSpecies);
-    return species.length === 1 ? species[0] : null;
-  }, [activeSpecies, visibleSpecies]);
+    if (selectedSpecies.size === 1) {
+      const [only] = Array.from(selectedSpecies);
+      return visibleSpecies.has(only) ? only : null;
+    }
+    return null;
+  }, [activeSpecies, selectedSpecies, visibleSpecies]);
 
   const existingRegionZone = useMemo(() => {
     if (!regionTargetSpecies) return null;
@@ -156,6 +166,20 @@ export default function MapTab() {
     setActiveSpecies(null);
   }
 
+  function handleClearLocalTarget() {
+    setLocalTargetFind(null);
+    if (zoneMode === 'local') {
+      setActiveZoneId(null);
+    }
+  }
+
+  function handleClearRegionTarget() {
+    setActiveSpecies(null);
+    if (zoneMode === 'region') {
+      setActiveZoneId(null);
+    }
+  }
+
   function findZoneForFind(find: Find, zoneType: ZoneType) {
     return (zones ?? []).find((zone) => {
       if (zone.zone_type !== zoneType || zone.species_name !== find.species_name) return false;
@@ -173,20 +197,11 @@ export default function MapTab() {
       setActiveZoneId(existingZone.id);
       return;
     }
-    const zone = await upsertZone.mutateAsync({
-      species_name: find.species_name,
-      zone_type: zoneType,
-      name: `${find.species_name.split(',')[0]} ${zoneType}`,
-      geometry_type: 'circle',
-      center_lat: find.lat,
-      center_lng: find.lng,
-      radius_meters: zoneType === 'local' ? 50 : 500,
-      polygon_json: null,
-      source_find_id: find.id,
-      notes: '',
-    });
-    setZoneMode(zoneType);
-    setActiveZoneId(zone.id);
+    if (zoneType === 'local') {
+      handleStartLocalPolygonForFind(find);
+      return;
+    }
+    handleStartRegionPolygonForFind(find);
   }
 
   async function handleCreateLocalCircle() {
@@ -194,18 +209,25 @@ export default function MapTab() {
     await handleCreateZoneForFind(localTargetFind, 'local');
   }
 
-  async function handleCreateRegionZone() {
-    if (!regionTargetSpecies) return;
-    if (existingRegionZone) {
-      setZoneMode('region');
-      setActiveZoneId(existingRegionZone.id);
-      return;
-    }
-    const locatableFinds = filteredFinds.filter(
+  async function createRegionZoneForSpecies(speciesName: string, preferredSourceFindId: number | null = null) {
+    const locatableFinds = (finds ?? []).filter(
       (find): find is Find & { lat: number; lng: number } =>
-        find.species_name === regionTargetSpecies && find.lat != null && find.lng != null,
+        find.species_name === speciesName && find.lat != null && find.lng != null,
     );
-    if (locatableFinds.length === 0) return;
+    if (locatableFinds.length === 0) return null;
+
+    const existingZone = (zones ?? []).find(
+      (zone) =>
+        zone.species_name === speciesName &&
+        zone.zone_type === 'region' &&
+        zone.geometry_type === 'circle',
+    ) ?? null;
+    if (existingZone) {
+      setZoneMode('region');
+      setActiveSpecies(speciesName);
+      setActiveZoneId(existingZone.id);
+      return existingZone;
+    }
 
     const centerLat = locatableFinds.reduce((sum, find) => sum + find.lat, 0) / locatableFinds.length;
     const centerLng = locatableFinds.reduce((sum, find) => sum + find.lng, 0) / locatableFinds.length;
@@ -213,21 +235,31 @@ export default function MapTab() {
       (max, find) => Math.max(max, distanceMeters(centerLat, centerLng, find.lat, find.lng)),
       0,
     );
+    const sourceFindId =
+      locatableFinds.find((find) => find.id === preferredSourceFindId)?.id ??
+      (locatableFinds.length === 1 ? locatableFinds[0].id : null);
 
     const zone = await upsertZone.mutateAsync({
-      species_name: regionTargetSpecies,
+      species_name: speciesName,
       zone_type: 'region',
-      name: `${regionTargetSpecies.split(',')[0]} region`,
+      name: `${speciesName.split(',')[0]} region`,
       geometry_type: 'circle',
       center_lat: centerLat,
       center_lng: centerLng,
       radius_meters: Math.max(500, Math.ceil(furthest + 100)),
       polygon_json: null,
-      source_find_id: locatableFinds.length === 1 ? locatableFinds[0].id : null,
+      source_find_id: sourceFindId,
       notes: '',
     });
     setZoneMode('region');
+    setActiveSpecies(speciesName);
     setActiveZoneId(zone.id);
+    return zone;
+  }
+
+  async function handleCreateRegionZone() {
+    if (!regionTargetSpecies) return;
+    await createRegionZoneForSpecies(regionTargetSpecies);
   }
 
   function handleStartRegionPolygon() {
@@ -245,6 +277,30 @@ export default function MapTab() {
       name: existingRegionPolygon?.name ?? `${regionTargetSpecies.split(',')[0]} region`,
       notes: existingRegionPolygon?.notes ?? '',
       points: existingRegionPolygon ? parsePolygonJson(existingRegionPolygon.polygon_json) : [],
+    });
+  }
+
+  function handleStartRegionPolygonForFind(find: Find) {
+    if (find.lat == null || find.lng == null) return;
+    setEditingPolygonZone(null);
+    setSelectedEditPointIndex(null);
+    setZoneMode('region');
+    setActiveSpecies(find.species_name);
+    const polygonZone = (zones ?? []).find(
+      (zone) =>
+        zone.zone_type === 'region' &&
+        zone.geometry_type === 'polygon' &&
+        zone.species_name === find.species_name,
+    ) ?? null;
+    setActiveZoneId(polygonZone?.id ?? null);
+    setDraftPolygonZone({
+      zoneType: 'region',
+      zoneId: polygonZone?.id ?? null,
+      speciesName: find.species_name,
+      sourceFindId: null,
+      name: polygonZone?.name ?? `${find.species_name.split(',')[0]} region`,
+      notes: polygonZone?.notes ?? '',
+      points: polygonZone ? parsePolygonJson(polygonZone.polygon_json) : [],
     });
   }
 
@@ -322,6 +378,14 @@ export default function MapTab() {
     setZoneMode('local');
     setActiveSpecies(find.species_name);
     setLocalTargetFind(find);
+    setActiveZoneId(findZoneForFind(find, 'local')?.id ?? null);
+  }
+
+  function handlePickRegionTargetFind(find: Find) {
+    if (find.lat == null || find.lng == null) return;
+    setZoneMode('region');
+    setActiveSpecies(find.species_name);
+    setActiveZoneId(findZoneForFind(find, 'region')?.id ?? null);
   }
 
   function handleStartPolygonPointEdit() {
@@ -418,25 +482,84 @@ export default function MapTab() {
     }
   }
 
-  function handleZoneTypeSelected(zone: Zone, zoneType: ZoneType) {
+  async function handleZoneTypeSelected(zone: Zone, zoneType: ZoneType) {
     setZoneMode((current) => (current === 'all' ? current : zoneType));
     setActiveSpecies(zone.species_name);
-    if (zone.zone_type === zoneType) {
-      setActiveZoneId(zone.id);
-      return;
-    }
-
     const siblingZones = (zones ?? []).filter(
       (candidate) =>
         candidate.zone_type === zoneType &&
         candidate.species_name === zone.species_name,
     );
+
+    if (zoneType === 'local') {
+      const targetFind =
+        (finds ?? []).find((find) => find.id === zone.source_find_id) ??
+        (localTargetFind?.species_name === zone.species_name ? localTargetFind : null) ??
+        ((siblingZones.length === 1 && siblingZones[0].source_find_id != null)
+          ? (finds ?? []).find((find) => find.id === siblingZones[0].source_find_id) ?? null
+          : null);
+      setLocalTargetFind(targetFind);
+    }
+
+    if (zone.zone_type === zoneType) {
+      setActiveZoneId(zone.id);
+      return;
+    }
+
     const matchingZone =
+      siblingZones.find(
+        (candidate) =>
+          zoneType === 'local' &&
+          localTargetFind != null &&
+          candidate.source_find_id === localTargetFind.id,
+      ) ??
       siblingZones.find((candidate) => zone.source_find_id != null && candidate.source_find_id === zone.source_find_id) ??
+      (zoneType === 'local' && siblingZones.length > 0 ? siblingZones[0] : null) ??
       (siblingZones.length === 1 ? siblingZones[0] : null);
     if (matchingZone) {
       setActiveZoneId(matchingZone.id);
+      return;
     }
+
+    if (zoneType === 'local') {
+      const targetFind =
+        (finds ?? []).find((find) => find.id === zone.source_find_id) ??
+        (finds ?? []).find((find) => find.species_name === zone.species_name && find.lat != null && find.lng != null) ??
+        null;
+
+      if (!targetFind) {
+        window.alert('No mapped find is available to create a local zone for this species yet.');
+        setActiveZoneId(zone.id);
+        return;
+      }
+
+      const shouldCreate = window.confirm(`No local zone exists yet for ${zone.species_name.split(',')[0]}. Create one now?`);
+      if (!shouldCreate) {
+        setActiveZoneId(zone.id);
+        return;
+      }
+
+      setLocalTargetFind(targetFind);
+      await handleCreateZoneForFind(targetFind, 'local');
+      return;
+    }
+
+    const shouldCreate = window.confirm(`No region zone exists yet for ${zone.species_name.split(',')[0]}. Create one now?`);
+    if (!shouldCreate) {
+      setActiveZoneId(zone.id);
+      return;
+    }
+
+    const targetFind =
+      (finds ?? []).find((find) => find.id === zone.source_find_id) ??
+      (finds ?? []).find((find) => find.species_name === zone.species_name && find.lat != null && find.lng != null) ??
+      null;
+    if (!targetFind) {
+      window.alert('No mapped finds are available to create a region zone for this species yet.');
+      setActiveZoneId(zone.id);
+      return;
+    }
+    handleStartRegionPolygonForFind(targetFind);
   }
 
   if (!storagePath) {
@@ -455,6 +578,9 @@ export default function MapTab() {
         zoneMode={zoneMode}
         onCreateZoneForFind={handleCreateZoneForFind}
         onPickLocalTargetFind={handlePickLocalTargetFind}
+        onPickRegionTargetFind={handlePickRegionTargetFind}
+        onStartLocalPolygonForFind={handleStartLocalPolygonForFind}
+        onStartRegionPolygonForFind={handleStartRegionPolygonForFind}
         polygonDraftActive={draftPolygonZone != null}
         polygonDraftPoints={draftPolygonZone?.points ?? []}
         onPolygonDraftPointAdd={handleAddRegionPolygonPoint}
@@ -474,6 +600,7 @@ export default function MapTab() {
         onCancelPolygonEdit={handleCancelPolygonPointEdit}
         onSavePolygonEdit={handleSavePolygonPointEdit}
         polygonEditZoneName={activeZone?.name ?? null}
+        polygonEditZoneType={editingPolygonZone?.zoneType ?? activeZone?.zone_type ?? null}
         onSelectSpecies={setActiveSpecies}
         activeZoneId={activeZoneId}
         onEditZone={(zone) => {
@@ -488,40 +615,47 @@ export default function MapTab() {
         }}
         onZoneSaved={handleZoneSaved}
         onZoneTypeSelected={handleZoneTypeSelected}
+        focusMode={drawFocus || shapeEditFocus}
       />
-      <ZoneModeControl
-        mode={zoneMode}
-        visibleFinds={filteredFinds}
-        activeSpecies={regionTargetSpecies}
-        localTargetFind={localTargetFind}
-        hasLocalCircle={existingLocalCircle != null}
-        hasLocalPolygon={existingLocalPolygon != null}
-        hasRegionZone={existingRegionZone != null}
-        hasRegionPolygon={existingRegionPolygon != null}
-        onCreateLocalCircle={handleCreateLocalCircle}
-        onStartLocalPolygon={() => {
-          if (localTargetFind) handleStartLocalPolygonForFind(localTargetFind);
-        }}
-        onModeChange={setZoneMode}
-        onCreateRegion={handleCreateRegionZone}
-        onStartRegionPolygon={handleStartRegionPolygon}
-        onSaveRegionPolygon={handleSaveRegionPolygon}
-        onUndoRegionPolygon={handleUndoRegionPolygonPoint}
-        onCancelRegionPolygon={handleCancelRegionPolygon}
-        creatingRegion={upsertZone.isPending}
-        drawingRegionPolygon={draftPolygonZone?.zoneType === 'region'}
-        regionPolygonPointCount={draftPolygonZone?.zoneType === 'region' ? draftPolygonZone.points.length : 0}
-        collapsed={zoneControlsCollapsed}
-        onCollapsedChange={setZoneControlsCollapsed}
-      />
-      <SpeciesFilterPanel
-        allSpecies={allSpecies}
-        selected={selectedSpecies}
-        open={filterOpen}
-        onOpenChange={setFilterOpen}
-        onToggle={handleToggle}
-        onSelectAll={handleSelectAll}
-      />
+      {!drawFocus && (
+        <ZoneModeControl
+          mode={zoneMode}
+          visibleFinds={filteredFinds}
+          activeSpecies={regionTargetSpecies}
+          localTargetFind={localTargetFind}
+          hasLocalCircle={existingLocalCircle != null}
+          hasLocalPolygon={existingLocalPolygon != null}
+          hasRegionZone={existingRegionZone != null}
+          hasRegionPolygon={existingRegionPolygon != null}
+          onClearLocalTarget={handleClearLocalTarget}
+          onClearRegionTarget={handleClearRegionTarget}
+          onCreateLocalCircle={handleCreateLocalCircle}
+          onStartLocalPolygon={() => {
+            if (localTargetFind) handleStartLocalPolygonForFind(localTargetFind);
+          }}
+          onModeChange={setZoneMode}
+          onCreateRegion={handleCreateRegionZone}
+          onStartRegionPolygon={handleStartRegionPolygon}
+          onSaveRegionPolygon={handleSaveRegionPolygon}
+          onUndoRegionPolygon={handleUndoRegionPolygonPoint}
+          onCancelRegionPolygon={handleCancelRegionPolygon}
+          creatingRegion={upsertZone.isPending}
+          drawingRegionPolygon={draftPolygonZone?.zoneType === 'region'}
+          regionPolygonPointCount={draftPolygonZone?.zoneType === 'region' ? draftPolygonZone.points.length : 0}
+          collapsed={zoneControlsCollapsed}
+          onCollapsedChange={setZoneControlsCollapsed}
+        />
+      )}
+      {!drawFocus && (
+        <SpeciesFilterPanel
+          allSpecies={allSpecies}
+          selected={selectedSpecies}
+          open={filterOpen}
+          onOpenChange={setFilterOpen}
+          onToggle={handleToggle}
+          onSelectAll={handleSelectAll}
+        />
+      )}
     </div>
   );
 }

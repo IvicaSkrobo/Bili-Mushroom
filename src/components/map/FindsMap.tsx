@@ -1,6 +1,6 @@
 import { CircleMarker, MapContainer, Marker, Polygon, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { Check, Move, Trash2, X } from 'lucide-react';
 import type { Find } from '@/lib/finds';
 import { parsePolygonJson, type Zone, type ZonePolygonPoint, type ZoneType, type ZoneViewMode } from '@/lib/zones';
@@ -24,6 +24,9 @@ interface FindsMapProps {
   zoneMode?: ZoneViewMode;
   onCreateZoneForFind?: (find: Find, zoneType: ZoneType) => void;
   onPickLocalTargetFind?: (find: Find) => void;
+  onPickRegionTargetFind?: (find: Find) => void;
+  onStartLocalPolygonForFind?: (find: Find) => void;
+  onStartRegionPolygonForFind?: (find: Find) => void;
   polygonDraftPoints?: ZonePolygonPoint[];
   polygonDraftActive?: boolean;
   onPolygonDraftPointAdd?: (point: ZonePolygonPoint) => void;
@@ -43,6 +46,7 @@ interface FindsMapProps {
   onCancelPolygonEdit?: () => void;
   onSavePolygonEdit?: () => Promise<void>;
   polygonEditZoneName?: string | null;
+  polygonEditZoneType?: ZoneType | null;
   focusMode?: boolean;
   onSelectSpecies?: (speciesName: string) => void;
   activeZoneId?: number | null;
@@ -57,6 +61,9 @@ export function FindsMap({
   zoneMode = 'pins',
   onCreateZoneForFind = () => undefined,
   onPickLocalTargetFind = () => undefined,
+  onPickRegionTargetFind = () => undefined,
+  onStartLocalPolygonForFind = () => undefined,
+  onStartRegionPolygonForFind = () => undefined,
   polygonDraftPoints = [],
   polygonDraftActive = false,
   onPolygonDraftPointAdd = () => undefined,
@@ -76,6 +83,7 @@ export function FindsMap({
   onCancelPolygonEdit = () => undefined,
   onSavePolygonEdit = async () => undefined,
   polygonEditZoneName = null,
+  polygonEditZoneType = null,
   focusMode = false,
   onSelectSpecies = () => undefined,
   activeZoneId = null,
@@ -134,6 +142,7 @@ export function FindsMap({
         <PolygonDraftLayer
           drawing={polygonDraftActive}
           points={polygonDraftPoints}
+          zoneType={polygonDraftZoneType}
         />
         <PolygonEditHandles
           active={polygonEditActive}
@@ -142,21 +151,21 @@ export function FindsMap({
           onPointSelect={onPolygonEditPointSelect}
           onPointInsert={onPolygonEditPointInsert}
           selectedIndex={selectedPolygonEditPointIndex}
+          zoneType={polygonEditZoneType}
         />
         {!focusMode && (
           <CollectionPins
             finds={finds}
             zones={zones}
-            zoneMode={zoneMode}
-            onCreateZoneForFind={onCreateZoneForFind}
-            onPickLocalTargetFind={onPickLocalTargetFind}
+            onStartLocalPolygonForFind={onStartLocalPolygonForFind}
+            onStartRegionPolygonForFind={onStartRegionPolygonForFind}
             onSelectSpecies={onSelectSpecies}
           />
         )}
         <FitBoundsControl finds={finds} />
         {!focusMode && <OnlineStatusBadge />}
       </MapContainer>
-      {activeZone && (
+      {activeZone && !polygonDraftActive && (
         <ZoneEditorPanel
           key={activeZone.id}
           zone={activeZone}
@@ -354,6 +363,7 @@ function PolygonEditHandles({
   onPointSelect,
   onPointInsert,
   selectedIndex,
+  zoneType,
 }: {
   active: boolean;
   points: ZonePolygonPoint[];
@@ -361,20 +371,79 @@ function PolygonEditHandles({
   onPointSelect: (index: number) => void;
   onPointInsert: (edgeStartIndex: number, point: ZonePolygonPoint) => void;
   selectedIndex: number | null;
+  zoneType: ZoneType | null;
 }) {
   const isSatellite = useAppStore((s) => s.mapLayer === 'Satellite');
+  const haloPolygonRef = useRef<L.Polygon | null>(null);
+  const mainPolygonRef = useRef<L.Polygon | null>(null);
+  const previewPointsRef = useRef<ZonePolygonPoint[]>(points);
+  const isLocal = zoneType === 'local';
+  const strokeColor = isLocal
+    ? (isSatellite ? '#FF9A5A' : '#D4512A')
+    : (isSatellite ? '#49D7C6' : '#2D8C7C');
+  const fillColor = isLocal
+    ? (isSatellite ? '#D4512A' : '#D4512A')
+    : (isSatellite ? '#2FAE9E' : '#2D8C7C');
+  const haloColor = isLocal ? '#FFE0C2' : '#FFF4D9';
+
+  function syncPreviewLayers(nextPoints: ZonePolygonPoint[]) {
+    previewPointsRef.current = nextPoints;
+    haloPolygonRef.current?.setLatLngs(nextPoints);
+    mainPolygonRef.current?.setLatLngs(nextPoints);
+  }
+
+  useEffect(() => {
+    syncPreviewLayers(points);
+  }, [points]);
+
   if (!active || points.length === 0) return null;
 
   return (
     <>
+      {points.length >= 3 && isSatellite && (
+        <Polygon
+          ref={haloPolygonRef}
+          positions={points}
+          pathOptions={{
+            color: haloColor,
+            fillColor: haloColor,
+            fillOpacity: 0.06,
+            opacity: 0.8,
+            weight: 7,
+          }}
+        />
+      )}
+      {points.length >= 3 && (
+        <Polygon
+          ref={mainPolygonRef}
+          positions={points}
+          pathOptions={{
+            color: strokeColor,
+            fillColor,
+            fillOpacity: isSatellite ? 0.18 : 0.1,
+            opacity: 0.98,
+            weight: isSatellite ? 3 : 2,
+          }}
+        />
+      )}
       {points.map((point, index) => (
         <Marker
           key={`${point[0]}-${point[1]}-${index}-drag`}
           position={point}
           draggable
+          zIndexOffset={1000}
           icon={createPolygonHandleIcon(isSatellite, index + 1, selectedIndex === index)}
           eventHandlers={{
             click: () => onPointSelect(index),
+            drag: (event) => {
+              const marker = event.target as L.Marker;
+              const next = marker.getLatLng();
+              syncPreviewLayers(
+                previewPointsRef.current.map((existing, existingIndex) =>
+                  existingIndex === index ? [next.lat, next.lng] : existing,
+                ),
+              );
+            },
             dragend: (event) => {
               const marker = event.target as L.Marker;
               const next = marker.getLatLng();
@@ -387,20 +456,41 @@ function PolygonEditHandles({
       {points.length >= 2 &&
         points.map((point, index) => {
           const nextPoint = points[(index + 1) % points.length];
-          const midpoint: ZonePolygonPoint = [
-            (point[0] + nextPoint[0]) / 2,
-            (point[1] + nextPoint[1]) / 2,
-          ];
 
           return (
-            <Marker
-              key={`edge-${index}-${midpoint[0]}-${midpoint[1]}`}
-              position={midpoint}
-              icon={createPolygonEdgeInsertIcon(isSatellite)}
-              eventHandlers={{
-                click: () => onPointInsert(index, midpoint),
-              }}
-            />
+            <Fragment key={`edge-${index}-${point[0]}-${point[1]}-${nextPoint[0]}-${nextPoint[1]}`}>
+              {isSatellite && (
+                <Polyline
+                  positions={[point, nextPoint]}
+                  pathOptions={{
+                    color: haloColor,
+                    weight: 7,
+                    opacity: 0.84,
+                  }}
+                />
+              )}
+              <Polyline
+                positions={[point, nextPoint]}
+                pathOptions={{
+                  color: strokeColor,
+                  weight: isSatellite ? 3 : 2,
+                  opacity: 0.98,
+                }}
+              />
+              <Polyline
+                positions={[point, nextPoint]}
+                pathOptions={{
+                  color: '#F4E8C8',
+                  weight: 8,
+                  opacity: 0,
+                }}
+                eventHandlers={{
+                  click: (event) => {
+                    onPointInsert(index, projectPointOntoSegment([event.latlng.lat, event.latlng.lng], point, nextPoint));
+                  },
+                }}
+              />
+            </Fragment>
           );
         })}
     </>
@@ -408,7 +498,32 @@ function PolygonEditHandles({
 }
 
 const polygonHandleIconCache = new Map<string, L.DivIcon>();
-const polygonEdgeInsertIconCache = new Map<string, L.DivIcon>();
+
+function projectPointOntoSegment(
+  point: ZonePolygonPoint,
+  segmentStart: ZonePolygonPoint,
+  segmentEnd: ZonePolygonPoint,
+): ZonePolygonPoint {
+  const [pointLat, pointLng] = point;
+  const [startLat, startLng] = segmentStart;
+  const [endLat, endLng] = segmentEnd;
+  const deltaLat = endLat - startLat;
+  const deltaLng = endLng - startLng;
+  const segmentLengthSquared = deltaLat * deltaLat + deltaLng * deltaLng;
+
+  if (segmentLengthSquared <= Number.EPSILON) {
+    return segmentStart;
+  }
+
+  const projection =
+    ((pointLat - startLat) * deltaLat + (pointLng - startLng) * deltaLng) / segmentLengthSquared;
+  const clampedProjection = Math.max(0, Math.min(1, projection));
+
+  return [
+    startLat + deltaLat * clampedProjection,
+    startLng + deltaLng * clampedProjection,
+  ];
+}
 
 function createPolygonHandleIcon(isSatellite: boolean, number: number, selected: boolean) {
   const cacheKey = `${isSatellite ? 'sat' : 'base'}-${number}-${selected ? 'selected' : 'idle'}`;
@@ -425,24 +540,6 @@ function createPolygonHandleIcon(isSatellite: boolean, number: number, selected:
     iconAnchor: [13, 13],
   });
   polygonHandleIconCache.set(cacheKey, icon);
-  return icon;
-}
-
-function createPolygonEdgeInsertIcon(isSatellite: boolean) {
-  const cacheKey = isSatellite ? 'sat' : 'base';
-  const cached = polygonEdgeInsertIconCache.get(cacheKey);
-  if (cached) return cached;
-  const icon = L.divIcon({
-    className: 'bili-zone-edge-insert-icon',
-    html: `
-      <div class="bili-zone-edge-insert ${isSatellite ? 'bili-zone-edge-insert--satellite' : ''}">
-        <span>+</span>
-      </div>
-    `,
-    iconSize: [20, 20],
-    iconAnchor: [10, 10],
-  });
-  polygonEdgeInsertIconCache.set(cacheKey, icon);
   return icon;
 }
 
@@ -466,12 +563,23 @@ function PolygonDraftController({
 function PolygonDraftLayer({
   drawing,
   points,
+  zoneType,
 }: {
   drawing: boolean;
   points: ZonePolygonPoint[];
+  zoneType: ZoneType | null;
 }) {
   const isSatellite = useAppStore((s) => s.mapLayer === 'Satellite');
   if (!drawing && points.length === 0) return null;
+
+  const isLocal = zoneType === 'local';
+  const strokeColor = isLocal
+    ? (isSatellite ? '#FF9A5A' : '#D4512A')
+    : (isSatellite ? '#49D7C6' : '#2D8C7C');
+  const fillColor = isLocal
+    ? (isSatellite ? '#D4512A' : '#D4512A')
+    : (isSatellite ? '#2FAE9E' : '#2D8C7C');
+  const haloColor = isLocal ? '#FFE0C2' : '#FFF4D9';
 
   return (
     <>
@@ -479,7 +587,7 @@ function PolygonDraftLayer({
         <Polyline
           positions={points}
           pathOptions={{
-            color: '#FFF4D9',
+            color: haloColor,
             weight: 7,
             opacity: 0.84,
           }}
@@ -489,7 +597,7 @@ function PolygonDraftLayer({
         <Polyline
           positions={points}
           pathOptions={{
-            color: isSatellite ? '#49D7C6' : '#2D8C7C',
+            color: strokeColor,
             weight: isSatellite ? 3 : 2,
             opacity: 0.98,
             dashArray: isSatellite ? '10 8' : '6 6',
@@ -500,8 +608,8 @@ function PolygonDraftLayer({
         <Polygon
           positions={points}
           pathOptions={{
-            color: '#FFF4D9',
-            fillColor: '#FFF4D9',
+            color: haloColor,
+            fillColor: haloColor,
             fillOpacity: 0,
             opacity: 0.78,
             weight: 7,
@@ -512,8 +620,8 @@ function PolygonDraftLayer({
         <Polygon
           positions={points}
           pathOptions={{
-            color: isSatellite ? '#49D7C6' : '#2D8C7C',
-            fillColor: isSatellite ? '#2FAE9E' : '#2D8C7C',
+            color: strokeColor,
+            fillColor,
             fillOpacity: isSatellite ? 0.16 : 0.08,
             opacity: 0.98,
             weight: isSatellite ? 3 : 2,
@@ -531,7 +639,7 @@ function PolygonDraftLayer({
                   radius={8}
                   pathOptions={{
                     color: '#1A2520',
-                    fillColor: '#FFF4D9',
+                    fillColor: haloColor,
                     fillOpacity: 0.96,
                     weight: 2,
                   }}
@@ -544,7 +652,7 @@ function PolygonDraftLayer({
             radius={isSatellite ? 6 : 5}
             pathOptions={{
               color: '#F4E8C8',
-              fillColor: isSatellite ? '#2FAE9E' : '#2D8C7C',
+              fillColor,
               fillOpacity: 1,
               weight: 2,
             }}
