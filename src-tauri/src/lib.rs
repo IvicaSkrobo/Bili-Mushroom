@@ -24,6 +24,7 @@ pub fn run() {
             commands::finds::open_find_folder,
             commands::finds::open_species_folder,
             commands::finds::cleanup_internal_records,
+            commands::finds::add_find_photos,
             commands::tile_proxy::fetch_tile,
             commands::tile_proxy::get_tile_cache_stats,
             commands::tile_proxy::clear_tile_cache,

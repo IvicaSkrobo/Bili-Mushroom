@@ -3,8 +3,8 @@ use chrono::Utc;
 use std::process::Command;
 use std::path::{Path, PathBuf};
 
-use crate::commands::import::{open_db, FindPhoto, FindRecord};
-use crate::commands::path_builder::resolve_location_component;
+use crate::commands::import::{open_db, insert_find_photo, FindPhoto, FindRecord};
+use crate::commands::path_builder::{build_dest_path, next_seq_for_folder, resolve_location_component};
 
 const INTERNAL_SPECIES_FILTER: &str =
     "LOWER(TRIM(species_name)) IN ('tile-cache', '.bili-cache', '.bili-cache-tiles')";
@@ -539,6 +539,109 @@ pub async fn cleanup_internal_records(storage_path: String) -> Result<i64, Strin
 
     tx.commit().map_err(|e| e.to_string())?;
     Ok(deleted_finds)
+}
+
+#[tauri::command]
+pub async fn add_find_photos(
+    storage_path: String,
+    find_id: i64,
+    source_paths: Vec<String>,
+) -> Result<FindRecord, String> {
+    let conn = open_db(&storage_path)?;
+
+    // Fetch the find record to get species_name, date_found, location_note
+    let (species_name, date_found, location_note): (String, String, String) = conn
+        .query_row(
+            "SELECT species_name, date_found, location_note FROM finds WHERE id = ?1",
+            params![find_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .map_err(|e| format!("Could not locate find {}: {}", find_id, e))?;
+
+    let location_label = location_note.trim().to_string();
+
+    // Determine dest folder from the first existing photo's parent directory
+    let first_photo_path: Option<String> = conn
+        .query_row(
+            "SELECT photo_path FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC LIMIT 1",
+            params![find_id],
+            |row| row.get(0),
+        )
+        .ok();
+
+    let dest_folder: std::path::PathBuf = if let Some(ref rel_path) = first_photo_path {
+        let abs = std::path::Path::new(&storage_path).join(rel_path);
+        abs.parent()
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::path::Path::new(&storage_path).to_path_buf())
+    } else {
+        // No existing photos — derive folder the same way as import
+        let probe = build_dest_path(&storage_path, &species_name, &date_found, &location_label, 1, ".jpg");
+        probe.parent()
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::path::Path::new(&storage_path).to_path_buf())
+    };
+
+    std::fs::create_dir_all(&dest_folder)
+        .map_err(|e| format!("Failed to create destination folder '{}': {}", dest_folder.display(), e))?;
+
+    for source_path in &source_paths {
+        let ext = std::path::Path::new(source_path)
+            .extension()
+            .map(|e| format!(".{}", e.to_string_lossy().to_lowercase()))
+            .unwrap_or_else(|| ".jpg".to_string());
+
+        let seq = next_seq_for_folder(&dest_folder);
+        let dest_path = build_dest_path(
+            &storage_path,
+            &species_name,
+            &date_found,
+            &location_label,
+            seq,
+            &ext,
+        );
+
+        std::fs::copy(source_path, &dest_path)
+            .map_err(|e| format!("Failed to copy '{}' to '{}': {}", source_path, dest_path.display(), e))?;
+
+        let relative = dest_path
+            .strip_prefix(&storage_path)
+            .map(|p| p.to_string_lossy().replace('\\', "/").trim_start_matches('/').to_string())
+            .unwrap_or_else(|_| dest_path.to_string_lossy().replace('\\', "/"));
+
+        insert_find_photo(&conn, find_id, &relative, false)
+            .map_err(|e| format!("DB insert photo failed: {}", e))?;
+    }
+
+    // Re-query the full find record with photos
+    let mut record = conn
+        .query_row(
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at FROM finds WHERE id = ?1",
+            params![find_id],
+            |row| crate::commands::import::find_record_from_row(row),
+        )
+        .map_err(|e| format!("Failed to read updated find record: {}", e))?;
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let photos: Vec<FindPhoto> = stmt
+        .query_map(params![find_id], |row| {
+            Ok(FindPhoto {
+                id: row.get(0)?,
+                find_id: row.get(1)?,
+                photo_path: row.get(2)?,
+                is_primary: row.get::<_, i64>(3)? == 1,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    record.photos = photos;
+
+    Ok(record)
 }
 
 #[cfg(test)]
