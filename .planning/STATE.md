@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: active
 stopped_at: null
-last_updated: "2026-04-29T15:07:00.000Z"
-last_activity: 2026-04-29 -- Added GSD plan for species-specific map zones with circle-first local zones and polygon-ready region zones
+last_updated: "2026-05-07T19:35:00.000Z"
+last_activity: 2026-05-07 -- Completed quick task 260507-txk: Add more photos to existing find from EditFindDialog
 progress:
   total_phases: 9
   completed_phases: 6
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-09)
 
 **Core value:** A forager's personal mushroom journal — every find stored, organized, searchable, and mapped so that nothing collected is ever forgotten.
-**Current focus:** Post-Phase 04 maintenance and bug-fix follow-up
+**Current focus:** Post-Phase 04 maintenance, updater/release hardening, and map/folder workflow polish
 
 ## Current Position
 
 Phase: 04.2 complete — MAINTENANCE
 Plan: Post-phase maintenance
 Status: Completed planned phase work; maintenance fixes and planning artifacts are synced to the current shipped behavior
-Last activity: 2026-04-23 -- Windows photo reopening bug fixed via normalized asset paths and expanded asset protocol scope
+Last activity: 2026-05-07 -- Release/update infrastructure and maintenance UX fixes landed; next verification focus is production updater behavior plus remaining map regressions
 
 Progress: [██████████] 100%
 
@@ -94,6 +94,7 @@ Recent decisions affecting current work:
 - [ ] Review map tile cache policy (limit, eviction, settings exposure, offline UX copy)
 - [ ] Rework query/list strategy for large libraries (5k+ photos): lighter query shapes, targeted cache updates, and/or virtualization where needed
 - [ ] Implement species-specific map zones: local circle zones first, polygon-ready region zones next, with map view modes for pins/local/region/all
+- [ ] Add manual "Check for updates" action plus low-noise background update re-check every few hours
 - [x] Stabilize PDF export path — keep `@react-pdf/renderer`, add smoke-test diagnostics, and fall back to main-thread rendering when the worker stalls in Tauri
 - [x] Redesign PDF journal pacing/content — interleave stats pages with highlight spreads and photo ribbons, convert the trailing page into a species list, and align labels with photo-count semantics
 - [x] Add favorites support for finds — migration + backend command + collection UI toggle/filter + tests
@@ -131,6 +132,10 @@ Recent decisions affecting current work:
 | 260417-pdf-export-stabilization | 2026-04-17 | Added worker smoke test + timeout fallback to main-thread `react-pdf` rendering, kept Quick PDF as a dev-only aid, and confirmed production builds succeed. |
 | 260417-pdf-journal-redesign | 2026-04-17 | Reworked the PDF into mixed stats/photo pacing with highlight spreads, photo ribbons, a species-list tail page, and photo-count labeling where users expect totals. |
 | 260417-favorites-support | 2026-04-17 | Added `is_favorite` migration/command wiring, favorite toggles in find cards, favorites-only collection filter, i18n strings, and supporting tests/mocks. |
+| 260507-map-zone-ux-pass | 2026-05-07 | Region/local polygon workflows polished: draw/edit actions from pins, focused draw mode, local-color drafts/edit handles, smoother polygon editing, and improved zone panel switching/empty states. |
+| 260507-updater-release-hardening | 2026-05-07 | Added app updater wiring, visible header version/update CTA, release automation script, release workflow fallback on GitHub Release publish, and fixed public-key configuration for updater bundles. |
+| 260507-folder-edit-disk-sync | 2026-05-07 | Species rename from edit now moves files on disk, species-folder editing can open the on-disk species folder, and find edit can open species/photo folders for inspection. |
+| 260507-txk add-more-photos-to-existing-find | 2026-05-07 | Add photos button in EditFindDialog: file picker, preview list, confirmation; Rust add_find_photos command copies to species folder, inserts DB rows with is_primary=false. |
 
 ### Roadmap Evolution
 
