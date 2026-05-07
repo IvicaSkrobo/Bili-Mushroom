@@ -149,14 +149,14 @@ function CollectionPopup({
         <div className="grid grid-cols-2 gap-1.5">
           <button
             type="button"
-            onClick={() => onStartLocalPolygonForFind(current.find)}
+            onClick={(e) => { e.stopPropagation(); L.DomEvent.stopPropagation(e.nativeEvent); onStartLocalPolygonForFind(current.find); }}
             className="rounded border border-[#D4512A]/45 bg-[#D4512A]/10 px-2 py-1 text-xs font-semibold text-foreground hover:bg-[#D4512A]/18"
           >
             {existingLocalPolygon ? 'Edit local' : 'Draw local'}
           </button>
           <button
             type="button"
-            onClick={() => onStartRegionPolygonForFind(current.find)}
+            onClick={(e) => { e.stopPropagation(); L.DomEvent.stopPropagation(e.nativeEvent); onStartRegionPolygonForFind(current.find); }}
             className="rounded border border-primary/45 bg-primary/10 px-2 py-1 text-xs font-semibold text-foreground hover:bg-primary/18"
           >
             {existingRegionPolygon ? 'Edit region' : 'Draw region'}

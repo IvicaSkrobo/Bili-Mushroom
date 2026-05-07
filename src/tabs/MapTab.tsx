@@ -306,7 +306,6 @@ export default function MapTab() {
   function handleStartRegionPolygonForFind(find: Find) {
     if (find.lat == null || find.lng == null) return;
     setRegionTargetFind(find);
-    setEditingPolygonZone(null);
     setSelectedEditPointIndex(null);
     setZoneMode('region');
     setActiveSpecies(find.species_name);
@@ -317,15 +316,28 @@ export default function MapTab() {
         zone.species_name === find.species_name,
     ) ?? null;
     setActiveZoneId(polygonZone?.id ?? null);
-    setDraftPolygonZone({
-      zoneType: 'region',
-      zoneId: polygonZone?.id ?? null,
-      speciesName: find.species_name,
-      sourceFindId: null,
-      name: polygonZone?.name ?? `${find.species_name.split(',')[0]} region`,
-      notes: polygonZone?.notes ?? '',
-      points: polygonZone ? parsePolygonJson(polygonZone.polygon_json) : [],
-    });
+
+    if (polygonZone) {
+      // Existing polygon → open edit mode directly (no draft, no accidental point add)
+      setDraftPolygonZone(null);
+      setEditingPolygonZone({
+        zoneId: polygonZone.id,
+        zoneType: 'region',
+        points: parsePolygonJson(polygonZone.polygon_json),
+      });
+    } else {
+      // No polygon yet → enter draft/draw mode
+      setEditingPolygonZone(null);
+      setDraftPolygonZone({
+        zoneType: 'region',
+        zoneId: null,
+        speciesName: find.species_name,
+        sourceFindId: null,
+        name: `${find.species_name.split(',')[0]} region`,
+        notes: '',
+        points: [],
+      });
+    }
   }
 
   function handleAddRegionPolygonPoint(point: ZonePolygonPoint) {
@@ -375,7 +387,6 @@ export default function MapTab() {
 
   function handleStartLocalPolygonForFind(find: Find) {
     if (find.lat == null || find.lng == null) return;
-    setEditingPolygonZone(null);
     setSelectedEditPointIndex(null);
     setZoneMode('local');
     setActiveSpecies(find.species_name);
@@ -386,15 +397,28 @@ export default function MapTab() {
         zone.source_find_id === find.id,
     ) ?? null;
     setActiveZoneId(existingLocalPolygon?.id ?? null);
-    setDraftPolygonZone({
-      zoneType: 'local',
-      zoneId: existingLocalPolygon?.id ?? null,
-      speciesName: find.species_name,
-      sourceFindId: find.id,
-      name: existingLocalPolygon?.name ?? `${find.species_name.split(',')[0]} local`,
-      notes: existingLocalPolygon?.notes ?? '',
-      points: existingLocalPolygon ? parsePolygonJson(existingLocalPolygon.polygon_json) : [],
-    });
+
+    if (existingLocalPolygon) {
+      // Existing polygon → open edit mode directly (no draft, no accidental point add)
+      setDraftPolygonZone(null);
+      setEditingPolygonZone({
+        zoneId: existingLocalPolygon.id,
+        zoneType: 'local',
+        points: parsePolygonJson(existingLocalPolygon.polygon_json),
+      });
+    } else {
+      // No polygon yet → enter draft/draw mode
+      setEditingPolygonZone(null);
+      setDraftPolygonZone({
+        zoneType: 'local',
+        zoneId: null,
+        speciesName: find.species_name,
+        sourceFindId: find.id,
+        name: `${find.species_name.split(',')[0]} local`,
+        notes: '',
+        points: [],
+      });
+    }
   }
 
   function handlePickLocalTargetFind(find: Find) {

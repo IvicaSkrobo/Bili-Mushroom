@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { renderSpeciesName } from '@/lib/speciesName';
 import { invoke } from '@tauri-apps/api/core';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { Image, Info, MapPin, X, Unlock, Trash2 } from 'lucide-react';
@@ -51,6 +52,27 @@ export function FindPreviewCard({
   const [mapOpen, setMapOpen] = useState(false);
   const [showTrashHint, setShowTrashHint] = useState(false);
   const [trashing, setTrashing] = useState(false);
+  const [speciesSelection, setSpeciesSelection] = useState<{ start: number; end: number } | null>(null);
+
+  function applySpeciesWeight(weight: 'bold' | 'normal') {
+    if (!speciesSelection) return;
+    const { start, end } = speciesSelection;
+    const val = payload.species_name;
+    const selected = val.slice(start, end);
+    const alreadyWrapped = val[start - 1] === '*' && val[end] === '*';
+    let next: string;
+    if (weight === 'normal') {
+      next = alreadyWrapped
+        ? val
+        : val.slice(0, start) + '*' + selected + '*' + val.slice(end);
+    } else {
+      next = alreadyWrapped
+        ? val.slice(0, start - 1) + selected + val.slice(end + 1)
+        : val;
+    }
+    onChange({ ...payload, species_name: next });
+    setSpeciesSelection(null);
+  }
 
   const updateLockable = <K extends LockableField>(key: K, value: string) => {
     const nextValue = key === 'observed_count'
@@ -193,11 +215,44 @@ export function FindPreviewCard({
             {/* Fields */}
             <div className="grid grid-cols-2 gap-2 pr-16">
               <div className="col-span-2">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className="text-xs text-muted-foreground">{t('preview.speciesName')}</span>
+                  <button
+                    type="button"
+                    disabled={!speciesSelection}
+                    onMouseDown={(e) => { e.preventDefault(); applySpeciesWeight('bold'); }}
+                    className="inline-flex items-center justify-center h-5 w-5 rounded border border-border/60 text-[10px] text-muted-foreground hover:border-primary/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-25"
+                    title="Mark selected as bold"
+                  >
+                    <span className="font-serif font-bold leading-none">B</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!speciesSelection}
+                    onMouseDown={(e) => { e.preventDefault(); applySpeciesWeight('normal'); }}
+                    className="inline-flex items-center justify-center h-5 w-5 rounded border border-border/60 text-[10px] text-muted-foreground hover:border-primary/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-25"
+                    title="Mark selected as normal weight"
+                  >
+                    <span className="font-serif font-normal leading-none">N</span>
+                  </button>
+                </div>
                 <Input
                   placeholder={t('preview.speciesName')}
                   value={payload.species_name}
-                  onChange={(e) => onChange({ ...payload, species_name: e.target.value })}
+                  onChange={(e) => { onChange({ ...payload, species_name: e.target.value }); setSpeciesSelection(null); }}
+                  onSelect={(e) => {
+                    const input = e.currentTarget;
+                    const start = input.selectionStart ?? 0;
+                    const end = input.selectionEnd ?? 0;
+                    setSpeciesSelection(start !== end ? { start, end } : null);
+                  }}
+                  onBlur={() => setSpeciesSelection(null)}
                 />
+                {payload.species_name.includes('*') && (
+                  <p className="mt-1 font-serif text-xs font-semibold text-foreground/80 px-0.5">
+                    {renderSpeciesName(payload.species_name)}
+                  </p>
+                )}
               </div>
 
               <div>

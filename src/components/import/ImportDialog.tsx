@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { renderSpeciesName } from '@/lib/speciesName';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { readDir } from '@tauri-apps/plugin-fs';
 import { convertFileSrc } from '@tauri-apps/api/core';
@@ -110,6 +111,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
 
   // Find metadata
   const [sharedName, setSharedName] = useState('');
+  const [sharedNameSelection, setSharedNameSelection] = useState<{ start: number; end: number } | null>(null);
   const [sharedDate, setSharedDate] = useState('');
   const [sharedCountry, setSharedCountry] = useState('');
   const [sharedRegion, setSharedRegion] = useState('');
@@ -349,12 +351,59 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
             {/* Row 1: species name + map pin */}
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
+                <div className="flex items-center gap-1 mb-1">
+                  <span className="text-[10px] text-muted-foreground/50 flex-1">{t('import.mushroomName')}</span>
+                  <button
+                    type="button"
+                    disabled={!sharedNameSelection}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      if (!sharedNameSelection) return;
+                      const { start, end } = sharedNameSelection;
+                      const selected = sharedName.slice(start, end);
+                      const alreadyWrapped = sharedName[start - 1] === '*' && sharedName[end] === '*';
+                      setSharedName(alreadyWrapped
+                        ? sharedName.slice(0, start - 1) + selected + sharedName.slice(end + 1)
+                        : sharedName.slice(0, start) + '*' + selected + '*' + sharedName.slice(end));
+                      setSharedNameSelection(null);
+                    }}
+                    className="inline-flex items-center justify-center h-5 w-5 rounded border border-border/60 text-[10px] text-muted-foreground hover:border-primary/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-25"
+                    title="Mark selected as normal weight"
+                  >
+                    <span className="font-serif font-semibold leading-none">B</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!sharedNameSelection}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      if (!sharedNameSelection) return;
+                      const { start, end } = sharedNameSelection;
+                      const selected = sharedName.slice(start, end);
+                      const alreadyWrapped = sharedName[start - 1] === '*' && sharedName[end] === '*';
+                      if (!alreadyWrapped) {
+                        setSharedName(sharedName.slice(0, start) + '*' + selected + '*' + sharedName.slice(end));
+                      }
+                      setSharedNameSelection(null);
+                    }}
+                    className="inline-flex items-center justify-center h-5 w-5 rounded border border-border/60 text-[10px] text-muted-foreground hover:border-primary/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-25"
+                    title="Mark selected as bold"
+                  >
+                    <span className="font-serif font-normal leading-none">N</span>
+                  </button>
+                </div>
                 <Input
                   placeholder={t('import.mushroomName')}
                   value={sharedName}
                   autoComplete="off"
-                  onChange={(e) => { setSharedName(e.target.value); setNameDropdownOpen(true); setNameHighlight(0); }}
-                  onBlur={() => setTimeout(() => setNameDropdownOpen(false), 150)}
+                  onChange={(e) => { setSharedName(e.target.value); setSharedNameSelection(null); setNameDropdownOpen(true); setNameHighlight(0); }}
+                  onSelect={(e) => {
+                    const input = e.currentTarget;
+                    const start = input.selectionStart ?? 0;
+                    const end = input.selectionEnd ?? 0;
+                    setSharedNameSelection(start !== end ? { start, end } : null);
+                  }}
+                  onBlur={() => { setSharedNameSelection(null); setTimeout(() => setNameDropdownOpen(false), 150); }}
                   onKeyDown={(e) => {
                     const visible = filteredFolders.slice(0, 10);
                     if (!nameDropdownOpen || visible.length === 0) return;
@@ -364,6 +413,11 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                     else if (e.key === 'Escape') { setNameDropdownOpen(false); }
                   }}
                 />
+                {sharedName.includes('*') && (
+                  <p className="mt-1 font-serif text-xs font-semibold text-foreground/80 px-0.5">
+                    {renderSpeciesName(sharedName)}
+                  </p>
+                )}
                 {nameDropdownOpen && filteredFolders.length > 0 && (
                   <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto">
                     {filteredFolders.slice(0, 10).map((f, i) => (

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { renderSpeciesName } from '@/lib/speciesName';
 import { readDir } from '@tauri-apps/plugin-fs';
 import {
   Dialog,
@@ -92,6 +93,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   const [folderOpenError, setFolderOpenError] = useState<string | null>(null);
 
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [speciesSelection, setSpeciesSelection] = useState<{ start: number; end: number } | null>(null);
   const [form, setForm] = useState<FormState>({
     species_name: '',
     date_found: '',
@@ -127,6 +129,28 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
 
   function handleChange(field: keyof FormState, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function applySpeciesWeight(weight: 'bold' | 'normal') {
+    if (!speciesSelection) return;
+    const { start, end } = speciesSelection;
+    const val = form.species_name;
+    const selected = val.slice(start, end);
+    let next: string;
+    const alreadyWrapped = val[start - 1] === '*' && val[end] === '*';
+    if (weight === 'normal') {
+      // Wrap in * if not already wrapped
+      next = alreadyWrapped
+        ? val
+        : val.slice(0, start) + '*' + selected + '*' + val.slice(end);
+    } else {
+      // Remove * wrapping if present
+      next = alreadyWrapped
+        ? val.slice(0, start - 1) + selected + val.slice(end + 1)
+        : val;
+    }
+    handleChange('species_name', next);
+    setSpeciesSelection(null);
   }
 
   function handleSave() {
@@ -173,15 +197,44 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
 
         <div className="space-y-3">
           <div>
-            <div className="flex items-baseline justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 mb-1">
               <label className="text-sm font-medium">{t('edit.species')}</label>
-              <span className="text-[10px] text-muted-foreground/60">wrap in <span className="font-mono">*asterisks*</span> for normal weight</span>
+              <div className="flex items-center gap-1">
+                {speciesSelection && (
+                  <span className="text-[10px] text-muted-foreground/50">selected:</span>
+                )}
+                <button
+                  type="button"
+                  disabled={!speciesSelection}
+                  onMouseDown={(e) => { e.preventDefault(); applySpeciesWeight('bold'); }}
+                  className="inline-flex items-center justify-center h-6 w-6 rounded border border-border/60 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/8 hover:text-foreground disabled:pointer-events-none disabled:opacity-25"
+                  title="Mark selected as bold"
+                >
+                  <span className="font-serif font-bold">B</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={!speciesSelection}
+                  onMouseDown={(e) => { e.preventDefault(); applySpeciesWeight('normal'); }}
+                  className="inline-flex items-center justify-center h-6 w-6 rounded border border-border/60 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/8 hover:text-foreground disabled:pointer-events-none disabled:opacity-25"
+                  title="Mark selected as normal weight"
+                >
+                  <span className="font-serif font-normal">N</span>
+                </button>
+              </div>
             </div>
             <div className="relative">
               <Input
                 value={form.species_name}
-                onChange={(e) => { handleChange('species_name', e.target.value); setFolderHighlight(0); }}
+                onChange={(e) => { handleChange('species_name', e.target.value); setFolderHighlight(0); setSpeciesSelection(null); }}
                 placeholder={t('preview.speciesName')}
+                onSelect={(e) => {
+                  const input = e.currentTarget;
+                  const start = input.selectionStart ?? 0;
+                  const end = input.selectionEnd ?? 0;
+                  setSpeciesSelection(start !== end ? { start, end } : null);
+                }}
+                onBlur={() => setSpeciesSelection(null)}
                 onKeyDown={(e) => {
                   const visible = filteredFolders.slice(0, 8);
                   if (visible.length === 0) return;
@@ -221,6 +274,11 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
                 </div>
               )}
             </div>
+            {form.species_name.includes('*') && (
+              <p className="mt-1.5 font-serif text-sm font-semibold text-foreground/80 px-0.5">
+                {renderSpeciesName(form.species_name)}
+              </p>
+            )}
           </div>
           <div>
             <label className="text-sm font-medium">{t('edit.date')}</label>
