@@ -77,6 +77,15 @@
 /* Base */
 *, *::before, *::after { box-sizing: border-box; }
 
+/* SpeciesNameEditor: placeholder when empty, single-line clamp */
+.species-name-editor:empty::before {
+  content: attr(data-placeholder);
+  color: hsl(var(--muted-foreground));
+  font-weight: 400;
+  pointer-events: none;
+}
+.species-name-editor { white-space: nowrap; overflow: hidden; }
+
 body {
   font-family: 'Manrope', 'Segoe UI', sans-serif;
   background-color: var(--background);

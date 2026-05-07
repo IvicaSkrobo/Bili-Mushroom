@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { renderSpeciesName } from '@/lib/speciesName';
+import { SpeciesNameEditor } from './SpeciesNameEditor';
 import { readDir } from '@tauri-apps/plugin-fs';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import {
@@ -91,12 +91,10 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   const addPhotosMutation = useAddFindPhotos();
   const [pendingPhotos, setPendingPhotos] = useState<string[]>([]);
   const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
-  const [folderHighlight, setFolderHighlight] = useState(0);
   const [openingFolder, setOpeningFolder] = useState(false);
   const [folderOpenError, setFolderOpenError] = useState<string | null>(null);
 
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [speciesSelection, setSpeciesSelection] = useState<{ start: number; end: number } | null>(null);
   const [form, setForm] = useState<FormState>({
     species_name: '',
     date_found: '',
@@ -127,34 +125,8 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
       .catch(() => setSpeciesFolders([]));
   }, [find, storagePath]);
 
-  const filteredFolders = form.species_name
-    ? speciesFolders.filter((f) => f.toLowerCase().includes(form.species_name.toLowerCase()))
-    : [];
-
   function handleChange(field: keyof FormState, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
-  }
-
-  function applySpeciesWeight(weight: 'bold' | 'normal') {
-    if (!speciesSelection) return;
-    const { start, end } = speciesSelection;
-    const val = form.species_name;
-    const selected = val.slice(start, end);
-    let next: string;
-    const alreadyWrapped = val[start - 1] === '*' && val[end] === '*';
-    if (weight === 'normal') {
-      // Wrap in * if not already wrapped
-      next = alreadyWrapped
-        ? val
-        : val.slice(0, start) + '*' + selected + '*' + val.slice(end);
-    } else {
-      // Remove * wrapping if present
-      next = alreadyWrapped
-        ? val.slice(0, start - 1) + selected + val.slice(end + 1)
-        : val;
-    }
-    handleChange('species_name', next);
-    setSpeciesSelection(null);
   }
 
   function handleSave() {
@@ -223,88 +195,13 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
 
         <div className="space-y-3">
           <div>
-            <div className="flex items-center justify-between gap-2 mb-1">
-              <label className="text-sm font-medium">{t('edit.species')}</label>
-              <div className="flex items-center gap-1">
-                {speciesSelection && (
-                  <span className="text-[10px] text-muted-foreground/50">selected:</span>
-                )}
-                <button
-                  type="button"
-                  disabled={!speciesSelection}
-                  onMouseDown={(e) => { e.preventDefault(); applySpeciesWeight('bold'); }}
-                  className="inline-flex items-center justify-center h-6 w-6 rounded border border-border/60 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/8 hover:text-foreground disabled:pointer-events-none disabled:opacity-25"
-                  title="Mark selected as bold"
-                >
-                  <span className="font-serif font-bold">B</span>
-                </button>
-                <button
-                  type="button"
-                  disabled={!speciesSelection}
-                  onMouseDown={(e) => { e.preventDefault(); applySpeciesWeight('normal'); }}
-                  className="inline-flex items-center justify-center h-6 w-6 rounded border border-border/60 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/8 hover:text-foreground disabled:pointer-events-none disabled:opacity-25"
-                  title="Mark selected as normal weight"
-                >
-                  <span className="font-serif font-normal">N</span>
-                </button>
-              </div>
-            </div>
-            <div className="relative">
-              <Input
-                value={form.species_name}
-                onChange={(e) => { handleChange('species_name', e.target.value); setFolderHighlight(0); setSpeciesSelection(null); }}
-                placeholder={t('preview.speciesName')}
-                onSelect={(e) => {
-                  const input = e.currentTarget;
-                  const start = input.selectionStart ?? 0;
-                  const end = input.selectionEnd ?? 0;
-                  setSpeciesSelection(start !== end ? { start, end } : null);
-                }}
-                onBlur={() => setSpeciesSelection(null)}
-                onKeyDown={(e) => {
-                  const visible = filteredFolders.slice(0, 8);
-                  if (visible.length === 0) return;
-                  if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    setFolderHighlight((h) => Math.min(h + 1, visible.length - 1));
-                  } else if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    setFolderHighlight((h) => Math.max(h - 1, 0));
-                  } else if (e.key === 'Enter' || e.key === 'Tab') {
-                    e.preventDefault();
-                    handleChange('species_name', visible[folderHighlight]);
-                    setFolderHighlight(0);
-                  } else if (e.key === 'Escape') {
-                    setFolderHighlight(0);
-                    handleChange('species_name', '');
-                  }
-                }}
-              />
-              {filteredFolders.length > 0 && (
-                <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto">
-                  {filteredFolders.slice(0, 8).map((f, i) => (
-                    <button
-                      key={f}
-                      type="button"
-                      className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${i === folderHighlight ? 'bg-accent' : 'hover:bg-accent'}`}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        handleChange('species_name', f);
-                        setFolderHighlight(0);
-                      }}
-                      onMouseEnter={() => setFolderHighlight(i)}
-                    >
-                      {f}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            {form.species_name.includes('*') && (
-              <p className="mt-1.5 font-serif text-sm font-semibold text-foreground/80 px-0.5">
-                {renderSpeciesName(form.species_name)}
-              </p>
-            )}
+            <label className="text-sm font-medium">{t('edit.species')}</label>
+            <SpeciesNameEditor
+              value={form.species_name}
+              onChange={(raw) => handleChange('species_name', raw)}
+              placeholder={t('preview.speciesName')}
+              suggestions={speciesFolders}
+            />
           </div>
           <div>
             <label className="text-sm font-medium">{t('edit.date')}</label>
