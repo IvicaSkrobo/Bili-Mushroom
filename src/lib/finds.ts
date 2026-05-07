@@ -269,3 +269,16 @@ export async function setFindFavorite(
 ): Promise<Find> {
   return invoke<Find>('set_find_favorite', { storagePath, findId, isFavorite });
 }
+
+/**
+ * Calls the Rust `add_find_photos` command.
+ * Copies source photos into the find's existing species folder and inserts DB rows.
+ * Always sets is_primary = false. Primary photo remains unchanged.
+ */
+export async function addFindPhotos(
+  storagePath: string,
+  findId: number,
+  sourcePaths: string[],
+): Promise<Find> {
+  return invoke<Find>('add_find_photos', { storagePath, findId, sourcePaths });
+}
