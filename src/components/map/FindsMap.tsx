@@ -96,6 +96,41 @@ export function FindsMap({
     ? null
     : zones.find((zone) => zone.id === activeZoneId) ?? null;
 
+  function focusDrawTarget(find: Find, zoneType: ZoneType) {
+    if (!map || find.lat == null || find.lng == null) return;
+
+    const existingPolygon = zones.find((zone) => {
+      if (zone.zone_type !== zoneType || zone.geometry_type !== 'polygon') return false;
+      if (zoneType === 'local') return zone.source_find_id === find.id;
+      return zone.species_name === find.species_name;
+    }) ?? null;
+
+    if (existingPolygon) {
+      const polygon = parsePolygonJson(existingPolygon.polygon_json);
+      if (polygon.length >= 3) {
+        map.flyToBounds(polygon, {
+          animate: true,
+          duration: 0.7,
+          padding: [24, 24],
+        });
+        return;
+      }
+    }
+
+    const zoom = zoneType === 'local' ? 17 : 15.2;
+    map.flyTo([find.lat, find.lng], zoom, { animate: true, duration: 0.7 });
+  }
+
+  function handleStartLocalPolygonFromPin(find: Find) {
+    focusDrawTarget(find, 'local');
+    onStartLocalPolygonForFind(find);
+  }
+
+  function handleStartRegionPolygonFromPin(find: Find) {
+    focusDrawTarget(find, 'region');
+    onStartRegionPolygonForFind(find);
+  }
+
   function handleZoomToZone(zone: Zone, selectedType: ZoneType) {
     if (!map) return;
     if (zone.geometry_type === 'polygon') {
@@ -157,8 +192,8 @@ export function FindsMap({
           <CollectionPins
             finds={finds}
             zones={zones}
-            onStartLocalPolygonForFind={onStartLocalPolygonForFind}
-            onStartRegionPolygonForFind={onStartRegionPolygonForFind}
+            onStartLocalPolygonForFind={handleStartLocalPolygonFromPin}
+            onStartRegionPolygonForFind={handleStartRegionPolygonFromPin}
             onSelectSpecies={onSelectSpecies}
           />
         )}

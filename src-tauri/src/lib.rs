@@ -1,7 +1,7 @@
 mod commands;
 
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_fs::init())
@@ -36,7 +36,15 @@ pub fn run() {
             commands::stats::get_calendar,
             commands::stats::get_species_stats,
             commands::stats::read_photos_as_base64,
-        ])
+            commands::updater::check_app_update,
+            commands::updater::install_app_update,
+        ]);
+
+    if let Some(pubkey) = option_env!("TAURI_UPDATER_PUBLIC_KEY") {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().pubkey(pubkey).build());
+    }
+
+    builder
         .setup(|_app| Ok(()))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

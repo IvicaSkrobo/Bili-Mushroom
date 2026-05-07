@@ -79,7 +79,12 @@ function CollectionPopup({
     ) ?? null
     : null;
   const existingRegionPolygon = current?.find
-    ? zones.find((zone) => zone.zone_type === 'region' && zone.geometry_type === 'polygon') ?? null
+    ? zones.find(
+      (zone) =>
+        zone.zone_type === 'region' &&
+        zone.geometry_type === 'polygon' &&
+        zone.species_name === current.find.species_name,
+    ) ?? null
     : null;
   const photoSrc = photo && storagePath
     ? resolvePhotoSrc(storagePath, photo.photo_path)

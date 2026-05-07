@@ -206,7 +206,28 @@ export default function MapTab() {
 
   async function handleCreateLocalCircle() {
     if (!localTargetFind || localTargetFind.lat == null || localTargetFind.lng == null) return;
-    await handleCreateZoneForFind(localTargetFind, 'local');
+    if (existingLocalCircle) {
+      setZoneMode('local');
+      setActiveSpecies(localTargetFind.species_name);
+      setActiveZoneId(existingLocalCircle.id);
+      return;
+    }
+
+    const zone = await upsertZone.mutateAsync({
+      species_name: localTargetFind.species_name,
+      zone_type: 'local',
+      name: `${localTargetFind.species_name.split(',')[0]} local`,
+      geometry_type: 'circle',
+      center_lat: localTargetFind.lat,
+      center_lng: localTargetFind.lng,
+      radius_meters: 60,
+      polygon_json: null,
+      source_find_id: localTargetFind.id,
+      notes: '',
+    });
+    setZoneMode('local');
+    setActiveSpecies(zone.species_name);
+    setActiveZoneId(zone.id);
   }
 
   async function createRegionZoneForSpecies(speciesName: string, preferredSourceFindId: number | null = null) {

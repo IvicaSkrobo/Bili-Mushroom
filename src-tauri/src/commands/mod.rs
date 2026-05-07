@@ -5,4 +5,5 @@ pub mod path_builder;
 pub mod stats;
 pub mod tile_cache_db;
 pub mod tile_proxy;
+pub mod updater;
 pub mod zones;

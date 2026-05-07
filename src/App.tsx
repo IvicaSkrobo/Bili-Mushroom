@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { Toaster } from 'sonner';
+import { toast } from 'sonner';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAppStore } from '@/stores/appStore';
 import { loadStoragePath } from '@/lib/storage';
@@ -17,6 +19,12 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+interface AvailableUpdate {
+  version: string;
+  notes: string | null;
+  pub_date: string | null;
+}
 
 export default function App() {
   const storagePath = useAppStore((s) => s.storagePath);
@@ -36,6 +44,46 @@ export default function App() {
       document.documentElement.classList.remove('dark');
     }
   }, [theme]);
+
+  useEffect(() => {
+    if (!('__TAURI_INTERNALS__' in window)) return;
+
+    let cancelled = false;
+    invoke<AvailableUpdate | null>('check_app_update')
+      .then((update) => {
+        if (cancelled || !update) return;
+
+        toast('Update available', {
+          description: `Version ${update.version} is ready to install.${update.notes ? ` ${update.notes}` : ''}`,
+          duration: 20000,
+          action: {
+            label: 'Update',
+            onClick: async () => {
+              const loadingToast = toast.loading('Installing update…');
+              try {
+                const installed = await invoke<boolean>('install_app_update');
+                toast.dismiss(loadingToast);
+                if (installed) {
+                  toast.success('Update started. The app will close if the installer needs to continue.');
+                } else {
+                  toast('No newer update found.');
+                }
+              } catch (error) {
+                toast.dismiss(loadingToast);
+                toast.error(String(error));
+              }
+            },
+          },
+        });
+      })
+      .catch(() => {
+        // Updater is optional for local/dev builds, so silent failure keeps startup clean.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Load persisted path on mount
   useEffect(() => {
