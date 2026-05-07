@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { renderSpeciesName } from '@/lib/speciesName';
 import { readDir } from '@tauri-apps/plugin-fs';
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import {
   Dialog,
   DialogContent,
@@ -12,13 +13,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useUpdateFind } from '@/hooks/useFinds';
+import { useUpdateFind, useAddFindPhotos } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
-import { openFindFolder, type Find } from '@/lib/finds';
+import { openFindFolder, SUPPORTED_EXTENSIONS, type Find } from '@/lib/finds';
 import { reverseGeocode } from '@/lib/geocoding';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
-import { FolderOpen, Info, MapPin } from 'lucide-react';
+import { FolderOpen, ImagePlus, Info, MapPin, X } from 'lucide-react';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 
 interface FormState {
@@ -87,6 +88,8 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   const t = useT();
   const storagePath = useAppStore((s) => s.storagePath);
   const updateMutation = useUpdateFind();
+  const addPhotosMutation = useAddFindPhotos();
+  const [pendingPhotos, setPendingPhotos] = useState<string[]>([]);
   const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
   const [folderHighlight, setFolderHighlight] = useState(0);
   const [openingFolder, setOpeningFolder] = useState(false);
@@ -108,6 +111,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
 
   useEffect(() => {
     if (find) setForm(findToFormState(find));
+    setPendingPhotos([]);
   }, [find]);
 
   useEffect(() => {
@@ -186,6 +190,28 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     } finally {
       setOpeningFolder(false);
     }
+  }
+
+  async function handlePickPhotos() {
+    const selected = await openDialog({
+      multiple: true,
+      filters: [{ name: 'Images', extensions: SUPPORTED_EXTENSIONS.map((ext) => ext.replace('.', '')) }],
+    });
+    if (!selected) return;
+    const paths = Array.isArray(selected) ? selected : [selected];
+    setPendingPhotos(paths);
+  }
+
+  function handleAddPhotos() {
+    if (!find || pendingPhotos.length === 0) return;
+    addPhotosMutation.mutate(
+      { findId: find.id, sourcePaths: pendingPhotos },
+      {
+        onSuccess: () => {
+          setPendingPhotos([]);
+        },
+      },
+    );
   }
 
   return (
@@ -335,7 +361,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
               />
             </div>
           </div>
-          <div>
+          <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
@@ -369,7 +395,46 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
                 <FolderOpen className="h-4 w-4" />
                 Open photo folder
               </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handlePickPhotos}
+                className="flex items-center gap-1"
+              >
+                <ImagePlus className="h-4 w-4" />
+                Add photos
+              </Button>
             </div>
+            {pendingPhotos.length > 0 && (
+              <div className="rounded-md border border-border/60 bg-card/50 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">
+                    {pendingPhotos.length} photo{pendingPhotos.length > 1 ? 's' : ''} selected
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPendingPhotos([])}
+                    className="text-muted-foreground/60 hover:text-foreground transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <ul className="text-xs text-muted-foreground/70 space-y-0.5 max-h-24 overflow-y-auto">
+                  {pendingPhotos.map((p) => (
+                    <li key={p} className="truncate">{p.split(/[\\/]/).pop()}</li>
+                  ))}
+                </ul>
+                <Button
+                  size="sm"
+                  onClick={handleAddPhotos}
+                  disabled={addPhotosMutation.isPending}
+                  className="w-full"
+                >
+                  {addPhotosMutation.isPending ? 'Adding…' : `Add ${pendingPhotos.length} photo${pendingPhotos.length > 1 ? 's' : ''}`}
+                </Button>
+              </div>
+            )}
           </div>
           <div>
             <label className="text-sm font-medium">{t('edit.notes')}</label>
@@ -408,6 +473,12 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
         {updateMutation.isError && (
           <Alert variant="destructive" role="alert">
             <AlertDescription>{String(updateMutation.error)}</AlertDescription>
+          </Alert>
+        )}
+
+        {addPhotosMutation.isError && (
+          <Alert variant="destructive" role="alert">
+            <AlertDescription>{String(addPhotosMutation.error)}</AlertDescription>
           </Alert>
         )}
 
