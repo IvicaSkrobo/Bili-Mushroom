@@ -20,12 +20,6 @@ const queryClient = new QueryClient({
   },
 });
 
-interface AvailableUpdate {
-  version: string;
-  notes: string | null;
-  pub_date: string | null;
-}
-
 export default function App() {
   const storagePath = useAppStore((s) => s.storagePath);
   const dbReady = useAppStore((s) => s.dbReady);
@@ -36,6 +30,8 @@ export default function App() {
   const theme = useAppStore((s) => s.theme);
   const pendingScan = useAppStore((s) => s.pendingScan);
   const setPendingScan = useAppStore((s) => s.setPendingScan);
+  const setAvailableUpdate = useAppStore((s) => s.setAvailableUpdate);
+  const setInstallingUpdate = useAppStore((s) => s.setInstallingUpdate);
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -49,9 +45,10 @@ export default function App() {
     if (!('__TAURI_INTERNALS__' in window)) return;
 
     let cancelled = false;
-    invoke<AvailableUpdate | null>('check_app_update')
+    invoke<import('@/stores/appStore').AvailableUpdate | null>('check_app_update')
       .then((update) => {
         if (cancelled || !update) return;
+        setAvailableUpdate(update);
 
         toast('Update available', {
           description: `Version ${update.version} is ready to install.${update.notes ? ` ${update.notes}` : ''}`,
@@ -59,18 +56,23 @@ export default function App() {
           action: {
             label: 'Update',
             onClick: async () => {
+              setInstallingUpdate(true);
               const loadingToast = toast.loading('Installing update…');
               try {
                 const installed = await invoke<boolean>('install_app_update');
                 toast.dismiss(loadingToast);
                 if (installed) {
+                  setAvailableUpdate(null);
                   toast.success('Update started. The app will close if the installer needs to continue.');
                 } else {
                   toast('No newer update found.');
+                  setAvailableUpdate(null);
                 }
               } catch (error) {
                 toast.dismiss(loadingToast);
                 toast.error(String(error));
+              } finally {
+                setInstallingUpdate(false);
               }
             },
           },
@@ -78,12 +80,13 @@ export default function App() {
       })
       .catch(() => {
         // Updater is optional for local/dev builds, so silent failure keeps startup clean.
+        setAvailableUpdate(null);
       });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [setAvailableUpdate, setInstallingUpdate]);
 
   // Load persisted path on mount
   useEffect(() => {

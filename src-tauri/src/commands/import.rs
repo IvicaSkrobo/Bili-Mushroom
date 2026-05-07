@@ -2,9 +2,9 @@ use rusqlite::{Connection, params};
 use tauri::Emitter;
 use chrono::Utc;
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use crate::commands::path_builder::{build_dest_path, next_seq_for_folder};
+use crate::commands::path_builder::{build_dest_path, next_seq_for_folder, resolve_location_component};
 
 #[derive(serde::Deserialize)]
 pub struct ImportPayload {
@@ -568,14 +568,27 @@ pub async fn update_find(
     storage_path: String,
     payload: UpdateFindPayload,
 ) -> Result<FindRecord, String> {
-    let conn = open_db(&storage_path)?;
+    let mut conn = open_db(&storage_path)?;
     let (observed_count, observed_count_min, observed_count_max) = normalize_observed_range(
         payload.observed_count,
         payload.observed_count_min,
         payload.observed_count_max,
     );
+    let tx = conn.transaction().map_err(|e| format!("Failed to start update transaction: {}", e))?;
 
-    let rows_affected = conn
+    let old_species_name: String = tx
+        .query_row(
+            "SELECT species_name FROM finds WHERE id = ?1",
+            params![payload.id],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Failed to read current species name: {}", e))?;
+
+    if old_species_name != payload.species_name {
+        move_find_photos_to_species_folder(&tx, &storage_path, payload.id, &payload.species_name)?;
+    }
+
+    let rows_affected = tx
         .execute(
             "UPDATE finds SET species_name=?1, date_found=?2, country=?3, region=?4, lat=?5, lng=?6, notes=?7, location_note=?8, observed_count=?9, observed_count_min=?10, observed_count_max=?11 WHERE id=?12",
             params![
@@ -599,7 +612,7 @@ pub async fn update_find(
         return Err("find not found".into());
     }
 
-    let mut record = conn
+    let mut record = tx
         .query_row(
             "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at FROM finds WHERE id = ?1",
             params![payload.id],
@@ -608,26 +621,119 @@ pub async fn update_find(
         .map_err(|e| format!("Failed to read updated record: {}", e))?;
 
     // Fetch photos for the updated record
+    let photos: Vec<FindPhoto> = {
+        let mut stmt = tx
+            .prepare(
+                "SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map(params![payload.id], |row| {
+                Ok(FindPhoto {
+                    id: row.get(0)?,
+                    find_id: row.get(1)?,
+                    photo_path: row.get(2)?,
+                    is_primary: row.get::<_, i64>(3)? == 1,
+                })
+            })
+            .map_err(|e| e.to_string())?;
+        let collected = rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        collected
+    };
+
+    tx.commit().map_err(|e| format!("Failed to finalize update: {}", e))?;
+    record.photos = photos;
+    Ok(record)
+}
+
+fn move_find_photos_to_species_folder(
+    conn: &Connection,
+    storage_path: &str,
+    find_id: i64,
+    new_species_name: &str,
+) -> Result<(), String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
+            "SELECT id, photo_path FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
         )
         .map_err(|e| e.to_string())?;
-    let photos: Vec<FindPhoto> = stmt
-        .query_map(params![payload.id], |row| {
-            Ok(FindPhoto {
-                id: row.get(0)?,
-                find_id: row.get(1)?,
-                photo_path: row.get(2)?,
-                is_primary: row.get::<_, i64>(3)? == 1,
-            })
-        })
+    let photo_rows = stmt
+        .query_map(params![find_id], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
 
-    record.photos = photos;
-    Ok(record)
+    if photo_rows.is_empty() {
+        return Ok(());
+    }
+
+    let target_folder =
+        Path::new(storage_path).join(resolve_location_component(new_species_name, "unknown_species"));
+    std::fs::create_dir_all(&target_folder)
+        .map_err(|e| format!("Failed to create target folder '{}': {}", target_folder.display(), e))?;
+
+    for (photo_id, photo_path) in &photo_rows {
+        let source_abs = Path::new(storage_path).join(photo_path);
+        let filename = source_abs
+            .file_name()
+            .ok_or_else(|| format!("Photo path has no filename: {}", source_abs.display()))?;
+        let mut target_abs = target_folder.join(filename);
+
+        if source_abs != target_abs {
+            target_abs = unique_destination_path(&target_abs);
+            std::fs::create_dir_all(
+                target_abs
+                    .parent()
+                    .ok_or_else(|| format!("Target path has no parent: {}", target_abs.display()))?,
+            )
+            .map_err(|e| format!("Failed to prepare target folder for '{}': {}", target_abs.display(), e))?;
+            std::fs::rename(&source_abs, &target_abs)
+                .or_else(|_| {
+                    std::fs::copy(&source_abs, &target_abs)?;
+                    std::fs::remove_file(&source_abs)
+                })
+                .map_err(|e| format!("Failed to move '{}' to '{}': {}", source_abs.display(), target_abs.display(), e))?;
+        }
+
+        let relative = target_abs
+            .strip_prefix(storage_path)
+            .map(|p| p.to_string_lossy().replace('\\', "/").trim_start_matches('/').to_string())
+            .unwrap_or_else(|_| target_abs.to_string_lossy().replace('\\', "/"));
+        conn.execute(
+            "UPDATE find_photos SET photo_path = ?1 WHERE id = ?2",
+            params![relative, photo_id],
+        )
+        .map_err(|e| format!("Failed to update photo path for photo {}: {}", photo_id, e))?;
+    }
+
+    Ok(())
+}
+
+fn unique_destination_path(initial: &Path) -> PathBuf {
+    if !initial.exists() {
+        return initial.to_path_buf();
+    }
+
+    let stem = initial
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "photo".to_string());
+    let ext = initial
+        .extension()
+        .map(|e| format!(".{}", e.to_string_lossy()))
+        .unwrap_or_default();
+    let parent = initial.parent().map(Path::to_path_buf).unwrap_or_default();
+
+    for index in 2..10_000 {
+        let candidate = parent.join(format!("{stem} ({index}){ext}"));
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+
+    initial.to_path_buf()
 }
 
 /// Shared test helpers — available to other test modules in the crate.

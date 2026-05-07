@@ -237,6 +237,21 @@ export async function moveFindToFolder(
   return invoke<void>('move_find_files', { storagePath, findId, destFolder });
 }
 
+export async function openFindFolder(
+  storagePath: string,
+  findId: number,
+  scope: 'species' | 'photo' = 'species',
+): Promise<void> {
+  return invoke<void>('open_find_folder', { storagePath, findId, scope });
+}
+
+export async function openSpeciesFolder(
+  storagePath: string,
+  speciesName: string,
+): Promise<void> {
+  return invoke<void>('open_species_folder', { storagePath, speciesName });
+}
+
 export async function bulkRenameSpecies(
   storagePath: string,
   findIds: number[],

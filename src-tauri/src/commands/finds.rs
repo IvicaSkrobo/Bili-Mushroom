@@ -1,5 +1,6 @@
 use rusqlite::params;
 use chrono::Utc;
+use std::process::Command;
 use std::path::{Path, PathBuf};
 
 use crate::commands::import::{open_db, FindPhoto, FindRecord};
@@ -131,6 +132,113 @@ pub async fn move_find_files(
         .map_err(|e| e.to_string())?;
     conn.execute("DELETE FROM finds WHERE id = ?1", params![find_id])
         .map_err(|e| format!("DB delete failed: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn open_find_folder(
+    storage_path: String,
+    find_id: i64,
+    scope: Option<String>,
+) -> Result<(), String> {
+    let conn = open_db(&storage_path)?;
+    let species_name: String = conn
+        .query_row(
+            "SELECT species_name FROM finds WHERE id = ?1",
+            params![find_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Could not locate this find: {}", e))?;
+
+    let photo_path_result: Result<String, _> = conn
+        .query_row(
+            "SELECT photo_path FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC LIMIT 1",
+            params![find_id],
+            |row| row.get(0),
+        );
+
+    let preferred_scope = scope.as_deref().unwrap_or("species");
+    let species_folder = Path::new(&storage_path).join(resolve_location_component(&species_name, "unknown_species"));
+    let folder_path = if preferred_scope == "photo" {
+        let photo_path = photo_path_result
+            .map_err(|e| format!("Could not locate a photo for this find: {}", e))?;
+        let absolute_photo_path = Path::new(&storage_path).join(&photo_path);
+        absolute_photo_path
+            .parent()
+            .map(PathBuf::from)
+            .ok_or_else(|| "Could not determine the containing folder for this find.".to_string())?
+    } else if species_folder.exists() {
+        species_folder
+    } else {
+        let photo_path = photo_path_result
+            .map_err(|e| format!("Could not locate the species folder or a photo for this find: {}", e))?;
+        let absolute_photo_path = Path::new(&storage_path).join(&photo_path);
+        absolute_photo_path
+            .parent()
+            .map(PathBuf::from)
+            .ok_or_else(|| "Could not determine the containing folder for this find.".to_string())?
+    };
+
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut cmd = Command::new("explorer");
+        cmd.arg(&folder_path);
+        cmd
+    };
+
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut cmd = Command::new("open");
+        cmd.arg(&folder_path);
+        cmd
+    };
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut command = {
+        let mut cmd = Command::new("xdg-open");
+        cmd.arg(&folder_path);
+        cmd
+    };
+
+    command
+        .spawn()
+        .map_err(|e| format!("Failed to open folder: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn open_species_folder(
+    storage_path: String,
+    species_name: String,
+) -> Result<(), String> {
+    let folder_path = Path::new(&storage_path).join(resolve_location_component(&species_name, "unknown_species"));
+
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut cmd = Command::new("explorer");
+        cmd.arg(&folder_path);
+        cmd
+    };
+
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut cmd = Command::new("open");
+        cmd.arg(&folder_path);
+        cmd
+    };
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut command = {
+        let mut cmd = Command::new("xdg-open");
+        cmd.arg(&folder_path);
+        cmd
+    };
+
+    command
+        .spawn()
+        .map_err(|e| format!("Failed to open species folder: {}", e))?;
 
     Ok(())
 }

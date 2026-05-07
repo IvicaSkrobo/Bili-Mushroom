@@ -1,9 +1,12 @@
 import { Suspense, lazy, useState } from 'react';
-import { Settings as SettingsIcon, Sun, Moon } from 'lucide-react';
+import { ArrowUpCircle, LoaderCircle, Settings as SettingsIcon, Sun, Moon } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
+import { toast } from 'sonner';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { useAppStore, type Tab } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
+import { APP_VERSION } from '@/lib/appMeta';
 
 const CollectionTab = lazy(() => import('@/tabs/CollectionTab'));
 const SpeciesTab = lazy(() => import('@/tabs/SpeciesTab'));
@@ -27,7 +30,32 @@ export function AppShell() {
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const theme = useAppStore((s) => s.theme);
   const setTheme = useAppStore((s) => s.setTheme);
+  const availableUpdate = useAppStore((s) => s.availableUpdate);
+  const setAvailableUpdate = useAppStore((s) => s.setAvailableUpdate);
+  const installingUpdate = useAppStore((s) => s.installingUpdate);
+  const setInstallingUpdate = useAppStore((s) => s.setInstallingUpdate);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  async function handleInstallUpdate() {
+    setInstallingUpdate(true);
+    const loadingToast = toast.loading('Installing update…');
+    try {
+      const installed = await invoke<boolean>('install_app_update');
+      toast.dismiss(loadingToast);
+      if (installed) {
+        setAvailableUpdate(null);
+        toast.success('Update started. The app will close if the installer needs to continue.');
+      } else {
+        setAvailableUpdate(null);
+        toast('No newer update found.');
+      }
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      toast.error(String(error));
+    } finally {
+      setInstallingUpdate(false);
+    }
+  }
 
   return (
     <div className="relative flex h-screen w-screen flex-col bg-background">
@@ -37,7 +65,29 @@ export function AppShell() {
           <span className="font-serif text-3xl font-semibold italic text-primary tracking-[0.02em] leading-none">Bili</span>
           <span className="text-[10px] font-semibold tracking-[0.35em] uppercase text-foreground/65">Mushroom</span>
         </div>
-        <div className="flex items-center gap-1.5 rounded-full border border-border/70 bg-background/35 px-1.5 py-1">
+        <div className="flex items-center gap-2">
+          <div className="hidden items-center gap-2 md:flex">
+            <div className="rounded-full border border-primary/25 bg-primary/8 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-foreground/80">
+              v{APP_VERSION}
+            </div>
+            {availableUpdate && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleInstallUpdate}
+                disabled={installingUpdate}
+                className="rounded-full border-primary/40 bg-primary/12 text-primary hover:bg-primary/18 hover:text-primary"
+              >
+                {installingUpdate ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ArrowUpCircle className="h-4 w-4" />
+                )}
+                Update to v{availableUpdate.version}
+              </Button>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 rounded-full border border-border/70 bg-background/35 px-1.5 py-1">
           <Button
             variant="ghost"
             size="icon"
@@ -56,6 +106,7 @@ export function AppShell() {
           >
             <SettingsIcon className="h-4 w-4" />
           </Button>
+          </div>
         </div>
       </header>
 

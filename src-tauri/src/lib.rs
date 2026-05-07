@@ -21,6 +21,8 @@ pub fn run() {
             commands::finds::bulk_rename_species,
             commands::finds::set_find_favorite,
             commands::finds::move_find_files,
+            commands::finds::open_find_folder,
+            commands::finds::open_species_folder,
             commands::finds::cleanup_internal_records,
             commands::tile_proxy::fetch_tile,
             commands::tile_proxy::get_tile_cache_stats,

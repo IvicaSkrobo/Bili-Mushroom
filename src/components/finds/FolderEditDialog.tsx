@@ -11,9 +11,10 @@ import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useUpdateFind, useBulkRenameSpecies } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
+import { openSpeciesFolder } from '@/lib/finds';
 import { reverseGeocode } from '@/lib/geocoding';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
-import { MapPin } from 'lucide-react';
+import { FolderOpen, MapPin } from 'lucide-react';
 import type { Find } from '@/lib/finds';
 
 interface FolderEditDialogProps {
@@ -36,6 +37,7 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange }: FolderEdi
   const [pickedLng, setPickedLng] = useState<number | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [openingFolder, setOpeningFolder] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Sync state when dialog opens
@@ -105,6 +107,19 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange }: FolderEdi
     }
   }
 
+  async function handleOpenFolder() {
+    if (!storagePath || speciesName === null) return;
+    setError(null);
+    setOpeningFolder(true);
+    try {
+      await openSpeciesFolder(storagePath, speciesNameInput.trim() || speciesName);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setOpeningFolder(false);
+    }
+  }
+
   return (
     <>
       <Dialog open={speciesName !== null} onOpenChange={onOpenChange}>
@@ -124,16 +139,29 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange }: FolderEdi
             </div>
 
             <div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setPickerOpen(true)}
-                className="flex items-center gap-1"
-              >
-                <MapPin className="h-4 w-4" />
-                {pickedLat !== null ? 'Change location' : 'Pick on map'}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setPickerOpen(true)}
+                  className="flex items-center gap-1"
+                >
+                  <MapPin className="h-4 w-4" />
+                  {pickedLat !== null ? 'Change location' : 'Pick on map'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleOpenFolder}
+                  disabled={!storagePath || openingFolder}
+                  className="flex items-center gap-1"
+                >
+                  <FolderOpen className="h-4 w-4" />
+                  {openingFolder ? 'Opening folder…' : 'Open species folder'}
+                </Button>
+              </div>
               {pickedLat !== null && (
                 <p className="mt-0.5 text-xs text-muted-foreground pl-1">
                   {pickedLat.toFixed(4)}, {pickedLng!.toFixed(4)}

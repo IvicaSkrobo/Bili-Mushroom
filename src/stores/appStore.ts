@@ -5,6 +5,12 @@ export type Tab = 'collection' | 'species' | 'map' | 'stats';
 export type Theme = 'light' | 'dark';
 export type MapLayer = 'Satellite' | 'Topo' | 'Street';
 
+export interface AvailableUpdate {
+  version: string;
+  notes: string | null;
+  pub_date: string | null;
+}
+
 export interface AppState {
   activeTab: Tab;
   storagePath: string | null;
@@ -16,6 +22,8 @@ export interface AppState {
   pendingScan: boolean;
   editingFindId: number | null;
   selectedCollectionSpecies: string | null;
+  availableUpdate: AvailableUpdate | null;
+  installingUpdate: boolean;
   setActiveTab: (tab: Tab) => void;
   setStoragePath: (path: string | null) => void;
   setDbReady: (ready: boolean) => void;
@@ -26,6 +34,8 @@ export interface AppState {
   setPendingScan: (v: boolean) => void;
   setEditingFindId: (id: number | null) => void;
   setSelectedCollectionSpecies: (species: string | null) => void;
+  setAvailableUpdate: (update: AvailableUpdate | null) => void;
+  setInstallingUpdate: (installing: boolean) => void;
 }
 
 function loadLang(): Lang {
@@ -63,6 +73,8 @@ export const useAppStore = create<AppState>((set) => ({
   pendingScan: false,
   editingFindId: null,
   selectedCollectionSpecies: null,
+  availableUpdate: null,
+  installingUpdate: false,
   setActiveTab: (activeTab) => set({ activeTab }),
   setStoragePath: (storagePath) => set({ storagePath }),
   setDbReady: (dbReady) => set({ dbReady }),
@@ -70,6 +82,8 @@ export const useAppStore = create<AppState>((set) => ({
   setPendingScan: (pendingScan) => set({ pendingScan }),
   setEditingFindId: (editingFindId) => set({ editingFindId }),
   setSelectedCollectionSpecies: (selectedCollectionSpecies) => set({ selectedCollectionSpecies }),
+  setAvailableUpdate: (availableUpdate) => set({ availableUpdate }),
+  setInstallingUpdate: (installingUpdate) => set({ installingUpdate }),
   setLanguage: (language) => {
     try { localStorage.setItem('bili_lang', language); } catch { /* ignore */ }
     set({ language });

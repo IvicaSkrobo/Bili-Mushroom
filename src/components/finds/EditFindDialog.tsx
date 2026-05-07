@@ -14,10 +14,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useUpdateFind } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
-import type { Find } from '@/lib/finds';
+import { openFindFolder, type Find } from '@/lib/finds';
 import { reverseGeocode } from '@/lib/geocoding';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
-import { Info, MapPin } from 'lucide-react';
+import { FolderOpen, Info, MapPin } from 'lucide-react';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 
 interface FormState {
@@ -88,6 +88,8 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   const updateMutation = useUpdateFind();
   const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
   const [folderHighlight, setFolderHighlight] = useState(0);
+  const [openingFolder, setOpeningFolder] = useState(false);
+  const [folderOpenError, setFolderOpenError] = useState<string | null>(null);
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [form, setForm] = useState<FormState>({
@@ -147,6 +149,19 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
       },
       { onSuccess: () => onOpenChange(false) },
     );
+  }
+
+  async function handleOpenFolder(scope: 'species' | 'photo') {
+    if (!find || !storagePath) return;
+    setFolderOpenError(null);
+    setOpeningFolder(true);
+    try {
+      await openFindFolder(storagePath, find.id, scope);
+    } catch (error) {
+      setFolderOpenError(String(error));
+    } finally {
+      setOpeningFolder(false);
+    }
   }
 
   return (
@@ -260,16 +275,40 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
             </div>
           </div>
           <div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setPickerOpen(true)}
-              className="flex items-center gap-1"
-            >
-              <MapPin className="h-4 w-4" />
-              Pick on map
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setPickerOpen(true)}
+                className="flex items-center gap-1"
+              >
+                <MapPin className="h-4 w-4" />
+                Pick on map
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => handleOpenFolder('species')}
+                disabled={!storagePath || openingFolder}
+                className="flex items-center gap-1"
+              >
+                <FolderOpen className="h-4 w-4" />
+                {openingFolder ? 'Opening folder…' : 'Open species folder'}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => handleOpenFolder('photo')}
+                disabled={!storagePath || !find?.photos.length || openingFolder}
+                className="flex items-center gap-1"
+              >
+                <FolderOpen className="h-4 w-4" />
+                Open photo folder
+              </Button>
+            </div>
           </div>
           <div>
             <label className="text-sm font-medium">{t('edit.notes')}</label>
@@ -308,6 +347,12 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
         {updateMutation.isError && (
           <Alert variant="destructive" role="alert">
             <AlertDescription>{String(updateMutation.error)}</AlertDescription>
+          </Alert>
+        )}
+
+        {folderOpenError && (
+          <Alert variant="destructive" role="alert">
+            <AlertDescription>{folderOpenError}</AlertDescription>
           </Alert>
         )}
 
