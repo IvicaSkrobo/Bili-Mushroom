@@ -10,6 +10,8 @@ import {
   distanceMeters,
   parsePolygonJson,
   stringifyPolygon,
+  type PolygonEditorMode,
+  type PolygonEditorState,
   type ZonePolygonPoint,
   type ZoneType,
   type ZoneViewMode,
@@ -28,25 +30,10 @@ export default function MapTab() {
   const [activeSpecies, setActiveSpecies] = useState<string | null>(null);
   const [activeZoneId, setActiveZoneId] = useState<number | null>(null);
   const [zoneControlsCollapsed, setZoneControlsCollapsed] = useState(false);
-  const [draftPolygonZone, setDraftPolygonZone] = useState<{
-    zoneType: ZoneType;
-    zoneId: number | null;
-    speciesName: string;
-    sourceFindId: number | null;
-    name: string;
-    notes: string;
-    points: ZonePolygonPoint[];
-  } | null>(null);
-  const [editingPolygonZone, setEditingPolygonZone] = useState<{
-    zoneId: number;
-    zoneType: ZoneType;
-    points: ZonePolygonPoint[];
-  } | null>(null);
-  const [selectedEditPointIndex, setSelectedEditPointIndex] = useState<number | null>(null);
+  const [polygonEditor, setPolygonEditor] = useState<PolygonEditorState | null>(null);
   const [localTargetFind, setLocalTargetFind] = useState<Find | null>(null);
   const [regionTargetFind, setRegionTargetFind] = useState<Find | null>(null);
-  const shapeEditFocus = editingPolygonZone != null;
-  const drawFocus = draftPolygonZone != null;
+  const polygonEditorActive = polygonEditor != null;
 
   // Space toggles filter panel when map tab is active
   useEffect(() => {
@@ -61,16 +48,35 @@ export default function MapTab() {
   }, []);
 
   useEffect(() => {
-    if (!shapeEditFocus) return;
+    if (!polygonEditorActive) return;
     setFilterOpen(false);
     setZoneControlsCollapsed(true);
-  }, [shapeEditFocus]);
+  }, [polygonEditorActive]);
 
+  // Keyboard shortcuts active while polygon editor is open
   useEffect(() => {
-    if (!drawFocus) return;
-    setFilterOpen(false);
-    setZoneControlsCollapsed(true);
-  }, [drawFocus]);
+    if (!polygonEditorActive) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === 'm' || e.key === 'M') {
+        setPolygonEditor((prev) => (prev ? { ...prev, mode: 'move' } : prev));
+      } else if (e.key === 'n' || e.key === 'N') {
+        setPolygonEditor((prev) => (prev ? { ...prev, mode: 'add' } : prev));
+      } else if (
+        (e.key === 'Backspace' || e.key === 'Delete') &&
+        !e.metaKey && !e.ctrlKey && !e.altKey
+      ) {
+        setPolygonEditor((prev) => {
+          if (!prev || prev.selectedPointIndex == null || prev.points.length <= 3) return prev;
+          const nextPoints = prev.points.filter((_, i) => i !== prev.selectedPointIndex!);
+          const nextIdx = (prev.selectedPointIndex ?? 0) <= 0 ? 0 : (prev.selectedPointIndex ?? 0) - 1;
+          return { ...prev, points: nextPoints, selectedPointIndex: nextIdx };
+        });
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [polygonEditorActive]);
 
   const allSpecies = useMemo(() => {
     const names = new Set<string>();
@@ -285,14 +291,35 @@ export default function MapTab() {
     await createRegionZoneForSpecies(regionTargetSpecies);
   }
 
+  function openPolygonEditor(opts: {
+    zoneType: ZoneType;
+    zoneId: number | null;
+    speciesName: string;
+    sourceFindId: number | null;
+    name: string;
+    notes: string;
+    points: ZonePolygonPoint[];
+    initialMode: PolygonEditorMode;
+  }) {
+    setPolygonEditor({
+      zoneType: opts.zoneType,
+      zoneId: opts.zoneId,
+      speciesName: opts.speciesName,
+      sourceFindId: opts.sourceFindId,
+      name: opts.name,
+      notes: opts.notes,
+      points: opts.points,
+      mode: opts.initialMode,
+      selectedPointIndex: null,
+    });
+  }
+
   function handleStartRegionPolygon() {
     if (!regionTargetSpecies) return;
-    setEditingPolygonZone(null);
-    setSelectedEditPointIndex(null);
     setZoneMode('region');
     setActiveSpecies(regionTargetSpecies);
     setActiveZoneId(existingRegionPolygon?.id ?? null);
-    setDraftPolygonZone({
+    openPolygonEditor({
       zoneType: 'region',
       zoneId: existingRegionPolygon?.id ?? null,
       speciesName: regionTargetSpecies,
@@ -300,13 +327,13 @@ export default function MapTab() {
       name: existingRegionPolygon?.name ?? `${regionTargetSpecies.split(',')[0]} region`,
       notes: existingRegionPolygon?.notes ?? '',
       points: existingRegionPolygon ? parsePolygonJson(existingRegionPolygon.polygon_json) : [],
+      initialMode: existingRegionPolygon ? 'move' : 'add',
     });
   }
 
   function handleStartRegionPolygonForFind(find: Find) {
     if (find.lat == null || find.lng == null) return;
     setRegionTargetFind(find);
-    setSelectedEditPointIndex(null);
     setZoneMode('region');
     setActiveSpecies(find.species_name);
     const polygonZone = (zones ?? []).find(
@@ -316,119 +343,109 @@ export default function MapTab() {
         zone.species_name === find.species_name,
     ) ?? null;
     setActiveZoneId(polygonZone?.id ?? null);
-
-    if (polygonZone) {
-      // Existing polygon → open edit mode directly (no draft, no accidental point add)
-      setDraftPolygonZone(null);
-      setEditingPolygonZone({
-        zoneId: polygonZone.id,
-        zoneType: 'region',
-        points: parsePolygonJson(polygonZone.polygon_json),
-      });
-    } else {
-      // No polygon yet → enter draft/draw mode
-      setEditingPolygonZone(null);
-      setDraftPolygonZone({
-        zoneType: 'region',
-        zoneId: null,
-        speciesName: find.species_name,
-        sourceFindId: null,
-        name: `${find.species_name.split(',')[0]} region`,
-        notes: '',
-        points: [],
-      });
-    }
-  }
-
-  function handleAddRegionPolygonPoint(point: ZonePolygonPoint) {
-    setDraftPolygonZone((current) => {
-      if (!current) return current;
-      return {
-        ...current,
-        points: [...current.points, point],
-      };
-    });
-  }
-
-  function handleUndoRegionPolygonPoint() {
-    setDraftPolygonZone((current) => {
-      if (!current) return current;
-      return {
-        ...current,
-        points: current.points.slice(0, -1),
-      };
-    });
-  }
-
-  function handleCancelRegionPolygon() {
-    setDraftPolygonZone(null);
-  }
-
-  async function handleSaveRegionPolygon() {
-    if (!draftPolygonZone || draftPolygonZone.points.length < 3) return;
-    // Capture points before the async boundary so they survive state clearing below.
-    const savedPoints = draftPolygonZone.points;
-    const savedZone = await upsertZone.mutateAsync({
-      id: draftPolygonZone.zoneId ?? undefined,
-      species_name: draftPolygonZone.speciesName,
-      zone_type: draftPolygonZone.zoneType,
-      name: draftPolygonZone.name,
-      geometry_type: 'polygon',
-      center_lat: null,
-      center_lng: null,
-      radius_meters: null,
-      polygon_json: stringifyPolygon(draftPolygonZone.points),
-      source_find_id: draftPolygonZone.sourceFindId,
-      notes: draftPolygonZone.notes,
-    });
-    setDraftPolygonZone(null);
-    setZoneMode(savedZone.zone_type === 'local' ? 'local' : 'region');
-    setActiveSpecies(savedZone.species_name);
-    setActiveZoneId(savedZone.id);
-    // Immediately enter point-adjust mode so the user can refine the shape
-    // without having to exit and reopen editing.
-    setSelectedEditPointIndex(null);
-    setEditingPolygonZone({
-      zoneId: savedZone.id,
-      zoneType: savedZone.zone_type,
-      points: savedPoints,
+    openPolygonEditor({
+      zoneType: 'region',
+      zoneId: polygonZone?.id ?? null,
+      speciesName: find.species_name,
+      sourceFindId: null,
+      name: polygonZone?.name ?? `${find.species_name.split(',')[0]} region`,
+      notes: polygonZone?.notes ?? '',
+      points: polygonZone ? parsePolygonJson(polygonZone.polygon_json) : [],
+      initialMode: polygonZone ? 'move' : 'add',
     });
   }
 
   function handleStartLocalPolygonForFind(find: Find) {
     if (find.lat == null || find.lng == null) return;
-    setSelectedEditPointIndex(null);
     setZoneMode('local');
     setActiveSpecies(find.species_name);
-    const existingLocalPolygon = (zones ?? []).find(
+    const localPolygon = (zones ?? []).find(
       (zone) =>
         zone.zone_type === 'local' &&
         zone.geometry_type === 'polygon' &&
         zone.source_find_id === find.id,
     ) ?? null;
-    setActiveZoneId(existingLocalPolygon?.id ?? null);
+    setActiveZoneId(localPolygon?.id ?? null);
+    openPolygonEditor({
+      zoneType: 'local',
+      zoneId: localPolygon?.id ?? null,
+      speciesName: find.species_name,
+      sourceFindId: find.id,
+      name: localPolygon?.name ?? `${find.species_name.split(',')[0]} local`,
+      notes: localPolygon?.notes ?? '',
+      points: localPolygon ? parsePolygonJson(localPolygon.polygon_json) : [],
+      initialMode: localPolygon ? 'move' : 'add',
+    });
+  }
 
-    if (existingLocalPolygon) {
-      // Existing polygon → open edit mode directly (no draft, no accidental point add)
-      setDraftPolygonZone(null);
-      setEditingPolygonZone({
-        zoneId: existingLocalPolygon.id,
-        zoneType: 'local',
-        points: parsePolygonJson(existingLocalPolygon.polygon_json),
-      });
-    } else {
-      // No polygon yet → enter draft/draw mode
-      setEditingPolygonZone(null);
-      setDraftPolygonZone({
-        zoneType: 'local',
-        zoneId: null,
-        speciesName: find.species_name,
-        sourceFindId: find.id,
-        name: `${find.species_name.split(',')[0]} local`,
-        notes: '',
-        points: [],
-      });
-    }
+  function handlePolygonAddPoint(point: ZonePolygonPoint) {
+    setPolygonEditor((prev) => prev ? { ...prev, points: [...prev.points, point] } : prev);
+  }
+
+  function handlePolygonUndo() {
+    setPolygonEditor((prev) => prev ? { ...prev, points: prev.points.slice(0, -1) } : prev);
+  }
+
+  function handlePolygonMovePoint(index: number, point: ZonePolygonPoint) {
+    setPolygonEditor((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        selectedPointIndex: index,
+        points: prev.points.map((existing, i) => (i === index ? point : existing)),
+      };
+    });
+  }
+
+  function handlePolygonSelectPoint(index: number) {
+    setPolygonEditor((prev) => prev ? { ...prev, selectedPointIndex: index } : prev);
+  }
+
+  function handlePolygonDeletePoint() {
+    setPolygonEditor((prev) => {
+      if (!prev || prev.selectedPointIndex == null || prev.points.length <= 3) return prev;
+      const nextPoints = prev.points.filter((_, i) => i !== prev.selectedPointIndex!);
+      const nextIdx = prev.selectedPointIndex <= 0 ? 0 : prev.selectedPointIndex - 1;
+      return { ...prev, points: nextPoints, selectedPointIndex: nextIdx };
+    });
+  }
+
+  function handlePolygonInsertPoint(edgeStartIndex: number, point: ZonePolygonPoint) {
+    setPolygonEditor((prev) => {
+      if (!prev) return prev;
+      const nextPoints = [...prev.points];
+      nextPoints.splice(edgeStartIndex + 1, 0, point);
+      return { ...prev, points: nextPoints, selectedPointIndex: edgeStartIndex + 1 };
+    });
+  }
+
+  function handlePolygonSetMode(mode: PolygonEditorMode) {
+    setPolygonEditor((prev) => prev ? { ...prev, mode } : prev);
+  }
+
+  function handlePolygonCancel() {
+    setPolygonEditor(null);
+  }
+
+  async function handlePolygonSave() {
+    if (!polygonEditor || polygonEditor.points.length < 3) return;
+    const savedZone = await upsertZone.mutateAsync({
+      id: polygonEditor.zoneId ?? undefined,
+      species_name: polygonEditor.speciesName,
+      zone_type: polygonEditor.zoneType,
+      name: polygonEditor.name,
+      geometry_type: 'polygon',
+      center_lat: null,
+      center_lng: null,
+      radius_meters: null,
+      polygon_json: stringifyPolygon(polygonEditor.points),
+      source_find_id: polygonEditor.sourceFindId,
+      notes: polygonEditor.notes,
+    });
+    setPolygonEditor(null);
+    setZoneMode(savedZone.zone_type === 'local' ? 'local' : 'region');
+    setActiveSpecies(savedZone.species_name);
+    setActiveZoneId(savedZone.id);
   }
 
   function handlePickLocalTargetFind(find: Find) {
@@ -449,85 +466,16 @@ export default function MapTab() {
 
   function handleStartPolygonPointEdit() {
     if (!activeZone || activeZone.geometry_type !== 'polygon') return;
-    setDraftPolygonZone(null);
-    setSelectedEditPointIndex(null);
-    setEditingPolygonZone({
-      zoneId: activeZone.id,
+    openPolygonEditor({
       zoneType: activeZone.zone_type,
+      zoneId: activeZone.id,
+      speciesName: activeZone.species_name,
+      sourceFindId: activeZone.source_find_id,
+      name: activeZone.name,
+      notes: activeZone.notes,
       points: parsePolygonJson(activeZone.polygon_json),
+      initialMode: 'move',
     });
-  }
-
-  function handleMovePolygonPoint(index: number, point: ZonePolygonPoint) {
-    setSelectedEditPointIndex(index);
-    setEditingPolygonZone((current) => {
-      if (!current) return current;
-      return {
-        ...current,
-        points: current.points.map((existing, existingIndex) =>
-          existingIndex === index ? point : existing,
-        ),
-      };
-    });
-  }
-
-  function handleSelectPolygonPoint(index: number) {
-    setSelectedEditPointIndex(index);
-  }
-
-  function handleDeletePolygonPoint() {
-    setEditingPolygonZone((current) => {
-      if (!current || selectedEditPointIndex == null || current.points.length <= 3) return current;
-      const nextPoints = current.points.filter((_, index) => index !== selectedEditPointIndex);
-      return {
-        ...current,
-        points: nextPoints,
-      };
-    });
-    setSelectedEditPointIndex((current) => {
-      if (current == null) return null;
-      return current <= 0 ? 0 : current - 1;
-    });
-  }
-
-  function handleInsertPolygonPoint(edgeStartIndex: number, point: ZonePolygonPoint) {
-    setEditingPolygonZone((current) => {
-      if (!current) return current;
-      const nextPoints = [...current.points];
-      nextPoints.splice(edgeStartIndex + 1, 0, point);
-      return {
-        ...current,
-        points: nextPoints,
-      };
-    });
-    setSelectedEditPointIndex(edgeStartIndex + 1);
-  }
-
-  function handleCancelPolygonPointEdit() {
-    setEditingPolygonZone(null);
-    setSelectedEditPointIndex(null);
-  }
-
-  async function handleSavePolygonPointEdit() {
-    if (!editingPolygonZone || editingPolygonZone.points.length < 3) return;
-    const zone = (zones ?? []).find((candidate) => candidate.id === editingPolygonZone.zoneId);
-    if (!zone) return;
-    const savedZone = await upsertZone.mutateAsync({
-      id: zone.id,
-      species_name: zone.species_name,
-      zone_type: zone.zone_type,
-      name: zone.name,
-      geometry_type: 'polygon',
-      center_lat: null,
-      center_lng: null,
-      radius_meters: null,
-      polygon_json: stringifyPolygon(editingPolygonZone.points),
-      source_find_id: zone.source_find_id,
-      notes: zone.notes,
-    });
-    setEditingPolygonZone(null);
-    setSelectedEditPointIndex(null);
-    setActiveZoneId(savedZone.id);
   }
 
   function handleZoneSaved(zone: Zone) {
@@ -535,9 +483,7 @@ export default function MapTab() {
     setActiveSpecies(zone.species_name);
     setActiveZoneId(zone.id);
     if (zone.geometry_type === 'polygon') {
-      setDraftPolygonZone(null);
-      setEditingPolygonZone(null);
-      setSelectedEditPointIndex(null);
+      setPolygonEditor(null);
     }
   }
 
@@ -640,51 +586,42 @@ export default function MapTab() {
         onPickRegionTargetFind={handlePickRegionTargetFind}
         onStartLocalPolygonForFind={handleStartLocalPolygonForFind}
         onStartRegionPolygonForFind={handleStartRegionPolygonForFind}
-        polygonDraftActive={draftPolygonZone != null}
-        polygonDraftPoints={draftPolygonZone?.points ?? []}
-        onPolygonDraftPointAdd={handleAddRegionPolygonPoint}
-        polygonDraftZoneName={draftPolygonZone?.name ?? null}
-        polygonDraftZoneType={draftPolygonZone?.zoneType ?? null}
-        onPolygonDraftSave={handleSaveRegionPolygon}
-        onPolygonDraftCancel={handleCancelRegionPolygon}
-        onPolygonDraftUndo={handleUndoRegionPolygonPoint}
-        polygonEditActive={editingPolygonZone != null}
-        polygonEditPoints={editingPolygonZone?.points ?? []}
-        onPolygonEditPointMove={handleMovePolygonPoint}
-        onPolygonEditPointSelect={handleSelectPolygonPoint}
-        onPolygonEditPointInsert={handleInsertPolygonPoint}
-        selectedPolygonEditPointIndex={selectedEditPointIndex}
-        onPolygonEditPointDelete={handleDeletePolygonPoint}
+        polygonEditorActive={polygonEditorActive}
+        polygonEditorMode={polygonEditor?.mode ?? 'add'}
+        polygonEditorPoints={polygonEditor?.points ?? []}
+        polygonEditorZoneName={polygonEditor?.name ?? null}
+        polygonEditorZoneType={polygonEditor?.zoneType ?? null}
+        polygonEditorSelectedPoint={polygonEditor?.selectedPointIndex ?? null}
+        onPolygonEditorAddPoint={handlePolygonAddPoint}
+        onPolygonEditorMovePoint={handlePolygonMovePoint}
+        onPolygonEditorSelectPoint={handlePolygonSelectPoint}
+        onPolygonEditorInsertPoint={handlePolygonInsertPoint}
+        onPolygonEditorSetMode={handlePolygonSetMode}
+        onPolygonEditorUndo={handlePolygonUndo}
+        onPolygonEditorDelete={handlePolygonDeletePoint}
+        onPolygonEditorCancel={handlePolygonCancel}
+        onPolygonEditorSave={handlePolygonSave}
         onStartPolygonEdit={handleStartPolygonPointEdit}
-        onCancelPolygonEdit={handleCancelPolygonPointEdit}
-        onSavePolygonEdit={handleSavePolygonPointEdit}
-        polygonEditZoneName={activeZone?.name ?? null}
-        polygonEditZoneType={editingPolygonZone?.zoneType ?? activeZone?.zone_type ?? null}
         onSelectSpecies={setActiveSpecies}
         activeZoneId={activeZoneId}
         onEditZone={(zone) => {
           setActiveZoneId(zone?.id ?? null);
-          if (zone) {
-            setActiveSpecies(zone.species_name);
-          }
-          if (zone?.id !== editingPolygonZone?.zoneId) {
-            setEditingPolygonZone(null);
-            setSelectedEditPointIndex(null);
-          }
+          if (zone) setActiveSpecies(zone.species_name);
+          if (zone?.id !== polygonEditor?.zoneId) setPolygonEditor(null);
         }}
         onZoneSaved={handleZoneSaved}
         onZoneTypeSelected={handleZoneTypeSelected}
-        focusMode={drawFocus || shapeEditFocus}
+        focusMode={polygonEditorActive}
         drawTargetFind={
-          draftPolygonZone?.zoneType === 'local'
+          polygonEditor?.zoneType === 'local'
             ? localTargetFind
-            : draftPolygonZone?.zoneType === 'region'
+            : polygonEditor?.zoneType === 'region'
               ? regionTargetFind
               : null
         }
-        drawTargetZoneType={draftPolygonZone?.zoneType ?? null}
+        drawTargetZoneType={polygonEditor?.zoneType ?? null}
       />
-      {!drawFocus && (
+      {!polygonEditorActive && (
         <ZoneModeControl
           mode={zoneMode}
           visibleFinds={filteredFinds}
@@ -706,17 +643,12 @@ export default function MapTab() {
             if (regionTargetFind) handleStartRegionPolygonForFind(regionTargetFind);
             else handleStartRegionPolygon();
           }}
-          onSaveRegionPolygon={handleSaveRegionPolygon}
-          onUndoRegionPolygon={handleUndoRegionPolygonPoint}
-          onCancelRegionPolygon={handleCancelRegionPolygon}
           creatingRegion={upsertZone.isPending}
-          drawingRegionPolygon={draftPolygonZone?.zoneType === 'region'}
-          regionPolygonPointCount={draftPolygonZone?.zoneType === 'region' ? draftPolygonZone.points.length : 0}
           collapsed={zoneControlsCollapsed}
           onCollapsedChange={setZoneControlsCollapsed}
         />
       )}
-      {!drawFocus && (
+      {!polygonEditorActive && (
         <SpeciesFilterPanel
           allSpecies={allSpecies}
           selected={selectedSpecies}

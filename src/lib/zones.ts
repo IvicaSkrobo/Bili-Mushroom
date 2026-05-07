@@ -5,6 +5,21 @@ export type ZoneType = 'local' | 'region';
 export type ZoneGeometryType = 'circle' | 'polygon';
 export type ZoneViewMode = 'pins' | 'local' | 'region' | 'all';
 export type ZonePolygonPoint = [number, number];
+export type PolygonEditorMode = 'add' | 'move';
+
+/** Unified state for the polygon editor (first draw + adjust are the same flow). */
+export interface PolygonEditorState {
+  zoneType: ZoneType;
+  /** null when creating a new polygon that has not been saved yet */
+  zoneId: number | null;
+  speciesName: string;
+  sourceFindId: number | null;
+  name: string;
+  notes: string;
+  points: ZonePolygonPoint[];
+  mode: PolygonEditorMode;
+  selectedPointIndex: number | null;
+}
 
 export interface Zone {
   id: number;
