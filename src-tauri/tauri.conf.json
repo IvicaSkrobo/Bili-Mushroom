@@ -58,7 +58,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "UPDATER_PUBLIC_KEY_NOT_CONFIGURED",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM1M0E3NEE0MEQ1QzU0MjAKUldRZ1ZGd05wSFE2TmFWam1DMXlESERGOFprS0wrcEpnaUJCNlhxcm1zUkpmWjhEbU1XdWdVQkkK",
       "endpoints": [
         "https://github.com/IvicaSkrobo/Bili-Mushroom/releases/latest/download/latest.json"
       ],

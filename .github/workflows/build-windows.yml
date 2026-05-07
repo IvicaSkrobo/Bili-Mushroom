@@ -5,6 +5,9 @@ name: Build Windows Installer
 #   - Automatically when you push a version tag like: git tag v0.2.0 && git push --tags
 on:
   workflow_dispatch:
+  release:
+    types:
+      - published
   push:
     tags:
       - 'v*'
@@ -90,4 +93,17 @@ jobs:
             If you have a previous version installed, just run the new installer over it.
           releaseDraft: false
           prerelease: false
+          includeUpdaterJson: true
+
+      - name: Upload assets to existing GitHub Release (release published)
+        if: github.event_name == 'release'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
+        with:
+          releaseId: ${{ github.event.release.id }}
+          tagName: ${{ github.event.release.tag_name }}
           includeUpdaterJson: true
