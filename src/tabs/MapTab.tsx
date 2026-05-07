@@ -366,6 +366,8 @@ export default function MapTab() {
 
   async function handleSaveRegionPolygon() {
     if (!draftPolygonZone || draftPolygonZone.points.length < 3) return;
+    // Capture points before the async boundary so they survive state clearing below.
+    const savedPoints = draftPolygonZone.points;
     const savedZone = await upsertZone.mutateAsync({
       id: draftPolygonZone.zoneId ?? undefined,
       species_name: draftPolygonZone.speciesName,
@@ -383,6 +385,14 @@ export default function MapTab() {
     setZoneMode(savedZone.zone_type === 'local' ? 'local' : 'region');
     setActiveSpecies(savedZone.species_name);
     setActiveZoneId(savedZone.id);
+    // Immediately enter point-adjust mode so the user can refine the shape
+    // without having to exit and reopen editing.
+    setSelectedEditPointIndex(null);
+    setEditingPolygonZone({
+      zoneId: savedZone.id,
+      zoneType: savedZone.zone_type,
+      points: savedPoints,
+    });
   }
 
   function handleStartLocalPolygonForFind(find: Find) {
