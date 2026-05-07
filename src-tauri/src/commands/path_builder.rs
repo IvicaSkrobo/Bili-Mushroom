@@ -44,17 +44,26 @@ pub fn resolve_location_component(value: &str, fallback: &str) -> String {
 
 /// Build the full destination path for a find's photo file.
 ///
-/// Pattern: `<storage_root>/<species_folder>/<date>_<seq:03><ext>`
+/// Pattern (with location): `<storage_root>/<species_folder>/<date>_<location>_<seq:03><ext>`
+/// Pattern (no location):   `<storage_root>/<species_folder>/<date>_<seq:03><ext>`
 /// Falls back to `unknown_species` if the sanitized species value is empty.
+/// `location_label` is sanitized and spaces replaced with underscores; omitted when empty.
 pub fn build_dest_path(
     storage_root: &str,
     species: &str,
     date: &str,
+    location_label: &str,
     seq: u32,
     ext: &str,
 ) -> PathBuf {
     let species_folder = resolve_location_component(species, "unknown_species");
-    let filename = format!("{}_{:03}{}", date, seq, ext);
+    let loc = sanitize_path_component(location_label)
+        .replace(' ', "_");
+    let filename = if loc.is_empty() {
+        format!("{}_{:03}{}", date, seq, ext)
+    } else {
+        format!("{}_{}_{:03}{}", date, loc, seq, ext)
+    };
 
     let mut path = PathBuf::from(storage_root);
     path.push(&species_folder);
@@ -85,6 +94,7 @@ mod tests {
             "/root",
             "Boletus edulis",
             "2024-05-10",
+            "",
             1,
             ".jpg",
         );
@@ -105,8 +115,46 @@ mod tests {
     }
 
     #[test]
+    fn test_build_dest_path_with_location() {
+        let result = build_dest_path(
+            "/root",
+            "Boletus edulis",
+            "2024-05-10",
+            "Gorski Kotar",
+            1,
+            ".jpg",
+        );
+        let path_str = result.to_string_lossy();
+        assert!(
+            path_str.contains("2024-05-10_Gorski_Kotar_001.jpg"),
+            "Expected location in filename, got: {}",
+            path_str
+        );
+    }
+
+    #[test]
+    fn test_build_dest_path_location_sanitized() {
+        let result = build_dest_path(
+            "/root",
+            "Boletus edulis",
+            "2024-05-10",
+            "Šuma/Rijeka",
+            1,
+            ".jpg",
+        );
+        let path_str = result.to_string_lossy();
+        // slash replaced with underscore
+        assert!(
+            path_str.contains("Šuma_Rijeka"),
+            "Expected sanitized location in filename, got: {}",
+            path_str
+        );
+    }
+
+    #[test]
     fn test_sanitize_removes_quotes_and_illegal_chars() {
-        assert_eq!(sanitize_path_component("Amanita \"muscaria\""), "Amanita _muscaria_");
+        // trailing underscore trimmed by trim_matches('_')
+        assert_eq!(sanitize_path_component("Amanita \"muscaria\""), "Amanita _muscaria");
     }
 
     #[test]
@@ -147,7 +195,7 @@ mod tests {
 
     #[test]
     fn test_build_dest_path_empty_species_uses_fallback() {
-        let result = build_dest_path("/root", "", "2024-05-10", 1, ".jpg");
+        let result = build_dest_path("/root", "", "2024-05-10", "", 1, ".jpg");
         let path_str = result.to_string_lossy();
         assert!(
             path_str.contains("unknown_species"),

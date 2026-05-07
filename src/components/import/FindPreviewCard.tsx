@@ -277,6 +277,7 @@ export function FindPreviewCard({
             : null
         }
         onConfirm={handleMapConfirm}
+        speciesFilter={payload.species_name || undefined}
       />
     </>
   );

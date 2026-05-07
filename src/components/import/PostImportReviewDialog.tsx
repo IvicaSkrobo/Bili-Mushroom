@@ -118,6 +118,17 @@ export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: 
                 ))}
               </div>
             )}
+
+            {/* Delete failures */}
+            {summary && summary.delete_failures.length > 0 && (
+              <div className="space-y-1 p-1 mt-3 rounded border border-destructive/40 bg-destructive/5 px-3 py-2">
+                <p className="text-sm font-medium text-destructive">{t('import.reviewDeleteFailSection')}</p>
+                <p className="text-xs text-muted-foreground">{t('import.reviewDeleteFailHint')}</p>
+                {summary.delete_failures.map((path, i) => (
+                  <p key={i} className="text-xs font-mono text-muted-foreground truncate">{path}</p>
+                ))}
+              </div>
+            )}
           </div>
 
           <DialogFooter className="gap-2">

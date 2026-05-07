@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { isHeic, type Find } from '@/lib/finds';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { useT } from '@/i18n/index';
+import { renderSpeciesName, plainSpeciesName } from '@/lib/speciesName';
 
 interface FindCardProps {
   find: Find;
@@ -91,7 +92,9 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
         <p className="font-serif text-base font-semibold leading-tight truncate text-foreground">
           <span className="inline-flex max-w-full items-center gap-1.5">
             {find.is_favorite ? <Star className="h-3.5 w-3.5 flex-shrink-0 fill-primary text-primary" /> : null}
-            <span className="truncate">{find.species_name || t('findCard.unnamed')}</span>
+            <span className="truncate" title={plainSpeciesName(find.species_name) || t('findCard.unnamed')}>
+              {find.species_name ? renderSpeciesName(find.species_name) : t('findCard.unnamed')}
+            </span>
           </span>
         </p>
         <div className="flex flex-wrap gap-x-3 gap-y-0.5">

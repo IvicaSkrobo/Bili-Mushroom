@@ -3,6 +3,8 @@ use tauri::Emitter;
 use chrono::Utc;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::thread;
+use std::time::Duration;
 
 use crate::commands::path_builder::{build_dest_path, next_seq_for_folder, resolve_location_component};
 
@@ -61,6 +63,9 @@ pub struct FindRecord {
 pub struct ImportSummary {
     pub imported: Vec<FindRecord>,
     pub skipped: Vec<String>,
+    /// Paths that could not be deleted from source after import (e.g. file locked by WebView2).
+    /// The import itself succeeded — these files can be deleted manually.
+    pub delete_failures: Vec<String>,
 }
 
 #[derive(serde::Serialize, Clone)]
@@ -302,6 +307,30 @@ pub(crate) fn insert_find_photo(
     Ok(conn.last_insert_rowid())
 }
 
+/// Attempt to delete a source file after a successful copy, with retries.
+///
+/// On Windows, WebView2 may hold a file handle on the primary photo (which is
+/// rendered as a thumbnail via convertFileSrc). remove_file will return
+/// ERROR_SHARING_VIOLATION (os error 32) if the handle is still open. We retry
+/// up to `max_attempts` times with a short sleep so that the WebView2 handle has
+/// time to close before we give up and report the failure.
+///
+/// Returns `Ok(())` if deletion succeeded, or `Err(path)` if all attempts failed.
+fn delete_source_with_retry(path: &str, max_attempts: u32, retry_delay: Duration) -> Result<(), String> {
+    for attempt in 0..max_attempts {
+        match std::fs::remove_file(path) {
+            Ok(()) => return Ok(()),
+            Err(_) if attempt + 1 < max_attempts => {
+                thread::sleep(retry_delay);
+            }
+            Err(_) => {
+                return Err(path.to_string());
+            }
+        }
+    }
+    Err(path.to_string())
+}
+
 #[tauri::command]
 pub async fn import_find(
     app: tauri::AppHandle,
@@ -312,11 +341,16 @@ pub async fn import_find(
     let total = payloads.len();
     let mut imported: Vec<FindRecord> = Vec::new();
     let mut skipped: Vec<String> = Vec::new();
+    let mut delete_failures: Vec<String> = Vec::new();
 
     let conn = open_db(&storage_path)?;
     let storage_path_buf = Path::new(&storage_path);
 
     for (i, payload) in payloads.iter().enumerate() {
+        // Location label for filename: only location_note (user-entered "oznaka").
+        // Region is NOT used — user wants the manual label, not the auto-geocoded region.
+        let location_label = payload.location_note.trim().to_string();
+
         // If source is already inside storage_path, register it in-place — no copy, no delete.
         // This handles auto-import where the user picks their existing mushroom library folder.
         let src_path = Path::new(&payload.source_path);
@@ -363,6 +397,7 @@ pub async fn import_find(
                 &storage_path,
                 &payload.species_name,
                 &payload.date_found,
+                &location_label,
                 1,
                 &ext,
             );
@@ -378,15 +413,24 @@ pub async fn import_find(
                 &storage_path,
                 &payload.species_name,
                 &payload.date_found,
+                &location_label,
                 seq,
                 &ext,
             );
 
-            // Copy then optionally delete source — works across filesystems/USB drives
+            // Copy then optionally delete source — works across filesystems/USB drives.
+            // The primary photo (photos[0]) may be held open by WebView2 on Windows while
+            // the thumbnail is displayed. We retry deletion to give the handle time to release.
             std::fs::copy(&payload.source_path, &dest_path)
                 .map_err(|e| format!("Failed to copy {:?} to {:?}: {}", payload.source_path, dest_path, e))?;
             if delete_source {
-                let _ = std::fs::remove_file(&payload.source_path); // best-effort; ignore on read-only USB
+                if let Err(failed_path) = delete_source_with_retry(
+                    &payload.source_path,
+                    3,
+                    Duration::from_millis(150),
+                ) {
+                    delete_failures.push(failed_path);
+                }
             }
 
             dest_path
@@ -452,6 +496,7 @@ pub async fn import_find(
                 &storage_path,
                 &payload.species_name,
                 &payload.date_found,
+                &location_label,
                 add_seq,
                 &add_ext,
             );
@@ -459,7 +504,13 @@ pub async fn import_find(
             std::fs::copy(additional_src, &add_dest_path)
                 .map_err(|e| format!("Failed to copy additional photo {:?} to {:?}: {}", additional_src, add_dest_path, e))?;
             if delete_source {
-                let _ = std::fs::remove_file(additional_src); // best-effort move
+                if let Err(failed_path) = delete_source_with_retry(
+                    additional_src,
+                    3,
+                    Duration::from_millis(150),
+                ) {
+                    delete_failures.push(failed_path);
+                }
             }
 
             let add_photo_path = add_dest_path
@@ -493,7 +544,7 @@ pub async fn import_find(
         );
     }
 
-    Ok(ImportSummary { imported, skipped })
+    Ok(ImportSummary { imported, skipped, delete_failures })
 }
 
 #[tauri::command]
@@ -780,6 +831,8 @@ pub(crate) mod test_helpers {
             notes: "Test note".to_string(),
             location_note: "".to_string(),
             observed_count: None,
+            observed_count_min: None,
+            observed_count_max: None,
             is_favorite: false,
             created_at: "2024-05-10T14:23:00Z".to_string(),
             photos: vec![],
@@ -862,6 +915,8 @@ mod tests {
                     is_favorite: row.get::<_, i64>(10)? == 1,
                     created_at: row.get(11)?,
                     location_note: String::new(),
+                    observed_count_min: None,
+                    observed_count_max: None,
                     photos: vec![],
                 }),
             )
@@ -1047,6 +1102,8 @@ mod tests {
                     notes: row.get(8)?,
                     location_note: row.get(9)?,
                     observed_count: row.get(10)?,
+                    observed_count_min: None,
+                    observed_count_max: None,
                     is_favorite: row.get::<_, i64>(11)? == 1,
                     created_at: row.get(12)?,
                     photos: vec![],
@@ -1097,6 +1154,8 @@ mod tests {
             notes: "Updated note".to_string(),
             location_note: "Near the oak".to_string(),
             observed_count: Some(12),
+            observed_count_min: None,
+            observed_count_max: None,
         };
 
         let updated = update_find_on_conn(&conn, &payload).expect("update");
@@ -1134,10 +1193,36 @@ mod tests {
             notes: "".to_string(),
             location_note: "".to_string(),
             observed_count: None,
+            observed_count_min: None,
+            observed_count_max: None,
         };
 
         let result = update_find_on_conn(&conn, &payload);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "find not found");
+    }
+
+    // ---------------------------------------------------------------------------
+    // delete_source_with_retry tests
+    // ---------------------------------------------------------------------------
+
+    #[test]
+    fn test_delete_source_with_retry_succeeds_on_existing_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let file_path = dir.path().join("source.jpg");
+        std::fs::write(&file_path, b"fake image data").expect("write temp file");
+
+        let path_str = file_path.to_string_lossy().to_string();
+        let result = delete_source_with_retry(&path_str, 3, Duration::from_millis(10));
+        assert!(result.is_ok(), "should succeed on existing file");
+        assert!(!file_path.exists(), "file should be deleted");
+    }
+
+    #[test]
+    fn test_delete_source_with_retry_returns_err_on_missing_file() {
+        let path_str = "/tmp/nonexistent_bili_test_file_xyz.jpg".to_string();
+        let result = delete_source_with_retry(&path_str, 3, Duration::from_millis(1));
+        assert!(result.is_err(), "should fail on nonexistent file");
+        assert_eq!(result.unwrap_err(), path_str, "error should contain the failed path");
     }
 }

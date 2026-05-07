@@ -56,6 +56,8 @@ export interface Find {
 export interface ImportSummary {
   imported: Find[];
   skipped: string[];
+  /** Paths that could not be deleted from source after import (e.g. file locked by WebView2). */
+  delete_failures: string[];
 }
 
 export interface ImportProgress {

@@ -1,4 +1,5 @@
 import { type ReactNode, useMemo } from 'react';
+import L from 'leaflet';
 import { Circle, Polygon } from 'react-leaflet';
 import type { Find } from '@/lib/finds';
 import {
@@ -133,7 +134,7 @@ export function ZoneLayers({
                 radius={zone.radius_meters}
                 pathOptions={style.main}
                 eventHandlers={{
-                  click: () => onEditZone?.(zone),
+                  click: (e) => { L.DomEvent.stopPropagation(e.originalEvent); onEditZone?.(zone); },
                 }}
               />
             </PolygonZoneGroup>
@@ -158,7 +159,7 @@ export function ZoneLayers({
                 positions={polygon}
                 pathOptions={style.main}
                 eventHandlers={{
-                  click: () => onEditZone?.(zone),
+                  click: (e) => { L.DomEvent.stopPropagation(e.originalEvent); onEditZone?.(zone); },
                 }}
               />
             </PolygonZoneGroup>

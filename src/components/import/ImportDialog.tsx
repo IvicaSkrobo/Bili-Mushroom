@@ -466,6 +466,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
             onOpenChange={setSharedMapOpen}
             initialLatLng={sharedLocation}
             onConfirm={handleSharedMapConfirm}
+            speciesFilter={sharedName || undefined}
           />
 
           {/* Photo thumbnails */}

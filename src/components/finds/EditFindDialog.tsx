@@ -173,7 +173,10 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
 
         <div className="space-y-3">
           <div>
-            <label className="text-sm font-medium">{t('edit.species')}</label>
+            <div className="flex items-baseline justify-between gap-2">
+              <label className="text-sm font-medium">{t('edit.species')}</label>
+              <span className="text-[10px] text-muted-foreground/60">wrap in <span className="font-mono">*asterisks*</span> for normal weight</span>
+            </div>
             <div className="relative">
               <Input
                 value={form.species_name}

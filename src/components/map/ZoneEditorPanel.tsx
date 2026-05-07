@@ -1,4 +1,4 @@
-import { Crosshair, GripHorizontal, Trash2, X } from 'lucide-react';
+import { Crosshair, GripHorizontal, Plus, Trash2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { Find } from '@/lib/finds';
 import { formatRadius, parsePolygonJson, summarizeZone, type Zone } from '@/lib/zones';
@@ -10,6 +10,8 @@ interface ZoneEditorPanelProps {
   finds: Find[];
   polygonEditing?: boolean;
   polygonPointCount?: number;
+  polygonEditMode?: 'move' | 'insert';
+  onSetPolygonEditMode?: (mode: 'move' | 'insert') => void;
   focusMode?: boolean;
   onStartPolygonEdit?: () => void;
   onCancelPolygonEdit?: () => void;
@@ -25,6 +27,8 @@ export function ZoneEditorPanel({
   finds,
   polygonEditing = false,
   polygonPointCount,
+  polygonEditMode = 'move',
+  onSetPolygonEditMode,
   focusMode = false,
   onStartPolygonEdit,
   onCancelPolygonEdit,
@@ -198,6 +202,18 @@ export function ZoneEditorPanel({
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {polygonEditing ? (
                   <>
+                    <button
+                      type="button"
+                      onClick={() => onSetPolygonEditMode?.(polygonEditMode === 'insert' ? 'move' : 'insert')}
+                      className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-semibold transition-colors ${
+                        polygonEditMode === 'insert'
+                          ? 'border-primary/60 bg-primary/18 text-primary'
+                          : 'border-border/60 text-foreground hover:bg-secondary/20'
+                      }`}
+                    >
+                      <Plus className="h-3 w-3" />
+                      {polygonEditMode === 'insert' ? 'Click map to add…' : 'Add boundary point'}
+                    </button>
                     <button
                       type="button"
                       onClick={handleSavePolygon}

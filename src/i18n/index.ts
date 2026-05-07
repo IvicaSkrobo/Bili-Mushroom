@@ -114,6 +114,8 @@ const hr: Translations = {
   'import.reviewDeleted': ' ({n} obrisano)',
   'import.reviewImportedSection': 'Uvezeno',
   'import.reviewSkippedSection': 'Preskočeno',
+  'import.reviewDeleteFailSection': 'Nije moguće obrisati iz izvorne mape',
+  'import.reviewDeleteFailHint': 'Možda ih drži drugi program. Obrišite ručno.',
   'import.importMore': 'Uvezi još',
   'import.summaryHint': 'Svaka fotografija se uvozi kao zaseban nalaz. Nalazi s istim nazivom vrste bit će grupirani zajedno u zbirci.',
 
@@ -212,6 +214,8 @@ const hr: Translations = {
   'lightbox.prev': 'Prethodna',
   'lightbox.next': 'Sljedeća',
   'lightbox.close': 'Zatvori',
+  'lightbox.addLocation': 'Dodaj lokaciju…',
+  'lightbox.changeLocation': 'Promijeni lokaciju',
 };
 
 const en: Translations = {
@@ -324,6 +328,8 @@ const en: Translations = {
   'import.reviewDeleted': ' ({n} deleted)',
   'import.reviewImportedSection': 'Imported',
   'import.reviewSkippedSection': 'Skipped',
+  'import.reviewDeleteFailSection': 'Could not delete from source folder',
+  'import.reviewDeleteFailHint': 'May be held by another process. Delete manually.',
   'import.importMore': 'Import more',
   'import.summaryHint': 'Each photo is imported as its own find. Finds with the same species name will be grouped together in the collection.',
 
@@ -422,6 +428,8 @@ const en: Translations = {
   'lightbox.prev': 'Previous',
   'lightbox.next': 'Next',
   'lightbox.close': 'Close',
+  'lightbox.addLocation': 'Add location…',
+  'lightbox.changeLocation': 'Change location',
 };
 
 const dict: Record<Lang, Translations> = { hr, en };

@@ -1,7 +1,7 @@
 import { CircleMarker, MapContainer, Marker, Polygon, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { Check, Move, Trash2, X } from 'lucide-react';
+import { Check, Move, Plus, Trash2, X } from 'lucide-react';
 import type { Find } from '@/lib/finds';
 import { parsePolygonJson, type Zone, type ZonePolygonPoint, type ZoneType, type ZoneViewMode } from '@/lib/zones';
 import { applyLeafletIconFix } from './leafletIconFix';
@@ -96,9 +96,26 @@ export function FindsMap({
   drawTargetZoneType = null,
 }: FindsMapProps) {
   const [map, setMap] = useState<L.Map | null>(null);
+  const [editMode, setEditMode] = useState<'move' | 'insert'>('move');
   const activeZone = activeZoneId == null
     ? null
     : zones.find((zone) => zone.id === activeZoneId) ?? null;
+
+  // Reset insert mode when leaving polygon edit
+  useEffect(() => {
+    if (!polygonEditActive) setEditMode('move');
+  }, [polygonEditActive]);
+
+  // Fly to active polygon bounds when entering edit
+  useEffect(() => {
+    if (!polygonEditActive || !map || activeZoneId == null) return;
+    const zone = zones.find((z) => z.id === activeZoneId);
+    if (!zone || zone.geometry_type !== 'polygon') return;
+    const polygon = parsePolygonJson(zone.polygon_json);
+    if (polygon.length < 3) return;
+    map.flyToBounds(polygon as [number, number][], { animate: true, duration: 0.7, padding: [40, 40] });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [polygonEditActive, map]);
 
   function focusDrawTarget(find: Find, zoneType: ZoneType) {
     if (!map || find.lat == null || find.lng == null) return;
@@ -174,6 +191,14 @@ export function FindsMap({
           drawing={polygonDraftActive}
           onAddPoint={onPolygonDraftPointAdd}
         />
+        <PolygonEditInsertController
+          active={polygonEditActive && editMode === 'insert'}
+          points={polygonEditPoints}
+          onInsert={(edgeStartIndex, point) => {
+            onPolygonEditPointInsert(edgeStartIndex, point);
+            setEditMode('move');
+          }}
+        />
         <LayerSwitcher />
         <ZoneLayers
           zones={zones}
@@ -216,6 +241,8 @@ export function FindsMap({
           finds={finds}
           polygonEditing={polygonEditActive}
           polygonPointCount={polygonEditPoints.length}
+          polygonEditMode={editMode}
+          onSetPolygonEditMode={setEditMode}
           focusMode={focusMode}
           onStartPolygonEdit={onStartPolygonEdit}
           onCancelPolygonEdit={onCancelPolygonEdit}
@@ -242,6 +269,8 @@ export function FindsMap({
           pointCount={polygonEditPoints.length}
           selectedPointIndex={selectedPolygonEditPointIndex}
           canDeletePoint={polygonEditPoints.length > 3}
+          editMode={editMode}
+          onSetEditMode={setEditMode}
           onDeletePoint={onPolygonEditPointDelete}
           onSave={onSavePolygonEdit}
           onCancel={onCancelPolygonEdit}
@@ -328,6 +357,8 @@ function PolygonEditBanner({
   pointCount,
   selectedPointIndex,
   canDeletePoint,
+  editMode,
+  onSetEditMode,
   onDeletePoint,
   onSave,
   onCancel,
@@ -336,6 +367,8 @@ function PolygonEditBanner({
   pointCount: number;
   selectedPointIndex: number | null;
   canDeletePoint: boolean;
+  editMode: 'move' | 'insert';
+  onSetEditMode: (mode: 'move' | 'insert') => void;
   onDeletePoint: () => void;
   onSave: () => Promise<void>;
   onCancel: () => void;
@@ -353,47 +386,75 @@ function PolygonEditBanner({
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-4 z-[1003] flex justify-center px-4">
-      <div className="pointer-events-auto flex w-[min(560px,100%)] items-center justify-between gap-3 rounded-xl border border-secondary/35 bg-card/96 px-3 py-2 shadow-2xl backdrop-blur">
-        <div className="min-w-0">
-          <p className="truncate font-serif text-sm font-semibold italic text-foreground">
-            Editing boundary{zoneName ? `: ${zoneName}` : ''}
-          </p>
-          <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <Move className="h-3.5 w-3.5 text-secondary" />
-            Drag the numbered points on the map, then save the shape. {pointCount} points active.
-            {selectedPointIndex != null ? ` Point ${selectedPointIndex + 1} selected.` : ' Click a point to select it.'}
-          </p>
-          <p className="mt-1 text-[10px] text-muted-foreground/80">
-            Use the small `+` handles on polygon edges to insert a new point.
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={onDeletePoint}
-            disabled={selectedPointIndex == null || !canDeletePoint}
-            className="inline-flex h-8 items-center gap-1 rounded-md border border-destructive/40 px-2.5 text-[11px] font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-45"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Delete point
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="inline-flex h-8 items-center gap-1 rounded-md border border-border/60 px-2.5 text-[11px] font-semibold text-muted-foreground hover:bg-secondary/20 hover:text-foreground"
-          >
-            <X className="h-3.5 w-3.5" />
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="inline-flex h-8 items-center gap-1 rounded-md bg-primary px-2.5 text-[11px] font-semibold text-primary-foreground disabled:opacity-60"
-          >
-            <Check className="h-3.5 w-3.5" />
-            {saving ? 'Saving' : 'Save shape'}
-          </button>
+      <div className="pointer-events-auto flex w-[min(600px,100%)] flex-col gap-1.5 rounded-xl border border-secondary/35 bg-card/96 px-3 py-2.5 shadow-2xl backdrop-blur">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate font-serif text-sm font-semibold italic text-foreground">
+              Editing boundary{zoneName ? `: ${zoneName}` : ''}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              {editMode === 'insert'
+                ? 'Click anywhere on the map — point will be inserted on the nearest edge.'
+                : selectedPointIndex != null
+                  ? `Point ${selectedPointIndex + 1} selected. Drag to move it.`
+                  : `Drag numbered points to move. ${pointCount} points active.`}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {/* Mode toggle */}
+            <div className="flex rounded-md border border-border/60 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => onSetEditMode('move')}
+                className={`inline-flex h-7 items-center gap-1 px-2 text-[11px] font-semibold transition-colors ${
+                  editMode === 'move'
+                    ? 'bg-secondary/40 text-foreground'
+                    : 'text-muted-foreground hover:bg-secondary/20 hover:text-foreground'
+                }`}
+              >
+                <Move className="h-3 w-3" />
+                Move
+              </button>
+              <button
+                type="button"
+                onClick={() => onSetEditMode('insert')}
+                className={`inline-flex h-7 items-center gap-1 border-l border-border/60 px-2 text-[11px] font-semibold transition-colors ${
+                  editMode === 'insert'
+                    ? 'bg-primary/20 text-primary'
+                    : 'text-muted-foreground hover:bg-secondary/20 hover:text-foreground'
+                }`}
+              >
+                <Plus className="h-3 w-3" />
+                Add point
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={onDeletePoint}
+              disabled={selectedPointIndex == null || !canDeletePoint}
+              className="inline-flex h-7 items-center gap-1 rounded-md border border-destructive/40 px-2 text-[11px] font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-40"
+            >
+              <Trash2 className="h-3 w-3" />
+              Delete
+            </button>
+            <button
+              type="button"
+              onClick={onCancel}
+              className="inline-flex h-7 items-center gap-1 rounded-md border border-border/60 px-2 text-[11px] font-semibold text-muted-foreground hover:bg-secondary/20 hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="inline-flex h-7 items-center gap-1 rounded-md bg-primary px-2.5 text-[11px] font-semibold text-primary-foreground disabled:opacity-60"
+            >
+              <Check className="h-3.5 w-3.5" />
+              {saving ? 'Saving' : 'Save'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -601,6 +662,47 @@ function PolygonDraftController({
     },
   });
 
+  return null;
+}
+
+function findNearestEdge(
+  clickPoint: ZonePolygonPoint,
+  points: ZonePolygonPoint[],
+): { edgeStartIndex: number; projectedPoint: ZonePolygonPoint } {
+  let bestEdge = 0;
+  let bestPoint = points[0];
+  let bestDist = Infinity;
+  for (let i = 0; i < points.length; i++) {
+    const start = points[i];
+    const end = points[(i + 1) % points.length];
+    const proj = projectPointOntoSegment(clickPoint, start, end);
+    const dist = Math.hypot(proj[0] - clickPoint[0], proj[1] - clickPoint[1]);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestEdge = i;
+      bestPoint = proj;
+    }
+  }
+  return { edgeStartIndex: bestEdge, projectedPoint: bestPoint };
+}
+
+function PolygonEditInsertController({
+  active,
+  points,
+  onInsert,
+}: {
+  active: boolean;
+  points: ZonePolygonPoint[];
+  onInsert: (edgeStartIndex: number, point: ZonePolygonPoint) => void;
+}) {
+  useMapEvents({
+    click(event) {
+      if (!active || points.length < 2) return;
+      const click: ZonePolygonPoint = [event.latlng.lat, event.latlng.lng];
+      const { edgeStartIndex, projectedPoint } = findNearestEdge(click, points);
+      onInsert(edgeStartIndex, projectedPoint);
+    },
+  });
   return null;
 }
 

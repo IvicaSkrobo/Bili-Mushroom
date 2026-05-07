@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { GalleryHorizontal, Plus, ChevronDown, ChevronRight, FolderOpen, Search, X, CheckSquare, Pencil, Star, SquarePen } from 'lucide-react';
+import { GalleryHorizontal, Plus, ChevronDown, ChevronRight, FolderOpen, Search, X, CheckSquare, Pencil, Star, SquarePen, Trash2 } from 'lucide-react';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -17,6 +17,7 @@ import { useT, tFindsCount } from '@/i18n/index';
 import type { Find } from '@/lib/finds';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
+import { renderSpeciesName, plainSpeciesName } from '@/lib/speciesName';
 
 export default function CollectionTab() {
   const t = useT();
@@ -54,6 +55,16 @@ export default function CollectionTab() {
   const [moveDropdownOpen, setMoveDropdownOpen] = useState(false);
   const [moveHighlight, setMoveHighlight] = useState(0);
   const bulkRename = useBulkRenameSpecies();
+
+  const [expandedFinds, setExpandedFinds] = useState<Set<number>>(new Set());
+  const toggleFindExpand = (id: number) => {
+    setExpandedFinds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -450,8 +461,8 @@ export default function CollectionTab() {
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="font-serif text-base font-semibold leading-tight truncate text-foreground">
-                        {speciesName}
+                      <p className="font-serif text-base font-semibold leading-tight truncate text-foreground" title={plainSpeciesName(speciesName)}>
+                        {renderSpeciesName(speciesName)}
                       </p>
                       {speciesFavoriteCount > 0 && (
                         <span
@@ -509,53 +520,125 @@ export default function CollectionTab() {
                     onBlur={() => handleNoteSave(speciesName)}
                     className="text-sm placeholder:text-muted-foreground/40"
                   />
-                  {/* Photo grid — all photos for this species */}
-                  <div className="grid grid-cols-8 gap-1 sm:grid-cols-10">
-                    {speciesFinds.flatMap((f) =>
-                      f.photos.map((photo, photoIdx) => (
-                        <div key={photo.id} className="group relative aspect-square overflow-hidden rounded-sm bg-muted">
-                          <button
-                            type="button"
-                            className="absolute inset-0 w-full h-full"
-                            onClick={() => openLightbox(speciesFinds, f.id, photoIdx)}
+                  {/* Per-find collapsible rows */}
+                  <div className="flex flex-col gap-1.5">
+                    {speciesFinds.map((f) => {
+                      const autoExpand = f.photos.length <= 1;
+                      const isExpanded = autoExpand || expandedFinds.has(f.id);
+                      const firstPhoto = f.photos[0];
+                      const rowThumbSrc = firstPhoto ? resolvePhotoSrc(storagePath!, firstPhoto.photo_path) : null;
+                      return (
+                        <div
+                          key={f.id}
+                          className={`group/findrow overflow-hidden rounded border transition-colors ${
+                            selectMode && selectedIds.has(f.id)
+                              ? 'border-primary/60 bg-primary/8'
+                              : 'border-border/40 hover:border-border/70'
+                          }`}
+                        >
+                          {/* Find header row */}
+                          <div
+                            className={`flex items-center gap-2.5 px-3 py-2 transition-colors ${
+                              selectMode || !autoExpand ? 'cursor-pointer' : ''
+                            } ${
+                              selectMode && selectedIds.has(f.id)
+                                ? 'bg-primary/10'
+                                : 'hover:bg-accent/30'
+                            }`}
+                            onClick={() => selectMode ? toggleSelect(f.id) : (!autoExpand && toggleFindExpand(f.id))}
                           >
-                            <img
-                              src={resolvePhotoSrc(storagePath!, photo.photo_path)}
-                              alt=""
-                              className="h-full w-full object-cover transition-transform duration-150 group-hover:scale-105"
-                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                            />
-                          </button>
-                          {/* Edit button — shown on hover */}
-                          <button
-                            type="button"
-                            className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded p-0.5 text-white hover:bg-black/80 z-10"
-                            onClick={(e) => { e.stopPropagation(); setEditing(f); }}
-                            title="Edit find"
-                          >
-                            <SquarePen className="h-3 w-3" />
-                          </button>
-                          {selectMode && (
-                            <div
-                              className={`absolute inset-0 flex items-center justify-center transition-colors z-10 ${selectedIds.has(f.id) ? 'bg-primary/40' : 'bg-black/0 group-hover:bg-black/20'}`}
-                              onClick={(e) => { e.stopPropagation(); toggleSelect(f.id); }}
-                            />
+                            {/* Thumbnail */}
+                            {rowThumbSrc ? (
+                              <img
+                                src={rowThumbSrc}
+                                alt=""
+                                className="h-9 w-9 flex-shrink-0 rounded-sm object-cover"
+                                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                              />
+                            ) : (
+                              <div className="h-9 w-9 flex-shrink-0 rounded-sm bg-muted" />
+                            )}
+
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium text-foreground/90 truncate">
+                                {f.date_found || (lang === 'hr' ? 'Bez datuma' : 'No date')}
+                                {f.location_note && (
+                                  <span className="text-muted-foreground"> · {f.location_note}</span>
+                                )}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                                {f.photos.length} {lang === 'hr' ? 'foto' : f.photos.length === 1 ? 'photo' : 'photos'}
+                                {f.is_favorite && <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />}
+                              </p>
+                            </div>
+
+                            {/* Actions — visible on hover */}
+                            <div className="flex items-center gap-0.5 opacity-0 group-hover/findrow:opacity-100 transition-opacity">
+                              <button
+                                type="button"
+                                className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                                onClick={(e) => { e.stopPropagation(); setEditing(f); }}
+                                title={lang === 'hr' ? 'Uredi' : 'Edit'}
+                              >
+                                <SquarePen className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                className="rounded p-1 text-muted-foreground hover:text-destructive hover:bg-accent transition-colors"
+                                onClick={(e) => { e.stopPropagation(); setDeleting(f); }}
+                                title={lang === 'hr' ? 'Obriši' : 'Delete'}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+
+                            {/* Expand chevron */}
+                            {!autoExpand && (
+                              <ChevronDown
+                                className={`h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/50 transition-transform duration-150 ${isExpanded ? '' : '-rotate-90'}`}
+                              />
+                            )}
+                          </div>
+
+                          {/* Photo grid — collapsible */}
+                          {isExpanded && f.photos.length > 0 && (
+                            <div className="grid grid-cols-8 gap-1 border-t border-border/30 px-3 pb-3 pt-2 sm:grid-cols-10">
+                              {f.photos.map((photo, photoIdx) => (
+                                <div key={photo.id} className="group relative aspect-square overflow-hidden rounded-sm bg-muted">
+                                  <button
+                                    type="button"
+                                    className="absolute inset-0 w-full h-full"
+                                    onClick={() => openLightbox(speciesFinds, f.id, photoIdx)}
+                                  >
+                                    <img
+                                      src={resolvePhotoSrc(storagePath!, photo.photo_path)}
+                                      alt=""
+                                      className="h-full w-full object-cover transition-transform duration-150 group-hover:scale-105"
+                                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                                    />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded p-0.5 text-white hover:bg-black/80 z-10"
+                                    onClick={(e) => { e.stopPropagation(); setEditing(f); }}
+                                    title={lang === 'hr' ? 'Uredi' : 'Edit find'}
+                                  >
+                                    <SquarePen className="h-3 w-3" />
+                                  </button>
+                                  {selectMode && (
+                                    <div
+                                      className={`absolute inset-0 flex items-center justify-center transition-colors z-10 ${selectedIds.has(f.id) ? 'bg-primary/40' : 'bg-black/0 group-hover:bg-black/20'}`}
+                                      onClick={(e) => { e.stopPropagation(); toggleSelect(f.id); }}
+                                    />
+                                  )}
+                                </div>
+                              ))}
+                            </div>
                           )}
                         </div>
-                      ))
-                    )}
-                  </div>
-                  {/* Per-find action row */}
-                  <div className="flex flex-col gap-1">
-                    {speciesFinds.map((f) => (
-                      <div key={f.id} className="group/row flex items-center justify-between text-xs text-muted-foreground px-0.5 hover:text-foreground/80 transition-colors">
-                        <span>{f.date_found}{f.location_note ? ` · ${f.location_note}` : ''}</span>
-                        <div className="flex gap-3 opacity-0 group-hover/row:opacity-100 transition-opacity">
-                          <button type="button" onClick={() => setEditing(f)} className="hover:text-foreground">{lang === 'hr' ? 'Uredi' : 'Edit'}</button>
-                          <button type="button" onClick={() => setDeleting(f)} className="hover:text-destructive">{lang === 'hr' ? 'Obriši' : 'Delete'}</button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
