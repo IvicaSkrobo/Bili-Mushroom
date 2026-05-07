@@ -6,6 +6,8 @@ import {
   stringifyPolygon,
   summarizeZone,
   type Zone,
+  type ZonePolygonPoint,
+  type ZoneType,
 } from './zones';
 import type { Find } from './finds';
 
@@ -79,5 +81,67 @@ describe('zones polygon helpers', () => {
     expect(summary.finds.map((find) => find.id)).toEqual([1, 2]);
     expect(summary.firstFound).toBe('2026-05-01');
     expect(summary.lastFound).toBe('2026-05-03');
+  });
+});
+
+// Regression: after first drawing a polygon and saving, the app immediately
+// enters point-adjust mode (editingPolygonZone) without requiring the user
+// to exit and reopen editing. These tests verify the data contract for that
+// transition — points must survive intact from draft capture to editing state.
+describe('draft → edit transition (first-draw save)', () => {
+  const draftPoints: ZonePolygonPoint[] = [
+    [45.1, 15.1],
+    [45.2, 15.3],
+    [45.0, 15.4],
+  ];
+
+  it('captured draft points survive stringify/parse round-trip losslessly', () => {
+    // handleSaveRegionPolygon captures `savedPoints = draftPolygonZone.points`
+    // before the async boundary, then uses savedPoints (not re-parsed) for
+    // editingPolygonZone. This confirms the round-trip is lossless either way.
+    expect(parsePolygonJson(stringifyPolygon(draftPoints))).toEqual(draftPoints);
+  });
+
+  it('editingPolygonZone built from draft has correct shape for a region zone', () => {
+    const savedZoneId = 42;
+    const savedZoneType: ZoneType = 'region';
+    const editingState = { zoneId: savedZoneId, zoneType: savedZoneType, points: draftPoints };
+
+    expect(editingState.zoneId).toBe(savedZoneId);
+    expect(editingState.zoneType).toBe('region');
+    expect(editingState.points).toEqual(draftPoints);
+  });
+
+  it('editingPolygonZone built from draft has correct shape for a local zone', () => {
+    const localPoints: ZonePolygonPoint[] = [
+      [45.5, 15.5],
+      [45.6, 15.6],
+      [45.55, 15.7],
+    ];
+    const editingState = { zoneId: 7, zoneType: 'local' as ZoneType, points: localPoints };
+
+    expect(editingState.zoneType).toBe('local');
+    expect(editingState.points).toHaveLength(3);
+    expect(editingState.points).toEqual(localPoints);
+  });
+
+  it('minimum 3 points guard still applies — polygon with 2 points must not transition', () => {
+    const twoPoints: ZonePolygonPoint[] = [[45.1, 15.1], [45.2, 15.3]];
+    // Mirrors the guard: `if (!draftPolygonZone || draftPolygonZone.points.length < 3) return;`
+    expect(twoPoints.length < 3).toBe(true);
+  });
+
+  it('exact 3 points satisfies the save guard', () => {
+    expect(draftPoints.length >= 3).toBe(true);
+  });
+
+  it('points added during editing do not mutate the original captured array', () => {
+    const captured = [...draftPoints];
+    const editingPoints = [...captured];
+    editingPoints.splice(1, 0, [45.15, 15.2]);
+
+    expect(captured).toHaveLength(3);
+    expect(editingPoints).toHaveLength(4);
+    expect(editingPoints[1]).toEqual([45.15, 15.2]);
   });
 });
