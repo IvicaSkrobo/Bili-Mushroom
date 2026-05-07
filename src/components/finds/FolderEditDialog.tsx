@@ -90,6 +90,8 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange }: FolderEdi
               lng: pickedLng !== null ? pickedLng : f.lng,
               notes: f.notes,
               observed_count: f.observed_count,
+              observed_count_min: f.observed_count_min,
+              observed_count_max: f.observed_count_max,
             }),
           ),
         );

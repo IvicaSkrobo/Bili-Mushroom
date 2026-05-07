@@ -12,12 +12,15 @@ import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/stores/appStore';
 import { applyLeafletIconFix } from './leafletIconFix';
 import { createRustProxyTileLayer } from './RustProxyTileLayer';
+import type { MapLayer } from '@/stores/appStore';
 
 applyLeafletIconFix();
 
 const CROATIA_CENTER: [number, number] = [45.1, 15.2];
 const CROATIA_ZOOM = 7;
 const EXISTING_PIN_ZOOM = 13;
+const ESRI_TEMPLATE =
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 const OSM_TEMPLATE = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const TOPO_TEMPLATE = 'https://tile.opentopomap.org/{z}/{x}/{y}.png';
 
@@ -28,31 +31,57 @@ export interface LocationPickerMapProps {
   onConfirm: (lat: number, lng: number) => void;
 }
 
-function PickerLayerSwitcher({ storagePath }: { storagePath: string }) {
+function PickerLayerSwitcher() {
   const map = useMap();
+  const mapLayer = useAppStore((s) => s.mapLayer);
+  const setMapLayer = useAppStore((s) => s.setMapLayer);
+
   useEffect(() => {
+    const esriLayer = createRustProxyTileLayer({
+      urlTemplate: ESRI_TEMPLATE,
+      attribution: 'Tiles © Esri',
+      maxZoom: 19,
+    });
     const osmLayer = createRustProxyTileLayer({
       urlTemplate: OSM_TEMPLATE,
-      storagePath,
       attribution: '© OpenStreetMap contributors',
       maxZoom: 19,
     });
     const topoLayer = createRustProxyTileLayer({
       urlTemplate: TOPO_TEMPLATE,
-      storagePath,
       attribution: '© OpenTopoMap contributors',
       maxZoom: 17,
     });
-    osmLayer.addTo(map);
+
+    const layers: Record<MapLayer, L.TileLayer> = {
+      Satellite: esriLayer,
+      Street: osmLayer,
+      Topo: topoLayer,
+    };
+
+    layers[mapLayer].addTo(map);
+
     const control = L.control
-      .layers({ Street: osmLayer, Topo: topoLayer }, undefined, { position: 'topright' })
+      .layers({ Satellite: esriLayer, Street: osmLayer, Topo: topoLayer }, undefined, { position: 'topright' })
       .addTo(map);
+
+    const handleLayerChange = (e: L.LayersControlEvent) => {
+      const name = e.name as MapLayer;
+      if (name === 'Satellite' || name === 'Street' || name === 'Topo') {
+        setMapLayer(name);
+      }
+    };
+
+    map.on('baselayerchange', handleLayerChange);
+
     return () => {
+      map.off('baselayerchange', handleLayerChange);
       control.remove();
-      map.removeLayer(osmLayer);
+      if (map.hasLayer(esriLayer)) map.removeLayer(esriLayer);
+      if (map.hasLayer(osmLayer)) map.removeLayer(osmLayer);
       if (map.hasLayer(topoLayer)) map.removeLayer(topoLayer);
     };
-  }, [map, storagePath]);
+  }, [map, mapLayer, setMapLayer]);
   return null;
 }
 
@@ -71,7 +100,6 @@ export function LocationPickerMap({
   initialLatLng,
   onConfirm,
 }: LocationPickerMapProps) {
-  const storagePath = useAppStore((s) => s.storagePath);
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(
     initialLatLng ?? null,
   );
@@ -93,13 +121,13 @@ export function LocationPickerMap({
           <DialogTitle className="text-xl font-semibold">Pick a location</DialogTitle>
         </DialogHeader>
         <div className="flex-1" style={{ minHeight: 0 }}>
-          {open && storagePath && (
+          {open && (
             <MapContainer
               center={initialCenter}
               zoom={initialZoom}
               style={{ height: '100%', width: '100%' }}
             >
-              <PickerLayerSwitcher storagePath={storagePath} />
+              <PickerLayerSwitcher />
               <ClickHandler
                 onPick={(latlng) => setPin({ lat: latlng.lat, lng: latlng.lng })}
               />

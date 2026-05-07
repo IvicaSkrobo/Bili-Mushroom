@@ -53,6 +53,8 @@ interface FindsMapProps {
   onZoneSaved?: (zone: Zone) => void;
   onZoneTypeSelected?: (zone: Zone, zoneType: ZoneType) => void;
   onEditZone?: (zone: Zone | null) => void;
+  drawTargetFind?: Find | null;
+  drawTargetZoneType?: ZoneType | null;
 }
 
 export function FindsMap({
@@ -90,6 +92,8 @@ export function FindsMap({
   onZoneSaved,
   onZoneTypeSelected,
   onEditZone = () => undefined,
+  drawTargetFind = null,
+  drawTargetZoneType = null,
 }: FindsMapProps) {
   const [map, setMap] = useState<L.Map | null>(null);
   const activeZone = activeZoneId == null
@@ -130,6 +134,11 @@ export function FindsMap({
     focusDrawTarget(find, 'region');
     onStartRegionPolygonForFind(find);
   }
+
+  useEffect(() => {
+    if (!polygonDraftActive || !drawTargetFind || !drawTargetZoneType) return;
+    focusDrawTarget(drawTargetFind, drawTargetZoneType);
+  }, [polygonDraftActive, drawTargetFind, drawTargetZoneType, map]);
 
   function handleZoomToZone(zone: Zone, selectedType: ZoneType) {
     if (!map) return;

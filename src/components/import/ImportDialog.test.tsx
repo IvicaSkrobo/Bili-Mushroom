@@ -37,7 +37,19 @@ vi.mock('@/stores/appStore', () => ({
 
 // Mock LocationPickerMap to avoid leaflet/jsdom issues
 vi.mock('@/components/map/LocationPickerMap', () => ({
-  LocationPickerMap: () => null,
+  LocationPickerMap: ({
+    open,
+    onConfirm,
+  }: {
+    open: boolean;
+    onConfirm: (lat: number, lng: number) => void;
+  }) => (
+    open ? (
+      <button type="button" onClick={() => onConfirm(45.123456, 13.654321)}>
+        Mock Confirm Location
+      </button>
+    ) : null
+  ),
 }));
 
 // Mock EditFindDialog to avoid complex dependency chain
@@ -50,6 +62,7 @@ vi.mock('@/components/finds/EditFindDialog', () => ({
 
 const { open: mockOpen } = await import('@tauri-apps/plugin-dialog');
 const { readDir: mockReadDir } = await import('@tauri-apps/plugin-fs');
+const geocoding = await import('@/lib/geocoding');
 
 function makeQueryClient() {
   return new QueryClient({
@@ -102,6 +115,7 @@ beforeEach(() => {
   invokeHandlers['get_species_notes'] = () => [];
   // Clear listen callbacks
   Object.keys(listenCallbacks).forEach((k) => delete listenCallbacks[k]);
+  vi.spyOn(geocoding, 'reverseGeocode').mockResolvedValue({ country: 'Croatia', region: 'Istria' });
 });
 
 describe('ImportDialog', () => {
@@ -191,6 +205,34 @@ describe('ImportDialog', () => {
 
     await waitFor(() => screen.getByPlaceholderText('Species name'));
     expect(screen.getByRole('button', { name: /Import All/i })).toBeDisabled();
+  });
+
+  it('Confirm location saves coordinates, reverse geocodes, and closes the picker', async () => {
+    vi.mocked(mockOpen).mockResolvedValueOnce(['/photos/gps.jpg']);
+    invokeHandlers['parse_exif'] = () => ({ date: '2024-05-10', lat: null, lng: null });
+    renderDialog();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Pick shared location/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Pick shared location/i }));
+    expect(screen.getByRole('button', { name: /Mock Confirm Location/i })).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Mock Confirm Location/i }));
+    });
+
+    await waitFor(() => {
+      expect(geocoding.reverseGeocode).toHaveBeenCalledWith(45.123456, 13.654321, 'en');
+      expect(screen.queryByRole('button', { name: /Mock Confirm Location/i })).not.toBeInTheDocument();
+      expect(screen.getByDisplayValue('Croatia')).toBeInTheDocument();
+      expect(screen.getByDisplayValue('Istria')).toBeInTheDocument();
+      expect(screen.getByText(/45\.1235, 13\.6543/)).toBeInTheDocument();
+    });
   });
 
   it('clicking Import All invokes import_find with storagePath and payloads', async () => {

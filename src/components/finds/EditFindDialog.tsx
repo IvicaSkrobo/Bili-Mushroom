@@ -29,7 +29,34 @@ interface FormState {
   lat: string;
   lng: string;
   notes: string;
-  observed_count: string;
+  observed_count_range: string;
+}
+
+function formatObservedRange(min: number | null, max: number | null, fallback: number | null): string {
+  const low = min ?? fallback;
+  const high = max ?? min ?? fallback;
+  if (low == null && high == null) return '';
+  if (low === high) return String(low);
+  return `${Math.min(low!, high!)}-${Math.max(low!, high!)}`;
+}
+
+function parseObservedRangeInput(value: string) {
+  const trimmed = value.trim();
+  if (trimmed === '') return { min: null as number | null, max: null as number | null, representative: null as number | null };
+
+  const match = trimmed.match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+  if (!match) return { min: null, max: null, representative: null };
+
+  const first = Number.parseInt(match[1], 10);
+  const second = match[2] ? Number.parseInt(match[2], 10) : first;
+  const min = Math.min(first, second);
+  const max = Math.max(first, second);
+  return { min, max, representative: Math.round((min + max) / 2) };
+}
+
+function isObservedRangeInputValid(value: string): boolean {
+  const trimmed = value.trim();
+  return trimmed === '' || /^(\d+)(?:\s*-\s*(\d+))?$/.test(trimmed);
 }
 
 function findToFormState(find: Find): FormState {
@@ -42,7 +69,11 @@ function findToFormState(find: Find): FormState {
     lat: find.lat !== null ? String(find.lat) : '',
     lng: find.lng !== null ? String(find.lng) : '',
     notes: find.notes ?? '',
-    observed_count: find.observed_count != null ? String(find.observed_count) : '',
+    observed_count_range: formatObservedRange(
+      find.observed_count_min,
+      find.observed_count_max,
+      find.observed_count,
+    ),
   };
 }
 
@@ -68,7 +99,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     lat: '',
     lng: '',
     notes: '',
-    observed_count: '',
+    observed_count_range: '',
   });
 
   useEffect(() => {
@@ -98,6 +129,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
 
   function handleSave() {
     if (!find) return;
+    const observedRange = parseObservedRangeInput(form.observed_count_range);
     updateMutation.mutate(
       {
         id: find.id,
@@ -109,7 +141,9 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
         lat: form.lat !== '' ? parseFloat(form.lat) : null,
         lng: form.lng !== '' ? parseFloat(form.lng) : null,
         notes: form.notes,
-        observed_count: form.observed_count !== '' ? parseInt(form.observed_count, 10) : null,
+        observed_count: observedRange.representative,
+        observed_count_min: observedRange.min,
+        observed_count_max: observedRange.max,
       },
       { onSuccess: () => onOpenChange(false) },
     );
@@ -258,13 +292,16 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
               </span>
             </div>
             <Input
-              type="number"
-              min="0"
-              step="1"
-              value={form.observed_count}
-              onChange={(e) => handleChange('observed_count', e.target.value)}
-              placeholder={t('edit.observedCountPlaceholder')}
+              inputMode="numeric"
+              value={form.observed_count_range}
+              onChange={(e) => handleChange('observed_count_range', e.target.value)}
+              placeholder="npr. 15 ili 15-20"
             />
+            {!isObservedRangeInputValid(form.observed_count_range) && (
+              <p className="mt-1 text-xs text-amber-600">
+                Unesi broj ili raspon poput 15-20. Ovakav unos neće se spremiti.
+              </p>
+            )}
           </div>
         </div>
 

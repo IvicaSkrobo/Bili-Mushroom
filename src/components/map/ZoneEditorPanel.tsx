@@ -71,6 +71,7 @@ export function ZoneEditorPanel({
       setName(savedZone.name);
       setNotes(savedZone.notes);
       onZoneSaved(savedZone);
+      onClose();
     } finally {
       setSaving(false);
     }

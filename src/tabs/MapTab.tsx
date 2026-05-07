@@ -44,6 +44,7 @@ export default function MapTab() {
   } | null>(null);
   const [selectedEditPointIndex, setSelectedEditPointIndex] = useState<number | null>(null);
   const [localTargetFind, setLocalTargetFind] = useState<Find | null>(null);
+  const [regionTargetFind, setRegionTargetFind] = useState<Find | null>(null);
   const shapeEditFocus = editingPolygonZone != null;
   const drawFocus = draftPolygonZone != null;
 
@@ -175,6 +176,7 @@ export default function MapTab() {
 
   function handleClearRegionTarget() {
     setActiveSpecies(null);
+    setRegionTargetFind(null);
     if (zoneMode === 'region') {
       setActiveZoneId(null);
     }
@@ -303,6 +305,7 @@ export default function MapTab() {
 
   function handleStartRegionPolygonForFind(find: Find) {
     if (find.lat == null || find.lng == null) return;
+    setRegionTargetFind(find);
     setEditingPolygonZone(null);
     setSelectedEditPointIndex(null);
     setZoneMode('region');
@@ -406,6 +409,7 @@ export default function MapTab() {
     if (find.lat == null || find.lng == null) return;
     setZoneMode('region');
     setActiveSpecies(find.species_name);
+    setRegionTargetFind(find);
     setActiveZoneId(findZoneForFind(find, 'region')?.id ?? null);
   }
 
@@ -637,6 +641,14 @@ export default function MapTab() {
         onZoneSaved={handleZoneSaved}
         onZoneTypeSelected={handleZoneTypeSelected}
         focusMode={drawFocus || shapeEditFocus}
+        drawTargetFind={
+          draftPolygonZone?.zoneType === 'local'
+            ? localTargetFind
+            : draftPolygonZone?.zoneType === 'region'
+              ? regionTargetFind
+              : null
+        }
+        drawTargetZoneType={draftPolygonZone?.zoneType ?? null}
       />
       {!drawFocus && (
         <ZoneModeControl
@@ -656,7 +668,10 @@ export default function MapTab() {
           }}
           onModeChange={setZoneMode}
           onCreateRegion={handleCreateRegionZone}
-          onStartRegionPolygon={handleStartRegionPolygon}
+          onStartRegionPolygon={() => {
+            if (regionTargetFind) handleStartRegionPolygonForFind(regionTargetFind);
+            else handleStartRegionPolygon();
+          }}
           onSaveRegionPolygon={handleSaveRegionPolygon}
           onUndoRegionPolygon={handleUndoRegionPolygonPoint}
           onCancelRegionPolygon={handleCancelRegionPolygon}

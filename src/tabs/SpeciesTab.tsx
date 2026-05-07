@@ -15,13 +15,13 @@ import { resolvePhotoSrc } from '@/lib/photoSrc';
 interface DateSummary {
   date: string;
   recordedFinds: number;
-  observedCount: number | null;
+  observedCountLabel: string | null;
 }
 
 interface YearSummary {
   year: string;
   recordedFinds: number;
-  observedCount: number | null;
+  observedCountLabel: string | null;
 }
 
 interface SpeciesJournal {
@@ -31,7 +31,7 @@ interface SpeciesJournal {
   heroPhotoPath: string | null;
   heroPhotoId: number | null;
   recordedFinds: number;
-  observedCountTotal: number | null;
+  observedCountTotalLabel: string | null;
   observedCountKnown: boolean;
   favoriteCount: number;
   daysRecorded: number;
@@ -44,7 +44,7 @@ interface SpeciesJournal {
   seasonEndMonth: number | null;
   topSpotLabel: string | null;
   topSpotCount: number;
-  topSpotObservedCount: number | null;
+  topSpotObservedCountLabel: string | null;
   topSpotFavoriteCount: number;
   topSpotLastRecorded: string | null;
   dateSummaries: DateSummary[];
@@ -81,6 +81,22 @@ function monthsBetweenDates(earlier: Date, later: Date): number {
   const yearDiff = later.getFullYear() - earlier.getFullYear();
   const monthDiff = later.getMonth() - earlier.getMonth();
   return yearDiff * 12 + monthDiff;
+}
+
+function getObservedRange(find: Pick<Find, 'observed_count' | 'observed_count_min' | 'observed_count_max'>) {
+  const min = find.observed_count_min ?? find.observed_count;
+  const max = find.observed_count_max ?? find.observed_count_min ?? find.observed_count;
+  if (min == null && max == null) return null;
+  const low = min ?? max!;
+  const high = max ?? min!;
+  return { min: Math.min(low, high), max: Math.max(low, high) };
+}
+
+function formatObservedRange(min: number | null, max: number | null): string | null {
+  if (min == null && max == null) return null;
+  const low = min ?? max!;
+  const high = max ?? min!;
+  return low === high ? String(low) : `${low}-${high}`;
 }
 
 function buildWhenToLookCopy(
@@ -142,8 +158,8 @@ function buildBestSpotCopy(journal: SpeciesJournal, locale: string, t: ReturnTyp
     }),
   ];
 
-  if (journal.topSpotObservedCount != null) {
-    parts.push(t('species.bestSpotObserved', { count: journal.topSpotObservedCount }));
+  if (journal.topSpotObservedCountLabel != null) {
+    parts.push(t('species.bestSpotObserved', { count: journal.topSpotObservedCountLabel }));
   }
 
   if (journal.topSpotFavoriteCount > 0) {
@@ -174,14 +190,16 @@ function buildSpeciesJournal(speciesName: string, finds: Find[], coverPhotoId: n
   const spotCounts = new Map<string, {
     label: string;
     count: number;
-    observedTotal: number;
+    observedMinTotal: number;
+    observedMaxTotal: number;
     favoriteCount: number;
     lastRecorded: string | null;
   }>();
-  const dateCounts = new Map<string, { recordedFinds: number; observedTotal: number; observedKnown: boolean }>();
-  const yearCounts = new Map<string, { recordedFinds: number; observedTotal: number; observedKnown: boolean }>();
+  const dateCounts = new Map<string, { recordedFinds: number; observedMinTotal: number; observedMaxTotal: number; observedKnown: boolean }>();
+  const yearCounts = new Map<string, { recordedFinds: number; observedMinTotal: number; observedMaxTotal: number; observedKnown: boolean }>();
 
-  let observedCountTotal = 0;
+  let observedCountMinTotal = 0;
+  let observedCountMaxTotal = 0;
   let observedCountKnown = false;
   let favoriteCount = 0;
 
@@ -194,14 +212,17 @@ function buildSpeciesJournal(speciesName: string, finds: Find[], coverPhotoId: n
       const existingSpot = spotCounts.get(spotLabel) ?? {
         label: spotLabel,
         count: 0,
-        observedTotal: 0,
+        observedMinTotal: 0,
+        observedMaxTotal: 0,
         favoriteCount: 0,
         lastRecorded: null,
       };
+      const observedRange = getObservedRange(find);
       spotCounts.set(spotLabel, {
         label: spotLabel,
         count: existingSpot.count + 1,
-        observedTotal: existingSpot.observedTotal + (find.observed_count ?? 0),
+        observedMinTotal: existingSpot.observedMinTotal + (observedRange?.min ?? 0),
+        observedMaxTotal: existingSpot.observedMaxTotal + (observedRange?.max ?? 0),
         favoriteCount: existingSpot.favoriteCount + (find.is_favorite ? 1 : 0),
         lastRecorded: existingSpot.lastRecorded && existingSpot.lastRecorded > find.date_found
           ? existingSpot.lastRecorded
@@ -215,14 +236,18 @@ function buildSpeciesJournal(speciesName: string, finds: Find[], coverPhotoId: n
 
     const currentDate = dateCounts.get(find.date_found) ?? {
       recordedFinds: 0,
-      observedTotal: 0,
+      observedMinTotal: 0,
+      observedMaxTotal: 0,
       observedKnown: false,
     };
     currentDate.recordedFinds += 1;
-    if (find.observed_count != null) {
-      currentDate.observedTotal += find.observed_count;
+    const observedRange = getObservedRange(find);
+    if (observedRange != null) {
+      currentDate.observedMinTotal += observedRange.min;
+      currentDate.observedMaxTotal += observedRange.max;
       currentDate.observedKnown = true;
-      observedCountTotal += find.observed_count;
+      observedCountMinTotal += observedRange.min;
+      observedCountMaxTotal += observedRange.max;
       observedCountKnown = true;
     }
     dateCounts.set(find.date_found, currentDate);
@@ -230,12 +255,14 @@ function buildSpeciesJournal(speciesName: string, finds: Find[], coverPhotoId: n
     const year = find.date_found.slice(0, 4);
     const currentYear = yearCounts.get(year) ?? {
       recordedFinds: 0,
-      observedTotal: 0,
+      observedMinTotal: 0,
+      observedMaxTotal: 0,
       observedKnown: false,
     };
     currentYear.recordedFinds += 1;
-    if (find.observed_count != null) {
-      currentYear.observedTotal += find.observed_count;
+    if (observedRange != null) {
+      currentYear.observedMinTotal += observedRange.min;
+      currentYear.observedMaxTotal += observedRange.max;
       currentYear.observedKnown = true;
     }
     yearCounts.set(year, currentYear);
@@ -245,7 +272,8 @@ function buildSpeciesJournal(speciesName: string, finds: Find[], coverPhotoId: n
   const seasonMonths = Array.from(monthCounts.keys()).sort((a, b) => a - b);
   const topSpot = Array.from(spotCounts.values()).sort((a, b) =>
     b.favoriteCount - a.favoriteCount ||
-    b.observedTotal - a.observedTotal ||
+    b.observedMaxTotal - a.observedMaxTotal ||
+    b.observedMinTotal - a.observedMinTotal ||
     b.count - a.count ||
     (b.lastRecorded ?? '').localeCompare(a.lastRecorded ?? '') ||
     a.label.localeCompare(b.label))[0] ?? null;
@@ -256,7 +284,9 @@ function buildSpeciesJournal(speciesName: string, finds: Find[], coverPhotoId: n
     .map(([date, summary]) => ({
       date,
       recordedFinds: summary.recordedFinds,
-      observedCount: summary.observedKnown ? summary.observedTotal : null,
+      observedCountLabel: summary.observedKnown
+        ? formatObservedRange(summary.observedMinTotal, summary.observedMaxTotal)
+        : null,
     }));
 
   const yearSummaries = Array.from(yearCounts.entries())
@@ -264,7 +294,9 @@ function buildSpeciesJournal(speciesName: string, finds: Find[], coverPhotoId: n
     .map(([year, summary]) => ({
       year,
       recordedFinds: summary.recordedFinds,
-      observedCount: summary.observedKnown ? summary.observedTotal : null,
+      observedCountLabel: summary.observedKnown
+        ? formatObservedRange(summary.observedMinTotal, summary.observedMaxTotal)
+        : null,
     }));
 
   const strongestYearEntry = [...yearSummaries]
@@ -277,7 +309,9 @@ function buildSpeciesJournal(speciesName: string, finds: Find[], coverPhotoId: n
     heroPhotoPath,
     heroPhotoId,
     recordedFinds: sortedFinds.length,
-    observedCountTotal: observedCountKnown ? observedCountTotal : null,
+    observedCountTotalLabel: observedCountKnown
+      ? formatObservedRange(observedCountMinTotal, observedCountMaxTotal)
+      : null,
     observedCountKnown,
     favoriteCount,
     daysRecorded: uniqueDates.size,
@@ -290,7 +324,9 @@ function buildSpeciesJournal(speciesName: string, finds: Find[], coverPhotoId: n
     seasonEndMonth: seasonMonths[seasonMonths.length - 1] ?? null,
     topSpotLabel: topSpot?.label ?? null,
     topSpotCount: topSpot?.count ?? 0,
-    topSpotObservedCount: topSpot ? topSpot.observedTotal : null,
+    topSpotObservedCountLabel: topSpot
+      ? formatObservedRange(topSpot.observedMinTotal, topSpot.observedMaxTotal)
+      : null,
     topSpotFavoriteCount: topSpot?.favoriteCount ?? 0,
     topSpotLastRecorded: topSpot?.lastRecorded ?? null,
     dateSummaries,
@@ -588,7 +624,7 @@ export default function SpeciesTab() {
                           </span>
                         </p>
                         <p className="text-2xl font-semibold text-foreground">
-                          {selectedJournal.observedCountKnown ? selectedJournal.observedCountTotal : '--'}
+                          {selectedJournal.observedCountKnown ? selectedJournal.observedCountTotalLabel : '--'}
                         </p>
                       </CardContent>
                     </Card>
@@ -623,8 +659,8 @@ export default function SpeciesTab() {
                         </p>
                         <div className="mt-3 flex flex-wrap gap-2">
                           <Badge variant="outline">{t('species.recordedFindsLabel', { count: selectedJournal.recordedFinds })}</Badge>
-                          {selectedJournal.observedCountTotal != null && (
-                            <Badge variant="outline">{t('species.observedCountLabel', { count: selectedJournal.observedCountTotal })}</Badge>
+                          {selectedJournal.observedCountTotalLabel != null && (
+                            <Badge variant="outline">{t('species.observedCountLabel', { count: selectedJournal.observedCountTotalLabel })}</Badge>
                           )}
                           {selectedJournal.favoriteCount > 0 && (
                             <Badge variant="outline" className="gap-1 border-amber-500/35 bg-amber-500/10 text-amber-600">
@@ -744,8 +780,8 @@ export default function SpeciesTab() {
                                 </p>
                               </div>
                               <p className="text-sm text-muted-foreground">
-                                {entry.observedCount != null
-                                  ? t('species.observedCountLabel', { count: entry.observedCount })
+                                {entry.observedCountLabel != null
+                                  ? t('species.observedCountLabel', { count: entry.observedCountLabel })
                                   : t('species.observedMissing')}
                               </p>
                             </div>
@@ -771,8 +807,8 @@ export default function SpeciesTab() {
                                   <p className="font-medium text-foreground">{entry.year}</p>
                                   <div className="text-right text-sm text-muted-foreground">
                                     <p>{t('species.recordedFindsLabel', { count: entry.recordedFinds })}</p>
-                                    {entry.observedCount != null && (
-                                      <p>{t('species.observedCountLabel', { count: entry.observedCount })}</p>
+                                    {entry.observedCountLabel != null && (
+                                      <p>{t('species.observedCountLabel', { count: entry.observedCountLabel })}</p>
                                     )}
                                   </div>
                                 </div>

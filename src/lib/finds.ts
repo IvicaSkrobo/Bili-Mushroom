@@ -29,6 +29,8 @@ export interface ImportPayload {
   lng: number | null;
   notes: string;
   observed_count: number | null;
+  observed_count_min: number | null;
+  observed_count_max: number | null;
   additional_photos: string[];  // Mode A: extra source paths for same find
 }
 
@@ -44,6 +46,8 @@ export interface Find {
   lng: number | null;
   notes: string;
   observed_count: number | null;
+  observed_count_min: number | null;
+  observed_count_max: number | null;
   is_favorite: boolean;
   created_at: string;
   photos: FindPhoto[];
@@ -137,6 +141,8 @@ export interface UpdateFindPayload {
   lng: number | null;
   notes: string;
   observed_count: number | null;
+  observed_count_min: number | null;
+  observed_count_max: number | null;
 }
 
 /**

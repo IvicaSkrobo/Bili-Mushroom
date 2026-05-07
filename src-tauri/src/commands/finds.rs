@@ -1,7 +1,9 @@
 use rusqlite::params;
 use chrono::Utc;
+use std::path::{Path, PathBuf};
 
 use crate::commands::import::{open_db, FindPhoto, FindRecord};
+use crate::commands::path_builder::resolve_location_component;
 
 const INTERNAL_SPECIES_FILTER: &str =
     "LOWER(TRIM(species_name)) IN ('tile-cache', '.bili-cache', '.bili-cache-tiles')";
@@ -216,8 +218,77 @@ pub async fn bulk_rename_species(
     if find_ids.is_empty() {
         return Ok(());
     }
+    let new_species_name = new_species_name.trim().to_string();
+    if new_species_name.is_empty() {
+        return Err("new species name cannot be empty".into());
+    }
+
     let mut conn = open_db(&storage_path)?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    let mut photo_rows: Vec<(i64, String)> = Vec::new();
+    let mut old_species_names: Vec<String> = Vec::new();
+    for find_id in &find_ids {
+        let species_name: String = tx
+            .query_row(
+                "SELECT species_name FROM finds WHERE id = ?1",
+                params![find_id],
+                |row| row.get(0),
+            )
+            .map_err(|e| format!("Failed to read species for id {}: {}", find_id, e))?;
+        old_species_names.push(species_name);
+
+        let mut stmt = tx
+            .prepare(
+                "SELECT id, photo_path FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map(params![find_id], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        photo_rows.extend(rows);
+    }
+
+    let target_folder = Path::new(&storage_path).join(resolve_location_component(&new_species_name, "unknown_species"));
+    std::fs::create_dir_all(&target_folder)
+        .map_err(|e| format!("Failed to create target folder '{}': {}", target_folder.display(), e))?;
+
+    for (photo_id, photo_path) in &photo_rows {
+        let source_abs = Path::new(&storage_path).join(photo_path);
+        let filename = source_abs
+            .file_name()
+            .ok_or_else(|| format!("Photo path has no filename: {}", source_abs.display()))?;
+        let mut target_abs = target_folder.join(filename);
+
+        if source_abs != target_abs {
+            target_abs = unique_destination_path(&target_abs);
+            std::fs::create_dir_all(
+                target_abs
+                    .parent()
+                    .ok_or_else(|| format!("Target path has no parent: {}", target_abs.display()))?,
+            )
+            .map_err(|e| format!("Failed to prepare target folder for '{}': {}", target_abs.display(), e))?;
+            std::fs::rename(&source_abs, &target_abs)
+                .or_else(|_| {
+                    std::fs::copy(&source_abs, &target_abs)?;
+                    std::fs::remove_file(&source_abs)
+                })
+                .map_err(|e| format!("Failed to move '{}' to '{}': {}", source_abs.display(), target_abs.display(), e))?;
+        }
+
+        let relative = target_abs
+            .strip_prefix(&storage_path)
+            .map(|p| p.to_string_lossy().replace('\\', "/").trim_start_matches('/').to_string())
+            .unwrap_or_else(|_| target_abs.to_string_lossy().replace('\\', "/"));
+        tx.execute(
+            "UPDATE find_photos SET photo_path = ?1 WHERE id = ?2",
+            params![relative, photo_id],
+        )
+        .map_err(|e| format!("Failed to update photo path for photo {}: {}", photo_id, e))?;
+    }
+
     for find_id in &find_ids {
         tx.execute(
             "UPDATE finds SET species_name = ?1 WHERE id = ?2",
@@ -225,8 +296,67 @@ pub async fn bulk_rename_species(
         )
         .map_err(|e| format!("Bulk rename failed for id {}: {}", find_id, e))?;
     }
+
+    for old_species_name in &old_species_names {
+        tx.execute(
+            "UPDATE zones SET species_name = ?1 WHERE species_name = ?2",
+            params![new_species_name, old_species_name],
+        )
+        .map_err(|e| format!("Zone rename failed for '{}': {}", old_species_name, e))?;
+        tx.execute(
+            "UPDATE species_notes SET species_name = ?1 WHERE species_name = ?2 AND NOT EXISTS (SELECT 1 FROM species_notes WHERE species_name = ?1)",
+            params![new_species_name, old_species_name],
+        )
+        .map_err(|e| format!("Species note rename failed for '{}': {}", old_species_name, e))?;
+        tx.execute(
+            "UPDATE species_profiles SET species_name = ?1 WHERE species_name = ?2 AND NOT EXISTS (SELECT 1 FROM species_profiles WHERE species_name = ?1)",
+            params![new_species_name, old_species_name],
+        )
+        .map_err(|e| format!("Species profile rename failed for '{}': {}", old_species_name, e))?;
+    }
+
     tx.commit().map_err(|e| e.to_string())?;
+
+    for old_species_name in &old_species_names {
+        let old_folder = Path::new(&storage_path).join(resolve_location_component(&old_species_name, "unknown_species"));
+        remove_empty_dir_if_possible(&old_folder);
+    }
+
     Ok(())
+}
+
+fn unique_destination_path(initial: &Path) -> PathBuf {
+    if !initial.exists() {
+        return initial.to_path_buf();
+    }
+
+    let stem = initial
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "photo".to_string());
+    let ext = initial
+        .extension()
+        .map(|e| format!(".{}", e.to_string_lossy()))
+        .unwrap_or_default();
+    let parent = initial.parent().map(Path::to_path_buf).unwrap_or_default();
+
+    for index in 2..10_000 {
+        let candidate = parent.join(format!("{stem} ({index}){ext}"));
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+
+    initial.to_path_buf()
+}
+
+fn remove_empty_dir_if_possible(path: &Path) {
+    if !path.exists() {
+        return;
+    }
+    if std::fs::read_dir(path).map(|mut entries| entries.next().is_none()).unwrap_or(false) {
+        let _ = std::fs::remove_dir(path);
+    }
 }
 
 #[tauri::command]
@@ -251,26 +381,9 @@ pub async fn set_find_favorite(
 
     let mut record = conn
         .query_row(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, is_favorite, created_at FROM finds WHERE id = ?1",
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at FROM finds WHERE id = ?1",
             params![find_id],
-            |row| {
-                Ok(FindRecord {
-                    id: row.get(0)?,
-                    original_filename: row.get(1)?,
-                    species_name: row.get(2)?,
-                    date_found: row.get(3)?,
-                    country: row.get(4)?,
-                    region: row.get(5)?,
-                    lat: row.get(6)?,
-                    lng: row.get(7)?,
-                    notes: row.get(8)?,
-                    location_note: row.get(9)?,
-                    observed_count: row.get(10)?,
-                    is_favorite: row.get::<_, i64>(11)? == 1,
-                    created_at: row.get(12)?,
-                    photos: vec![],
-                })
-            },
+            |row| crate::commands::import::find_record_from_row(row),
         )
         .map_err(|e| format!("Failed to read updated favorite record: {}", e))?;
 

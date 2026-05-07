@@ -1,12 +1,13 @@
 use std::path::{Path, PathBuf};
 
-/// Replace Windows-illegal characters and spaces with underscores, collapse consecutive underscores,
-/// then trim leading/trailing underscores.
+/// Replace Windows-illegal characters with underscores, collapse consecutive underscores,
+/// and trim outer whitespace/underscores while preserving user-entered spaces.
 pub fn sanitize_path_component(s: &str) -> String {
+    let trimmed = s.trim();
     let replaced: String = s
         .chars()
         .map(|c| match c {
-            '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | ' ' => '_',
+            '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
             c => c,
         })
         .collect();
@@ -24,7 +25,11 @@ pub fn sanitize_path_component(s: &str) -> String {
             prev_underscore = false;
         }
     }
-    result.trim_matches('_').to_string()
+    if trimmed.is_empty() {
+        String::new()
+    } else {
+        result.trim_matches('_').trim().to_string()
+    }
 }
 
 /// Returns `fallback` if the sanitized value is empty, otherwise returns the sanitized value.
@@ -85,8 +90,8 @@ mod tests {
         );
         let path_str = result.to_string_lossy();
         assert!(
-            path_str.contains("Boletus_edulis"),
-            "Expected Boletus_edulis folder in path, got: {}",
+            path_str.contains("Boletus edulis"),
+            "Expected 'Boletus edulis' folder in path, got: {}",
             path_str
         );
         assert!(
@@ -101,7 +106,7 @@ mod tests {
 
     #[test]
     fn test_sanitize_removes_quotes_and_illegal_chars() {
-        assert_eq!(sanitize_path_component("Amanita \"muscaria\""), "Amanita_muscaria");
+        assert_eq!(sanitize_path_component("Amanita \"muscaria\""), "Amanita _muscaria_");
     }
 
     #[test]
@@ -116,7 +121,7 @@ mod tests {
 
     #[test]
     fn test_sanitize_spaces() {
-        assert_eq!(sanitize_path_component("Gorski Kotar"), "Gorski_Kotar");
+        assert_eq!(sanitize_path_component("Gorski Kotar"), "Gorski Kotar");
     }
 
     #[test]

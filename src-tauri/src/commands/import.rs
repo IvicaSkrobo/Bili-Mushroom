@@ -22,6 +22,10 @@ pub struct ImportPayload {
     #[serde(default)]
     pub observed_count: Option<i64>,
     #[serde(default)]
+    pub observed_count_min: Option<i64>,
+    #[serde(default)]
+    pub observed_count_max: Option<i64>,
+    #[serde(default)]
     pub additional_photos: Vec<String>, // Mode A: extra source paths for same find
 }
 
@@ -46,6 +50,8 @@ pub struct FindRecord {
     pub notes: String,
     pub location_note: String,
     pub observed_count: Option<i64>,
+    pub observed_count_min: Option<i64>,
+    pub observed_count_max: Option<i64>,
     pub is_favorite: bool,
     pub created_at: String,
     pub photos: Vec<FindPhoto>,
@@ -75,6 +81,53 @@ const MIGRATION_0008: &str = include_str!("../../migrations/0008_observed_count.
 const MIGRATION_0009: &str = include_str!("../../migrations/0009_species_profiles.sql");
 const MIGRATION_0010: &str = include_str!("../../migrations/0010_species_profile_tags.sql");
 const MIGRATION_0011: &str = include_str!("../../migrations/0011_zones.sql");
+const MIGRATION_0012: &str = include_str!("../../migrations/0012_observed_count_range.sql");
+
+fn normalize_observed_range(
+    observed_count: Option<i64>,
+    observed_count_min: Option<i64>,
+    observed_count_max: Option<i64>,
+) -> (Option<i64>, Option<i64>, Option<i64>) {
+    let min = observed_count_min.or(observed_count);
+    let max = observed_count_max.or(observed_count_min).or(observed_count);
+
+    match (min, max) {
+        (Some(a), Some(b)) => {
+            let low = a.min(b);
+            let high = a.max(b);
+            (Some((low + high) / 2), Some(low), Some(high))
+        }
+        (Some(value), None) | (None, Some(value)) => (Some(value), Some(value), Some(value)),
+        (None, None) => (None, None, None),
+    }
+}
+
+pub(crate) fn find_record_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<FindRecord> {
+    let observed_count: Option<i64> = row.get(10)?;
+    let observed_count_min: Option<i64> = row.get(11)?;
+    let observed_count_max: Option<i64> = row.get(12)?;
+    let (observed_count, observed_count_min, observed_count_max) =
+        normalize_observed_range(observed_count, observed_count_min, observed_count_max);
+
+    Ok(FindRecord {
+        id: row.get(0)?,
+        original_filename: row.get(1)?,
+        species_name: row.get(2)?,
+        date_found: row.get(3)?,
+        country: row.get(4)?,
+        region: row.get(5)?,
+        lat: row.get(6)?,
+        lng: row.get(7)?,
+        notes: row.get(8)?,
+        location_note: row.get(9)?,
+        observed_count,
+        observed_count_min,
+        observed_count_max,
+        is_favorite: row.get::<_, i64>(13)? == 1,
+        created_at: row.get(14)?,
+        photos: vec![],
+    })
+}
 
 /// Apply all migrations to an open connection using rusqlite's user_version pragma
 /// as a lightweight migration tracker. Idempotent — safe to call on every open.
@@ -176,6 +229,21 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
         conn.execute_batch("PRAGMA user_version = 11")
             .map_err(|e| format!("Failed to set user_version=11: {}", e))?;
     }
+    if version < 12 {
+        let finds_table_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='finds'",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(|e| format!("Failed to inspect finds table for migration 0012: {}", e))?;
+        if finds_table_exists > 0 {
+            conn.execute_batch(MIGRATION_0012)
+                .map_err(|e| format!("Migration 0012 failed: {}", e))?;
+        }
+        conn.execute_batch("PRAGMA user_version = 12")
+            .map_err(|e| format!("Failed to set user_version=12: {}", e))?;
+    }
 
     Ok(())
 }
@@ -199,8 +267,8 @@ fn has_existing_photo_path(conn: &Connection, photo_path: &str) -> rusqlite::Res
 
 pub(crate) fn insert_find_row(conn: &Connection, record: &FindRecord) -> rusqlite::Result<i64> {
     conn.execute(
-        "INSERT INTO finds (original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, is_favorite, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+        "INSERT INTO finds (original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
         params![
             record.original_filename,
             record.species_name,
@@ -212,6 +280,8 @@ pub(crate) fn insert_find_row(conn: &Connection, record: &FindRecord) -> rusqlit
             record.notes,
             record.location_note,
             record.observed_count,
+            record.observed_count_min,
+            record.observed_count_max,
             if record.is_favorite { 1i64 } else { 0i64 },
             record.created_at,
         ],
@@ -327,6 +397,11 @@ pub async fn import_find(
 
         // created_at ISO 8601
         let created_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+        let (observed_count, observed_count_min, observed_count_max) = normalize_observed_range(
+            payload.observed_count,
+            payload.observed_count_min,
+            payload.observed_count_max,
+        );
 
         let record = FindRecord {
             id: 0, // set after insert
@@ -339,7 +414,9 @@ pub async fn import_find(
             lng: payload.lng,
             notes: payload.notes.clone(),
             location_note: payload.location_note.clone(),
-            observed_count: payload.observed_count,
+            observed_count,
+            observed_count_min,
+            observed_count_max,
             is_favorite: false,
             created_at,
             photos: vec![],
@@ -381,7 +458,9 @@ pub async fn import_find(
 
             std::fs::copy(additional_src, &add_dest_path)
                 .map_err(|e| format!("Failed to copy additional photo {:?} to {:?}: {}", additional_src, add_dest_path, e))?;
-            let _ = std::fs::remove_file(additional_src); // best-effort move
+            if delete_source {
+                let _ = std::fs::remove_file(additional_src); // best-effort move
+            }
 
             let add_photo_path = add_dest_path
                 .strip_prefix(&storage_path)
@@ -423,30 +502,13 @@ pub async fn get_finds(storage_path: String) -> Result<Vec<FindRecord>, String> 
 
     let mut find_stmt = conn
         .prepare(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, is_favorite, created_at
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at
              FROM finds ORDER BY date_found DESC, id DESC",
         )
         .map_err(|e| format!("Failed to prepare finds query: {}", e))?;
 
     let mut records: Vec<FindRecord> = find_stmt
-        .query_map([], |row| {
-            Ok(FindRecord {
-                id: row.get(0)?,
-                original_filename: row.get(1)?,
-                species_name: row.get(2)?,
-                date_found: row.get(3)?,
-                country: row.get(4)?,
-                region: row.get(5)?,
-                lat: row.get(6)?,
-                lng: row.get(7)?,
-                notes: row.get(8)?,
-                location_note: row.get(9)?,
-                observed_count: row.get(10)?,
-                is_favorite: row.get::<_, i64>(11)? == 1,
-                created_at: row.get(12)?,
-                photos: vec![],
-            })
-        })
+        .query_map([], |row| find_record_from_row(row))
         .map_err(|e| format!("Query failed: {}", e))?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("Row mapping failed: {}", e))?;
@@ -497,6 +559,8 @@ pub struct UpdateFindPayload {
     pub notes: String,
     pub location_note: String,
     pub observed_count: Option<i64>,
+    pub observed_count_min: Option<i64>,
+    pub observed_count_max: Option<i64>,
 }
 
 #[tauri::command]
@@ -505,10 +569,15 @@ pub async fn update_find(
     payload: UpdateFindPayload,
 ) -> Result<FindRecord, String> {
     let conn = open_db(&storage_path)?;
+    let (observed_count, observed_count_min, observed_count_max) = normalize_observed_range(
+        payload.observed_count,
+        payload.observed_count_min,
+        payload.observed_count_max,
+    );
 
     let rows_affected = conn
         .execute(
-            "UPDATE finds SET species_name=?1, date_found=?2, country=?3, region=?4, lat=?5, lng=?6, notes=?7, location_note=?8, observed_count=?9 WHERE id=?10",
+            "UPDATE finds SET species_name=?1, date_found=?2, country=?3, region=?4, lat=?5, lng=?6, notes=?7, location_note=?8, observed_count=?9, observed_count_min=?10, observed_count_max=?11 WHERE id=?12",
             params![
                 payload.species_name,
                 payload.date_found,
@@ -518,7 +587,9 @@ pub async fn update_find(
                 payload.lng,
                 payload.notes,
                 payload.location_note,
-                payload.observed_count,
+                observed_count,
+                observed_count_min,
+                observed_count_max,
                 payload.id,
             ],
         )
@@ -530,26 +601,9 @@ pub async fn update_find(
 
     let mut record = conn
         .query_row(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, is_favorite, created_at FROM finds WHERE id = ?1",
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at FROM finds WHERE id = ?1",
             params![payload.id],
-            |row| {
-                Ok(FindRecord {
-                    id: row.get(0)?,
-                    original_filename: row.get(1)?,
-                    species_name: row.get(2)?,
-                    date_found: row.get(3)?,
-                    country: row.get(4)?,
-                    region: row.get(5)?,
-                    lat: row.get(6)?,
-                    lng: row.get(7)?,
-                    notes: row.get(8)?,
-                    location_note: row.get(9)?,
-                    observed_count: row.get(10)?,
-                    is_favorite: row.get::<_, i64>(11)? == 1,
-                    created_at: row.get(12)?,
-                    photos: vec![],
-                })
-            },
+            |row| find_record_from_row(row),
         )
         .map_err(|e| format!("Failed to read updated record: {}", e))?;
 

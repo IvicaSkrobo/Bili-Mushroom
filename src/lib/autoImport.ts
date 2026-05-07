@@ -110,6 +110,8 @@ export async function scanAndImport(
       lng: firstExif.lng,
       notes: '',
       observed_count: null,
+      observed_count_min: null,
+      observed_count_max: null,
       additional_photos: imagePaths.slice(1),
     };
 
@@ -155,6 +157,8 @@ export async function scanAndImport(
         lng: first.exif.lng,
         notes: '',
         observed_count: null,
+        observed_count_min: null,
+        observed_count_max: null,
         additional_photos: items.slice(1).map((i) => i.path),
       };
 

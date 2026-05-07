@@ -3,14 +3,21 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { LocationPickerMap } from './LocationPickerMap';
 
+const leafletMocks = vi.hoisted(() => ({
+  addTo: vi.fn(function () {
+    return { remove: vi.fn() };
+  }),
+  layers: vi.fn(),
+}));
+
+leafletMocks.layers.mockImplementation(() => ({
+  addTo: leafletMocks.addTo,
+}));
+
 vi.mock('leaflet', () => ({
   default: {
     control: {
-      layers: () => ({
-        addTo: () => ({
-          remove: vi.fn(),
-        }),
-      }),
+      layers: leafletMocks.layers,
     },
   },
 }));
@@ -51,6 +58,8 @@ vi.mock('react-leaflet', () => ({
     addLayer: vi.fn(),
     removeLayer: vi.fn(),
     hasLayer: vi.fn(() => false),
+    on: vi.fn(),
+    off: vi.fn(),
   }),
   useMapEvents: (_handlers: Record<string, unknown>) => null,
 }));
@@ -70,8 +79,8 @@ vi.mock('./leafletIconFix', () => ({
 
 // Mock appStore to return a storagePath
 vi.mock('@/stores/appStore', () => ({
-  useAppStore: (selector: (s: { storagePath: string }) => unknown) =>
-    selector({ storagePath: '/tmp/storage' }),
+  useAppStore: (selector: (s: { storagePath: string; mapLayer: 'Satellite'; setMapLayer: ReturnType<typeof vi.fn> }) => unknown) =>
+    selector({ storagePath: '/tmp/storage', mapLayer: 'Satellite', setMapLayer: vi.fn() }),
 }));
 
 describe('LocationPickerMap', () => {
@@ -93,7 +102,7 @@ describe('LocationPickerMap', () => {
     expect(screen.queryByTestId('map-container')).toBeNull();
   });
 
-  it('renders MapContainer when open is true and storagePath is set', () => {
+  it('renders MapContainer when open is true', () => {
     render(
       <LocationPickerMap
         open={true}
@@ -129,6 +138,22 @@ describe('LocationPickerMap', () => {
     const map = screen.getByTestId('map-container');
     expect(JSON.parse(map.getAttribute('data-center') ?? '[]')).toEqual([45.1, 15.2]);
     expect(Number(map.getAttribute('data-zoom'))).toBe(7);
+  });
+
+  it('registers Satellite as a base layer in the picker', () => {
+    render(
+      <LocationPickerMap
+        open={true}
+        onOpenChange={onOpenChange}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    expect(leafletMocks.layers).toHaveBeenCalledWith(
+      expect.objectContaining({ Satellite: expect.anything(), Street: expect.anything(), Topo: expect.anything() }),
+      undefined,
+      expect.any(Object),
+    );
   });
 
   it('Confirm button is disabled until a pin is placed', () => {

@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
-import { readDir, remove } from '@tauri-apps/plugin-fs';
+import { readDir } from '@tauri-apps/plugin-fs';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useQueryClient } from '@tanstack/react-query';
-import { MapPin, Images, FolderOpen, Info, X } from 'lucide-react';
+import { MapPin, Images, FolderOpen, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -41,10 +41,38 @@ interface ImportDialogProps {
   onImportComplete?: (imported: number, skipped: number) => void;
 }
 
-function parseObservedCount(value: string): number | null {
+function parseObservedRangeBound(value: string): number | null {
   if (value.trim() === '') return null;
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function parseObservedRangeInput(value: string): {
+  min: number | null;
+  max: number | null;
+  representative: number | null;
+} {
+  const trimmed = value.trim();
+  if (trimmed === '') return { min: null, max: null, representative: null };
+
+  const match = trimmed.match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+  if (!match) return { min: null, max: null, representative: null };
+
+  const first = parseObservedRangeBound(match[1] ?? '');
+  const second = parseObservedRangeBound(match[2] ?? '');
+  const min = first != null && second != null ? Math.min(first, second) : first;
+  const max = first != null && second != null ? Math.max(first, second) : (second ?? first);
+
+  return {
+    min,
+    max,
+    representative: min != null && max != null ? Math.round((min + max) / 2) : null,
+  };
+}
+
+function isObservedRangeInputValid(value: string): boolean {
+  const trimmed = value.trim();
+  return trimmed === '' || /^(\d+)(?:\s*-\s*(\d+))?$/.test(trimmed);
 }
 
 function isImagePath(name: string): boolean {
@@ -86,7 +114,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   const [sharedCountry, setSharedCountry] = useState('');
   const [sharedRegion, setSharedRegion] = useState('');
   const [sharedLocationNote, setSharedLocationNote] = useState('');
-  const [sharedObservedCount, setSharedObservedCount] = useState('');
+  const [sharedObservedRange, setSharedObservedRange] = useState('');
   const [sharedFolderNotes, setSharedFolderNotes] = useState('');
   const [sharedMapOpen, setSharedMapOpen] = useState(false);
   const [sharedLocation, setSharedLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -140,6 +168,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     const geo = await reverseGeocode(lat, lng, lang);
     if (geo.country) setSharedCountry(geo.country);
     if (geo.region) setSharedRegion(geo.region);
+    setSharedMapOpen(false);
   };
 
   async function handlePickFiles() {
@@ -217,6 +246,8 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     setError(null);
     setImporting(true);
     try {
+      const observedRange = parseObservedRangeInput(sharedObservedRange);
+
       const payload: ImportPayload = {
         source_path: photos[0],
         original_filename: photos[0].split('/').pop()?.split('\\').pop() ?? photos[0],
@@ -228,11 +259,13 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         lat: sharedLocation?.lat ?? null,
         lng: sharedLocation?.lng ?? null,
         notes: sharedFolderNotes,
-        observed_count: parseObservedCount(sharedObservedCount),
+        observed_count: observedRange.representative,
+        observed_count_min: observedRange.min,
+        observed_count_max: observedRange.max,
         additional_photos: photos.slice(1),
       };
 
-      const summary = await importFind(storagePath, [payload]);
+      const summary = await importFind(storagePath, [payload], deleteSource);
 
       if (sharedName && sharedFolderNotes.trim()) {
         await upsertSpeciesNote(storagePath, sharedName, sharedFolderNotes.trim());
@@ -241,14 +274,6 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
 
       onImportComplete?.(summary.imported.length, summary.skipped.length);
       qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
-
-      if (deleteSource) {
-        await Promise.allSettled(
-          photos
-            .filter((p) => !p.startsWith(storagePath))
-            .map((p) => remove(p)),
-        );
-      }
 
       setImportSummary(summary);
       setReviewOpen(true);
@@ -266,7 +291,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     setSharedCountry('');
     setSharedRegion('');
     setSharedLocationNote('');
-    setSharedObservedCount('');
+    setSharedObservedRange('');
     setSharedFolderNotes('');
     setSharedLocation(null);
     setImportSummary(null);
@@ -357,12 +382,18 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
               </div>
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 size="icon"
                 aria-label={t('import.pickLocation')}
                 onClick={() => setSharedMapOpen(true)}
+                className={[
+                  'border border-primary/35 bg-primary/14 text-primary shadow-[0_0_0_1px_oklch(from_var(--primary)_l_c_h_/_0.08),0_10px_24px_oklch(from_var(--primary)_l_c_h_/_0.18)]',
+                  'hover:bg-primary/22 hover:text-primary hover:border-primary/55',
+                  'focus-visible:ring-primary/45',
+                  sharedLocation ? 'bg-secondary/18 text-secondary border-secondary/45 hover:bg-secondary/26 hover:border-secondary/60' : '',
+                ].join(' ')}
               >
-                <MapPin className="h-4 w-4" />
+                <MapPin className="h-4.5 w-4.5" />
               </Button>
               {sharedLocation && (
                 <span className="text-xs text-muted-foreground whitespace-nowrap">
@@ -375,7 +406,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
               <p className="text-xs text-muted-foreground">{t('import.newFolderHint')}</p>
             )}
 
-            {/* Row 2: date + country + region + location note + observed count */}
+            {/* Row 2: date + country + region + location note + observed range */}
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Input
@@ -404,20 +435,21 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                 onChange={(e) => setSharedLocationNote(e.target.value)}
               />
               <div className="col-span-2">
-                <div className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
+                <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
                   <span>{t('import.observedCount')}</span>
-                  <span title={t('import.observedCountHelp')} aria-label={t('import.observedCountHelp')}>
-                    <Info className="h-3.5 w-3.5" />
-                  </span>
+                  <span>{t('import.observedCountHelp')}</span>
                 </div>
                 <Input
-                  type="number"
-                  min="0"
-                  step="1"
-                  placeholder={t('import.observedCountPlaceholder')}
-                  value={sharedObservedCount}
-                  onChange={(e) => setSharedObservedCount(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="npr. 15 ili 15-20"
+                  value={sharedObservedRange}
+                  onChange={(e) => setSharedObservedRange(e.target.value)}
                 />
+                {!isObservedRangeInputValid(sharedObservedRange) && (
+                  <p className="mt-1 text-xs text-amber-600">
+                    Unesi broj ili raspon poput 15-20. Ovakav unos neće se spremiti.
+                  </p>
+                )}
               </div>
             </div>
 
