@@ -12,7 +12,7 @@ import { EditFindDialog } from '@/components/finds/EditFindDialog';
 import { FolderEditDialog } from '@/components/finds/FolderEditDialog';
 import { DeleteFindDialog } from '@/components/finds/DeleteFindDialog';
 import { BulkDeleteDialog } from '@/components/finds/BulkDeleteDialog';
-import { useFinds, useSpeciesNotes, useSpeciesProfiles, useUpsertSpeciesNote, useUpsertSpeciesProfile, useBulkRenameSpecies, useSetFindFavorite } from '@/hooks/useFinds';
+import { useFinds, useSpeciesNotes, useSpeciesProfiles, useUpsertSpeciesNote, useUpsertSpeciesProfile, useBulkRenameSpecies, useSetFindFavorite, useDeleteFindPhoto } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { useT, tFindsCount } from '@/i18n/index';
 import type { Find } from '@/lib/finds';
@@ -34,6 +34,7 @@ export default function CollectionTab() {
   const upsertNote = useUpsertSpeciesNote();
   const upsertSpeciesProfile = useUpsertSpeciesProfile();
   const setFindFavorite = useSetFindFavorite();
+  const deletePhotoMutation = useDeleteFindPhoto();
 
   const [importOpen, setImportOpen] = useState(false);
   const [createFindOpen, setCreateFindOpen] = useState(false);
@@ -694,6 +695,7 @@ export default function CollectionTab() {
         onIndexChange={setLightboxIndex}
         storagePath={storagePath!}
         onEditFind={(find) => setEditing(find)}
+        onDeletePhoto={(lbp) => deletePhotoMutation.mutate({ photoId: lbp.photo.id, deleteFile: true })}
         onSetAsSpeciesCover={handleSetSpeciesCover}
         isCurrentSpeciesCover={(entry) => {
           const speciesName = lightboxSpeciesName ?? entry.find.species_name;

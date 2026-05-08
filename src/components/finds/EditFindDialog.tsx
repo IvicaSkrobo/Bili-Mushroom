@@ -14,13 +14,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useUpdateFind, useAddFindPhotos, useFinds } from '@/hooks/useFinds';
+import { useUpdateFind, useAddFindPhotos, useDeleteFindPhoto, useBulkDeleteFindPhotos, useFinds } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
 import { openFindFolder, SUPPORTED_EXTENSIONS, type Find } from '@/lib/finds';
+import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { reverseGeocode } from '@/lib/geocoding';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
-import { FolderOpen, ImagePlus, Info, MapPin, X } from 'lucide-react';
+import { Check, FolderOpen, ImagePlus, Info, MapPin, Trash2, X } from 'lucide-react';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 
 interface FormState {
@@ -90,6 +91,8 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   const storagePath = useAppStore((s) => s.storagePath);
   const updateMutation = useUpdateFind();
   const addPhotosMutation = useAddFindPhotos();
+  const deletePhotoMutation = useDeleteFindPhoto();
+  const bulkDeletePhotosMutation = useBulkDeleteFindPhotos();
   const { data: findsData } = useFinds();
 
   const locationNoteSuggestions = useMemo(() => {
@@ -104,6 +107,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
         return true;
       });
   }, [findsData]);
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<number>>(new Set());
   const [pendingPhotos, setPendingPhotos] = useState<string[]>([]);
   const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
   const [openingFolder, setOpeningFolder] = useState(false);
@@ -125,6 +129,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   useEffect(() => {
     if (find) setForm(findToFormState(find));
     setPendingPhotos([]);
+    setSelectedPhotoIds(new Set());
   }, [find]);
 
   useEffect(() => {
@@ -274,6 +279,83 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
               />
             </div>
           </div>
+          {find && find.photos.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Photos ({find.photos.length})</label>
+                {selectedPhotoIds.size > 0 && (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      bulkDeletePhotosMutation.mutate(
+                        { photoIds: [...selectedPhotoIds], deleteFiles: true },
+                        { onSuccess: () => setSelectedPhotoIds(new Set()) },
+                      );
+                    }}
+                    disabled={bulkDeletePhotosMutation.isPending}
+                    className="h-7 gap-1 text-xs"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete {selectedPhotoIds.size} selected
+                  </Button>
+                )}
+              </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {find.photos.map((photo) => {
+                  const selected = selectedPhotoIds.has(photo.id);
+                  const src = resolvePhotoSrc(storagePath!, photo.photo_path);
+                  return (
+                    <div
+                      key={photo.id}
+                      className={`group relative rounded overflow-hidden border aspect-square cursor-pointer transition-colors ${
+                        selected ? 'border-primary ring-1 ring-primary' : 'border-border/40 hover:border-primary/40'
+                      }`}
+                      onClick={() => {
+                        setSelectedPhotoIds((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(photo.id)) next.delete(photo.id);
+                          else next.add(photo.id);
+                          return next;
+                        });
+                      }}
+                    >
+                      <img
+                        src={src}
+                        alt={photo.photo_path.split('/').pop()}
+                        className="w-full h-full object-cover"
+                      />
+                      {photo.is_primary && (
+                        <span className="absolute bottom-0 left-0 right-0 bg-primary/80 text-[9px] text-center text-primary-foreground font-medium py-0.5">
+                          Primary
+                        </span>
+                      )}
+                      {selectedPhotoIds.size === 0 && (
+                        <button
+                          type="button"
+                          aria-label="Delete photo"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deletePhotoMutation.mutate({ photoId: photo.id, deleteFile: true });
+                          }}
+                          className="absolute top-1 right-1 hidden group-hover:flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white hover:bg-rose-600 transition-colors"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                      {selected && (
+                        <div className="absolute top-1 right-1 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
+                          <Check className="h-2.5 w-2.5 text-primary-foreground" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <Button
@@ -392,6 +474,12 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
         {addPhotosMutation.isError && (
           <Alert variant="destructive" role="alert">
             <AlertDescription>{String(addPhotosMutation.error)}</AlertDescription>
+          </Alert>
+        )}
+
+        {deletePhotoMutation.isError && (
+          <Alert variant="destructive" role="alert">
+            <AlertDescription>{String(deletePhotoMutation.error)}</AlertDescription>
           </Alert>
         )}
 

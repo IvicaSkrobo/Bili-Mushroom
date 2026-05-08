@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Image, MapPin, Pencil, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Image, MapPin, Pencil, Trash2, X } from 'lucide-react';
 import {
   Dialog,
   DialogClose,
@@ -30,6 +30,7 @@ interface PhotoLightboxProps {
   onSetAsSpeciesCover?: (photo: LightboxPhoto) => void;
   isCurrentSpeciesCover?: (photo: LightboxPhoto) => boolean;
   onEditFind?: (find: Find) => void;
+  onDeletePhoto?: (photo: LightboxPhoto) => void;
 }
 
 export function PhotoLightbox({
@@ -42,6 +43,7 @@ export function PhotoLightbox({
   onSetAsSpeciesCover,
   isCurrentSpeciesCover,
   onEditFind,
+  onDeletePhoto,
 }: PhotoLightboxProps) {
   const t = useT();
   const [visible, setVisible] = useState(true);
@@ -230,6 +232,17 @@ export function PhotoLightbox({
                   >
                     <Pencil className="h-4 w-4" />
                     {t('edit.title')}
+                  </Button>
+                )}
+                {onDeletePhoto && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-auto w-full justify-start gap-2 py-2 text-rose-500 hover:text-rose-400 hover:border-rose-500/40"
+                    onClick={() => { onDeletePhoto(current); onOpenChange(false); }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete photo
                   </Button>
                 )}
                 {onSetAsSpeciesCover && (
