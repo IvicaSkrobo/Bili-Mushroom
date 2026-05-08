@@ -62,6 +62,35 @@ function loadMapLayer(): MapLayer {
   return 'Satellite';
 }
 
+// ---------------------------------------------------------------------------
+// Map viewport persistence — not in Zustand, no subscribers needed
+// ---------------------------------------------------------------------------
+
+export interface PersistedMapViewport {
+  lat: number;
+  lng: number;
+  zoom: number;
+}
+
+/** Max zoom to restore on relaunch — keeps the area in context, not overly tight. */
+const MAX_RESTORE_ZOOM = 14;
+
+export function loadMapViewport(): PersistedMapViewport | null {
+  try {
+    const raw = localStorage.getItem('bili_map_viewport');
+    if (!raw) return null;
+    const v = JSON.parse(raw);
+    if (typeof v.lat !== 'number' || typeof v.lng !== 'number' || typeof v.zoom !== 'number') return null;
+    return { lat: v.lat, lng: v.lng, zoom: Math.min(v.zoom, MAX_RESTORE_ZOOM) };
+  } catch { return null; }
+}
+
+export function saveMapViewport(lat: number, lng: number, zoom: number): void {
+  try {
+    localStorage.setItem('bili_map_viewport', JSON.stringify({ lat, lng, zoom }));
+  } catch { /* ignore */ }
+}
+
 export const useAppStore = create<AppState>((set) => ({
   activeTab: 'collection',
   storagePath: null,

@@ -11,7 +11,7 @@ import { LayerSwitcher } from './LayerSwitcher';
 import { OnlineStatusBadge } from './OnlineStatusBadge';
 import { ZoneLayers } from './ZoneLayers';
 import { ZoneEditorPanel } from './ZoneEditorPanel';
-import { useAppStore } from '@/stores/appStore';
+import { useAppStore, loadMapViewport, saveMapViewport } from '@/stores/appStore';
 
 applyLeafletIconFix();
 
@@ -89,6 +89,7 @@ export function FindsMap({
   drawTargetZoneType = null,
 }: FindsMapProps) {
   const [map, setMap] = useState<L.Map | null>(null);
+  const initialViewport = useRef(loadMapViewport());
   const activeZone = activeZoneId == null
     ? null
     : zones.find((zone) => zone.id === activeZoneId) ?? null;
@@ -179,12 +180,13 @@ export function FindsMap({
   return (
     <div className="animate-fade-up relative h-full w-full">
       <MapContainer
-        center={CROATIA_CENTER}
-        zoom={CROATIA_ZOOM}
+        center={initialViewport.current ? [initialViewport.current.lat, initialViewport.current.lng] : CROATIA_CENTER}
+        zoom={initialViewport.current ? initialViewport.current.zoom : CROATIA_ZOOM}
         style={{ height: '100%', width: '100%' }}
         className="rounded-md"
       >
         <MapReady onReady={setMap} />
+        <MapViewportSaver />
         <PolygonEditorController
           active={polygonEditorActive}
           mode={polygonEditorMode}
@@ -733,5 +735,20 @@ function MapReady({ onReady }: { onReady: (map: L.Map) => void }) {
     didSet.current = true;
     onReady(map);
   }, [map, onReady]);
+  return null;
+}
+
+function MapViewportSaver() {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useMapEvents({
+    moveend(e) {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        const center = (e.target as L.Map).getCenter();
+        saveMapViewport(center.lat, center.lng, (e.target as L.Map).getZoom());
+      }, 500);
+    },
+  });
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
   return null;
 }
