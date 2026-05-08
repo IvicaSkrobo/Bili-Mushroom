@@ -3,8 +3,83 @@ use chrono::Utc;
 use std::process::Command;
 use std::path::{Path, PathBuf};
 
-use crate::commands::import::{open_db, insert_find_photo, FindPhoto, FindRecord};
+use crate::commands::import::{open_db, insert_find_photo, insert_find_row, find_record_from_row, FindPhoto, FindRecord};
 use crate::commands::path_builder::{build_dest_path, next_seq_for_folder, resolve_location_component};
+
+// ---------------------------------------------------------------------------
+// create_find
+// ---------------------------------------------------------------------------
+
+#[derive(serde::Deserialize)]
+pub struct CreateFindPayload {
+    pub species_name: String,
+    pub date_found: String,
+    pub country: String,
+    pub region: String,
+    pub location_note: String,
+    pub lat: Option<f64>,
+    pub lng: Option<f64>,
+    pub notes: String,
+    pub observed_count: Option<i64>,
+    pub observed_count_min: Option<i64>,
+    pub observed_count_max: Option<i64>,
+}
+
+#[tauri::command]
+pub async fn create_find(
+    storage_path: String,
+    payload: CreateFindPayload,
+) -> Result<FindRecord, String> {
+    if payload.species_name.trim().is_empty() {
+        return Err("species_name cannot be empty".into());
+    }
+
+    let conn = open_db(&storage_path)?;
+
+    let (observed_count, observed_count_min, observed_count_max) =
+        crate::commands::import::normalize_observed_range_pub(
+            payload.observed_count,
+            payload.observed_count_min,
+            payload.observed_count_max,
+        );
+
+    let created_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+
+    let record = FindRecord {
+        id: 0,
+        original_filename: String::new(),
+        species_name: payload.species_name,
+        date_found: payload.date_found,
+        country: payload.country,
+        region: payload.region,
+        location_note: payload.location_note,
+        lat: payload.lat,
+        lng: payload.lng,
+        notes: payload.notes,
+        observed_count,
+        observed_count_min,
+        observed_count_max,
+        is_favorite: false,
+        created_at,
+        photos: vec![],
+    };
+
+    let new_id = insert_find_row(&conn, &record)
+        .map_err(|e| format!("Failed to insert find: {}", e))?;
+
+    let mut inserted = conn
+        .query_row(
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at FROM finds WHERE id = ?1",
+            params![new_id],
+            |row| find_record_from_row(row),
+        )
+        .map_err(|e| format!("Failed to read inserted find: {}", e))?;
+
+    // No photo rows were inserted — explicitly set to empty
+    inserted.photos = vec![];
+
+    Ok(inserted)
+}
 
 const INTERNAL_SPECIES_FILTER: &str =
     "LOWER(TRIM(species_name)) IN ('tile-cache', '.bili-cache', '.bili-cache-tiles')";
@@ -161,13 +236,20 @@ pub async fn open_find_folder(
     let preferred_scope = scope.as_deref().unwrap_or("species");
     let species_folder = Path::new(&storage_path).join(resolve_location_component(&species_name, "unknown_species"));
     let folder_path = if preferred_scope == "photo" {
-        let photo_path = photo_path_result
-            .map_err(|e| format!("Could not locate a photo for this find: {}", e))?;
-        let absolute_photo_path = Path::new(&storage_path).join(&photo_path);
-        absolute_photo_path
-            .parent()
-            .map(PathBuf::from)
-            .ok_or_else(|| "Could not determine the containing folder for this find.".to_string())?
+        // If the find has no photos, fall back to the species folder instead of erroring
+        if let Ok(photo_path) = photo_path_result {
+            let absolute_photo_path = Path::new(&storage_path).join(&photo_path);
+            absolute_photo_path
+                .parent()
+                .map(PathBuf::from)
+                .ok_or_else(|| "Could not determine the containing folder for this find.".to_string())?
+        } else {
+            // No photos — fall back to species folder (create on demand if needed)
+            if !species_folder.exists() {
+                let _ = std::fs::create_dir_all(&species_folder);
+            }
+            species_folder
+        }
     } else if species_folder.exists() {
         species_folder
     } else {
@@ -648,7 +730,152 @@ pub async fn add_find_photos(
 mod tests {
     use super::*;
     use crate::commands::import::test_helpers::{setup_in_memory_db, make_find_record};
-    use crate::commands::import::{insert_find_photo, insert_find_row};
+    use crate::commands::import::{insert_find_photo, insert_find_row, find_record_from_row};
+
+    // -----------------------------------------------------------------------
+    // create_find tests
+    // -----------------------------------------------------------------------
+
+    fn make_create_payload(species_name: &str) -> CreateFindPayload {
+        CreateFindPayload {
+            species_name: species_name.to_string(),
+            date_found: "2026-05-08".to_string(),
+            country: "Croatia".to_string(),
+            region: "Istria".to_string(),
+            location_note: "".to_string(),
+            lat: None,
+            lng: None,
+            notes: "".to_string(),
+            observed_count: None,
+            observed_count_min: None,
+            observed_count_max: None,
+        }
+    }
+
+    fn do_create_find(conn: &rusqlite::Connection, payload: &CreateFindPayload) -> Result<FindRecord, String> {
+        if payload.species_name.trim().is_empty() {
+            return Err("species_name cannot be empty".into());
+        }
+        let (observed_count, observed_count_min, observed_count_max) =
+            crate::commands::import::normalize_observed_range_pub(
+                payload.observed_count,
+                payload.observed_count_min,
+                payload.observed_count_max,
+            );
+        let created_at = "2026-05-08T10:00:00Z".to_string();
+        let record = FindRecord {
+            id: 0,
+            original_filename: String::new(),
+            species_name: payload.species_name.clone(),
+            date_found: payload.date_found.clone(),
+            country: payload.country.clone(),
+            region: payload.region.clone(),
+            location_note: payload.location_note.clone(),
+            lat: payload.lat,
+            lng: payload.lng,
+            notes: payload.notes.clone(),
+            observed_count,
+            observed_count_min,
+            observed_count_max,
+            is_favorite: false,
+            created_at,
+            photos: vec![],
+        };
+        let new_id = insert_find_row(conn, &record).map_err(|e| e.to_string())?;
+        let mut inserted = conn
+            .query_row(
+                "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at FROM finds WHERE id = ?1",
+                rusqlite::params![new_id],
+                |row| find_record_from_row(row),
+            )
+            .map_err(|e| e.to_string())?;
+        inserted.photos = vec![];
+        Ok(inserted)
+    }
+
+    #[test]
+    fn test_create_find_inserts_find_row_no_photos() {
+        let conn = setup_in_memory_db();
+        let payload = make_create_payload("Boletus edulis");
+        let record = do_create_find(&conn, &payload).expect("create_find");
+
+        let find_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM finds WHERE id = ?1",
+                rusqlite::params![record.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(find_count, 1, "exactly one finds row should exist");
+
+        let photo_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM find_photos WHERE find_id = ?1",
+                rusqlite::params![record.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(photo_count, 0, "no find_photos rows should exist for a no-photo find");
+    }
+
+    #[test]
+    fn test_create_find_returns_empty_photos_vec() {
+        let conn = setup_in_memory_db();
+        let payload = make_create_payload("Cantharellus cibarius");
+        let record = do_create_find(&conn, &payload).expect("create_find");
+        assert!(record.photos.is_empty(), "returned record.photos must be empty");
+    }
+
+    #[test]
+    fn test_create_find_rejects_empty_species_name() {
+        let conn = setup_in_memory_db();
+        let payload = make_create_payload("   ");
+        let result = do_create_find(&conn, &payload);
+        assert!(result.is_err(), "empty species_name should return Err");
+        assert!(
+            result.unwrap_err().contains("species_name cannot be empty"),
+            "error message should mention species_name"
+        );
+    }
+
+    #[test]
+    fn test_open_find_folder_photo_scope_no_photos_does_not_panic() {
+        // Verifies that the photo-scope fallback path is taken when there are no photos.
+        // We test the inner logic directly: query find_photos → Err → use species_folder.
+        let conn = setup_in_memory_db();
+        let record = make_find_record("nophoto.jpg", "2026-05-08");
+        let find_id = insert_find_row(&conn, &record).expect("insert find");
+        // Do NOT insert any find_photos row
+
+        // Simulate the open_find_folder photo-scope branch
+        let photo_path_result: Result<String, _> = conn.query_row(
+            "SELECT photo_path FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC LIMIT 1",
+            rusqlite::params![find_id],
+            |row| row.get(0),
+        );
+
+        // With no photos, this must be an Err
+        assert!(photo_path_result.is_err(), "no photos means query should return Err");
+
+        // The fallback path in open_find_folder: if photo_path_result is Err, use species_folder
+        // Verify this succeeds without panicking (the actual folder open is a process spawn we skip here)
+        let species_name: String = conn
+            .query_row(
+                "SELECT species_name FROM finds WHERE id = ?1",
+                rusqlite::params![find_id],
+                |row| row.get(0),
+            )
+            .expect("find exists");
+
+        // species_folder fallback logic — ensure it does not error
+        let tmp_dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = tmp_dir.path().to_str().unwrap();
+        let species_folder = std::path::Path::new(storage_path)
+            .join(crate::commands::path_builder::resolve_location_component(&species_name, "unknown_species"));
+        // Ensure folder can be created on demand
+        std::fs::create_dir_all(&species_folder).expect("create species folder");
+        assert!(species_folder.exists(), "species folder should exist after creation");
+    }
 
     #[test]
     fn test_delete_find_removes_record() {

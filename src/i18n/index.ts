@@ -140,6 +140,11 @@ const hr: Translations = {
   'findCard.favorite': 'Dodaj u favorite',
   'findCard.unfavorite': 'Ukloni iz favorita',
 
+  // create dialog
+  'create.title': 'Novi nalaz',
+  'create.save': 'Spremi',
+  'collection.newFind': 'Novi nalaz',
+
   // edit dialog
   'edit.title': 'Uredi nalaz',
   'edit.species': 'Vrsta',
@@ -353,6 +358,11 @@ const en: Translations = {
   'findCard.edit': 'Edit',
   'findCard.favorite': 'Add to favorites',
   'findCard.unfavorite': 'Remove from favorites',
+
+  // create dialog
+  'create.title': 'New Find',
+  'create.save': 'Save',
+  'collection.newFind': 'New Find',
 
   // edit dialog
   'edit.title': 'Edit Find',

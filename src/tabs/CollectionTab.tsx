@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
 import { ImportDialog } from '@/components/import/ImportDialog';
+import { CreateFindDialog } from '@/components/finds/CreateFindDialog';
 import { FindCard } from '@/components/finds/FindCard';
 import { PhotoLightbox, type LightboxPhoto } from '@/components/finds/PhotoLightbox';
 import { EditFindDialog } from '@/components/finds/EditFindDialog';
@@ -35,6 +36,7 @@ export default function CollectionTab() {
   const setFindFavorite = useSetFindFavorite();
 
   const [importOpen, setImportOpen] = useState(false);
+  const [createFindOpen, setCreateFindOpen] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const importMsgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -303,6 +305,15 @@ export default function CollectionTab() {
             >
               <Star className={`h-3.5 w-3.5 ${favoritesOnly ? 'fill-primary' : ''}`} />
               {t('collection.favoritesFilter', { n: favoriteCount })}
+            </Button>
+            <Button
+              onClick={() => setCreateFindOpen(true)}
+              size="sm"
+              variant="outline"
+              className="gap-1.5 flex-shrink-0"
+            >
+              <SquarePen className="h-3.5 w-3.5" />
+              {t('collection.newFind')}
             </Button>
             <Button onClick={() => setImportOpen(true)} size="sm" className="gap-1.5 flex-shrink-0">
               <Plus className="h-3.5 w-3.5" />
@@ -690,6 +701,7 @@ export default function CollectionTab() {
           return profile?.cover_photo_id === entry.photo.id;
         }}
       />
+      <CreateFindDialog open={createFindOpen} onOpenChange={setCreateFindOpen} />
     </div>
   );
 }

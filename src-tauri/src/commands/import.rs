@@ -107,6 +107,15 @@ fn normalize_observed_range(
     }
 }
 
+/// Public(crate) alias so sibling modules (finds.rs) can call the range normalizer.
+pub(crate) fn normalize_observed_range_pub(
+    observed_count: Option<i64>,
+    observed_count_min: Option<i64>,
+    observed_count_max: Option<i64>,
+) -> (Option<i64>, Option<i64>, Option<i64>) {
+    normalize_observed_range(observed_count, observed_count_min, observed_count_max)
+}
+
 pub(crate) fn find_record_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<FindRecord> {
     let observed_count: Option<i64> = row.get(10)?;
     let observed_count_min: Option<i64> = row.get(11)?;
@@ -803,6 +812,7 @@ pub(crate) mod test_helpers {
     const MIGRATION_0008: &str = include_str!("../../migrations/0008_observed_count.sql");
     const MIGRATION_0009: &str = include_str!("../../migrations/0009_species_profiles.sql");
     const MIGRATION_0010: &str = include_str!("../../migrations/0010_species_profile_tags.sql");
+    const MIGRATION_0012: &str = include_str!("../../migrations/0012_observed_count_range.sql");
 
     pub(crate) fn setup_in_memory_db() -> Connection {
         let conn = Connection::open_in_memory().expect("in-memory DB");
@@ -815,6 +825,7 @@ pub(crate) mod test_helpers {
         conn.execute_batch(MIGRATION_0008).expect("migration 0008");
         conn.execute_batch(MIGRATION_0009).expect("migration 0009");
         conn.execute_batch(MIGRATION_0010).expect("migration 0010");
+        conn.execute_batch(MIGRATION_0012).expect("migration 0012");
         conn
     }
 

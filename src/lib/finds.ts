@@ -270,6 +270,35 @@ export async function setFindFavorite(
   return invoke<Find>('set_find_favorite', { storagePath, findId, isFavorite });
 }
 
+// ---------------------------------------------------------------------------
+// Create find (no photos)
+// ---------------------------------------------------------------------------
+
+export interface CreateFindPayload {
+  species_name: string;
+  date_found: string;
+  country: string;
+  region: string;
+  location_note: string;
+  lat: number | null;
+  lng: number | null;
+  notes: string;
+  observed_count: number | null;
+  observed_count_min: number | null;
+  observed_count_max: number | null;
+}
+
+/**
+ * Calls the Rust `create_find` command.
+ * Inserts a find record with zero photos. Returns the new FindRecord.
+ */
+export async function createFind(
+  storagePath: string,
+  payload: CreateFindPayload,
+): Promise<Find> {
+  return invoke<Find>('create_find', { storagePath, payload });
+}
+
 /**
  * Calls the Rust `add_find_photos` command.
  * Copies source photos into the find's existing species folder and inserts DB rows.
