@@ -42,6 +42,9 @@ export interface SpeciesStatSummary {
   first_find: string;
   best_month: string | null; // "YYYY-MM" format
   locations: SpeciesLocation[];
+  observed_min: number | null;
+  observed_max: number | null;
+  observed_avg: number | null;
 }
 
 // ---------------------------------------------------------------------------

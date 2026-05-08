@@ -54,6 +54,9 @@ pub struct SpeciesStatSummary {
     pub first_find: String,
     pub best_month: Option<String>, // "YYYY-MM" format
     pub locations: Vec<SpeciesLocation>,
+    pub observed_min: Option<i64>,
+    pub observed_max: Option<i64>,
+    pub observed_avg: Option<f64>,
 }
 
 // ---------------------------------------------------------------------------
@@ -250,6 +253,41 @@ pub async fn get_species_stats(storage_path: String) -> Result<Vec<SpeciesStatSu
             )
             .ok();
 
+        // Observed count sub-query: aggregate min/max/avg across finds for this species.
+        // Uses COALESCE so observed_count_min/max fall back to observed_count when one is absent.
+        // AVG uses per-find midpoint when both min+max present, exact count otherwise.
+        // Returns all-NULL row (not an error) when no finds have observed data.
+        struct ObsStats {
+            obs_min: Option<i64>,
+            obs_max: Option<i64>,
+            obs_avg: Option<f64>,
+        }
+
+        let obs_stats: ObsStats = conn
+            .query_row(
+                &format!(
+                    "SELECT \
+                       MIN(COALESCE(observed_count_min, observed_count)), \
+                       MAX(COALESCE(observed_count_max, observed_count)), \
+                       AVG(COALESCE( \
+                         CAST(observed_count AS REAL), \
+                         CASE WHEN observed_count_min IS NOT NULL AND observed_count_max IS NOT NULL \
+                           THEN (CAST(observed_count_min AS REAL) + CAST(observed_count_max AS REAL)) / 2.0 \
+                           ELSE CAST(COALESCE(observed_count_min, observed_count_max) AS REAL) \
+                         END \
+                       )) \
+                     FROM finds WHERE {} AND species_name = ?1",
+                    INTERNAL_SPECIES_FILTER
+                ),
+                params![row.species_name],
+                |r| Ok(ObsStats {
+                    obs_min: r.get(0)?,
+                    obs_max: r.get(1)?,
+                    obs_avg: r.get(2)?,
+                }),
+            )
+            .unwrap_or(ObsStats { obs_min: None, obs_max: None, obs_avg: None });
+
         // Locations sub-query
         let mut loc_stmt = conn
             .prepare(
@@ -279,6 +317,9 @@ pub async fn get_species_stats(storage_path: String) -> Result<Vec<SpeciesStatSu
             first_find: row.first_find,
             best_month,
             locations,
+            observed_min: obs_stats.obs_min,
+            observed_max: obs_stats.obs_max,
+            observed_avg: obs_stats.obs_avg,
         });
     }
 
@@ -351,6 +392,121 @@ mod tests {
         )
         .expect("insert test find");
         conn.last_insert_rowid()
+    }
+
+    fn insert_find_with_range(
+        conn: &rusqlite::Connection,
+        species: &str,
+        date: &str,
+        obs_min: Option<i64>,
+        obs_max: Option<i64>,
+        obs_count: Option<i64>,
+    ) -> i64 {
+        conn.execute(
+            "INSERT INTO finds (original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, created_at, observed_count_min, observed_count_max, observed_count) \
+             VALUES (?1, ?2, ?3, 'Croatia', 'Region', NULL, NULL, '', '', '2024-01-01T00:00:00Z', ?4, ?5, ?6)",
+            params![
+                format!("{}-{}.jpg", species, date),
+                species,
+                date,
+                obs_min,
+                obs_max,
+                obs_count,
+            ],
+        )
+        .expect("insert find with range");
+        conn.last_insert_rowid()
+    }
+
+    #[test]
+    fn test_observed_range_two_finds_different_ranges() {
+        let conn = setup_in_memory_db();
+        // find 1: 3–5, find 2: 5–10 → range 3–10, avg midpoints (4+7.5)/2 = 5.75
+        insert_find_with_range(&conn, "Boletus edulis", "2024-05-01", Some(3), Some(5), None);
+        insert_find_with_range(&conn, "Boletus edulis", "2024-06-01", Some(5), Some(10), None);
+
+        let (obs_min, obs_max, obs_avg): (Option<i64>, Option<i64>, Option<f64>) = conn
+            .query_row(
+                "SELECT \
+                   MIN(COALESCE(observed_count_min, observed_count)), \
+                   MAX(COALESCE(observed_count_max, observed_count)), \
+                   AVG(COALESCE( \
+                     CAST(observed_count AS REAL), \
+                     CASE WHEN observed_count_min IS NOT NULL AND observed_count_max IS NOT NULL \
+                       THEN (CAST(observed_count_min AS REAL) + CAST(observed_count_max AS REAL)) / 2.0 \
+                       ELSE CAST(COALESCE(observed_count_min, observed_count_max) AS REAL) \
+                     END \
+                   )) \
+                 FROM finds WHERE species_name = 'Boletus edulis'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+
+        assert_eq!(obs_min, Some(3), "overall min should be 3");
+        assert_eq!(obs_max, Some(10), "overall max should be 10");
+        // midpoints: (3+5)/2=4.0 and (5+10)/2=7.5 → avg = 5.75
+        let avg = obs_avg.expect("avg should be Some");
+        assert!((avg - 5.75).abs() < 0.001, "avg should be 5.75, got {}", avg);
+    }
+
+    #[test]
+    fn test_observed_range_no_data_returns_null() {
+        let conn = setup_in_memory_db();
+        insert_find_with_range(&conn, "Cantharellus cibarius", "2024-05-01", None, None, None);
+
+        let (obs_min, obs_max, obs_avg): (Option<i64>, Option<i64>, Option<f64>) = conn
+            .query_row(
+                "SELECT \
+                   MIN(COALESCE(observed_count_min, observed_count)), \
+                   MAX(COALESCE(observed_count_max, observed_count)), \
+                   AVG(COALESCE( \
+                     CAST(observed_count AS REAL), \
+                     CASE WHEN observed_count_min IS NOT NULL AND observed_count_max IS NOT NULL \
+                       THEN (CAST(observed_count_min AS REAL) + CAST(observed_count_max AS REAL)) / 2.0 \
+                       ELSE CAST(COALESCE(observed_count_min, observed_count_max) AS REAL) \
+                     END \
+                   )) \
+                 FROM finds WHERE species_name = 'Cantharellus cibarius'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+
+        assert!(obs_min.is_none(), "min should be None when no obs data");
+        assert!(obs_max.is_none(), "max should be None when no obs data");
+        assert!(obs_avg.is_none(), "avg should be None when no obs data");
+    }
+
+    #[test]
+    fn test_observed_range_mixed_only_data_find_contributes() {
+        let conn = setup_in_memory_db();
+        // find 1 has range 4–8; find 2 has no obs data → only find 1 contributes
+        insert_find_with_range(&conn, "Amanita muscaria", "2024-05-01", Some(4), Some(8), None);
+        insert_find_with_range(&conn, "Amanita muscaria", "2024-06-01", None, None, None);
+
+        let (obs_min, obs_max, obs_avg): (Option<i64>, Option<i64>, Option<f64>) = conn
+            .query_row(
+                "SELECT \
+                   MIN(COALESCE(observed_count_min, observed_count)), \
+                   MAX(COALESCE(observed_count_max, observed_count)), \
+                   AVG(COALESCE( \
+                     CAST(observed_count AS REAL), \
+                     CASE WHEN observed_count_min IS NOT NULL AND observed_count_max IS NOT NULL \
+                       THEN (CAST(observed_count_min AS REAL) + CAST(observed_count_max AS REAL)) / 2.0 \
+                       ELSE CAST(COALESCE(observed_count_min, observed_count_max) AS REAL) \
+                     END \
+                   )) \
+                 FROM finds WHERE species_name = 'Amanita muscaria'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+
+        assert_eq!(obs_min, Some(4), "min should be 4");
+        assert_eq!(obs_max, Some(8), "max should be 8");
+        let avg = obs_avg.expect("avg should be Some");
+        assert!((avg - 6.0).abs() < 0.001, "avg should be 6.0, got {}", avg);
     }
 
     #[test]

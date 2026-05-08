@@ -148,6 +148,7 @@ Recent decisions affecting current work:
 | 260508-wwb per-photo-management | 2026-05-08 | delete_find_photo + bulk_delete_find_photos Rust commands (primary-promotion, disk removal); TS hooks; EditFindDialog photo grid with per-photo X + multi-select + "Delete N"; PhotoLightbox rose delete button; 4 Rust + Vitest tests. |
 | 260509-0fm hide-map-clutter-during-zone-edit | 2026-05-09 | focusFinds computed in FindsMap: local edit → single pin, region edit → species pins; hiddenZoneIds hides all zones during editing; CollectionPins always renders with focusFinds. |
 | 260509-0me collection-pin-labels-zoom-threshold | 2026-05-09 | LABEL_ZOOM_THRESHOLD=13; labels hidden below zoom 13; proximity post-pass in collectionsFromFinds assigns labelText/suppressLabel; mixed-species location shows "N species" on primary pin; 3 new tests. |
+| 260509-0qx observed-count-range-stats | 2026-05-09 | observed_min/max/avg added to SpeciesStatSummary (Rust+TS); per-species sub-query aggregates COALESCE(obs_min,obs_count)/midpoint AVG; SpeciesStatRow shows "3–10 (avg 5.8)" when data present; 3 Rust tests pass. |
 
 ### Roadmap Evolution
 

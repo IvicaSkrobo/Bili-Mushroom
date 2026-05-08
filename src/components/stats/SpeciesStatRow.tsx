@@ -9,6 +9,22 @@ interface SpeciesStatRowProps {
   index: number;
 }
 
+function formatObserved(min: number | null, max: number | null, avg: number | null): string {
+  const rangeStr =
+    min != null && max != null && min !== max
+      ? `${min}–${max}`
+      : min != null
+        ? String(min)
+        : max != null
+          ? String(max)
+          : null;
+  const avgStr = avg != null ? `avg ${avg % 1 === 0 ? avg : avg.toFixed(1)}` : null;
+  if (rangeStr && avgStr) return `${rangeStr} (${avgStr})`;
+  if (rangeStr) return rangeStr;
+  if (avgStr) return avgStr;
+  return '--';
+}
+
 function formatBestMonth(ym: string): string {
   const [yearStr, monthStr] = ym.split('-');
   const year = parseInt(yearStr, 10);
@@ -64,7 +80,7 @@ export function SpeciesStatRow({ stat, rank, index }: SpeciesStatRowProps) {
         }`}
       >
         <div className="px-3 pb-3 pt-1 space-y-2 border-t border-border/50">
-          <div className="flex gap-8">
+          <div className="flex gap-8 flex-wrap">
             <div>
               <span className="text-xs uppercase tracking-[0.12em] text-muted-foreground">
                 Total Finds
@@ -85,6 +101,16 @@ export function SpeciesStatRow({ stat, rank, index }: SpeciesStatRowProps) {
                 {stat.best_month ? formatBestMonth(stat.best_month) : '--'}
               </p>
             </div>
+            {(stat.observed_min != null || stat.observed_max != null || stat.observed_avg != null) && (
+              <div>
+                <span className="text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                  Observed
+                </span>
+                <p className="text-sm text-foreground">
+                  {formatObserved(stat.observed_min, stat.observed_max, stat.observed_avg)}
+                </p>
+              </div>
+            )}
           </div>
           <div>
             <span className="text-xs uppercase tracking-[0.12em] text-muted-foreground">
