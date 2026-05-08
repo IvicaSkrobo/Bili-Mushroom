@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: active
-stopped_at: null
-last_updated: "2026-05-07T19:35:00.000Z"
-last_activity: 2026-05-08 -- Completed quick task 260508-vtz: Add manual update flow — Check for updates / Update now in SettingsDialog
+status: planning
+stopped_at: "Completed quick-260508-w26: No-photo find creation — create_find command, CreateFindDialog, CollectionTab integration"
+last_updated: "2026-05-08T21:23:20.351Z"
+last_activity: 2026-05-07 -- Release/update infrastructure and maintenance UX fixes landed; next verification focus is production updater behavior plus remaining map regressions
 progress:
   total_phases: 9
   completed_phases: 6
@@ -56,6 +56,7 @@ Progress: [██████████] 100%
 | Phase 02-import-organization P02 | 600 | 3 tasks | 18 files |
 | Phase 02.1-import-workflow-refinements P02 | 5 | 2 tasks | 7 files |
 | Phase 02.1-import-workflow-refinements P01 | 11 | 2 tasks | 7 files |
+| Phase quick P260508-w26 | 20 | 4 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,7 @@ Recent decisions affecting current work:
 - [Phase 02.1-import-workflow-refinements]: LocationPickerMap tests fully mock react-leaflet and leaflet — jsdom cannot render Leaflet maps
 - [Phase 02.1-import-workflow-refinements]: Test helpers placed in pub(crate) mod test_helpers at file level (not inside mod tests) so cross-module test sharing works in Rust
 - [Phase 02.1-import-workflow-refinements]: Two-query get pattern: fetch all finds then all find_photos, join in Rust with HashMap<i64, Vec<FindPhoto>>
+- No-photo find creation: create_find Rust command with no photo insert, open_find_folder photo-scope falls back to species folder when no photos
 
 ### Pending Todos
 
@@ -148,6 +150,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-17T13:05:00.000Z
-Stopped at: null
+Last session: 2026-05-08T21:23:20.341Z
+Stopped at: Completed quick-260508-w26: No-photo find creation — create_find command, CreateFindDialog, CollectionTab integration
 Resume file: None
