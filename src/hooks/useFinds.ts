@@ -3,6 +3,7 @@ import {
   getFinds, updateFind, deleteFind, getSpeciesNotes, upsertSpeciesNote,
   getSpeciesProfiles, upsertSpeciesProfile,
   bulkRenameSpecies, moveFindToFolder, setFindFavorite, addFindPhotos, createFind,
+  deleteFindPhoto, bulkDeleteFindPhotos,
   FINDS_QUERY_KEY, SPECIES_NOTES_QUERY_KEY, SPECIES_PROFILES_QUERY_KEY,
   type Find, type UpdateFindPayload, type CreateFindPayload,
 } from '@/lib/finds';
@@ -168,6 +169,30 @@ export function useCreateFind() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: CreateFindPayload) => createFind(storagePath!, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
+    },
+  });
+}
+
+export function useDeleteFindPhoto() {
+  const storagePath = useAppStore((s) => s.storagePath);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ photoId, deleteFile }: { photoId: number; deleteFile: boolean }) =>
+      deleteFindPhoto(storagePath!, photoId, deleteFile),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
+    },
+  });
+}
+
+export function useBulkDeleteFindPhotos() {
+  const storagePath = useAppStore((s) => s.storagePath);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ photoIds, deleteFiles }: { photoIds: number[]; deleteFiles: boolean }) =>
+      bulkDeleteFindPhotos(storagePath!, photoIds, deleteFiles),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
     },

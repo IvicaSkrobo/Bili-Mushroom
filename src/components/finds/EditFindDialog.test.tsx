@@ -26,16 +26,21 @@ function makeWrapper(qc: QueryClient) {
 
 const sampleFind: Find = {
   id: 1,
-  photo_path: 'Croatia/Istria/2024-05-10/Amanita_muscaria_2024-05-10_001.jpg',
   original_filename: 'shroom.jpg',
   species_name: 'Amanita muscaria',
   date_found: '2024-05-10',
   country: 'Croatia',
   region: 'Istria',
+  location_note: '',
   lat: 45.1,
   lng: 13.9,
   notes: 'Found near oak tree',
+  observed_count: null,
+  observed_count_min: null,
+  observed_count_max: null,
+  is_favorite: false,
   created_at: '2024-05-10T14:00:00Z',
+  photos: [],
 };
 
 describe('EditFindDialog', () => {

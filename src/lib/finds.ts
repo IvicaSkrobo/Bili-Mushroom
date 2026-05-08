@@ -311,3 +311,29 @@ export async function addFindPhotos(
 ): Promise<Find> {
   return invoke<Find>('add_find_photos', { storagePath, findId, sourcePaths });
 }
+
+/**
+ * Calls the Rust `delete_find_photo` command.
+ * Deletes a single photo by ID. If the photo was primary and others remain,
+ * the lowest-id remaining photo is promoted to primary.
+ * Deleting the last photo leaves the find intact with photos: [].
+ */
+export async function deleteFindPhoto(
+  storagePath: string,
+  photoId: number,
+  deleteFile: boolean,
+): Promise<Find> {
+  return invoke<Find>('delete_find_photo', { storagePath, photoId, deleteFile });
+}
+
+/**
+ * Calls the Rust `bulk_delete_find_photos` command.
+ * Deletes multiple photos by ID in a single call.
+ */
+export async function bulkDeleteFindPhotos(
+  storagePath: string,
+  photoIds: number[],
+  deleteFiles: boolean,
+): Promise<Find> {
+  return invoke<Find>('bulk_delete_find_photos', { storagePath, photoIds, deleteFiles });
+}
