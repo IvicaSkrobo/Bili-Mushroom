@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { SpeciesNameEditor } from './SpeciesNameEditor';
+import { LocationNoteInput } from './LocationNoteInput';
 import { readDir } from '@tauri-apps/plugin-fs';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import {
@@ -13,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useUpdateFind, useAddFindPhotos } from '@/hooks/useFinds';
+import { useUpdateFind, useAddFindPhotos, useFinds } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
 import { openFindFolder, SUPPORTED_EXTENSIONS, type Find } from '@/lib/finds';
@@ -89,6 +90,20 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   const storagePath = useAppStore((s) => s.storagePath);
   const updateMutation = useUpdateFind();
   const addPhotosMutation = useAddFindPhotos();
+  const { data: findsData } = useFinds();
+
+  const locationNoteSuggestions = useMemo(() => {
+    if (!findsData) return [];
+    const seen = new Set<string>();
+    return findsData
+      .map((f) => f.location_note ?? '')
+      .filter((v) => {
+        const trimmed = v.trim();
+        if (!trimmed || seen.has(trimmed.toLowerCase())) return false;
+        seen.add(trimmed.toLowerCase());
+        return true;
+      });
+  }, [findsData]);
   const [pendingPhotos, setPendingPhotos] = useState<string[]>([]);
   const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
   const [openingFolder, setOpeningFolder] = useState(false);
@@ -231,9 +246,10 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
             </div>
             <div className="col-span-2">
               <label className="text-sm font-medium">{t('edit.locationMark')}</label>
-              <Input
+              <LocationNoteInput
                 value={form.location_note}
-                onChange={(e) => handleChange('location_note', e.target.value)}
+                onChange={(v) => handleChange('location_note', v)}
+                suggestions={locationNoteSuggestions}
                 placeholder={t('edit.locationMarkPlaceholder')}
               />
             </div>

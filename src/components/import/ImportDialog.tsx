@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { LocationNoteInput } from '@/components/finds/LocationNoteInput';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -97,6 +98,19 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
       .filter((name) => {
         if (!name || seen.has(name) || isInternalLibraryName(name)) return false;
         seen.add(name);
+        return true;
+      });
+  }, [findsData]);
+
+  const locationNoteSuggestions = useMemo(() => {
+    if (!findsData) return [];
+    const seen = new Set<string>();
+    return findsData
+      .map((f) => f.location_note ?? '')
+      .filter((v) => {
+        const trimmed = v.trim();
+        if (!trimmed || seen.has(trimmed.toLowerCase())) return false;
+        seen.add(trimmed.toLowerCase());
         return true;
       });
   }, [findsData]);
@@ -483,10 +497,11 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                 value={sharedRegion}
                 onChange={(e) => setSharedRegion(e.target.value)}
               />
-              <Input
-                placeholder={t('import.locationMark')}
+              <LocationNoteInput
                 value={sharedLocationNote}
-                onChange={(e) => setSharedLocationNote(e.target.value)}
+                onChange={setSharedLocationNote}
+                suggestions={locationNoteSuggestions}
+                placeholder={t('import.locationMark')}
               />
               <div className="col-span-2">
                 <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">

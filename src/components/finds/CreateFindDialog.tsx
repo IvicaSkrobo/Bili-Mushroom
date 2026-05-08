@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { SpeciesNameEditor } from './SpeciesNameEditor';
+import { LocationNoteInput } from './LocationNoteInput';
 import { readDir } from '@tauri-apps/plugin-fs';
 import {
   Dialog,
@@ -12,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useCreateFind } from '@/hooks/useFinds';
+import { useCreateFind, useFinds } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
 import { reverseGeocode } from '@/lib/geocoding';
@@ -72,7 +73,21 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   const t = useT();
   const storagePath = useAppStore((s) => s.storagePath);
   const createMutation = useCreateFind();
+  const { data: findsData } = useFinds();
   const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
+
+  const locationNoteSuggestions = useMemo(() => {
+    if (!findsData) return [];
+    const seen = new Set<string>();
+    return findsData
+      .map((f) => f.location_note ?? '')
+      .filter((v) => {
+        const trimmed = v.trim();
+        if (!trimmed || seen.has(trimmed.toLowerCase())) return false;
+        seen.add(trimmed.toLowerCase());
+        return true;
+      });
+  }, [findsData]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [form, setForm] = useState<FormState>(BLANK_FORM);
 
@@ -168,9 +183,10 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
             </div>
             <div className="col-span-2">
               <label className="text-sm font-medium">{t('edit.locationMark')}</label>
-              <Input
+              <LocationNoteInput
                 value={form.location_note}
-                onChange={(e) => handleChange('location_note', e.target.value)}
+                onChange={(v) => handleChange('location_note', v)}
+                suggestions={locationNoteSuggestions}
                 placeholder={t('edit.locationMarkPlaceholder')}
               />
             </div>
