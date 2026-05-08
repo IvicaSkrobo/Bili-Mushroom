@@ -182,64 +182,58 @@ input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: po
   background: var(--card) !important;
 }
 
-/* ── Collection pin labels ──────────────────────────────── */
+/* ── Collection pin markers ─────────────────────────────── */
 .bili-collection-marker {
   overflow: visible !important;
   background: transparent !important;
   border: none !important;
 }
-.bili-collection-marker .bili-col-label {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+
+/* Amber dot centered on the coordinate */
+.bili-collection-marker .bili-pin-dot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
   background: #D4941A;
-  color: #1C1A0C;
-  border-radius: 999px;
-  padding-block: 3px;
-  padding-inline: 12px;
-  min-height: 22px;
-  width: fit-content;
-  max-width: 92px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.55);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.bili-collection-marker:hover .bili-pin-dot {
+  transform: translate(-50%, -50%) scale(1.25);
+}
+
+/* Species name label below the dot */
+.bili-collection-marker .bili-pin-label {
+  position: absolute;
+  top: 9px;
+  left: 0;
+  transform: translateX(-50%);
   font-size: 11px;
   font-family: serif;
+  font-style: italic;
   font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
-  cursor: pointer;
-  transition: max-width 0.2s ease, min-width 0.2s ease, max-height 0.2s ease, min-height 0.15s ease, padding 0.2s ease, font-size 0.15s ease;
-}
-.bili-collection-marker:hover .bili-col-label,
-.bili-collection-marker:focus-within .bili-col-label {
-  max-width: 220px;
-}
-.bili-collection-marker--satellite .bili-col-label {
   color: #fff;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+  white-space: nowrap;
+  text-shadow: 0 0 4px rgba(0,0,0,0.95), 0 1px 3px rgba(0,0,0,0.85);
+  cursor: pointer;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.18s ease;
 }
-.bili-collection-marker--crowded .bili-col-label {
-  /* dot state: use min/max instead of explicit width/height so transitions are smooth */
-  min-width: 16px;
-  max-width: 16px;
-  min-height: 0;
-  max-height: 16px;
-  padding: 0;
-  font-size: 0;
-  overflow: hidden;
-  text-overflow: clip;
+
+/* Hidden-label state (zoomed out or suppressed secondary pin) */
+.bili-collection-marker--hidden-label .bili-pin-label {
+  opacity: 0;
 }
-.bili-collection-marker--crowded:hover .bili-col-label,
-.bili-collection-marker--crowded:focus-within .bili-col-label {
-  min-width: 0;
-  max-width: 200px;
-  min-height: 22px;
-  max-height: 40px;
-  padding-block: 3px;
-  padding-inline: 12px;
-  font-size: 11px;
-  text-overflow: ellipsis;
+/* Reveal on hover even when hidden */
+.bili-collection-marker--hidden-label:hover .bili-pin-label,
+.bili-collection-marker--hidden-label:focus-within .bili-pin-label {
+  opacity: 1;
 }
 
 .bili-zone-vertex-icon {

@@ -23,20 +23,18 @@ interface Collection {
 }
 
 function collectionIcon(labelText: string, showLabel: boolean, isSatellite: boolean): L.DivIcon {
-  // CSS classes drive color (satellite) and crowded dot state — no inline opacity hack.
   const classes = [
     'bili-collection-marker',
     isSatellite ? 'bili-collection-marker--satellite' : '',
-    !showLabel ? 'bili-collection-marker--crowded' : '',
+    !showLabel ? 'bili-collection-marker--hidden-label' : '',
   ].filter(Boolean).join(' ');
-  const pill = `position:absolute;transform:translate(-50%,-50%);`;
 
   return L.divIcon({
-    html: `<div class="bili-col-label" style="${pill}">${labelText}</div>`,
+    html: `<div class="bili-pin-dot"></div><div class="bili-pin-label">${labelText}</div>`,
     className: classes,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
-    popupAnchor: [0, -10],
+    popupAnchor: [0, -14],
   });
 }
 
