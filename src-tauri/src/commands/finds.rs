@@ -726,6 +726,193 @@ pub async fn add_find_photos(
     Ok(record)
 }
 
+// ---------------------------------------------------------------------------
+// delete_find_photo
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn delete_find_photo(
+    storage_path: String,
+    photo_id: i64,
+    delete_file: bool,
+) -> Result<FindRecord, String> {
+    let conn = open_db(&storage_path)?;
+
+    // 1. Look up the photo row
+    let (find_id, photo_path, is_primary): (i64, String, bool) = conn
+        .query_row(
+            "SELECT find_id, photo_path, is_primary FROM find_photos WHERE id = ?1",
+            params![photo_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get::<_, i64>(2)? == 1)),
+        )
+        .map_err(|_| "photo not found".to_string())?;
+
+    // 2. Optionally delete the file from disk
+    if delete_file {
+        let abs_path = format!("{}/{}", storage_path, photo_path);
+        if let Err(e) = std::fs::remove_file(&abs_path) {
+            // Ignore "not found" errors — file may already be gone
+            if e.kind() != std::io::ErrorKind::NotFound {
+                eprintln!("remove_file failed for {}: {}", abs_path, e);
+            }
+        }
+    }
+
+    // 3. Delete the photo row
+    conn.execute("DELETE FROM find_photos WHERE id = ?1", params![photo_id])
+        .map_err(|e| format!("DB delete failed: {}", e))?;
+
+    // 4. Primary promotion
+    if is_primary {
+        let remaining: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM find_photos WHERE find_id = ?1",
+                params![find_id],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
+        if remaining > 0 {
+            conn.execute(
+                "UPDATE find_photos SET is_primary = 1 WHERE id = (SELECT id FROM find_photos WHERE find_id = ?1 ORDER BY id ASC LIMIT 1)",
+                params![find_id],
+            )
+            .map_err(|e| format!("Primary promotion failed: {}", e))?;
+        }
+    }
+
+    // 5. Re-query full FindRecord
+    let mut record = conn
+        .query_row(
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at FROM finds WHERE id = ?1",
+            params![find_id],
+            |row| crate::commands::import::find_record_from_row(row),
+        )
+        .map_err(|e| format!("Failed to read updated find record: {}", e))?;
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let photos: Vec<FindPhoto> = stmt
+        .query_map(params![find_id], |row| {
+            Ok(FindPhoto {
+                id: row.get(0)?,
+                find_id: row.get(1)?,
+                photo_path: row.get(2)?,
+                is_primary: row.get::<_, i64>(3)? == 1,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    record.photos = photos;
+
+    Ok(record)
+}
+
+// ---------------------------------------------------------------------------
+// bulk_delete_find_photos
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn bulk_delete_find_photos(
+    storage_path: String,
+    photo_ids: Vec<i64>,
+    delete_files: bool,
+) -> Result<FindRecord, String> {
+    if photo_ids.is_empty() {
+        return Err("no photo_ids provided".into());
+    }
+
+    let conn = open_db(&storage_path)?;
+
+    // Get find_id from first photo (all must belong to same find)
+    let find_id: i64 = conn
+        .query_row(
+            "SELECT find_id FROM find_photos WHERE id = ?1",
+            params![photo_ids[0]],
+            |row| row.get(0),
+        )
+        .map_err(|_| "photo not found".to_string())?;
+
+    let mut any_primary_deleted = false;
+
+    for &photo_id in &photo_ids {
+        let row: Option<(String, bool)> = conn
+            .query_row(
+                "SELECT photo_path, is_primary FROM find_photos WHERE id = ?1",
+                params![photo_id],
+                |row| Ok((row.get(0)?, row.get::<_, i64>(1)? == 1)),
+            )
+            .ok();
+
+        if let Some((photo_path, is_primary)) = row {
+            if is_primary {
+                any_primary_deleted = true;
+            }
+            if delete_files {
+                let abs_path = format!("{}/{}", storage_path, photo_path);
+                if let Err(e) = std::fs::remove_file(&abs_path) {
+                    if e.kind() != std::io::ErrorKind::NotFound {
+                        eprintln!("remove_file failed for {}: {}", abs_path, e);
+                    }
+                }
+            }
+            conn.execute("DELETE FROM find_photos WHERE id = ?1", params![photo_id])
+                .map_err(|e| format!("DB delete failed for photo {}: {}", photo_id, e))?;
+        }
+    }
+
+    // Promote if needed
+    if any_primary_deleted {
+        let remaining: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM find_photos WHERE find_id = ?1",
+                params![find_id],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
+        if remaining > 0 {
+            conn.execute(
+                "UPDATE find_photos SET is_primary = 1 WHERE id = (SELECT id FROM find_photos WHERE find_id = ?1 ORDER BY id ASC LIMIT 1)",
+                params![find_id],
+            )
+            .map_err(|e| format!("Primary promotion failed: {}", e))?;
+        }
+    }
+
+    // Re-query full FindRecord
+    let mut record = conn
+        .query_row(
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at FROM finds WHERE id = ?1",
+            params![find_id],
+            |row| crate::commands::import::find_record_from_row(row),
+        )
+        .map_err(|e| format!("Failed to read updated find record: {}", e))?;
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let photos: Vec<FindPhoto> = stmt
+        .query_map(params![find_id], |row| {
+            Ok(FindPhoto {
+                id: row.get(0)?,
+                find_id: row.get(1)?,
+                photo_path: row.get(2)?,
+                is_primary: row.get::<_, i64>(3)? == 1,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    record.photos = photos;
+
+    Ok(record)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -979,5 +1166,221 @@ mod tests {
             .expect("query favorite");
 
         assert_eq!(is_favorite, 1, "favorite flag should persist");
+    }
+
+    // -----------------------------------------------------------------------
+    // Helper: delete_find_photo logic (synchronous, for unit testing)
+    // -----------------------------------------------------------------------
+
+    fn do_delete_find_photo(
+        conn: &rusqlite::Connection,
+        photo_id: i64,
+    ) -> Result<FindRecord, String> {
+        // 1. Look up photo row
+        let (find_id, _photo_path, is_primary): (i64, String, bool) = conn
+            .query_row(
+                "SELECT find_id, photo_path, is_primary FROM find_photos WHERE id = ?1",
+                params![photo_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get::<_, i64>(2)? == 1)),
+            )
+            .map_err(|_| "photo not found".to_string())?;
+
+        // 2. Delete the photo row
+        conn.execute("DELETE FROM find_photos WHERE id = ?1", params![photo_id])
+            .map_err(|e| format!("delete failed: {}", e))?;
+
+        // 3. Primary promotion
+        if is_primary {
+            let remaining: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM find_photos WHERE find_id = ?1",
+                    params![find_id],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+            if remaining > 0 {
+                conn.execute(
+                    "UPDATE find_photos SET is_primary = 1 WHERE id = (SELECT id FROM find_photos WHERE find_id = ?1 ORDER BY id ASC LIMIT 1)",
+                    params![find_id],
+                )
+                .map_err(|e| format!("promotion failed: {}", e))?;
+            }
+        }
+
+        // 4. Return full FindRecord
+        let mut record = conn
+            .query_row(
+                "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at FROM finds WHERE id = ?1",
+                params![find_id],
+                |row| find_record_from_row(row),
+            )
+            .map_err(|e| format!("find not found: {}", e))?;
+
+        let mut stmt = conn
+            .prepare("SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC")
+            .map_err(|e| e.to_string())?;
+        let photos: Vec<FindPhoto> = stmt
+            .query_map(params![find_id], |row| {
+                Ok(FindPhoto {
+                    id: row.get(0)?,
+                    find_id: row.get(1)?,
+                    photo_path: row.get(2)?,
+                    is_primary: row.get::<_, i64>(3)? == 1,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        record.photos = photos;
+        Ok(record)
+    }
+
+    fn do_bulk_delete_find_photos(
+        conn: &rusqlite::Connection,
+        photo_ids: &[i64],
+    ) -> Result<FindRecord, String> {
+        if photo_ids.is_empty() {
+            return Err("no photo_ids provided".into());
+        }
+
+        // Get find_id from first photo
+        let find_id: i64 = conn
+            .query_row(
+                "SELECT find_id FROM find_photos WHERE id = ?1",
+                params![photo_ids[0]],
+                |row| row.get(0),
+            )
+            .map_err(|_| "photo not found".to_string())?;
+
+        let mut any_primary_deleted = false;
+        for &photo_id in photo_ids {
+            let is_primary: bool = conn
+                .query_row(
+                    "SELECT is_primary FROM find_photos WHERE id = ?1",
+                    params![photo_id],
+                    |row| Ok(row.get::<_, i64>(0)? == 1),
+                )
+                .unwrap_or(false);
+            if is_primary {
+                any_primary_deleted = true;
+            }
+            conn.execute("DELETE FROM find_photos WHERE id = ?1", params![photo_id])
+                .map_err(|e| format!("delete failed: {}", e))?;
+        }
+
+        if any_primary_deleted {
+            let remaining: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM find_photos WHERE find_id = ?1",
+                    params![find_id],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+            if remaining > 0 {
+                conn.execute(
+                    "UPDATE find_photos SET is_primary = 1 WHERE id = (SELECT id FROM find_photos WHERE find_id = ?1 ORDER BY id ASC LIMIT 1)",
+                    params![find_id],
+                )
+                .map_err(|e| format!("promotion failed: {}", e))?;
+            }
+        }
+
+        let mut record = conn
+            .query_row(
+                "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at FROM finds WHERE id = ?1",
+                params![find_id],
+                |row| find_record_from_row(row),
+            )
+            .map_err(|e| format!("find not found: {}", e))?;
+
+        let mut stmt = conn
+            .prepare("SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC")
+            .map_err(|e| e.to_string())?;
+        let photos: Vec<FindPhoto> = stmt
+            .query_map(params![find_id], |row| {
+                Ok(FindPhoto {
+                    id: row.get(0)?,
+                    find_id: row.get(1)?,
+                    photo_path: row.get(2)?,
+                    is_primary: row.get::<_, i64>(3)? == 1,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        record.photos = photos;
+        Ok(record)
+    }
+
+    // -----------------------------------------------------------------------
+    // delete_find_photo tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_delete_find_photo_non_primary() {
+        let conn = setup_in_memory_db();
+        let record = make_find_record("mushroom.jpg", "2024-05-10");
+        let find_id = insert_find_row(&conn, &record).expect("insert find");
+        insert_find_photo(&conn, find_id, "Croatia/Region/2024-05-10/mushroom_1.jpg", true)
+            .expect("insert primary photo");
+        let secondary_id = insert_find_photo(&conn, find_id, "Croatia/Region/2024-05-10/mushroom_2.jpg", false)
+            .expect("insert secondary photo");
+
+        let result = do_delete_find_photo(&conn, secondary_id).expect("delete secondary");
+
+        assert_eq!(result.photos.len(), 1, "one photo should remain");
+        assert!(result.photos[0].is_primary, "remaining photo should still be primary");
+    }
+
+    #[test]
+    fn test_delete_find_photo_primary_promotes_another() {
+        let conn = setup_in_memory_db();
+        let record = make_find_record("mushroom.jpg", "2024-05-10");
+        let find_id = insert_find_row(&conn, &record).expect("insert find");
+        let primary_id = insert_find_photo(&conn, find_id, "Croatia/Region/2024-05-10/mushroom_1.jpg", true)
+            .expect("insert primary photo");
+        insert_find_photo(&conn, find_id, "Croatia/Region/2024-05-10/mushroom_2.jpg", false)
+            .expect("insert secondary photo");
+
+        let result = do_delete_find_photo(&conn, primary_id).expect("delete primary");
+
+        assert_eq!(result.photos.len(), 1, "one photo should remain");
+        assert!(result.photos[0].is_primary, "remaining photo should be promoted to primary");
+    }
+
+    #[test]
+    fn test_delete_find_photo_last_photo() {
+        let conn = setup_in_memory_db();
+        let record = make_find_record("mushroom.jpg", "2024-05-10");
+        let find_id = insert_find_row(&conn, &record).expect("insert find");
+        let only_id = insert_find_photo(&conn, find_id, "Croatia/Region/2024-05-10/mushroom_1.jpg", true)
+            .expect("insert only photo");
+
+        let result = do_delete_find_photo(&conn, only_id).expect("delete only photo");
+
+        // Find should still exist
+        let find_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM finds WHERE id = ?1", params![find_id], |row| row.get(0))
+            .unwrap();
+        assert_eq!(find_count, 1, "find should still exist");
+        assert!(result.photos.is_empty(), "photos should be empty");
+    }
+
+    #[test]
+    fn test_bulk_delete_find_photos() {
+        let conn = setup_in_memory_db();
+        let record = make_find_record("mushroom.jpg", "2024-05-10");
+        let find_id = insert_find_row(&conn, &record).expect("insert find");
+        let primary_id = insert_find_photo(&conn, find_id, "Croatia/Region/2024-05-10/mushroom_1.jpg", true)
+            .expect("insert primary photo");
+        let secondary_id = insert_find_photo(&conn, find_id, "Croatia/Region/2024-05-10/mushroom_2.jpg", false)
+            .expect("insert secondary photo");
+        insert_find_photo(&conn, find_id, "Croatia/Region/2024-05-10/mushroom_3.jpg", false)
+            .expect("insert third photo");
+
+        let result = do_bulk_delete_find_photos(&conn, &[primary_id, secondary_id]).expect("bulk delete");
+
+        assert_eq!(result.photos.len(), 1, "one photo should remain");
+        assert!(result.photos[0].is_primary, "remaining photo should be promoted to primary");
     }
 }

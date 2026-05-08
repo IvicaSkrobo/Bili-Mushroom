@@ -25,6 +25,8 @@ pub fn run() {
             commands::finds::open_species_folder,
             commands::finds::cleanup_internal_records,
             commands::finds::add_find_photos,
+            commands::finds::delete_find_photo,
+            commands::finds::bulk_delete_find_photos,
             commands::finds::create_find,
             commands::tile_proxy::fetch_tile,
             commands::tile_proxy::get_tile_cache_stats,
