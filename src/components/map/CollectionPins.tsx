@@ -8,6 +8,8 @@ import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { useSpeciesNotes } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 
+export const LABEL_ZOOM_THRESHOLD = 13;
+
 interface Collection {
   /** Unique key — species name when only one location, "species|index" for multiple. */
   key: string;
@@ -16,11 +18,11 @@ interface Collection {
   lng: number;
   count: number;
   finds: Find[];
+  labelText: string;
+  suppressLabel: boolean;
 }
 
-function collectionIcon(name: string, showLabel: boolean, isSatellite: boolean): L.DivIcon {
-  // Latin name only — species_name may include Croatian after comma e.g. "Agaricus bohusii, Busenasta rudnjača"
-  const latinName = name.split(',')[0].trim();
+function collectionIcon(labelText: string, showLabel: boolean, isSatellite: boolean): L.DivIcon {
   // CSS classes drive color (satellite) and crowded dot state — no inline opacity hack.
   const classes = [
     'bili-collection-marker',
@@ -30,7 +32,7 @@ function collectionIcon(name: string, showLabel: boolean, isSatellite: boolean):
   const pill = `position:absolute;transform:translate(-50%,-50%);`;
 
   return L.divIcon({
-    html: `<div class="bili-col-label" style="${pill}">${latinName}</div>`,
+    html: `<div class="bili-col-label" style="${pill}">${labelText}</div>`,
     className: classes,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
@@ -40,11 +42,11 @@ function collectionIcon(name: string, showLabel: boolean, isSatellite: boolean):
 
 const collectionIconCache = new Map<string, L.DivIcon>();
 
-function getCollectionIcon(name: string, showLabel: boolean, isSatellite: boolean): L.DivIcon {
-  const cacheKey = `${name}|${showLabel ? 'l' : 'd'}|${isSatellite ? 's' : 'n'}`;
+function getCollectionIcon(labelText: string, showLabel: boolean, isSatellite: boolean): L.DivIcon {
+  const cacheKey = `${labelText}|${showLabel ? 'l' : 'd'}|${isSatellite ? 's' : 'n'}`;
   const cached = collectionIconCache.get(cacheKey);
   if (cached) return cached;
-  const created = collectionIcon(name, showLabel, isSatellite);
+  const created = collectionIcon(labelText, showLabel, isSatellite);
   collectionIconCache.set(cacheKey, created);
   return created;
 }
@@ -205,6 +207,7 @@ function CollectionPinsInner({
 }) {
   const map = useMap();
   const [crowded, setCrowded] = useState<Set<string>>(new Set());
+  const [zoom, setZoom] = useState(() => map.getZoom());
   const { data: speciesNotesData } = useSpeciesNotes();
   const storagePath = useAppStore((s) => s.storagePath) ?? '';
   const isSatellite = useAppStore((s) => s.mapLayer === 'Satellite');
@@ -224,21 +227,24 @@ function CollectionPinsInner({
   }, [update]);
 
   useMapEvents({
-    zoomend: update,
+    zoomend: () => {
+      update();
+      setZoom(map.getZoom());
+    },
     moveend: update,
   });
 
   return (
     <>
       {collections.map((c) => {
-        const showLabel = !crowded.has(c.key);
+        const showLabel = zoom >= LABEL_ZOOM_THRESHOLD && !crowded.has(c.key) && !c.suppressLabel;
         const speciesNote = speciesNotesByName.get(c.name);
         const collectionZones = zones.filter((zone) => zone.species_name === c.name);
         return (
           <Marker
             key={`col-${c.key}`}
             position={[c.lat, c.lng]}
-            icon={getCollectionIcon(c.name, showLabel, isSatellite)}
+            icon={getCollectionIcon(c.labelText, showLabel, isSatellite)}
             eventHandlers={{
               click: () => onSelectSpecies(c.name),
             }}
@@ -289,7 +295,10 @@ export function CollectionPins({
 export const SAME_LOCATION_DEG = 0.0002;
 
 /** Groups finds into per-location-bucket collections. Each distinct (species, location) pair
- *  gets its own pin. Finds within SAME_LOCATION_DEG of an existing bucket join that bucket. */
+ *  gets its own pin. Finds within SAME_LOCATION_DEG of an existing bucket join that bucket.
+ *  After grouping, a proximity pass assigns labelText and suppressLabel:
+ *  - Single species at a location: labelText = Latin name, suppressLabel = false
+ *  - Multiple species at same location: first gets "N species", rest suppressed */
 export function collectionsFromFinds(finds: Find[]): Collection[] {
   const bySpecies = new Map<string, Array<{ sumLat: number; sumLng: number; finds: Find[] }>>();
 
@@ -325,8 +334,47 @@ export function collectionsFromFinds(finds: Find[]): Collection[] {
         lng: sumLng / finds.length,
         count: finds.length,
         finds,
+        labelText: '',       // filled by proximity pass below
+        suppressLabel: false,
       });
     }
   }
+
+  // Proximity pass: group co-located collections, assign label text and suppress secondary pins.
+  const locationGroups: Collection[][] = [];
+  for (const col of result) {
+    let placed = false;
+    for (const group of locationGroups) {
+      if (group.some(
+        (other) =>
+          Math.abs(other.lat - col.lat) <= SAME_LOCATION_DEG &&
+          Math.abs(other.lng - col.lng) <= SAME_LOCATION_DEG,
+      )) {
+        group.push(col);
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) locationGroups.push([col]);
+  }
+
+  for (const group of locationGroups) {
+    const speciesInGroup = new Set(group.map((c) => c.name));
+    if (speciesInGroup.size === 1) {
+      const latinName = group[0].name.split(',')[0].trim();
+      for (const col of group) {
+        col.labelText = latinName;
+        col.suppressLabel = false;
+      }
+    } else {
+      group[0].labelText = `${speciesInGroup.size} species`;
+      group[0].suppressLabel = false;
+      for (let i = 1; i < group.length; i++) {
+        group[i].labelText = '';
+        group[i].suppressLabel = true;
+      }
+    }
+  }
+
   return result;
 }

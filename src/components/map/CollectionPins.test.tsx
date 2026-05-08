@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { collectionsFromFinds, SAME_LOCATION_DEG } from './CollectionPins';
+import { collectionsFromFinds, SAME_LOCATION_DEG, LABEL_ZOOM_THRESHOLD } from './CollectionPins';
 import type { Find } from '@/lib/finds';
 
 function makeFind(overrides: Partial<Find> & { id: number; species_name: string; lat: number; lng: number }): Find {
@@ -102,5 +102,35 @@ describe('collectionsFromFinds', () => {
     const keys = result.map((c) => c.key);
     expect(new Set(keys).size).toBe(2);
     expect(keys.every((k) => k !== 'Boletus edulis')).toBe(true);
+  });
+
+  it('single-species pin gets Latin name as labelText, suppressLabel false', () => {
+    const finds = [
+      makeFind({ id: 1, species_name: 'Cantharellus cibarius, Lisičica', lat: 45.1, lng: 15.2 }),
+      makeFind({ id: 2, species_name: 'Cantharellus cibarius, Lisičica', lat: 45.1, lng: 15.2 }),
+    ];
+    const result = collectionsFromFinds(finds);
+    expect(result).toHaveLength(1);
+    expect(result[0].labelText).toBe('Cantharellus cibarius');
+    expect(result[0].suppressLabel).toBe(false);
+  });
+
+  it('two different species at same location: first gets "2 species" label, second suppressed', () => {
+    const finds = [
+      makeFind({ id: 1, species_name: 'Cantharellus cibarius', lat: 45.1, lng: 15.2 }),
+      makeFind({ id: 2, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 }),
+    ];
+    const result = collectionsFromFinds(finds);
+    expect(result).toHaveLength(2);
+    const shown = result.filter((c) => !c.suppressLabel);
+    const hidden = result.filter((c) => c.suppressLabel);
+    expect(shown).toHaveLength(1);
+    expect(shown[0].labelText).toBe('2 species');
+    expect(hidden).toHaveLength(1);
+    expect(hidden[0].labelText).toBe('');
+  });
+
+  it('LABEL_ZOOM_THRESHOLD is exported and equals 13', () => {
+    expect(LABEL_ZOOM_THRESHOLD).toBe(13);
   });
 });
