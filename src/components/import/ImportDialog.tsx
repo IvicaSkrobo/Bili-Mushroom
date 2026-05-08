@@ -82,6 +82,23 @@ function isImagePath(name: string): boolean {
   return SUPPORTED_EXTENSIONS.includes(ext as (typeof SUPPORTED_EXTENSIONS)[number]);
 }
 
+// ---------------------------------------------------------------------------
+// Persist last used import directory so the picker reopens in the same place
+// ---------------------------------------------------------------------------
+
+const LAST_IMPORT_DIR_KEY = 'bili_last_import_dir';
+
+function loadLastImportDir(): string | undefined {
+  try { return localStorage.getItem(LAST_IMPORT_DIR_KEY) ?? undefined; } catch { return undefined; }
+}
+
+function saveLastImportDir(path: string): void {
+  // For file paths, strip the filename to get the directory
+  const sep = path.includes('\\') ? '\\' : '/';
+  const dir = path.slice(0, path.lastIndexOf(sep)) || path;
+  try { localStorage.setItem(LAST_IMPORT_DIR_KEY, dir); } catch { /* ignore */ }
+}
+
 export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDialogProps) {
   const t = useT();
   const storagePath = useAppStore((s) => s.storagePath);
@@ -191,10 +208,12 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     try {
       const selected = await openDialog({
         multiple: true,
+        defaultPath: loadLastImportDir(),
         filters: [{ name: 'Images', extensions: SUPPORTED_EXTENSIONS.map((ext) => ext.replace('.', '')) }],
       });
       if (!selected) return;
       const paths = Array.isArray(selected) ? selected : [selected];
+      saveLastImportDir(paths[0]);
       const isFirst = photos.length === 0;
       setPhotos((prev) => [...prev, ...paths]);
       if (isFirst) await prefillFromExif(paths);
@@ -205,8 +224,9 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
 
   async function handlePickFolder() {
     try {
-      const dir = await openDialog({ directory: true });
+      const dir = await openDialog({ directory: true, defaultPath: loadLastImportDir() });
       if (!dir || typeof dir !== 'string') return;
+      try { localStorage.setItem(LAST_IMPORT_DIR_KEY, dir); } catch { /* ignore */ }
       const entries = await readDir(dir);
 
       const directImages = entries
