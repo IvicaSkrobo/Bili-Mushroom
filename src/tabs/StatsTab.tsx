@@ -202,27 +202,6 @@ export default function StatsTab() {
           {/* Divider */}
           <div className="border-b border-border" />
 
-          {/* Ranked lists: 2-column flex */}
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <RankedList
-                title="Top Spots"
-                items={topSpotsFormatted}
-                emptyMessage="Start foraging to see your favourite spots appear here."
-              />
-            </div>
-            <div className="flex-1">
-              <RankedList
-                title="Best Months"
-                items={bestMonthsFormatted}
-                emptyMessage="Your most active months will appear here as you record more finds."
-              />
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="border-b border-border" />
-
           {/* Seasonal Insights */}
           {seasonalityInsights.length > 0 && (
             <div>
@@ -250,17 +229,36 @@ export default function StatsTab() {
 
           {/* Historical weekly/monthly comparison */}
           {historicalComparison && (
-            <>
-              <div className="border-b border-border" />
-              <div>
-                <h3 className="text-base font-bold uppercase tracking-[0.12em] text-foreground mb-4">
-                  This Time in Past Years
-                </h3>
-                <HistoricalComparison data={historicalComparison} />
-              </div>
-            </>
+            <div>
+              <h3 className="text-base font-bold uppercase tracking-[0.12em] text-foreground mb-4">
+                This Time in Past Years
+              </h3>
+              <HistoricalComparison data={historicalComparison} />
+            </div>
           )}
 
+          {/* Divider */}
+          <div className="border-b border-border" />
+
+          {/* Ranked lists: 2-column flex */}
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <RankedList
+                title="Top Spots"
+                items={topSpotsFormatted}
+                emptyMessage="Start foraging to see your favourite spots appear here."
+              />
+            </div>
+            <div className="flex-1">
+              <RankedList
+                title="Best Months"
+                items={bestMonthsFormatted}
+                emptyMessage="Your most active months will appear here as you record more finds."
+              />
+            </div>
+          </div>
+
+          {/* Divider */}
           <div className="border-b border-border" />
 
           {/* Seasonal calendar */}
