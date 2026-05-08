@@ -1,6 +1,6 @@
 {
   "productName": "Bili Mushroom",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "identifier": "hr.biligrupa.bilimushroom",
   "build": {
     "frontendDist": "../dist",
