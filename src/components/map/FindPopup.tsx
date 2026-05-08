@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, ZoomIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useMap } from 'react-leaflet';
 import { useAppStore } from '@/stores/appStore';
 import type { Find } from '@/lib/finds';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
@@ -46,6 +47,7 @@ function LevelTwoCard({
   storagePath: string;
   onBack: () => void;
 }) {
+  const map = useMap();
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const setEditingFindId = useAppStore((s) => s.setEditingFindId);
   const primaryPhoto = find.photos.find((p) => p.is_primary) ?? find.photos[0];
@@ -81,23 +83,37 @@ function LevelTwoCard({
           </span>
         </div>
       </div>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="hover:bg-primary hover:text-primary-foreground"
-        onClick={() => {
-          setEditingFindId(find.id);
-          setActiveTab('collection');
-        }}
-      >
-        Edit find
-      </Button>
+      <div className="flex flex-col gap-1">
+        {find.lat != null && find.lng != null && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="justify-start gap-1.5 hover:bg-secondary"
+            onClick={() => map.flyTo([find.lat!, find.lng!], Math.max(map.getZoom(), 16))}
+          >
+            <ZoomIn className="h-3.5 w-3.5" />
+            Zoom in
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="hover:bg-primary hover:text-primary-foreground"
+          onClick={() => {
+            setEditingFindId(find.id);
+            setActiveTab('collection');
+          }}
+        >
+          Edit find
+        </Button>
+      </div>
     </div>
   );
 }
 
 export function FindPopup({ group, storagePath }: FindPopupProps) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const map = useMap();
 
   if (expandedId !== null) {
     const find = group.finds.find((f) => f.id === expandedId);
@@ -112,11 +128,23 @@ export function FindPopup({ group, storagePath }: FindPopupProps) {
     }
   }
 
+  const zoomButton = (
+    <button
+      type="button"
+      onClick={() => map.flyTo([group.lat, group.lng], Math.max(map.getZoom(), 16))}
+      className="flex items-center gap-1 text-xs text-primary/70 hover:text-primary transition-colors px-1 py-0.5"
+    >
+      <ZoomIn className="h-3 w-3" />
+      Zoom in
+    </button>
+  );
+
   // Level 1
   if (group.finds.length === 1) {
     return (
       <div className="w-[200px]">
         <PopupRow find={group.finds[0]} onExpand={() => setExpandedId(group.finds[0].id)} />
+        {zoomButton}
       </div>
     );
   }
@@ -125,6 +153,7 @@ export function FindPopup({ group, storagePath }: FindPopupProps) {
       {group.finds.map((f) => (
         <PopupRow key={f.id} find={f} onExpand={() => setExpandedId(f.id)} />
       ))}
+      {zoomButton}
     </div>
   );
 }

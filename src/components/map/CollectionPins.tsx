@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import L from 'leaflet';
 import { Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
 import type { Find } from '@/lib/finds';
 import type { Zone } from '@/lib/zones';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
@@ -66,6 +66,7 @@ function CollectionPopup({
   onStartRegionPolygonForFind: (find: Find) => void;
   zones: Zone[];
 }) {
+  const map = useMap();
   const [photoIdx, setPhotoIdx] = useState(0);
   const allPhotos = useMemo(
     () => collection.finds.flatMap((f) => f.photos.map((p) => ({ find: f, photo: p, findNotes: f.notes }))),
@@ -148,6 +149,15 @@ function CollectionPopup({
           )}
         </div>
       )}
+
+      <button
+        type="button"
+        onClick={() => map.flyTo([collection.lat, collection.lng], Math.max(map.getZoom(), 16))}
+        className="flex items-center gap-1.5 text-xs text-primary/70 hover:text-primary transition-colors"
+      >
+        <ZoomIn className="h-3.5 w-3.5" />
+        Zoom to location
+      </button>
 
       {current?.find.lat != null && current.find.lng != null && (
         <div className="grid grid-cols-2 gap-1.5">
