@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: "Completed quick-260508-w26: No-photo find creation — create_find command, CreateFindDialog, CollectionTab integration"
-last_updated: "2026-05-08T21:23:20.351Z"
+stopped_at: "Completed quick-260508-wlr: location_note autocomplete in CreateFindDialog, EditFindDialog, ImportDialog"
+last_updated: "2026-05-08T21:39:03.083Z"
 last_activity: 2026-05-07 -- Release/update infrastructure and maintenance UX fixes landed; next verification focus is production updater behavior plus remaining map regressions
 progress:
   total_phases: 9
@@ -57,6 +57,7 @@ Progress: [██████████] 100%
 | Phase 02.1-import-workflow-refinements P02 | 5 | 2 tasks | 7 files |
 | Phase 02.1-import-workflow-refinements P01 | 11 | 2 tasks | 7 files |
 | Phase quick P260508-w26 | 20 | 4 tasks | 9 files |
+| Phase quick P260508-wlr | 8 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,7 @@ Recent decisions affecting current work:
 - [Phase 02.1-import-workflow-refinements]: Test helpers placed in pub(crate) mod test_helpers at file level (not inside mod tests) so cross-module test sharing works in Rust
 - [Phase 02.1-import-workflow-refinements]: Two-query get pattern: fetch all finds then all find_photos, join in Rust with HashMap<i64, Vec<FindPhoto>>
 - No-photo find creation: create_find Rust command with no photo insert, open_find_folder photo-scope falls back to species folder when no photos
+- LocationNoteInput uses internal localValue state for dropdown filter — controlled-component pattern where parent mock does not propagate onChange as prop update
 
 ### Pending Todos
 
@@ -151,6 +153,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-08T21:23:20.341Z
-Stopped at: Completed quick-260508-w26: No-photo find creation — create_find command, CreateFindDialog, CollectionTab integration
+Last session: 2026-05-08T21:38:54.897Z
+Stopped at: Completed quick-260508-wlr: location_note autocomplete in CreateFindDialog, EditFindDialog, ImportDialog
 Resume file: None
