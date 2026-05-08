@@ -5,7 +5,7 @@ milestone_name: milestone
 status: active
 stopped_at: null
 last_updated: "2026-05-07T19:35:00.000Z"
-last_activity: 2026-05-07 -- Completed quick task 260507-txk: Add more photos to existing find from EditFindDialog
+last_activity: 2026-05-08 -- Completed quick task 260508-vtz: Add manual update flow — Check for updates / Update now in SettingsDialog
 progress:
   total_phases: 9
   completed_phases: 6
@@ -136,6 +136,7 @@ Recent decisions affecting current work:
 | 260507-updater-release-hardening | 2026-05-07 | Added app updater wiring, visible header version/update CTA, release automation script, release workflow fallback on GitHub Release publish, and fixed public-key configuration for updater bundles. |
 | 260507-folder-edit-disk-sync | 2026-05-07 | Species rename from edit now moves files on disk, species-folder editing can open the on-disk species folder, and find edit can open species/photo folders for inspection. |
 | 260507-txk add-more-photos-to-existing-find | 2026-05-07 | Add photos button in EditFindDialog: file picker, preview list, confirmation; Rust add_find_photos command copies to species folder, inserts DB rows with is_primary=false. |
+| 260508-vtz add-manual-update-flow | 2026-05-08 | Manual Check for updates / Update now panel in SettingsDialog: 7-state checkStatus, pre-populates from store auto-check, error messages always shown. |
 
 ### Roadmap Evolution
 
