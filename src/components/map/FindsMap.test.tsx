@@ -37,4 +37,22 @@ describe('FindsMap', () => {
     const { container } = render(<FindsMap finds={[]} />);
     expect(container.querySelector('.animate-fade-up')).not.toBeNull();
   });
+
+  it('shows the unified polygon editor toolbar for first draw with move/add shortcuts', () => {
+    render(
+      <FindsMap
+        finds={[]}
+        polygonEditorActive={true}
+        polygonEditorMode="add"
+        polygonEditorPoints={[]}
+        polygonEditorZoneType="local"
+        polygonEditorZoneName="Test local"
+      />,
+    );
+
+    expect(screen.getByText(/drawing local boundary: test local/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /move \(m\)/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /add point \(n\)/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
+  });
 });

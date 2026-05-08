@@ -22,7 +22,7 @@ interface FindsMapProps {
   finds: Find[];
   zones?: Zone[];
   zoneMode?: ZoneViewMode;
-  onCreateZoneForFind?: (find: Find, zoneType: ZoneType) => void;
+  onCreateZoneForFind?: (find: Find, zoneType: ZoneType) => void | Promise<void>;
   onPickLocalTargetFind?: (find: Find) => void;
   onPickRegionTargetFind?: (find: Find) => void;
   onStartLocalPolygonForFind?: (find: Find) => void;
@@ -93,16 +93,15 @@ export function FindsMap({
     ? null
     : zones.find((zone) => zone.id === activeZoneId) ?? null;
 
-  // Fly to active polygon bounds when entering editor in move mode (editing existing polygon)
+  // Fly to active polygon bounds when opening the unified editor for an existing polygon.
   useEffect(() => {
-    if (!polygonEditorActive || polygonEditorMode !== 'move' || !map || activeZoneId == null) return;
+    if (!polygonEditorActive || !map || activeZoneId == null) return;
     const zone = zones.find((z) => z.id === activeZoneId);
     if (!zone || zone.geometry_type !== 'polygon') return;
     const polygon = parsePolygonJson(zone.polygon_json);
     if (polygon.length < 3) return;
     map.flyToBounds(polygon as [number, number][], { animate: true, duration: 0.7, padding: [40, 40] });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [polygonEditorActive, map]);
+  }, [polygonEditorActive, map, activeZoneId, zones]);
 
   function focusDrawTarget(find: Find, zoneType: ZoneType) {
     if (!map || find.lat == null || find.lng == null) return;
@@ -140,9 +139,9 @@ export function FindsMap({
   }
 
   useEffect(() => {
-    if (!polygonDraftActive || !drawTargetFind || !drawTargetZoneType) return;
+    if (!polygonEditorActive || !drawTargetFind || !drawTargetZoneType) return;
     focusDrawTarget(drawTargetFind, drawTargetZoneType);
-  }, [polygonDraftActive, drawTargetFind, drawTargetZoneType, map]);
+  }, [polygonEditorActive, drawTargetFind, drawTargetZoneType, map]);
 
   function handleZoomToZone(zone: Zone, selectedType: ZoneType) {
     if (!map) return;
@@ -177,7 +176,9 @@ export function FindsMap({
         <PolygonEditorController
           active={polygonEditorActive}
           mode={polygonEditorMode}
+          points={polygonEditorPoints}
           onAddPoint={onPolygonEditorAddPoint}
+          onInsertPoint={onPolygonEditorInsertPoint}
         />
         <LayerSwitcher />
         <ZoneLayers
@@ -269,7 +270,7 @@ function PolygonEditorBanner({
 }) {
   const [saving, setSaving] = useState(false);
   const canSave = pointCount >= 3;
-  const canDelete = mode === 'move' && selectedPointIndex != null && pointCount > 3;
+  const canDelete = selectedPointIndex != null && pointCount > 3;
 
   async function handleSave() {
     if (!canSave) return;
@@ -283,10 +284,12 @@ function PolygonEditorBanner({
 
   const statusText =
     mode === 'add'
-      ? `Click map to add points. ${pointCount} placed.`
+      ? pointCount < 2
+        ? `Click map to place the first points. ${pointCount} placed.`
+        : `Click map to add a point on the nearest edge. ${pointCount} points.`
       : selectedPointIndex != null
-        ? `Point ${selectedPointIndex + 1} selected. Drag to move, click edge to insert.`
-        : `Drag points to move. Click an edge to insert. ${pointCount} points.`;
+        ? `Point ${selectedPointIndex + 1} selected. Drag to move it. Backspace deletes it.`
+        : `Drag points to move. Click a point to select it. ${pointCount} points.`;
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-4 z-[1003] flex justify-center px-4">
@@ -305,20 +308,8 @@ function PolygonEditorBanner({
           <div className="flex overflow-hidden rounded-md border border-border/60">
             <button
               type="button"
-              onClick={() => onSetMode('add')}
-              className={`inline-flex h-7 items-center gap-1 px-2 text-[11px] font-semibold transition-colors ${
-                mode === 'add'
-                  ? 'bg-primary/20 text-primary'
-                  : 'text-muted-foreground hover:bg-secondary/20 hover:text-foreground'
-              }`}
-            >
-              <Plus className="h-3 w-3" />
-              Add (N)
-            </button>
-            <button
-              type="button"
               onClick={() => onSetMode('move')}
-              className={`inline-flex h-7 items-center gap-1 border-l border-border/60 px-2 text-[11px] font-semibold transition-colors ${
+              className={`inline-flex h-7 items-center gap-1 px-2 text-[11px] font-semibold transition-colors ${
                 mode === 'move'
                   ? 'bg-secondary/40 text-foreground'
                   : 'text-muted-foreground hover:bg-secondary/20 hover:text-foreground'
@@ -326,6 +317,18 @@ function PolygonEditorBanner({
             >
               <Move className="h-3 w-3" />
               Move (M)
+            </button>
+            <button
+              type="button"
+              onClick={() => onSetMode('add')}
+              className={`inline-flex h-7 items-center gap-1 border-l border-border/60 px-2 text-[11px] font-semibold transition-colors ${
+                mode === 'add'
+                  ? 'bg-primary/20 text-primary'
+                  : 'text-muted-foreground hover:bg-secondary/20 hover:text-foreground'
+              }`}
+            >
+              <Plus className="h-3 w-3" />
+              Add point (N)
             </button>
           </div>
           {mode === 'add' && (
@@ -338,17 +341,15 @@ function PolygonEditorBanner({
               Undo
             </button>
           )}
-          {mode === 'move' && (
-            <button
-              type="button"
-              onClick={onDelete}
-              disabled={!canDelete}
-              className="inline-flex h-7 items-center gap-1 rounded-md border border-destructive/40 px-2 text-[11px] font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-40"
-            >
-              <Trash2 className="h-3 w-3" />
-              Delete
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={!canDelete}
+            className="inline-flex h-7 items-center gap-1 rounded-md border border-destructive/40 px-2 text-[11px] font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-40"
+          >
+            <Trash2 className="h-3 w-3" />
+            Delete
+          </button>
           <button
             type="button"
             onClick={onCancel}
@@ -562,19 +563,53 @@ function createPolygonHandleIcon(isSatellite: boolean, number: number, selected:
 function PolygonEditorController({
   active,
   mode,
+  points,
   onAddPoint,
+  onInsertPoint,
 }: {
   active: boolean;
   mode: PolygonEditorMode;
+  points: ZonePolygonPoint[];
   onAddPoint: (point: ZonePolygonPoint) => void;
+  onInsertPoint: (edgeStartIndex: number, point: ZonePolygonPoint) => void;
 }) {
   useMapEvents({
     click(event) {
       if (!active || mode !== 'add') return;
-      onAddPoint([event.latlng.lat, event.latlng.lng]);
+      const clickPoint: ZonePolygonPoint = [event.latlng.lat, event.latlng.lng];
+      if (points.length < 2) {
+        onAddPoint(clickPoint);
+        return;
+      }
+      const { edgeStartIndex, projectedPoint } = findNearestEdge(clickPoint, points);
+      onInsertPoint(edgeStartIndex, projectedPoint);
     },
   });
   return null;
+}
+
+function findNearestEdge(
+  clickPoint: ZonePolygonPoint,
+  points: ZonePolygonPoint[],
+): { edgeStartIndex: number; projectedPoint: ZonePolygonPoint } {
+  let bestEdge = 0;
+  let bestPoint = points[0];
+  let bestDist = Infinity;
+
+  for (let i = 0; i < points.length; i++) {
+    const start = points[i];
+    const end = points[(i + 1) % points.length];
+    const projectedPoint = projectPointOntoSegment(clickPoint, start, end);
+    const dist = Math.hypot(projectedPoint[0] - clickPoint[0], projectedPoint[1] - clickPoint[1]);
+
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestEdge = i;
+      bestPoint = projectedPoint;
+    }
+  }
+
+  return { edgeStartIndex: bestEdge, projectedPoint: bestPoint };
 }
 
 function PolygonDraftLayer({

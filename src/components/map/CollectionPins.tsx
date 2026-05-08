@@ -9,6 +9,8 @@ import { useSpeciesNotes } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 
 interface Collection {
+  /** Unique key — species name when only one location, "species|index" for multiple. */
+  key: string;
   name: string;
   lat: number;
   lng: number;
@@ -172,7 +174,7 @@ const OVERLAP_PX = 18;
 function computeCrowded(map: L.Map, collections: Collection[]): Set<string> {
   const crowded = new Set<string>();
   const points = collections.map((c) => ({
-    name: c.name,
+    key: c.key,
     pt: map.latLngToLayerPoint([c.lat, c.lng]),
   }));
   for (let i = 0; i < points.length; i++) {
@@ -180,8 +182,8 @@ function computeCrowded(map: L.Map, collections: Collection[]): Set<string> {
       const dx = points[i].pt.x - points[j].pt.x;
       const dy = points[i].pt.y - points[j].pt.y;
       if (Math.sqrt(dx * dx + dy * dy) < OVERLAP_PX) {
-        crowded.add(points[i].name);
-        crowded.add(points[j].name);
+        crowded.add(points[i].key);
+        crowded.add(points[j].key);
       }
     }
   }
@@ -229,12 +231,12 @@ function CollectionPinsInner({
   return (
     <>
       {collections.map((c) => {
-        const showLabel = !crowded.has(c.name);
+        const showLabel = !crowded.has(c.key);
         const speciesNote = speciesNotesByName.get(c.name);
         const collectionZones = zones.filter((zone) => zone.species_name === c.name);
         return (
           <Marker
-            key={`col-${c.name}`}
+            key={`col-${c.key}`}
             position={[c.lat, c.lng]}
             icon={getCollectionIcon(c.name, showLabel, isSatellite)}
             eventHandlers={{
@@ -271,7 +273,7 @@ export function CollectionPins({
   onStartRegionPolygonForFind?: (find: Find) => void;
   onSelectSpecies?: (speciesName: string) => void;
 }) {
-  const collections = useMemo(() => collections_from_finds(finds), [finds]);
+  const collections = useMemo(() => collectionsFromFinds(finds), [finds]);
   return (
     <CollectionPinsInner
       collections={collections}
@@ -283,22 +285,48 @@ export function CollectionPins({
   );
 }
 
-function collections_from_finds(finds: Find[]): Collection[] {
-  const map = new Map<string, { lats: number[]; lngs: number[]; count: number; finds: Find[] }>();
+/** Max degree delta to consider two finds the same physical location (~22 m at mid-latitudes). */
+export const SAME_LOCATION_DEG = 0.0002;
+
+/** Groups finds into per-location-bucket collections. Each distinct (species, location) pair
+ *  gets its own pin. Finds within SAME_LOCATION_DEG of an existing bucket join that bucket. */
+export function collectionsFromFinds(finds: Find[]): Collection[] {
+  const bySpecies = new Map<string, Array<{ sumLat: number; sumLng: number; finds: Find[] }>>();
+
   for (const f of finds) {
     if (f.lat == null || f.lng == null) continue;
-    if (!map.has(f.species_name)) map.set(f.species_name, { lats: [], lngs: [], count: 0, finds: [] });
-    const entry = map.get(f.species_name)!;
-    entry.lats.push(f.lat);
-    entry.lngs.push(f.lng);
-    entry.count++;
-    entry.finds.push(f);
+    if (!bySpecies.has(f.species_name)) bySpecies.set(f.species_name, []);
+    const buckets = bySpecies.get(f.species_name)!;
+
+    const existing = buckets.find(
+      (b) =>
+        Math.abs(b.sumLat / b.finds.length - f.lat!) <= SAME_LOCATION_DEG &&
+        Math.abs(b.sumLng / b.finds.length - f.lng!) <= SAME_LOCATION_DEG,
+    );
+
+    if (existing) {
+      existing.sumLat += f.lat;
+      existing.sumLng += f.lng;
+      existing.finds.push(f);
+    } else {
+      buckets.push({ sumLat: f.lat, sumLng: f.lng, finds: [f] });
+    }
   }
-  return Array.from(map.entries()).map(([name, { lats, lngs, count, finds }]) => ({
-    name,
-    lat: lats.reduce((a, b) => a + b, 0) / lats.length,
-    lng: lngs.reduce((a, b) => a + b, 0) / lngs.length,
-    count,
-    finds,
-  }));
+
+  const result: Collection[] = [];
+  for (const [name, buckets] of bySpecies) {
+    const multi = buckets.length > 1;
+    for (let i = 0; i < buckets.length; i++) {
+      const { sumLat, sumLng, finds } = buckets[i];
+      result.push({
+        key: multi ? `${name}|${i}` : name,
+        name,
+        lat: sumLat / finds.length,
+        lng: sumLng / finds.length,
+        count: finds.length,
+        finds,
+      });
+    }
+  }
+  return result;
 }
