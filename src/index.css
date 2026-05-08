@@ -209,7 +209,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: po
   text-overflow: ellipsis;
   box-shadow: 0 2px 6px rgba(0,0,0,0.5);
   cursor: pointer;
-  transition: max-width 0.2s ease, padding 0.2s ease, font-size 0.15s ease;
+  transition: max-width 0.2s ease, min-width 0.2s ease, max-height 0.2s ease, min-height 0.15s ease, padding 0.2s ease, font-size 0.15s ease;
 }
 .bili-collection-marker:hover .bili-col-label,
 .bili-collection-marker:focus-within .bili-col-label {
@@ -220,10 +220,11 @@ input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: po
   text-shadow: 0 1px 3px rgba(0,0,0,0.7);
 }
 .bili-collection-marker--crowded .bili-col-label {
+  /* dot state: use min/max instead of explicit width/height so transitions are smooth */
+  min-width: 16px;
   max-width: 16px;
-  width: 16px;
-  height: 16px;
-  min-height: 16px;
+  min-height: 0;
+  max-height: 16px;
   padding: 0;
   font-size: 0;
   overflow: hidden;
@@ -231,14 +232,14 @@ input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: po
 }
 .bili-collection-marker--crowded:hover .bili-col-label,
 .bili-collection-marker--crowded:focus-within .bili-col-label {
+  min-width: 0;
   max-width: 200px;
-  width: fit-content;
-  height: auto;
+  min-height: 22px;
+  max-height: 40px;
   padding-block: 3px;
   padding-inline: 12px;
   font-size: 11px;
-  overflow: visible;
-  text-overflow: clip;
+  text-overflow: ellipsis;
 }
 
 .bili-zone-vertex-icon {
