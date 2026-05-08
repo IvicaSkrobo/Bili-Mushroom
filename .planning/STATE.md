@@ -145,6 +145,7 @@ Recent decisions affecting current work:
 | 260508-vtz add-manual-update-flow | 2026-05-08 | Manual Check for updates / Update now panel in SettingsDialog: 7-state checkStatus, pre-populates from store auto-check, error messages always shown. |
 | 260508-w26 implement-no-photo-find-creation | 2026-05-08 | create_find Rust command + open_find_folder no-photo guard; createFind TS wrapper + useCreateFind hook; CreateFindDialog (mirrors EditFindDialog, all fields); "New Find" button in CollectionTab; 8 Rust + 11 Vitest tests. |
 | 260508-wlr location-note-autocomplete | 2026-05-08 | LocationNoteInput component (mirrors SpeciesNameEditor: keyboard nav, 150ms blur delay); wired into CreateFindDialog, EditFindDialog, ImportDialog; 6 Vitest tests. |
+| 260508-wwb per-photo-management | 2026-05-08 | delete_find_photo + bulk_delete_find_photos Rust commands (primary-promotion, disk removal); TS hooks; EditFindDialog photo grid with per-photo X + multi-select + "Delete N"; PhotoLightbox rose delete button; 4 Rust + Vitest tests. |
 
 ### Roadmap Evolution
 
