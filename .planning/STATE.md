@@ -146,6 +146,7 @@ Recent decisions affecting current work:
 | 260508-w26 implement-no-photo-find-creation | 2026-05-08 | create_find Rust command + open_find_folder no-photo guard; createFind TS wrapper + useCreateFind hook; CreateFindDialog (mirrors EditFindDialog, all fields); "New Find" button in CollectionTab; 8 Rust + 11 Vitest tests. |
 | 260508-wlr location-note-autocomplete | 2026-05-08 | LocationNoteInput component (mirrors SpeciesNameEditor: keyboard nav, 150ms blur delay); wired into CreateFindDialog, EditFindDialog, ImportDialog; 6 Vitest tests. |
 | 260508-wwb per-photo-management | 2026-05-08 | delete_find_photo + bulk_delete_find_photos Rust commands (primary-promotion, disk removal); TS hooks; EditFindDialog photo grid with per-photo X + multi-select + "Delete N"; PhotoLightbox rose delete button; 4 Rust + Vitest tests. |
+| 260509-0fm hide-map-clutter-during-zone-edit | 2026-05-09 | focusFinds computed in FindsMap: local edit → single pin, region edit → species pins; hiddenZoneIds hides all zones during editing; CollectionPins always renders with focusFinds. |
 
 ### Roadmap Evolution
 

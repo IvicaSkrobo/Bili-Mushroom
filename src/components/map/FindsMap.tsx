@@ -1,6 +1,6 @@
 import { CircleMarker, MapContainer, Marker, Polygon, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Move, Plus, Trash2, X } from 'lucide-react';
 import type { Find } from '@/lib/finds';
 import { parsePolygonJson, type PolygonEditorMode, type Zone, type ZonePolygonPoint, type ZoneType, type ZoneViewMode } from '@/lib/zones';
@@ -92,6 +92,18 @@ export function FindsMap({
   const activeZone = activeZoneId == null
     ? null
     : zones.find((zone) => zone.id === activeZoneId) ?? null;
+
+  // When editing, show only relevant pins; outside editing show all finds.
+  const focusFinds = useMemo(() => {
+    if (!polygonEditorActive) return finds;
+    if (polygonEditorZoneType === 'local' && drawTargetFind != null) {
+      return finds.filter((f) => f.id === drawTargetFind.id);
+    }
+    if (polygonEditorZoneType === 'region' && drawTargetFind != null) {
+      return finds.filter((f) => f.species_name === drawTargetFind.species_name);
+    }
+    return [];
+  }, [polygonEditorActive, polygonEditorZoneType, drawTargetFind, finds]);
 
   // Fly to active polygon bounds when opening the unified editor for an existing polygon.
   useEffect(() => {
@@ -186,7 +198,7 @@ export function FindsMap({
           finds={finds}
           mode={zoneMode}
           activeZoneId={activeZoneId}
-          hiddenZoneIds={polygonEditorActive && activeZoneId != null ? [activeZoneId] : []}
+          hiddenZoneIds={polygonEditorActive ? zones.map((z) => z.id) : []}
           onEditZone={(zone) => onEditZone(zone)}
         />
         <PolygonDraftLayer
@@ -203,15 +215,13 @@ export function FindsMap({
           selectedIndex={polygonEditorSelectedPoint}
           zoneType={polygonEditorZoneType}
         />
-        {!focusMode && (
-          <CollectionPins
-            finds={finds}
-            zones={zones}
-            onStartLocalPolygonForFind={handleStartLocalPolygonFromPin}
-            onStartRegionPolygonForFind={handleStartRegionPolygonFromPin}
-            onSelectSpecies={onSelectSpecies}
-          />
-        )}
+        <CollectionPins
+          finds={focusFinds}
+          zones={zones}
+          onStartLocalPolygonForFind={handleStartLocalPolygonFromPin}
+          onStartRegionPolygonForFind={handleStartRegionPolygonFromPin}
+          onSelectSpecies={onSelectSpecies}
+        />
         <FitBoundsControl finds={finds} />
         {!focusMode && <OnlineStatusBadge />}
       </MapContainer>
