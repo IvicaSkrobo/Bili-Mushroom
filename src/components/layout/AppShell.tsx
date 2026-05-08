@@ -35,6 +35,25 @@ export function AppShell() {
   const installingUpdate = useAppStore((s) => s.installingUpdate);
   const setInstallingUpdate = useAppStore((s) => s.setInstallingUpdate);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+
+  async function handleCheckVersion() {
+    if (!('__TAURI_INTERNALS__' in window)) return;
+    if (checkingUpdate || availableUpdate) return;
+    setCheckingUpdate(true);
+    try {
+      const update = await invoke<import('@/stores/appStore').AvailableUpdate | null>('check_app_update');
+      if (update) {
+        setAvailableUpdate(update);
+      } else {
+        toast('You\'re up to date.');
+      }
+    } catch (err) {
+      toast.error(String((err as Error)?.message ?? err));
+    } finally {
+      setCheckingUpdate(false);
+    }
+  }
 
   async function handleInstallUpdate() {
     setInstallingUpdate(true);
@@ -67,9 +86,15 @@ export function AppShell() {
         </div>
         <div className="flex items-center gap-2">
           <div className="hidden items-center gap-2 md:flex">
-            <div className="rounded-full border border-primary/25 bg-primary/8 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-foreground/80">
-              v{APP_VERSION}
-            </div>
+            <button
+              type="button"
+              onClick={handleCheckVersion}
+              title={availableUpdate ? `Update to v${availableUpdate.version}` : 'Click to check for updates'}
+              className="rounded-full border border-primary/25 bg-primary/8 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-foreground/80 hover:border-primary/50 hover:text-primary transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+              disabled={checkingUpdate}
+            >
+              {checkingUpdate ? '…' : `v${APP_VERSION}`}
+            </button>
             {availableUpdate && (
               <Button
                 variant="outline"

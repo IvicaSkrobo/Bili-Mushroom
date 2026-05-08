@@ -15,6 +15,7 @@ import { pickAndSaveStoragePath, clearStoragePath } from '@/lib/storage';
 import { useT } from '@/i18n/index';
 import type { Lang } from '@/i18n/index';
 import { getTileCacheStats, clearTileCache, formatMb, type TileCacheStats } from '@/lib/tileCache';
+import { APP_VERSION } from '@/lib/appMeta';
 
 export interface SettingsDialogProps {
   open: boolean;
@@ -32,24 +33,13 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const setLanguage = useAppStore((s) => s.setLanguage);
   const theme = useAppStore((s) => s.theme);
   const setTheme = useAppStore((s) => s.setTheme);
-  const availableUpdate = useAppStore((s) => s.availableUpdate);
-  const setInstallingUpdate = useAppStore((s) => s.setInstallingUpdate);
   const [picking, setPicking] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [stats, setStats] = useState<TileCacheStats>({ sizeBytes: 0, tileCount: 0 });
 
-  type CheckStatus = 'idle' | 'checking' | 'up-to-date' | 'available' | 'installing' | 'done' | 'error';
-  const [checkStatus, setCheckStatus] = useState<CheckStatus>('idle');
-  const [checkError, setCheckError] = useState<string | null>(null);
-  const [localUpdate, setLocalUpdate] = useState<import('@/stores/appStore').AvailableUpdate | null>(null);
-
   useEffect(() => {
     if (!open) return;
     getTileCacheStats().then(setStats).catch(() => {});
-    if (availableUpdate) {
-      setLocalUpdate(availableUpdate);
-      setCheckStatus('available');
-    }
   }, [open]);
 
   async function handleClear() {
@@ -65,46 +55,6 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     setDbError(null);
     setPendingScan(false);
     onOpenChange(false);
-  }
-
-  async function handleCheckForUpdates() {
-    if (!('__TAURI_INTERNALS__' in window)) return;
-    setCheckStatus('checking');
-    setCheckError(null);
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const update = await invoke<import('@/stores/appStore').AvailableUpdate | null>('check_app_update');
-      if (update) {
-        setLocalUpdate(update);
-        setCheckStatus('available');
-      } else {
-        setCheckStatus('up-to-date');
-      }
-    } catch (err) {
-      setCheckError(String((err as Error)?.message ?? err));
-      setCheckStatus('error');
-    }
-  }
-
-  async function handleInstallUpdate() {
-    if (!('__TAURI_INTERNALS__' in window)) return;
-    setCheckStatus('installing');
-    setInstallingUpdate(true);
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const ok = await invoke<boolean>('install_app_update');
-      setInstallingUpdate(false);
-      if (ok) {
-        setCheckStatus('done');
-      } else {
-        setCheckError('Update download failed.');
-        setCheckStatus('error');
-      }
-    } catch (err) {
-      setInstallingUpdate(false);
-      setCheckError(String((err as Error)?.message ?? err));
-      setCheckStatus('error');
-    }
   }
 
   async function handleChangeFolder() {
@@ -183,52 +133,9 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
             </div>
           </div>
 
-          <div className="pt-2 border-t">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-muted-foreground">Bili Mushroom</span>
-              <span className="text-xs text-muted-foreground font-mono">v{__APP_VERSION__}</span>
-            </div>
-
-            {/* Status row */}
-            {checkStatus === 'up-to-date' && (
-              <p className="text-xs text-muted-foreground mb-2">Up to date.</p>
-            )}
-            {checkStatus === 'available' && localUpdate && (
-              <p className="text-xs mb-2" style={{ color: 'var(--color-primary)' }}>
-                Update available: v{localUpdate.version}
-              </p>
-            )}
-            {checkStatus === 'done' && (
-              <p className="text-xs mb-2" style={{ color: 'var(--color-primary)' }}>
-                Update started. The app will restart.
-              </p>
-            )}
-            {checkStatus === 'error' && checkError && (
-              <p className="text-xs text-destructive mb-2">{checkError}</p>
-            )}
-
-            {/* Action buttons */}
-            <div className="flex gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleCheckForUpdates}
-                disabled={checkStatus === 'checking' || checkStatus === 'installing' || checkStatus === 'done'}
-              >
-                {checkStatus === 'checking' ? 'Checking…' : 'Check for updates'}
-              </Button>
-
-              {checkStatus === 'available' && localUpdate && (
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={handleInstallUpdate}
-                  disabled={checkStatus === 'installing'}
-                >
-                  {checkStatus === 'installing' ? 'Installing…' : 'Update now'}
-                </Button>
-              )}
-            </div>
+          <div className="pt-2 border-t flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Bili Mushroom</span>
+            <span className="text-xs text-muted-foreground font-mono">v{APP_VERSION}</span>
           </div>
 
           <div className="pt-2 border-t">
