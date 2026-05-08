@@ -247,6 +247,7 @@ export default function StatsTab() {
                 title="Top Spots"
                 items={topSpotsFormatted}
                 emptyMessage="Start foraging to see your favourite spots appear here."
+                pageSize={10}
               />
             </div>
             <div className="flex-1">

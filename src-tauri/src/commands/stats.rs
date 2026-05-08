@@ -125,7 +125,7 @@ pub async fn get_top_spots(storage_path: String) -> Result<Vec<TopSpot>, String>
         .prepare(
             &format!(
                 "SELECT country, region, location_note, COUNT(*) as cnt FROM finds \
-                 WHERE {} GROUP BY country, region, location_note ORDER BY cnt DESC LIMIT 10",
+                 WHERE {} GROUP BY country, region, location_note ORDER BY cnt DESC",
                 INTERNAL_SPECIES_FILTER
             ),
         )
@@ -630,7 +630,7 @@ mod tests {
         let mut stmt = conn
             .prepare(
                 "SELECT country, region, location_note, COUNT(*) as cnt FROM finds \
-                 GROUP BY country, region, location_note ORDER BY cnt DESC LIMIT 10",
+                 GROUP BY country, region, location_note ORDER BY cnt DESC",
             )
             .unwrap();
 
