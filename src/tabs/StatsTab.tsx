@@ -19,6 +19,8 @@ import { useAppStore } from '@/stores/appStore';
 import { exportToCsv } from '@/lib/exportCsv';
 import type { TopSpot, BestMonth } from '@/lib/stats';
 import { buildSeasonalityInsights, buildSpeciesSpotHint } from '@/lib/insights';
+import { HistoricalComparison } from '@/components/stats/HistoricalComparison';
+import { buildHistoricalComparison } from '@/lib/historicalComparison';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -82,6 +84,10 @@ export default function StatsTab() {
   const speciesSpotHint = useMemo(
     () => buildSpeciesSpotHint(speciesStats, topSpots),
     [speciesStats, topSpots],
+  );
+  const historicalComparison = useMemo(
+    () => (calendar ? buildHistoricalComparison(calendar) : null),
+    [calendar],
   );
 
   const handleExportCsv = async () => {
@@ -240,6 +246,19 @@ export default function StatsTab() {
               <Compass className="h-4 w-4 text-primary" />
               <AlertDescription className="text-sm">{speciesSpotHint}</AlertDescription>
             </Alert>
+          )}
+
+          {/* Historical weekly/monthly comparison */}
+          {historicalComparison && (
+            <>
+              <div className="border-b border-border" />
+              <div>
+                <h3 className="text-base font-bold uppercase tracking-[0.12em] text-foreground mb-4">
+                  This Time in Past Years
+                </h3>
+                <HistoricalComparison data={historicalComparison} />
+              </div>
+            </>
           )}
 
           <div className="border-b border-border" />
