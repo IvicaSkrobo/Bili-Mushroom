@@ -142,6 +142,7 @@ Recent decisions affecting current work:
 | 260507-txk add-more-photos-to-existing-find | 2026-05-07 | Add photos button in EditFindDialog: file picker, preview list, confirmation; Rust add_find_photos command copies to species folder, inserts DB rows with is_primary=false. |
 | 260508-vtz add-manual-update-flow | 2026-05-08 | Manual Check for updates / Update now panel in SettingsDialog: 7-state checkStatus, pre-populates from store auto-check, error messages always shown. |
 | 260508-w26 implement-no-photo-find-creation | 2026-05-08 | create_find Rust command + open_find_folder no-photo guard; createFind TS wrapper + useCreateFind hook; CreateFindDialog (mirrors EditFindDialog, all fields); "New Find" button in CollectionTab; 8 Rust + 11 Vitest tests. |
+| 260508-wlr location-note-autocomplete | 2026-05-08 | LocationNoteInput component (mirrors SpeciesNameEditor: keyboard nav, 150ms blur delay); wired into CreateFindDialog, EditFindDialog, ImportDialog; 6 Vitest tests. |
 
 ### Roadmap Evolution
 
