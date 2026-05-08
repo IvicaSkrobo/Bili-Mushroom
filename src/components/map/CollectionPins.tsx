@@ -380,7 +380,8 @@ export function collectionsFromFinds(finds: Find[]): Collection[] {
       group[0].labelText = `${speciesInGroup.size} species`;
       group[0].suppressLabel = false;
       for (let i = 1; i < group.length; i++) {
-        group[i].labelText = '';
+        // keep species name so hover over the dot reveals which species it is
+        group[i].labelText = group[i].name.split(',')[0].trim();
         group[i].suppressLabel = true;
       }
     }

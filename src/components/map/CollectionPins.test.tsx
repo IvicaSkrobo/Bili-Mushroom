@@ -127,7 +127,7 @@ describe('collectionsFromFinds', () => {
     expect(shown).toHaveLength(1);
     expect(shown[0].labelText).toBe('2 species');
     expect(hidden).toHaveLength(1);
-    expect(hidden[0].labelText).toBe('');
+    expect(hidden[0].labelText).toBe('Boletus edulis'); // species name kept for hover reveal
   });
 
   it('LABEL_ZOOM_THRESHOLD is exported and equals 13', () => {
