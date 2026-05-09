@@ -12,10 +12,11 @@ import { EditFindDialog } from '@/components/finds/EditFindDialog';
 import { FolderEditDialog } from '@/components/finds/FolderEditDialog';
 import { DeleteFindDialog } from '@/components/finds/DeleteFindDialog';
 import { BulkDeleteDialog } from '@/components/finds/BulkDeleteDialog';
+import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
 import { useFinds, useSpeciesNotes, useSpeciesProfiles, useUpsertSpeciesNote, useUpsertSpeciesProfile, useBulkRenameSpecies, useSetFindFavorite, useDeleteFindPhoto } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { useT, tFindsCount } from '@/i18n/index';
-import type { Find } from '@/lib/finds';
+import type { Find, SpeciesProfile } from '@/lib/finds';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { renderSpeciesName, plainSpeciesName } from '@/lib/speciesName';
@@ -217,6 +218,24 @@ export default function CollectionTab() {
     () => (finds ?? []).filter((find) => find.is_favorite && !isInternalLibraryName(find.species_name)).length,
     [finds],
   );
+
+  const speciesProfilesByName = useMemo(() => {
+    const m = new Map<string, SpeciesProfile>();
+    speciesProfiles?.forEach((p) => m.set(p.species_name, p));
+    return m;
+  }, [speciesProfiles]);
+
+  const handleFolderSave = (newName: string, edibility: string | null, protectedStatus: string | null) => {
+    if (!folderEditing) return;
+    const existingProfile = speciesProfilesByName.get(folderEditing);
+    upsertSpeciesProfile.mutate({
+      speciesName: newName,
+      coverPhotoId: existingProfile?.cover_photo_id ?? null,
+      tags: existingProfile?.tags ?? [],
+      edibility,
+      protectedStatus,
+    });
+  };
 
   const toggleExpand = (name: string) => {
     setExpanded((prev) => {
@@ -439,6 +458,13 @@ export default function CollectionTab() {
           const isJumpTarget = speciesName === selectedCollectionSpecies;
           const speciesFavoriteCount = speciesFinds.filter((find) => find.is_favorite).length;
 
+          const repFind = representativePhoto
+            ? speciesFinds.find((f) => f.photos.some((p) => p.id === representativePhoto.id)) ?? null
+            : null;
+          const repPhotoIdx = repFind
+            ? repFind.photos.findIndex((p) => p.id === representativePhoto?.id)
+            : 0;
+
           return (
             <div
               key={speciesName}
@@ -453,24 +479,35 @@ export default function CollectionTab() {
             >
               {/* Folder header */}
               <div className={`group relative flex w-full items-center gap-3 px-4 py-3 transition-colors duration-150 hover:bg-accent/60 ${isOpen ? 'bg-accent/20' : ''}`}>
+                {/* Thumbnail — separate button opens lightbox */}
+                {thumbSrc ? (
+                  <button
+                    type="button"
+                    className="flex-shrink-0 overflow-hidden rounded-sm h-11 w-11 focus:outline-none focus:ring-2 focus:ring-ring/40"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (repFind) openLightbox(speciesFinds, repFind.id, repPhotoIdx >= 0 ? repPhotoIdx : 0);
+                    }}
+                    title={lang === 'hr' ? 'Otvori foto' : 'Open photo'}
+                  >
+                    <img
+                      src={thumbSrc}
+                      alt={speciesName}
+                      className="h-11 w-11 object-cover transition-transform duration-150 hover:scale-110"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  </button>
+                ) : (
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-sm bg-muted">
+                    <FolderOpen className="h-5 w-5 text-muted-foreground/40" />
+                  </div>
+                )}
+
                 <button
                   type="button"
                   className="flex flex-1 min-w-0 items-center gap-3 text-left"
                   onClick={() => !isSearching && toggleExpand(speciesName)}
                 >
-                  {thumbSrc ? (
-                    <img
-                      src={thumbSrc}
-                      alt={speciesName}
-                      className="h-11 w-11 flex-shrink-0 rounded-sm object-cover"
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                    />
-                  ) : (
-                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-sm bg-muted">
-                      <FolderOpen className="h-5 w-5 text-muted-foreground/40" />
-                    </div>
-                  )}
-
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="font-serif text-base font-semibold leading-tight truncate text-foreground" title={plainSpeciesName(speciesName)}>
@@ -672,6 +709,8 @@ export default function CollectionTab() {
         speciesName={folderEditing}
         finds={folderEditing ? (filteredGroups.find(([name]) => name === folderEditing)?.[1] ?? groups.find(([name]) => name === folderEditing)?.[1] ?? []) : []}
         onOpenChange={(open) => !open && setFolderEditing(null)}
+        speciesProfile={folderEditing ? speciesProfilesByName.get(folderEditing) : undefined}
+        onSave={handleFolderSave}
       />
       <DeleteFindDialog
         find={deleting}

@@ -16,15 +16,23 @@ import { openSpeciesFolder } from '@/lib/finds';
 import { reverseGeocode } from '@/lib/geocoding';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
 import { FolderOpen, MapPin } from 'lucide-react';
-import type { Find } from '@/lib/finds';
+import type { Find, SpeciesProfile } from '@/lib/finds';
+import {
+  EDIBILITY_VALUES,
+  EDIBILITY_LABELS,
+  PROTECTED_STATUS_VALUES,
+  PROTECTED_STATUS_LABELS,
+} from '@/lib/speciesMetadata';
 
 interface FolderEditDialogProps {
   speciesName: string | null; // null = closed
   finds: Find[];
   onOpenChange: (open: boolean) => void;
+  speciesProfile?: SpeciesProfile | null;
+  onSave?: (newName: string, edibility: string | null, protectedStatus: string | null) => void;
 }
 
-export function FolderEditDialog({ speciesName, finds, onOpenChange }: FolderEditDialogProps) {
+export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProfile, onSave }: FolderEditDialogProps) {
   const storagePath = useAppStore((s) => s.storagePath);
   const lang = useAppStore((s) => s.language);
   const updateFind = useUpdateFind();
@@ -41,6 +49,8 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange }: FolderEdi
   const [saving, setSaving] = useState(false);
   const [openingFolder, setOpeningFolder] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [edibility, setEdibility] = useState<string>('unknown');
+  const [protectedStatus, setProtectedStatus] = useState<string>('unknown');
 
   // Sync state when dialog opens
   useEffect(() => {
@@ -52,8 +62,10 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange }: FolderEdi
       setPickedLat(null);
       setPickedLng(null);
       setError(null);
+      setEdibility(speciesProfile?.edibility ?? 'unknown');
+      setProtectedStatus(speciesProfile?.protected_status ?? 'unknown');
     }
-  }, [speciesName]);
+  }, [speciesName, speciesProfile]);
 
   async function handleSave() {
     if (!storagePath || speciesName === null) return;
@@ -101,6 +113,11 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange }: FolderEdi
         );
       }
 
+      onSave?.(
+        speciesNameInput.trim() || speciesName!,
+        edibility === 'unknown' ? null : edibility,
+        protectedStatus === 'unknown' ? null : protectedStatus,
+      );
       onOpenChange(false);
     } catch (e) {
       setError(String(e));
@@ -267,6 +284,33 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange }: FolderEdi
                 Will only fill empty fields (country, region, coordinates). Enable overwrite to apply to all {finds.length} finds.
               </p>
             )}
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-sm font-medium">Edibility</label>
+                <select
+                  value={edibility}
+                  onChange={(e) => setEdibility(e.target.value)}
+                  className="mt-1 w-full h-9 rounded-md border border-border bg-input px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
+                >
+                  {EDIBILITY_VALUES.map((v) => (
+                    <option key={v} value={v}>{EDIBILITY_LABELS[v]}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Protected Status</label>
+                <select
+                  value={protectedStatus}
+                  onChange={(e) => setProtectedStatus(e.target.value)}
+                  className="mt-1 w-full h-9 rounded-md border border-border bg-input px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
+                >
+                  {PROTECTED_STATUS_VALUES.map((v) => (
+                    <option key={v} value={v}>{PROTECTED_STATUS_LABELS[v]}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
 
           {error && (
