@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: "Completed quick-260508-wwb: per-photo management — delete single, bulk delete, primary-promotion"
-last_updated: "2026-05-08T22:00:23.646Z"
+stopped_at: "Completed quick-260509-1u6: edibility + protected_status species metadata — migration, Rust command, TS types, badge component, FolderEditDialog, ImportDialog, badge display across all collection/map/lightbox surfaces"
+last_updated: "2026-05-09T06:03:23.335Z"
 last_activity: 2026-05-07 -- Release/update infrastructure and maintenance UX fixes landed; next verification focus is production updater behavior plus remaining map regressions
 progress:
   total_phases: 9
@@ -82,6 +82,8 @@ Recent decisions affecting current work:
 - No-photo find creation: create_find Rust command with no photo insert, open_find_folder photo-scope falls back to species folder when no photos
 - LocationNoteInput uses internal localValue state for dropdown filter — controlled-component pattern where parent mock does not propagate onChange as prop update
 - per-photo delete uses std::fs::remove_file (not trash) — explicit permanent deletion, NotFound errors silently ignored
+- Edibility/protected_status stored as NULL in DB when unknown — UI normalizes to 'unknown' enum via guard functions; 'unknown' string never written to DB
+- Single upsert path for edibility/protected_status: FolderEditDialog passes values via onSave callback; CollectionTab's single upsertSpeciesProfile.mutate() call merges them — no double upsert
 
 ### Pending Todos
 
@@ -161,6 +163,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-08T22:00:10.984Z
-Stopped at: Completed quick-260508-wwb: per-photo management — delete single, bulk delete, primary-promotion
+Last session: 2026-05-09T06:03:13.732Z
+Stopped at: Completed quick-260509-1u6: edibility + protected_status species metadata — migration, Rust command, TS types, badge component, FolderEditDialog, ImportDialog, badge display across all collection/map/lightbox surfaces
 Resume file: None
