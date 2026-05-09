@@ -70,6 +70,8 @@ export interface SpeciesProfile {
   species_name: string;
   cover_photo_id: number | null;
   tags: string[];
+  edibility?: string | null;
+  protected_status?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -214,12 +216,16 @@ export async function upsertSpeciesProfile(
   speciesName: string,
   coverPhotoId: number | null,
   tags: string[],
+  edibility?: string | null,
+  protectedStatus?: string | null,
 ): Promise<void> {
   return invoke<void>('upsert_species_profile', {
     storagePath,
     speciesName,
     coverPhotoId,
     tags,
+    edibility: edibility ?? null,
+    protectedStatus: protectedStatus ?? null,
   });
 }
 

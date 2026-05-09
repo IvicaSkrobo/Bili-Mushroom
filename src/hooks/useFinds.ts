@@ -129,11 +129,15 @@ export function useUpsertSpeciesProfile() {
       speciesName,
       coverPhotoId,
       tags,
+      edibility,
+      protectedStatus,
     }: {
       speciesName: string;
       coverPhotoId: number | null;
       tags: string[];
-    }) => upsertSpeciesProfile(storagePath!, speciesName, coverPhotoId, tags),
+      edibility?: string | null;
+      protectedStatus?: string | null;
+    }) => upsertSpeciesProfile(storagePath!, speciesName, coverPhotoId, tags, edibility, protectedStatus),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [SPECIES_PROFILES_QUERY_KEY, storagePath] });
     },
