@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Info } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
   AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
@@ -79,6 +79,9 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
       <DialogContent className="w-[480px]">
         <DialogHeader>
           <DialogTitle>{t('settings.title')}</DialogTitle>
+          <DialogDescription>
+            Manage library location, language, theme, and cached map data.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="text-xs font-medium text-muted-foreground">{t('settings.libraryLocation')}</div>

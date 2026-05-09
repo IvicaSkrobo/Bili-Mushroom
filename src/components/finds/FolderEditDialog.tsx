@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { renderSpeciesName } from '@/lib/speciesName';
+import { SpeciesNameEditor } from './SpeciesNameEditor';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -43,7 +44,6 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
   const bulkRename = useBulkRenameSpecies();
 
   const [speciesNameInput, setSpeciesNameInput] = useState('');
-  const [speciesSelection, setSpeciesSelection] = useState<{ start: number; end: number } | null>(null);
   const [country, setCountry] = useState('');
   const [region, setRegion] = useState('');
   const [overwriteExisting, setOverwriteExisting] = useState(false);
@@ -149,70 +149,21 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit Folder</DialogTitle>
+            <DialogDescription>
+              Update species-level details, location defaults, and status metadata for this folder.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             <div>
               <div className="flex items-center justify-between gap-2 mb-1">
                 <label className="text-sm font-medium">Species name</label>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    disabled={!speciesSelection}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      if (!speciesSelection) return;
-                      const { start, end } = speciesSelection;
-                      const selected = speciesNameInput.slice(start, end);
-                      const alreadyWrapped = speciesNameInput[start - 1] === '*' && speciesNameInput[end] === '*';
-                      setSpeciesNameInput(alreadyWrapped
-                        ? speciesNameInput.slice(0, start - 1) + selected + speciesNameInput.slice(end + 1)
-                        : speciesNameInput);
-                      setSpeciesSelection(null);
-                    }}
-                    className="inline-flex items-center justify-center h-6 w-6 rounded border border-border/60 text-[11px] text-muted-foreground hover:border-primary/50 hover:bg-primary/8 hover:text-foreground disabled:pointer-events-none disabled:opacity-25"
-                    title="Mark selected as bold"
-                  >
-                    <span className="font-serif font-bold">B</span>
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!speciesSelection}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      if (!speciesSelection) return;
-                      const { start, end } = speciesSelection;
-                      const selected = speciesNameInput.slice(start, end);
-                      const alreadyWrapped = speciesNameInput[start - 1] === '*' && speciesNameInput[end] === '*';
-                      if (!alreadyWrapped) {
-                        setSpeciesNameInput(speciesNameInput.slice(0, start) + '*' + selected + '*' + speciesNameInput.slice(end));
-                      }
-                      setSpeciesSelection(null);
-                    }}
-                    className="inline-flex items-center justify-center h-6 w-6 rounded border border-border/60 text-[11px] text-muted-foreground hover:border-primary/50 hover:bg-primary/8 hover:text-foreground disabled:pointer-events-none disabled:opacity-25"
-                    title="Mark selected as normal weight"
-                  >
-                    <span className="font-serif font-normal">N</span>
-                  </button>
-                </div>
               </div>
-              <Input
+              <SpeciesNameEditor
                 value={speciesNameInput}
-                onChange={(e) => { setSpeciesNameInput(e.target.value); setSpeciesSelection(null); }}
-                onSelect={(e) => {
-                  const input = e.currentTarget;
-                  const start = input.selectionStart ?? 0;
-                  const end = input.selectionEnd ?? 0;
-                  setSpeciesSelection(start !== end ? { start, end } : null);
-                }}
-                onBlur={() => setSpeciesSelection(null)}
+                onChange={setSpeciesNameInput}
                 placeholder="Species name"
               />
-              {speciesNameInput.includes('*') && (
-                <p className="mt-1.5 font-serif text-sm font-semibold text-foreground/80 px-0.5">
-                  {renderSpeciesName(speciesNameInput)}
-                </p>
-              )}
             </div>
 
             <div>
@@ -295,7 +246,7 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
                 <select
                   value={edibility}
                   onChange={(e) => setEdibility(e.target.value)}
-                  className="mt-1 w-full h-9 rounded-md border border-border bg-input px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
+                  className="mt-1 h-7 w-full rounded-md border border-border bg-input px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
                 >
                   {EDIBILITY_VALUES.map((v) => (
                     <option key={v} value={v}>{EDIBILITY_LABELS[v]}</option>
@@ -307,7 +258,7 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
                 <select
                   value={protectedStatus}
                   onChange={(e) => setProtectedStatus(e.target.value)}
-                  className="mt-1 w-full h-9 rounded-md border border-border bg-input px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
+                  className="mt-1 h-7 w-full rounded-md border border-border bg-input px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
                 >
                   {PROTECTED_STATUS_VALUES.map((v) => (
                     <option key={v} value={v}>{PROTECTED_STATUS_LABELS[v]}</option>

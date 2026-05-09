@@ -482,7 +482,7 @@ export default function SpeciesTab() {
             </div>
           </div>
 
-          <div className="overflow-y-auto px-3 pb-3 lg:h-[calc(100vh-13rem)]">
+          <div className="overflow-y-auto px-3 pb-24 lg:h-[calc(100vh-13rem)]">
             {filteredSpecies.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
                 {t('species.noResults')}

@@ -5,6 +5,7 @@ import { readDir } from '@tauri-apps/plugin-fs';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -83,6 +84,22 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   const { data: speciesProfilesData } = useSpeciesProfiles();
   const upsertProfile = useUpsertSpeciesProfile();
   const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
+  const speciesSuggestions = useMemo(() => {
+    const seen = new Set<string>();
+    const values = [
+      ...speciesFolders,
+      ...(findsData?.map((find) => find.species_name ?? '') ?? []),
+      ...(speciesProfilesData?.map((profile) => profile.species_name ?? '') ?? []),
+    ];
+
+    return values.filter((value) => {
+      const trimmed = value.trim();
+      const key = trimmed.toLowerCase();
+      if (!trimmed || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [speciesFolders, findsData, speciesProfilesData]);
 
   const locationNoteSuggestions = useMemo(() => {
     if (!findsData) return [];
@@ -178,20 +195,55 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[82vh] max-w-2xl flex-col overflow-hidden p-0">
+        <DialogHeader className="border-b border-border/60 px-5 py-2">
           <DialogTitle>{t('create.title')}</DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground/80">
+            Ručni unos nalaza bez fotografija.
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-2.5">
+        <div className="space-y-2">
           <div>
             <label className="text-sm font-medium">{t('edit.species')}</label>
             <SpeciesNameEditor
               value={form.species_name}
               onChange={(raw) => handleChange('species_name', raw)}
               placeholder={t('preview.speciesName')}
-              suggestions={speciesFolders}
+              suggestions={speciesSuggestions}
             />
+            <div className="mt-2 rounded-md border border-border/60 bg-card/35 p-2.5">
+              <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                Status vrste
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Edibility</label>
+                <select
+                  value={edibility}
+                  onChange={(e) => setEdibility(e.target.value)}
+                  className="mt-1 h-7 w-full rounded-md border border-border bg-input px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
+                >
+                  {EDIBILITY_VALUES.map((v) => (
+                    <option key={v} value={v}>{EDIBILITY_LABELS[v]}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Protected</label>
+                <select
+                  value={protectedStatus}
+                  onChange={(e) => setProtectedStatus(e.target.value)}
+                  className="mt-1 h-7 w-full rounded-md border border-border bg-input px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
+                >
+                  {PROTECTED_STATUS_VALUES.map((v) => (
+                    <option key={v} value={v}>{PROTECTED_STATUS_LABELS[v]}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            </div>
           </div>
           <div>
             <label className="text-sm font-medium">{t('edit.date')}</label>
@@ -249,17 +301,25 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
               />
             </div>
           </div>
-          <div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setPickerOpen(true)}
-              className="flex items-center gap-1"
-            >
-              <MapPin className="h-4 w-4" />
-              Pick on map
-            </Button>
+          <div className="rounded-md border border-border/60 bg-card/35 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">Location</p>
+                <p className="text-xs text-muted-foreground">
+                  Pick coordinates on the map and auto-fill nearby country/region when available.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setPickerOpen(true)}
+                className="shrink-0 gap-1.5"
+              >
+                <MapPin className="h-4 w-4" />
+                Pick on map
+              </Button>
+            </div>
           </div>
           <div>
             <label className="text-sm font-medium">{t('edit.notes')}</label>
@@ -294,41 +354,16 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-sm font-medium">Edibility</label>
-              <select
-                value={edibility}
-                onChange={(e) => setEdibility(e.target.value)}
-                className="mt-1 w-full h-9 rounded-md border border-border bg-input px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
-              >
-                {EDIBILITY_VALUES.map((v) => (
-                  <option key={v} value={v}>{EDIBILITY_LABELS[v]}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-medium">Protected Status</label>
-              <select
-                value={protectedStatus}
-                onChange={(e) => setProtectedStatus(e.target.value)}
-                className="mt-1 w-full h-9 rounded-md border border-border bg-input px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
-              >
-                {PROTECTED_STATUS_VALUES.map((v) => (
-                  <option key={v} value={v}>{PROTECTED_STATUS_LABELS[v]}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+        </div>
         </div>
 
         {createMutation.isError && (
-          <Alert variant="destructive" role="alert">
+          <Alert variant="destructive" role="alert" className="mx-5 mt-1">
             <AlertDescription>{String(createMutation.error)}</AlertDescription>
           </Alert>
         )}
 
-        <DialogFooter>
+        <DialogFooter className="border-t border-border/60 px-5 py-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t('edit.cancel')}
           </Button>

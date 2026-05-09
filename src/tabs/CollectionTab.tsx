@@ -421,7 +421,7 @@ export default function CollectionTab() {
       )}
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-4 space-y-2">
+      <div className="flex-1 overflow-auto p-4 pb-10 space-y-2">
         {isLoading && (
           <p className="text-sm text-muted-foreground px-1">{t('collection.loading')}</p>
         )}

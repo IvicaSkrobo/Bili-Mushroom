@@ -28,6 +28,7 @@ interface SpeciesNameEditorProps {
   /** Raw-format folder names for autocomplete */
   suggestions?: string[];
   className?: string;
+  showBoldButton?: boolean;
 }
 
 export function SpeciesNameEditor({
@@ -36,12 +37,14 @@ export function SpeciesNameEditor({
   placeholder = '',
   suggestions = [],
   className,
+  showBoldButton = true,
 }: SpeciesNameEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   /** Last value we wrote to the DOM — used to detect external changes */
   const lastSyncedRef = useRef<string>('__uninit__');
 
   const [hasSelection, setHasSelection] = useState(false);
+  const [selectionIsBold, setSelectionIsBold] = useState(true);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [dropdownHighlight, setDropdownHighlight] = useState(0);
   const [plainText, setPlainText] = useState(() => plainSpeciesName(value));
@@ -66,6 +69,20 @@ export function SpeciesNameEditor({
 
   // ── Selection tracking ────────────────────────────────────────────────────
   useEffect(() => {
+    function rangeIsBold(sel: Selection) {
+      if (!sel.rangeCount || !editorRef.current) return true;
+      const range = sel.getRangeAt(0);
+      const ancestor =
+        range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+          ? (range.commonAncestorContainer as Element)
+          : range.commonAncestorContainer.parentElement;
+
+      if (ancestor?.closest('[data-normal]')) return false;
+
+      const fragment = range.cloneContents();
+      return !fragment.querySelector?.('[data-normal]');
+    }
+
     function onSelectionChange() {
       const sel = window.getSelection();
       if (
@@ -74,9 +91,11 @@ export function SpeciesNameEditor({
         !editorRef.current?.contains(sel.anchorNode)
       ) {
         setHasSelection(false);
+        setSelectionIsBold(true);
         return;
       }
       setHasSelection(true);
+      setSelectionIsBold(rangeIsBold(sel));
     }
     document.addEventListener('selectionchange', onSelectionChange);
     return () => document.removeEventListener('selectionchange', onSelectionChange);
@@ -144,6 +163,7 @@ export function SpeciesNameEditor({
 
   function handleBlur() {
     setHasSelection(false);
+    setSelectionIsBold(true);
     // Short delay so a click on a suggestion can fire before we close
     setTimeout(() => setDropdownOpen(false), 150);
   }
@@ -228,30 +248,26 @@ export function SpeciesNameEditor({
             selected:
           </span>
         )}
-        <button
-          type="button"
-          disabled={!hasSelection}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            applyBold();
-          }}
-          className="inline-flex items-center justify-center h-6 w-6 rounded border border-border/60 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/8 hover:text-foreground disabled:pointer-events-none disabled:opacity-25"
-          title="Mark selected as bold"
-        >
-          <span className="font-serif font-bold">B</span>
-        </button>
-        <button
-          type="button"
-          disabled={!hasSelection}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            applyNormal();
-          }}
-          className="inline-flex items-center justify-center h-6 w-6 rounded border border-border/60 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/8 hover:text-foreground disabled:pointer-events-none disabled:opacity-25"
-          title="Mark selected as normal weight"
-        >
-          <span className="font-serif font-normal">N</span>
-        </button>
+        {showBoldButton && (
+          <button
+            type="button"
+            disabled={!hasSelection}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              if (selectionIsBold) applyNormal();
+              else applyBold();
+            }}
+            className={cn(
+              'inline-flex h-6 w-6 items-center justify-center rounded border text-[11px] transition-colors disabled:pointer-events-none disabled:opacity-25',
+              selectionIsBold
+                ? 'border-primary/70 bg-primary/12 text-foreground'
+                : 'border-border/90 bg-card/55 text-foreground/75 hover:border-primary/60 hover:bg-primary/10 hover:text-foreground',
+            )}
+            title={selectionIsBold ? 'Turn off bold for selected text' : 'Turn on bold for selected text'}
+          >
+            <span className="font-serif font-bold">B</span>
+          </button>
+        )}
       </div>
 
       {/* Editor + autocomplete */}
@@ -271,9 +287,9 @@ export function SpeciesNameEditor({
           className={cn(
             // Match shadcn Input appearance
             'species-name-editor',
-            'flex min-h-9 w-full rounded-md border border-input bg-transparent px-3 py-1',
+            'flex min-h-9 w-full rounded-md border border-border/90 bg-background/45 px-3 py-1',
             'text-sm font-semibold shadow-sm transition-colors outline-none',
-            'focus-visible:ring-1 focus-visible:ring-ring',
+            'focus-visible:border-primary/60 focus-visible:ring-1 focus-visible:ring-ring',
             className,
           )}
         />

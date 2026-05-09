@@ -4,6 +4,7 @@ import { MapContainer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -159,9 +160,12 @@ export function LocationPickerMap({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex flex-col p-0 gap-0 w-[720px] max-w-[95vw] h-[620px] max-h-[90vh]">
         {/* Header: title only */}
-        <div className="shrink-0 px-5 py-3 border-b border-border/40">
+        <DialogHeader className="shrink-0 gap-1 border-b border-border/40 px-5 py-3 text-left">
           <DialogTitle className="text-base font-semibold">Odaberi lokaciju</DialogTitle>
-        </div>
+          <DialogDescription>
+            Klikni na kartu ili odaberi postojeći pin za postavljanje spremljene lokacije.
+          </DialogDescription>
+        </DialogHeader>
 
         {/* Map */}
         <div className="flex-1" style={{ minHeight: 0 }}>

@@ -3,6 +3,7 @@ import { Trash2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -52,6 +53,9 @@ export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: 
               {(summary?.skipped.length ?? 0) > 0 && t('import.reviewSkipped', { n: summary!.skipped.length })}
               {deletedIds.size > 0 && t('import.reviewDeleted', { n: deletedIds.size })}
             </DialogTitle>
+            <DialogDescription>
+              Review imported finds, make quick edits, or remove mistakes before continuing.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto max-h-[50vh]">
