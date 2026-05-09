@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: "Completed quick-260509-1u6: edibility + protected_status species metadata — migration, Rust command, TS types, badge component, FolderEditDialog, ImportDialog, badge display across all collection/map/lightbox surfaces"
-last_updated: "2026-05-09T06:03:23.335Z"
-last_activity: 2026-05-09 -- Edibility + protected-status species metadata shipped: migration, Rust/TS model, badge component, FolderEditDialog, ImportDialog prefill, badge display across all surfaces
+stopped_at: "Completed quick-260509-bt0: import/create flow consistency — separated find/species notes, added edibility+protected-status to CreateFindDialog, deleted dead FindPreviewCard"
+last_updated: "2026-05-09T06:51:24.341Z"
+last_activity: 2026-05-07 -- Release/update infrastructure and maintenance UX fixes landed; next verification focus is production updater behavior plus remaining map regressions
 progress:
   total_phases: 9
   completed_phases: 6
@@ -59,6 +59,7 @@ Progress: [██████████] 100%
 | Phase quick P260508-w26 | 20 | 4 tasks | 9 files |
 | Phase quick P260508-wlr | 8 | 2 tasks | 5 files |
 | Phase quick P260508-wwb | 25 | 3 tasks | 9 files |
+| Phase quick P260509-bt0 | 12 | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,8 @@ Recent decisions affecting current work:
 - per-photo delete uses std::fs::remove_file (not trash) — explicit permanent deletion, NotFound errors silently ignored
 - Edibility/protected_status stored as NULL in DB when unknown — UI normalizes to 'unknown' enum via guard functions; 'unknown' string never written to DB
 - Single upsert path for edibility/protected_status: FolderEditDialog passes values via onSave callback; CollectionTab's single upsertSpeciesProfile.mutate() call merges them — no double upsert
+- Separate find-level notes (finds.notes) from species-level notes (species_notes) in ImportDialog — two distinct textareas for semantically different content
+- CreateFindDialog offers edibility and protected-status selects matching ImportDialog and FolderEditDialog — upserts species profile on save when values are set
 
 ### Pending Todos
 
@@ -153,6 +156,7 @@ Recent decisions affecting current work:
 | 260509-0qx observed-count-range-stats | 2026-05-09 | observed_min/max/avg added to SpeciesStatSummary (Rust+TS); per-species sub-query aggregates COALESCE(obs_min,obs_count)/midpoint AVG; SpeciesStatRow shows "3–10 (avg 5.8)" when data present; 3 Rust tests pass. |
 | 260509-0sc historical-weekly-monthly-comparison | 2026-05-09 | "This Time in Past Years" section in Stats tab; historicalComparison.ts (getISOWeek + buildHistoricalComparison); HistoricalComparison.tsx two-column grid; reuses calendar data; 10 Vitest tests pass. |
 | 260509-1u6 implement-edibility-and-protected-status | 2026-05-09 | Migration 0013 + Rust/TS model extension; speciesMetadata.ts enums + normalizers; SpeciesMetadataBadges component; FolderEditDialog selects + CollectionTab upsert wiring; ImportDialog prefill; badges in folder header, inline find row, CollectionPopup, PhotoLightbox. Status: Needs Review (runtime verification pending). |
+| 260509-bt0 audit-and-fix-consistency-between-import | 2026-05-09 | Separated find-level notes (sharedFindNotes) from species notes (sharedFolderNotes) in ImportDialog; added edibility+protected-status selects to CreateFindDialog matching ImportDialog/FolderEditDialog; deleted dead FindPreviewCard code and tests; fixed 10 stale ImportDialog tests. |
 
 ### Roadmap Evolution
 
@@ -164,6 +168,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-09T06:03:13.732Z
-Stopped at: Completed quick-260509-1u6: edibility + protected_status species metadata — migration, Rust command, TS types, badge component, FolderEditDialog, ImportDialog, badge display across all collection/map/lightbox surfaces
+Last session: 2026-05-09T06:50:00.708Z
+Stopped at: Completed quick-260509-bt0: import/create flow consistency — separated find/species notes, added edibility+protected-status to CreateFindDialog, deleted dead FindPreviewCard
 Resume file: None
