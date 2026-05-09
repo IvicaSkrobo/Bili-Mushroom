@@ -5,7 +5,7 @@ milestone_name: milestone
 status: planning
 stopped_at: "Completed quick-260509-1u6: edibility + protected_status species metadata — migration, Rust command, TS types, badge component, FolderEditDialog, ImportDialog, badge display across all collection/map/lightbox surfaces"
 last_updated: "2026-05-09T06:03:23.335Z"
-last_activity: 2026-05-07 -- Release/update infrastructure and maintenance UX fixes landed; next verification focus is production updater behavior plus remaining map regressions
+last_activity: 2026-05-09 -- Edibility + protected-status species metadata shipped: migration, Rust/TS model, badge component, FolderEditDialog, ImportDialog prefill, badge display across all surfaces
 progress:
   total_phases: 9
   completed_phases: 6
@@ -152,6 +152,7 @@ Recent decisions affecting current work:
 | 260509-0me collection-pin-labels-zoom-threshold | 2026-05-09 | LABEL_ZOOM_THRESHOLD=13; labels hidden below zoom 13; proximity post-pass in collectionsFromFinds assigns labelText/suppressLabel; mixed-species location shows "N species" on primary pin; 3 new tests. |
 | 260509-0qx observed-count-range-stats | 2026-05-09 | observed_min/max/avg added to SpeciesStatSummary (Rust+TS); per-species sub-query aggregates COALESCE(obs_min,obs_count)/midpoint AVG; SpeciesStatRow shows "3–10 (avg 5.8)" when data present; 3 Rust tests pass. |
 | 260509-0sc historical-weekly-monthly-comparison | 2026-05-09 | "This Time in Past Years" section in Stats tab; historicalComparison.ts (getISOWeek + buildHistoricalComparison); HistoricalComparison.tsx two-column grid; reuses calendar data; 10 Vitest tests pass. |
+| 260509-1u6 implement-edibility-and-protected-status | 2026-05-09 | Migration 0013 + Rust/TS model extension; speciesMetadata.ts enums + normalizers; SpeciesMetadataBadges component; FolderEditDialog selects + CollectionTab upsert wiring; ImportDialog prefill; badges in folder header, inline find row, CollectionPopup, PhotoLightbox. Status: Needs Review (runtime verification pending). |
 
 ### Roadmap Evolution
 
