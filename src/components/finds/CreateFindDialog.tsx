@@ -13,8 +13,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useCreateFind, useFinds } from '@/hooks/useFinds';
+import { useCreateFind, useFinds, useSpeciesProfiles, useUpsertSpeciesProfile } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
+import {
+  EDIBILITY_VALUES,
+  EDIBILITY_LABELS,
+  PROTECTED_STATUS_VALUES,
+  PROTECTED_STATUS_LABELS,
+} from '@/lib/speciesMetadata';
 import { useT } from '@/i18n/index';
 import { reverseGeocode } from '@/lib/geocoding';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
@@ -74,6 +80,8 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   const storagePath = useAppStore((s) => s.storagePath);
   const createMutation = useCreateFind();
   const { data: findsData } = useFinds();
+  const { data: speciesProfilesData } = useSpeciesProfiles();
+  const upsertProfile = useUpsertSpeciesProfile();
   const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
 
   const locationNoteSuggestions = useMemo(() => {
@@ -90,13 +98,27 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   }, [findsData]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [form, setForm] = useState<FormState>(BLANK_FORM);
+  const [edibility, setEdibility] = useState<string>('unknown');
+  const [protectedStatus, setProtectedStatus] = useState<string>('unknown');
 
   // Reset form to blank when dialog opens
   useEffect(() => {
     if (open) {
       setForm(BLANK_FORM);
+      setEdibility('unknown');
+      setProtectedStatus('unknown');
     }
   }, [open]);
+
+  // Pre-fill edibility/protected from existing species profile when species name changes
+  useEffect(() => {
+    if (!speciesProfilesData || !form.species_name) return;
+    const existing = speciesProfilesData.find(
+      (p) => p.species_name.toLowerCase() === form.species_name.toLowerCase(),
+    );
+    setEdibility(existing?.edibility ?? 'unknown');
+    setProtectedStatus(existing?.protected_status ?? 'unknown');
+  }, [form.species_name, speciesProfilesData]);
 
   // Load species folder suggestions
   useEffect(() => {
@@ -132,7 +154,23 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
         observed_count_min: observedRange.min,
         observed_count_max: observedRange.max,
       },
-      { onSuccess: () => onOpenChange(false) },
+      {
+        onSuccess: () => {
+          if (edibility !== 'unknown' || protectedStatus !== 'unknown') {
+            const existing = speciesProfilesData?.find(
+              (p) => p.species_name === form.species_name.trim(),
+            );
+            upsertProfile.mutate({
+              speciesName: form.species_name.trim(),
+              coverPhotoId: existing?.cover_photo_id ?? null,
+              tags: existing?.tags ?? [],
+              edibility: edibility === 'unknown' ? null : edibility,
+              protectedStatus: protectedStatus === 'unknown' ? null : protectedStatus,
+            });
+          }
+          onOpenChange(false);
+        },
+      },
     );
   }
 
@@ -254,6 +292,33 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
                 Unesi broj ili raspon poput 15-20. Ovakav unos neće se spremiti.
               </p>
             )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-sm font-medium">Edibility</label>
+              <select
+                value={edibility}
+                onChange={(e) => setEdibility(e.target.value)}
+                className="mt-1 w-full h-9 rounded-md border border-border bg-input px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
+              >
+                {EDIBILITY_VALUES.map((v) => (
+                  <option key={v} value={v}>{EDIBILITY_LABELS[v]}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Protected Status</label>
+              <select
+                value={protectedStatus}
+                onChange={(e) => setProtectedStatus(e.target.value)}
+                className="mt-1 w-full h-9 rounded-md border border-border bg-input px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
+              >
+                {PROTECTED_STATUS_VALUES.map((v) => (
+                  <option key={v} value={v}>{PROTECTED_STATUS_LABELS[v]}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 

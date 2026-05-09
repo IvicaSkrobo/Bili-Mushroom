@@ -96,6 +96,7 @@ const sampleSummary: ImportSummary = {
     },
   ],
   skipped: [],
+  delete_failures: [],
 };
 
 function renderDialog(open = true, onOpenChange = vi.fn()) {
@@ -143,7 +144,7 @@ describe('ImportDialog', () => {
     );
   });
 
-  it('after picking files, renders one FindPreviewCard per selected file', async () => {
+  it('after picking files, shows photo thumbnail and Clear All button', async () => {
     vi.mocked(mockOpen).mockResolvedValueOnce(['/photos/shroom.jpg']);
     renderDialog();
 
@@ -152,7 +153,8 @@ describe('ImportDialog', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('Species name')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Clear All/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Remove photo/i })).toBeInTheDocument();
     });
   });
 
@@ -166,7 +168,7 @@ describe('ImportDialog', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Clear All/i })).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('Species name')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Remove photo/i })).toBeInTheDocument();
     });
 
     await act(async () => {
@@ -175,11 +177,11 @@ describe('ImportDialog', () => {
 
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: /Clear All/i })).not.toBeInTheDocument();
-      expect(screen.queryByPlaceholderText('Species name')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Remove photo/i })).not.toBeInTheDocument();
     });
   });
 
-  it('EXIF date and lat/lng pre-fill the preview card', async () => {
+  it('EXIF lat/lng pre-fill shows coordinates next to the map pin button', async () => {
     vi.mocked(mockOpen).mockResolvedValueOnce(['/photos/gps.jpg']);
     invokeHandlers['parse_exif'] = () => ({ date: '2024-05-10', lat: 45.1, lng: 13.9 });
     renderDialog();
@@ -188,14 +190,14 @@ describe('ImportDialog', () => {
       fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
     });
 
-    // Lat/lng inputs removed — location shown in the map picker button as coordinates
+    // Coordinates shown in a span adjacent to the map pin button
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /pick on map/i })).toHaveTextContent('45.1000');
+      expect(screen.getByText(/45\.1000/)).toBeInTheDocument();
     });
   });
 
-  it('Import All is disabled when a card has an empty date_found', async () => {
-    invokeHandlers['parse_exif'] = () => ({ date: null, lat: null, lng: null });
+  it('Import All is disabled when species name is empty after picking photos', async () => {
+    invokeHandlers['parse_exif'] = () => ({ date: '2024-05-10', lat: null, lng: null });
     vi.mocked(mockOpen).mockResolvedValueOnce(['/photos/nodate.jpg']);
     renderDialog();
 
@@ -203,7 +205,10 @@ describe('ImportDialog', () => {
       fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
     });
 
-    await waitFor(() => screen.getByPlaceholderText('Species name'));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Remove photo/i })).toBeInTheDocument();
+    });
+    // Species name is empty so Import All should be disabled
     expect(screen.getByRole('button', { name: /Import All/i })).toBeDisabled();
   });
 
@@ -244,10 +249,10 @@ describe('ImportDialog', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
     });
-    await waitFor(() => screen.getByPlaceholderText('Species name'));
+    await waitFor(() => screen.getByRole('button', { name: /Remove photo/i }));
 
     // Fill species name so Import All is enabled
-    fireEvent.change(screen.getByPlaceholderText('Species name'), { target: { value: 'Boletus edulis' } });
+    fireEvent.change(screen.getByPlaceholderText('Mushroom name'), { target: { value: 'Boletus edulis' } });
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Import All/i }));
@@ -256,7 +261,7 @@ describe('ImportDialog', () => {
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith(
         'import_find',
-        expect.objectContaining({ storagePath: '/test-storage', deleteSource: false }),
+        expect.objectContaining({ storagePath: '/test-storage', deleteSource: true }),
       );
     });
   });
@@ -275,10 +280,10 @@ describe('ImportDialog', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
     });
-    await waitFor(() => screen.getByPlaceholderText('Species name'));
+    await waitFor(() => screen.getByRole('button', { name: /Remove photo/i }));
 
     // Fill species name so Import All is enabled
-    fireEvent.change(screen.getByPlaceholderText('Species name'), { target: { value: 'Amanita muscaria' } });
+    fireEvent.change(screen.getByPlaceholderText('Mushroom name'), { target: { value: 'Amanita muscaria' } });
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Import All/i }));
@@ -306,10 +311,10 @@ describe('ImportDialog', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
     });
-    await waitFor(() => screen.getByPlaceholderText('Species name'));
+    await waitFor(() => screen.getByRole('button', { name: /Remove photo/i }));
 
     // Fill species name
-    fireEvent.change(screen.getByPlaceholderText('Species name'), { target: { value: 'Boletus edulis' } });
+    fireEvent.change(screen.getByPlaceholderText('Mushroom name'), { target: { value: 'Boletus edulis' } });
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Import All/i }));
@@ -348,16 +353,14 @@ describe('ImportDialog', () => {
     });
 
     await waitFor(() => {
-      // BulkMetadataBar adds its own "Species name" input when pending >= 2
-      // so we count FindPreviewCard species inputs by their unique presence in each card
-      // Use the remove buttons as a proxy: 1 remove button per card
-      const removeButtons = screen.getAllByRole('button', { name: /remove from list/i });
+      // Use the per-thumbnail remove buttons as a proxy for photo count
       // Only jpg and png should be imported (txt filtered out)
+      const removeButtons = screen.getAllByRole('button', { name: /Remove photo/i });
       expect(removeButtons).toHaveLength(2);
     });
   });
 
-  it('editing a card species_name propagates state back (state lives in dialog)', async () => {
+  it('editing the shared species name input updates the value', async () => {
     vi.mocked(mockOpen).mockResolvedValueOnce(['/photos/shroom.jpg']);
     invokeHandlers['parse_exif'] = () => ({ date: '2024-05-10', lat: null, lng: null });
     renderDialog();
@@ -365,9 +368,9 @@ describe('ImportDialog', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
     });
-    await waitFor(() => screen.getByPlaceholderText('Species name'));
+    await waitFor(() => screen.getByRole('button', { name: /Remove photo/i }));
 
-    const speciesInput = screen.getByPlaceholderText('Species name') as HTMLInputElement;
+    const speciesInput = screen.getByPlaceholderText('Mushroom name') as HTMLInputElement;
     fireEvent.change(speciesInput, { target: { value: 'Boletus edulis' } });
     expect(speciesInput.value).toBe('Boletus edulis');
   });
@@ -386,10 +389,10 @@ describe('ImportDialog', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
     });
-    await waitFor(() => screen.getByPlaceholderText('Species name'));
+    await waitFor(() => screen.getByRole('button', { name: /Remove photo/i }));
 
     // Fill species name so Import All is enabled
-    fireEvent.change(screen.getByPlaceholderText('Species name'), { target: { value: 'Boletus edulis' } });
+    fireEvent.change(screen.getByPlaceholderText('Mushroom name'), { target: { value: 'Boletus edulis' } });
 
     act(() => {
       fireEvent.click(screen.getByRole('button', { name: /Import All/i }));
