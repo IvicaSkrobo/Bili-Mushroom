@@ -10,7 +10,7 @@ import {
   PROTECTED_STATUS_BADGE_CLASSES,
 } from '@/lib/speciesMetadata';
 
-/** Plate + fork/knife with a full diagonal strike so "not for eating" reads clearly at badge size. */
+/** Plate with a single prohibition slash — clearer than utensils at small badge size. */
 function InedibleIcon({ className, ...props }: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -25,15 +25,10 @@ function InedibleIcon({ className, ...props }: React.SVGProps<SVGSVGElement>) {
       aria-hidden="true"
       {...props}
     >
-      <circle cx="12" cy="13" r="3.5" />
-      <path d="M5 3.5v7.5" />
-      <path d="M3.8 3.5v3.8" />
-      <path d="M6.2 3.5v3.8" />
-      <path d="M3.8 7.3h2.4" />
-      <path d="M17 3.5c1.2 1.5 1.8 3.2 1.8 5.2V11" />
-      <path d="M17 3.5V11" />
-      <path d="M16.1 21 7 3" />
-      <path d="M20.5 4 4 20.5" />
+      <circle cx="12" cy="12" r="8.6" />
+      <circle cx="12" cy="12.5" r="3.4" />
+      <path d="M7.8 8.2h8.4" />
+      <path d="M18.2 5.8 5.8 18.2" />
     </svg>
   );
 }
