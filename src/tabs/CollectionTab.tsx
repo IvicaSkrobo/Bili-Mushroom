@@ -225,10 +225,14 @@ export default function CollectionTab() {
     return m;
   }, [speciesProfiles]);
 
-  const handleFolderSave = (newName: string, edibility: string | null, protectedStatus: string | null) => {
+  const handleFolderSave = async (
+    newName: string,
+    edibility: string | null,
+    protectedStatus: string | null,
+  ) => {
     if (!folderEditing) return;
     const existingProfile = speciesProfilesByName.get(folderEditing);
-    upsertSpeciesProfile.mutate({
+    await upsertSpeciesProfile.mutateAsync({
       speciesName: newName,
       coverPhotoId: existingProfile?.cover_photo_id ?? null,
       tags: existingProfile?.tags ?? [],

@@ -1,5 +1,52 @@
 # Changelog
 
+## [0.1.20] — 2026-05-09
+
+### Added
+- **Psychedelic edibility status** — new `psychedelic` value joins edible/inedible/poisonous/unknown. Badge: purple with Sparkles icon.
+- **Croatian edibility labels** — all edibility badge labels now in Croatian: *Može se jesti*, *Nije za jelo*, *Opasno / otrovno*, *Psihoaktivno*, *Nepoznato*.
+- **Reworked edibility icons** — edible uses Utensils (fork+knife), poisonous uses Skull, psychedelic uses Sparkles, inedible keeps UtensilsCrossed.
+
+---
+
+## [0.1.19] — 2026-05-09
+
+### Added
+- **Edibility + protected status metadata** — species can now be tagged as edible/inedible/poisonous/unknown and protected/not protected. Stored in DB, displayed as inline badges throughout the app (FindCard rows, folder header, CollectionPopup, PhotoLightbox).
+- **Edibility selects in all dialogs** — FolderEditDialog, CreateFindDialog, and ImportDialog all expose edibility and protected status fields.
+- **Find-level notes vs species notes** — ImportDialog now separates find-specific notes from species-level notes with distinct inputs.
+- **Map: persist viewport across restarts** — last map center/zoom restored on next open.
+- **Map: zoom to location** — action button in find and collection pin popups flies to that location.
+
+### Fixed
+- Edibility preserved when setting a cover photo (was incorrectly reset).
+- Import dialog now remembers last used directory — picker reopens in same folder.
+- Map pin labels: smooth hover expansion with no jitter; co-located suppressed pins reveal species name on hover.
+
+### Changed
+- Map pins redesigned — dot + text label below replaces pill-as-pin style.
+
+---
+
+## [0.1.18] — 2026-05-08
+
+### Added
+- **Per-photo management** — photo grid in EditFindDialog with per-photo delete; delete button in PhotoLightbox.
+- **Location note autocomplete** — LocationNoteInput with autocomplete suggestions wired into CreateFindDialog, EditFindDialog, and ImportDialog.
+- **No-photo find creation** — finds can now be created without attaching any photo.
+- **Clickable version pill** — version badge in app header checks for available updates on click.
+- **Manual update check** — Settings dialog exposes a "Check for updates" action.
+- **Map: zoom-gated pin labels** — labels appear only when zoomed in enough; mixed-species clusters show grouped label.
+- **Map: hide clutter during zone editing** — non-essential map elements hidden while drawing/editing polygon zones.
+- **Stats: historical comparison** — weekly/monthly observed-count comparison against prior periods in Stats tab.
+- **Stats: observed-count range** — min/max/avg count range shown in SpeciesStatSummary.
+- **Stats: top spots expanded** — top spots list now shows beyond the previous top-10 cap.
+
+### Changed
+- Stats tab: seasonal insights and historical comparison moved above top spots section.
+
+---
+
 ## [0.1.15] — 2026-05-07
 
 ### Added

@@ -87,6 +87,7 @@ const MIGRATION_0009: &str = include_str!("../../migrations/0009_species_profile
 const MIGRATION_0010: &str = include_str!("../../migrations/0010_species_profile_tags.sql");
 const MIGRATION_0011: &str = include_str!("../../migrations/0011_zones.sql");
 const MIGRATION_0012: &str = include_str!("../../migrations/0012_observed_count_range.sql");
+const MIGRATION_0013: &str = include_str!("../../migrations/0013_species_profile_edibility.sql");
 
 fn normalize_observed_range(
     observed_count: Option<i64>,
@@ -257,6 +258,21 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
         }
         conn.execute_batch("PRAGMA user_version = 12")
             .map_err(|e| format!("Failed to set user_version=12: {}", e))?;
+    }
+    if version < 13 {
+        let profiles_table_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='species_profiles'",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(|e| format!("Failed to inspect species_profiles table for migration 0013: {}", e))?;
+        if profiles_table_exists > 0 {
+            conn.execute_batch(MIGRATION_0013)
+                .map_err(|e| format!("Migration 0013 failed: {}", e))?;
+        }
+        conn.execute_batch("PRAGMA user_version = 13")
+            .map_err(|e| format!("Failed to set user_version=13: {}", e))?;
     }
 
     Ok(())

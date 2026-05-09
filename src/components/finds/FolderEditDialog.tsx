@@ -29,7 +29,11 @@ interface FolderEditDialogProps {
   finds: Find[];
   onOpenChange: (open: boolean) => void;
   speciesProfile?: SpeciesProfile | null;
-  onSave?: (newName: string, edibility: string | null, protectedStatus: string | null) => void;
+  onSave?: (
+    newName: string,
+    edibility: string | null,
+    protectedStatus: string | null,
+  ) => void | Promise<void>;
 }
 
 export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProfile, onSave }: FolderEditDialogProps) {
@@ -113,7 +117,7 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
         );
       }
 
-      onSave?.(
+      await onSave?.(
         speciesNameInput.trim() || speciesName!,
         edibility === 'unknown' ? null : edibility,
         protectedStatus === 'unknown' ? null : protectedStatus,
