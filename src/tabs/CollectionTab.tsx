@@ -263,11 +263,13 @@ export default function CollectionTab() {
   const handleSetSpeciesCover = (photo: LightboxPhoto) => {
     const speciesName = lightboxSpeciesName ?? photo.find.species_name;
     if (!speciesName) return;
-    const existingTags = speciesProfiles?.find((entry) => entry.species_name === speciesName)?.tags ?? [];
+    const existingProfile = speciesProfiles?.find((entry) => entry.species_name === speciesName);
     upsertSpeciesProfile.mutate({
       speciesName,
       coverPhotoId: photo.photo.id,
-      tags: existingTags,
+      tags: existingProfile?.tags ?? [],
+      edibility: existingProfile?.edibility ?? null,
+      protectedStatus: existingProfile?.protected_status ?? null,
     });
   };
 

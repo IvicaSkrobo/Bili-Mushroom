@@ -17,18 +17,18 @@ export const PROTECTED_STATUS_LABELS: Record<ProtectedStatus, string> = {
   protected: 'Protected',
 };
 
-// Forest Codex badge colors (hex — WebView2 safe, no oklch)
-export const EDIBILITY_BADGE_STYLE: Record<Edibility, { bg: string; text: string }> = {
-  unknown:   { bg: '#2a2a2a', text: '#a0a0a0' },
-  edible:    { bg: '#1a3320', text: '#6fcf7c' },
-  inedible:  { bg: '#3a2a10', text: '#c9933a' },
-  poisonous: { bg: '#3a1010', text: '#e05a5a' },
+// Tailwind class strings — theme-aware (light + dark)
+export const EDIBILITY_BADGE_CLASSES: Record<Edibility, string> = {
+  unknown:   'border border-border/50 bg-muted/50 text-muted-foreground',
+  edible:    'border border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400',
+  inedible:  'border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400',
+  poisonous: 'border border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-400',
 };
 
-export const PROTECTED_STATUS_BADGE_STYLE: Record<ProtectedStatus, { bg: string; text: string }> = {
-  unknown:       { bg: '#2a2a2a', text: '#a0a0a0' },
-  not_protected: { bg: '#1a1f2a', text: '#7090c0' },
-  protected:     { bg: '#2a1a3a', text: '#b07ad4' },
+export const PROTECTED_STATUS_BADGE_CLASSES: Record<ProtectedStatus, string> = {
+  unknown:       'border border-border/50 bg-muted/50 text-muted-foreground',
+  not_protected: 'border border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-400',
+  protected:     'border border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-400',
 };
 
 export function normalizeEdibility(raw?: string | null): Edibility {
