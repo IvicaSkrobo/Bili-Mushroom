@@ -157,6 +157,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   const [sharedLocationNote, setSharedLocationNote] = useState('');
   const [sharedObservedRange, setSharedObservedRange] = useState('');
   const [sharedFolderNotes, setSharedFolderNotes] = useState('');
+  const [sharedFindNotes, setSharedFindNotes] = useState('');
   const [sharedMapOpen, setSharedMapOpen] = useState(false);
   const [sharedLocation, setSharedLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [nameDropdownOpen, setNameDropdownOpen] = useState(false);
@@ -309,7 +310,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         location_note: sharedLocationNote,
         lat: sharedLocation?.lat ?? null,
         lng: sharedLocation?.lng ?? null,
-        notes: sharedFolderNotes,
+        notes: sharedFindNotes.trim(),
         observed_count: observedRange.representative,
         observed_count_min: observedRange.min,
         observed_count_max: observedRange.max,
@@ -355,6 +356,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     setSharedLocationNote('');
     setSharedObservedRange('');
     setSharedFolderNotes('');
+    setSharedFindNotes('');
     setSharedLocation(null);
     setImportSummary(null);
     setReviewOpen(false);
@@ -575,6 +577,13 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
               rows={2}
               value={sharedFolderNotes}
               onChange={(e) => setSharedFolderNotes(e.target.value)}
+            />
+
+            <Textarea
+              placeholder="Notes about this specific find..."
+              rows={2}
+              value={sharedFindNotes}
+              onChange={(e) => setSharedFindNotes(e.target.value)}
             />
 
             <div className="grid grid-cols-2 gap-2">
