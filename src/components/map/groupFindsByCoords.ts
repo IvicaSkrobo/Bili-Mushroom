@@ -18,23 +18,9 @@ export function groupFindsByCoords(finds: Find[]): FindGroup[] {
   }
 
   const groups: FindGroup[] = [];
-  for (const [baseKey, groupedFinds] of map.entries()) {
-    if (groupedFinds.length === 1) {
-      const [find] = groupedFinds;
-      groups.push({ key: `${baseKey}:${find.id}`, lat: find.lat!, lng: find.lng!, finds: [find] });
-      continue;
-    }
-
-    const radius = 0.00008;
-    groupedFinds.forEach((find, index) => {
-      const angle = (Math.PI * 2 * index) / groupedFinds.length;
-      groups.push({
-        key: `${baseKey}:${find.id}`,
-        lat: find.lat! + Math.sin(angle) * radius,
-        lng: find.lng! + Math.cos(angle) * radius,
-        finds: [find],
-      });
-    });
+  for (const [key, groupedFinds] of map.entries()) {
+    const first = groupedFinds[0];
+    groups.push({ key, lat: first.lat!, lng: first.lng!, finds: groupedFinds });
   }
 
   return groups;

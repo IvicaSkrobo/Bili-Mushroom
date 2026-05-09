@@ -117,7 +117,7 @@ const hr: Translations = {
   'import.reviewDeleteFailSection': 'Nije moguće obrisati iz izvorne mape',
   'import.reviewDeleteFailHint': 'Možda ih drži drugi program. Obrišite ručno.',
   'import.importMore': 'Uvezi još',
-  'import.summaryHint': 'Svaka fotografija se uvozi kao zaseban nalaz. Nalazi s istim nazivom vrste bit će grupirani zajedno u zbirci.',
+  'import.summaryHint': 'Jedan uvoz = jedan nalaz s jednom ili više fotografija. Nalazi iste vrste grupirani su zajedno u zbirci.',
 
   // find preview card
   'preview.speciesName': 'Naziv vrste',
@@ -336,7 +336,7 @@ const en: Translations = {
   'import.reviewDeleteFailSection': 'Could not delete from source folder',
   'import.reviewDeleteFailHint': 'May be held by another process. Delete manually.',
   'import.importMore': 'Import more',
-  'import.summaryHint': 'Each photo is imported as its own find. Finds with the same species name will be grouped together in the collection.',
+  'import.summaryHint': 'One import = one find with one or more photos. Finds with the same species name are grouped together in the collection.',
 
   // find preview card
   'preview.speciesName': 'Species name',
