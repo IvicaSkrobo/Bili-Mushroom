@@ -1,6 +1,6 @@
 import React from 'react';
 import type { SpeciesProfile } from '@/lib/finds';
-import { CircleHelp, ShieldCheck, ShieldOff, Skull, Sparkles, Utensils, X } from 'lucide-react';
+import { CircleHelp, ShieldCheck, ShieldOff, Skull, Sparkles, Utensils } from 'lucide-react';
 import {
   normalizeEdibility,
   normalizeProtectedStatus,
@@ -10,13 +10,31 @@ import {
   PROTECTED_STATUS_BADGE_CLASSES,
 } from '@/lib/speciesMetadata';
 
-/** Utensils (fork + knife) with a small X badge overlay — visually "not edible" */
-function InedibleIcon({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) {
+/** Plate + fork/knife with a full diagonal strike so "not for eating" reads clearly at badge size. */
+function InedibleIcon({ className, ...props }: React.SVGProps<SVGSVGElement>) {
   return (
-    <span className={`relative inline-flex shrink-0 ${className ?? ''}`} aria-hidden="true" {...props}>
-      <Utensils className="h-full w-full" />
-      <X className="absolute -bottom-0.5 -right-0.5 h-[55%] w-[55%] stroke-[3]" />
-    </span>
+    <svg
+      data-testid="inedible-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+      {...props}
+    >
+      <circle cx="12" cy="13" r="3.5" />
+      <path d="M5 3.5v7.5" />
+      <path d="M3.8 3.5v3.8" />
+      <path d="M6.2 3.5v3.8" />
+      <path d="M3.8 7.3h2.4" />
+      <path d="M17 3.5c1.2 1.5 1.8 3.2 1.8 5.2V11" />
+      <path d="M17 3.5V11" />
+      <path d="M16.1 21 7 3" />
+      <path d="M20.5 4 4 20.5" />
+    </svg>
   );
 }
 

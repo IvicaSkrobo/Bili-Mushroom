@@ -5,7 +5,6 @@ import { SpeciesMetadataBadges } from './SpeciesMetadataBadges';
 vi.mock('lucide-react', () => ({
   CircleHelp: (props: Record<string, unknown>) => <svg data-testid="circle-help-icon" {...props} />,
   Utensils: (props: Record<string, unknown>) => <svg data-testid="utensils-icon" {...props} />,
-  X: (props: Record<string, unknown>) => <svg data-testid="x-icon" {...props} />,
   Skull: (props: Record<string, unknown>) => <svg data-testid="skull-icon" {...props} />,
   Sparkles: (props: Record<string, unknown>) => <svg data-testid="sparkles-icon" {...props} />,
   ShieldCheck: (props: Record<string, unknown>) => <svg data-testid="shield-check-icon" {...props} />,
@@ -33,7 +32,7 @@ describe('SpeciesMetadataBadges', () => {
     expect(screen.getByTestId('shield-check-icon')).toBeInTheDocument();
   });
 
-  it('renders inedible badge with utensils+X composite icon', () => {
+  it('renders inedible badge with a full struck-through meal icon', () => {
     render(
       <SpeciesMetadataBadges
         speciesProfile={{
@@ -48,7 +47,7 @@ describe('SpeciesMetadataBadges', () => {
     );
 
     expect(screen.getByText('Nije za jelo')).toBeInTheDocument();
-    expect(screen.getByTestId('x-icon')).toBeInTheDocument();
+    expect(screen.getByTestId('inedible-icon')).toBeInTheDocument();
   });
 
   it('renders poisonous badge with skull icon', () => {
