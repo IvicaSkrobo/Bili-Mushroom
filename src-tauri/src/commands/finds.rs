@@ -95,6 +95,8 @@ pub struct SpeciesProfile {
     pub species_name: String,
     pub cover_photo_id: Option<i64>,
     pub tags: Vec<String>,
+    pub edibility: Option<String>,
+    pub protected_status: Option<String>,
 }
 
 #[tauri::command]
@@ -115,7 +117,7 @@ pub async fn get_species_notes(storage_path: String) -> Result<Vec<SpeciesNote>,
 pub async fn get_species_profiles(storage_path: String) -> Result<Vec<SpeciesProfile>, String> {
     let conn = open_db(&storage_path)?;
     let mut stmt = conn
-        .prepare("SELECT species_name, cover_photo_id, tags_json FROM species_profiles ORDER BY species_name")
+        .prepare("SELECT species_name, cover_photo_id, tags_json, edibility, protected_status FROM species_profiles ORDER BY species_name")
         .map_err(|e| e.to_string())?;
     let profiles = stmt
         .query_map([], |row| {
@@ -124,6 +126,8 @@ pub async fn get_species_profiles(storage_path: String) -> Result<Vec<SpeciesPro
                 species_name: row.get(0)?,
                 cover_photo_id: row.get(1)?,
                 tags: serde_json::from_str(&tags_json).unwrap_or_default(),
+                edibility: row.get(3)?,
+                protected_status: row.get(4)?,
             })
         })
         .map_err(|e| e.to_string())?
@@ -138,15 +142,23 @@ pub async fn upsert_species_profile(
     species_name: String,
     cover_photo_id: Option<i64>,
     tags: Vec<String>,
+    edibility: Option<String>,
+    protected_status: Option<String>,
 ) -> Result<(), String> {
     let conn = open_db(&storage_path)?;
     let updated_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
     let tags_json = serde_json::to_string(&tags)
         .map_err(|e| format!("Failed to encode species tags: {}", e))?;
     conn.execute(
-        "INSERT INTO species_profiles (species_name, cover_photo_id, tags_json, updated_at) VALUES (?1, ?2, ?3, ?4)
-         ON CONFLICT(species_name) DO UPDATE SET cover_photo_id=excluded.cover_photo_id, tags_json=excluded.tags_json, updated_at=excluded.updated_at",
-        params![species_name, cover_photo_id, tags_json, updated_at],
+        "INSERT INTO species_profiles (species_name, cover_photo_id, tags_json, updated_at, edibility, protected_status)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(species_name) DO UPDATE SET
+           cover_photo_id = excluded.cover_photo_id,
+           tags_json = excluded.tags_json,
+           updated_at = excluded.updated_at,
+           edibility = excluded.edibility,
+           protected_status = excluded.protected_status",
+        params![species_name, cover_photo_id, tags_json, updated_at, edibility, protected_status],
     )
     .map_err(|e| format!("Upsert species profile failed: {}", e))?;
     Ok(())
