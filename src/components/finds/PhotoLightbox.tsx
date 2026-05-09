@@ -8,12 +8,13 @@ import {
 } from '@/components/ui/dialog';
 import { Dialog as DialogPrimitive } from 'radix-ui';
 import { Button } from '@/components/ui/button';
-import { isHeic, type Find, type FindPhoto } from '@/lib/finds';
+import { isHeic, type Find, type FindPhoto, type SpeciesProfile } from '@/lib/finds';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { useT } from '@/i18n/index';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
 import { useUpdateFind } from '@/hooks/useFinds';
 import { renderSpeciesName, plainSpeciesName } from '@/lib/speciesName';
+import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
 
 export interface LightboxPhoto {
   photo: FindPhoto;
@@ -31,6 +32,7 @@ interface PhotoLightboxProps {
   isCurrentSpeciesCover?: (photo: LightboxPhoto) => boolean;
   onEditFind?: (find: Find) => void;
   onDeletePhoto?: (photo: LightboxPhoto) => void;
+  speciesProfile?: SpeciesProfile;
 }
 
 export function PhotoLightbox({
@@ -44,6 +46,7 @@ export function PhotoLightbox({
   isCurrentSpeciesCover,
   onEditFind,
   onDeletePhoto,
+  speciesProfile,
 }: PhotoLightboxProps) {
   const t = useT();
   const [visible, setVisible] = useState(true);
@@ -175,6 +178,8 @@ export function PhotoLightbox({
               <p className="font-serif text-lg font-semibold leading-snug text-foreground" title={find.species_name ? plainSpeciesName(find.species_name) : undefined}>
                 {find.species_name ? renderSpeciesName(find.species_name) : t('findCard.unnamed')}
               </p>
+
+              <SpeciesMetadataBadges speciesProfile={speciesProfile} size="md" hideUnknown={true} />
 
               {/* Date */}
               {find.date_found && (

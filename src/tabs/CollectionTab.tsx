@@ -530,6 +530,13 @@ export default function CollectionTab() {
                       {' '}
                       {lang === 'hr' ? 'foto' : 'photos'}
                     </p>
+                    <div className="mt-1">
+                      <SpeciesMetadataBadges
+                        speciesProfile={speciesProfilesByName.get(speciesName)}
+                        size="md"
+                        hideUnknown={false}
+                      />
+                    </div>
                   </div>
                 </button>
 
@@ -620,6 +627,13 @@ export default function CollectionTab() {
                                 {f.photos.length} {lang === 'hr' ? 'foto' : f.photos.length === 1 ? 'photo' : 'photos'}
                                 {f.is_favorite && <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />}
                               </p>
+                              <div className="mt-0.5">
+                                <SpeciesMetadataBadges
+                                  speciesProfile={speciesProfilesByName.get(f.species_name)}
+                                  size="sm"
+                                  hideUnknown={true}
+                                />
+                              </div>
                             </div>
 
                             {/* Actions — visible on hover */}
@@ -741,6 +755,13 @@ export default function CollectionTab() {
           const profile = speciesProfiles?.find((item) => item.species_name === speciesName);
           return profile?.cover_photo_id === entry.photo.id;
         }}
+        speciesProfile={
+          lightboxSpeciesName
+            ? speciesProfilesByName.get(lightboxSpeciesName)
+            : lightboxPhotos[lightboxIndex]?.find?.species_name
+              ? speciesProfilesByName.get(lightboxPhotos[lightboxIndex].find.species_name)
+              : undefined
+        }
       />
       <CreateFindDialog open={createFindOpen} onOpenChange={setCreateFindOpen} />
     </div>

@@ -2,11 +2,12 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import L from 'leaflet';
 import { Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import { ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
-import type { Find } from '@/lib/finds';
+import type { Find, SpeciesProfile } from '@/lib/finds';
 import type { Zone } from '@/lib/zones';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
-import { useSpeciesNotes } from '@/hooks/useFinds';
+import { useSpeciesNotes, useSpeciesProfiles } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
+import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
 
 export const LABEL_ZOOM_THRESHOLD = 13;
 
@@ -56,6 +57,7 @@ function CollectionPopup({
   onStartLocalPolygonForFind,
   onStartRegionPolygonForFind,
   zones,
+  speciesProfile,
 }: {
   collection: Collection;
   speciesNote: string | undefined;
@@ -63,6 +65,7 @@ function CollectionPopup({
   onStartLocalPolygonForFind: (find: Find) => void;
   onStartRegionPolygonForFind: (find: Find) => void;
   zones: Zone[];
+  speciesProfile?: SpeciesProfile;
 }) {
   const map = useMap();
   const [photoIdx, setPhotoIdx] = useState(0);
@@ -102,6 +105,8 @@ function CollectionPopup({
         {croatianName && <p className="text-xs text-muted-foreground/80 italic">{croatianName}</p>}
         <p className="text-xs text-muted-foreground">{collection.count} {collection.count === 1 ? 'find' : 'finds'}</p>
       </div>
+
+      <SpeciesMetadataBadges speciesProfile={speciesProfile} size="md" hideUnknown={true} />
 
       {/* Description — scrollable, per-photo notes or species fallback */}
       {displayNote && (
@@ -217,6 +222,7 @@ function CollectionPinsInner({
   const [crowded, setCrowded] = useState<Set<string>>(new Set());
   const [zoom, setZoom] = useState(() => map.getZoom());
   const { data: speciesNotesData } = useSpeciesNotes();
+  const { data: speciesProfilesRaw } = useSpeciesProfiles();
   const storagePath = useAppStore((s) => s.storagePath) ?? '';
   const isSatellite = useAppStore((s) => s.mapLayer === 'Satellite');
   const speciesNotesByName = useMemo(() => {
@@ -226,6 +232,11 @@ function CollectionPinsInner({
     }
     return notes;
   }, [speciesNotesData]);
+  const speciesProfilesByName = useMemo(() => {
+    const m = new Map<string, SpeciesProfile>();
+    speciesProfilesRaw?.forEach((p) => m.set(p.species_name, p));
+    return m;
+  }, [speciesProfilesRaw]);
   const update = useCallback(() => {
     setCrowded(computeCrowded(map, collections));
   }, [map, collections]);
@@ -265,6 +276,7 @@ function CollectionPinsInner({
                 onStartLocalPolygonForFind={onStartLocalPolygonForFind}
                 onStartRegionPolygonForFind={onStartRegionPolygonForFind}
                 zones={collectionZones}
+                speciesProfile={speciesProfilesByName.get(c.name)}
               />
             </Popup>
           </Marker>

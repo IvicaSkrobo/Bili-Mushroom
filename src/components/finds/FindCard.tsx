@@ -1,10 +1,11 @@
 import { useRef } from 'react';
 import { Pencil, Image, Trash2, Square, CheckSquare, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { isHeic, type Find } from '@/lib/finds';
+import { isHeic, type Find, type SpeciesProfile } from '@/lib/finds';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { useT } from '@/i18n/index';
 import { renderSpeciesName, plainSpeciesName } from '@/lib/speciesName';
+import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
 
 interface FindCardProps {
   find: Find;
@@ -17,9 +18,10 @@ interface FindCardProps {
   onToggleFavorite?: (find: Find) => void;
   onLongPress?: (id: number) => void;
   onPhotoClick?: (findId: number, photoIndex: number) => void;
+  speciesProfile?: SpeciesProfile;
 }
 
-export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSelected, onToggleSelect, onToggleFavorite, onLongPress, onPhotoClick }: FindCardProps) {
+export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSelected, onToggleSelect, onToggleFavorite, onLongPress, onPhotoClick, speciesProfile }: FindCardProps) {
   const t = useT();
   const primaryPhoto = find.photos[0] ?? null;
   const heic = primaryPhoto ? isHeic(primaryPhoto.photo_path) : false;
@@ -88,7 +90,7 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
       </div>
 
       {/* Info */}
-      <div className="flex-1 min-w-0 space-y-1">
+      <div className="flex-1 min-w-0 space-y-1 pr-14">
         <p className="font-serif text-base font-semibold leading-tight truncate text-foreground">
           <span className="inline-flex max-w-full items-center gap-1.5">
             {find.is_favorite ? <Star className="h-3.5 w-3.5 flex-shrink-0 fill-primary text-primary" /> : null}
@@ -106,6 +108,13 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
               {find.country}{find.region ? ` · ${find.region}` : ''}
             </span>
           )}
+          {(find.observed_count_min != null || find.observed_count != null) && (
+            <span className="text-xs text-muted-foreground">
+              {find.observed_count_min != null
+                ? `${find.observed_count_min}–${find.observed_count_max ?? '?'} pcs`
+                : `${find.observed_count} pcs`}
+            </span>
+          )}
         </div>
         {find.location_note && (
           <p className="text-xs text-muted-foreground/60 truncate">{find.location_note}</p>
@@ -116,49 +125,50 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
           </p>
         )}
         {find.notes && (
-          <p className="text-xs text-muted-foreground/55 italic truncate">{find.notes}</p>
+          <p className="line-clamp-2 text-xs text-muted-foreground/55 italic">{find.notes}</p>
         )}
+        <SpeciesMetadataBadges speciesProfile={speciesProfile} size="sm" hideUnknown={true} />
       </div>
 
-      {/* Actions — normal mode: edit/delete on hover; select mode: checkbox */}
+      {/* Actions — normal mode: corner overlay on hover; select mode: checkbox */}
       {selectMode ? (
-        <div className="flex flex-shrink-0 items-center pl-1">
+        <div className="absolute top-2 right-2 flex items-center">
           {isSelected
             ? <CheckSquare className="h-5 w-5 text-primary" />
             : <Square className="h-5 w-5 text-muted-foreground/40 group-hover:text-muted-foreground/70" />
           }
         </div>
       ) : (
-        <div className="flex flex-shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+        <div className="absolute top-2 right-2 flex items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
           <Button
             variant="ghost"
             size="icon"
-            className={`h-7 w-7 ${find.is_favorite ? 'text-primary hover:text-primary' : 'text-muted-foreground hover:text-primary'}`}
+            className={`h-6 w-6 ${find.is_favorite ? 'text-primary hover:text-primary' : 'text-muted-foreground hover:text-primary'}`}
             aria-label={find.is_favorite ? t('findCard.unfavorite') : t('findCard.favorite')}
             onClick={(e) => {
               e.stopPropagation();
               onToggleFavorite?.(find);
             }}
           >
-            <Star className={`h-3.5 w-3.5 ${find.is_favorite ? 'fill-primary' : ''}`} />
+            <Star className={`h-3 w-3 ${find.is_favorite ? 'fill-primary' : ''}`} />
           </Button>
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            className="h-6 w-6 text-muted-foreground hover:text-foreground"
             aria-label={t('findCard.edit')}
             onClick={(e) => { e.stopPropagation(); onEdit(find); }}
           >
-            <Pencil className="h-3.5 w-3.5" />
+            <Pencil className="h-3 w-3" />
           </Button>
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+            className="h-6 w-6 text-muted-foreground hover:text-destructive"
             aria-label="Delete"
             onClick={(e) => { e.stopPropagation(); onDelete(find); }}
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="h-3 w-3" />
           </Button>
         </div>
       )}
