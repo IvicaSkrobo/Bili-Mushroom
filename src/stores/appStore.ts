@@ -51,7 +51,7 @@ function loadTheme(): Theme {
     const v = localStorage.getItem('bili_theme');
     if (v === 'light' || v === 'dark') return v;
   } catch { /* ignore */ }
-  return 'light';
+  return 'dark';
 }
 
 function loadMapLayer(): MapLayer {

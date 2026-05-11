@@ -18,12 +18,8 @@ import { reverseGeocode } from '@/lib/geocoding';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
 import { FolderOpen, MapPin } from 'lucide-react';
 import type { Find, SpeciesProfile } from '@/lib/finds';
-import {
-  EDIBILITY_VALUES,
-  EDIBILITY_LABELS,
-  PROTECTED_STATUS_VALUES,
-  PROTECTED_STATUS_LABELS,
-} from '@/lib/speciesMetadata';
+import { EdibilitySelectBadge, ThreatStatusSelectBadge, DistributionSelectBadge } from '@/components/species/StatusSelectBadge';
+import { useT } from '@/i18n/index';
 
 interface FolderEditDialogProps {
   speciesName: string | null; // null = closed
@@ -33,13 +29,16 @@ interface FolderEditDialogProps {
   onSave?: (
     newName: string,
     edibility: string | null,
-    protectedStatus: string | null,
+    threatStatus: string | null,
+    distribution: string | null,
+    edibilityNote: string | null,
   ) => void | Promise<void>;
 }
 
 export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProfile, onSave }: FolderEditDialogProps) {
   const storagePath = useAppStore((s) => s.storagePath);
   const lang = useAppStore((s) => s.language);
+  const t = useT();
   const updateFind = useUpdateFind();
   const bulkRename = useBulkRenameSpecies();
 
@@ -54,7 +53,9 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
   const [openingFolder, setOpeningFolder] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [edibility, setEdibility] = useState<string>('unknown');
-  const [protectedStatus, setProtectedStatus] = useState<string>('unknown');
+  const [threatStatus, setThreatStatus] = useState<string>('unknown');
+  const [distribution, setDistribution] = useState<string>('unknown');
+  const [edibilityNote, setEdibilityNote] = useState<string>('');
 
   // Sync state when dialog opens
   useEffect(() => {
@@ -67,7 +68,9 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
       setPickedLng(null);
       setError(null);
       setEdibility(speciesProfile?.edibility ?? 'unknown');
-      setProtectedStatus(speciesProfile?.protected_status ?? 'unknown');
+      setThreatStatus(speciesProfile?.threat_status ?? 'unknown');
+      setDistribution(speciesProfile?.distribution ?? 'unknown');
+      setEdibilityNote(speciesProfile?.edibility_note ?? '');
     }
   }, [speciesName, speciesProfile]);
 
@@ -112,6 +115,7 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
               observed_count: f.observed_count,
               observed_count_min: f.observed_count_min,
               observed_count_max: f.observed_count_max,
+              edibility_note: f.edibility_note,
             }),
           ),
         );
@@ -120,7 +124,9 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
       await onSave?.(
         speciesNameInput.trim() || speciesName!,
         edibility === 'unknown' ? null : edibility,
-        protectedStatus === 'unknown' ? null : protectedStatus,
+        threatStatus === 'unknown' ? null : threatStatus,
+        distribution === 'unknown' ? null : distribution,
+        edibilityNote.trim() || null,
       );
       onOpenChange(false);
     } catch (e) {
@@ -143,26 +149,28 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
     }
   }
 
+  const isEdible = ['edible', 'edible_raw', 'conditionally_edible'].includes(edibility);
+
   return (
     <>
       <Dialog open={speciesName !== null} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Edit Folder</DialogTitle>
+            <DialogTitle>{t('folder.title')}</DialogTitle>
             <DialogDescription>
-              Update species-level details, location defaults, and status metadata for this folder.
+              {t('folder.description')}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             <div>
               <div className="flex items-center justify-between gap-2 mb-1">
-                <label className="text-sm font-medium">Species name</label>
+                <label className="text-sm font-medium">{t('folder.speciesName')}</label>
               </div>
               <SpeciesNameEditor
                 value={speciesNameInput}
                 onChange={setSpeciesNameInput}
-                placeholder="Species name"
+                placeholder={t('folder.speciesName')}
               />
             </div>
 
@@ -176,7 +184,7 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
                   className="flex items-center gap-1"
                 >
                   <MapPin className="h-4 w-4" />
-                  {pickedLat !== null ? 'Change location' : 'Pick on map'}
+                  {pickedLat !== null ? t('folder.changeLocation') : t('folder.pickOnMap')}
                 </Button>
                 <Button
                   type="button"
@@ -187,7 +195,7 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
                   className="flex items-center gap-1"
                 >
                   <FolderOpen className="h-4 w-4" />
-                  {openingFolder ? 'Opening folder…' : 'Open species folder'}
+                  {openingFolder ? t('folder.openingFolder') : t('folder.openFolder')}
                 </Button>
               </div>
               {pickedLat !== null && (
@@ -199,19 +207,19 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-sm font-medium">Country</label>
+                <label className="text-sm font-medium">{t('edit.country')}</label>
                 <Input
                   value={country}
                   onChange={(e) => setCountry(e.target.value)}
-                  placeholder="Country"
+                  placeholder={t('edit.country')}
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">Region</label>
+                <label className="text-sm font-medium">{t('edit.region')}</label>
                 <Input
                   value={region}
                   onChange={(e) => setRegion(e.target.value)}
-                  placeholder="Region"
+                  placeholder={t('edit.region')}
                 />
               </div>
             </div>
@@ -229,42 +237,33 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
                   htmlFor="overwrite-existing"
                   className="text-sm text-muted-foreground cursor-pointer select-none"
                 >
-                  Overwrite existing country/region fields
+                  {t('folder.overwriteLabel')}
                 </label>
               </div>
             )}
 
             {(country || region || pickedLat !== null) && !overwriteExisting && (
               <p className="text-xs text-muted-foreground/70">
-                Will only fill empty fields (country, region, coordinates). Enable overwrite to apply to all {finds.length} finds.
+                {t('folder.overwriteHint', { n: finds.length })}
               </p>
             )}
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-sm font-medium">Edibility</label>
-                <select
-                  value={edibility}
-                  onChange={(e) => setEdibility(e.target.value)}
-                  className="mt-1 h-7 w-full rounded-md border border-border bg-input px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
-                >
-                  {EDIBILITY_VALUES.map((v) => (
-                    <option key={v} value={v}>{EDIBILITY_LABELS[v]}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-sm font-medium">Protected Status</label>
-                <select
-                  value={protectedStatus}
-                  onChange={(e) => setProtectedStatus(e.target.value)}
-                  className="mt-1 h-7 w-full rounded-md border border-border bg-input px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
-                >
-                  {PROTECTED_STATUS_VALUES.map((v) => (
-                    <option key={v} value={v}>{PROTECTED_STATUS_LABELS[v]}</option>
-                  ))}
-                </select>
-              </div>
+            <div className="flex flex-wrap gap-2">
+              <EdibilitySelectBadge value={edibility} onChange={setEdibility} />
+              <ThreatStatusSelectBadge value={threatStatus} onChange={setThreatStatus} />
+              <DistributionSelectBadge value={distribution} onChange={setDistribution} />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-sm font-medium">{t('edit.edibilityNote')}</label>
+              <textarea
+                value={edibilityNote}
+                onChange={(e) => setEdibilityNote(e.target.value)}
+                rows={3}
+                placeholder={t('edit.edibilityNotePlaceholder')}
+                className="w-full resize-none rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
+              />
+              <p className="text-[11px] text-muted-foreground/50">{t('edit.edibilityNoteHelp')}</p>
             </div>
           </div>
 
@@ -276,10 +275,10 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
 
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-              Cancel
+              {t('folder.cancel')}
             </Button>
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? t('folder.saving') : t('folder.save')}
             </Button>
           </DialogFooter>
         </DialogContent>

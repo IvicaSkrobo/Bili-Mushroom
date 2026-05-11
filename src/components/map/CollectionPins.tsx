@@ -8,6 +8,7 @@ import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { useSpeciesNotes, useSpeciesProfiles } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
+import { renderSpeciesName, plainSpeciesName } from '@/lib/speciesName';
 
 export const LABEL_ZOOM_THRESHOLD = 13;
 
@@ -33,7 +34,7 @@ function collectionIcon(labelText: string, showLabel: boolean, isSatellite: bool
   return L.divIcon({
     html: `<div class="bili-pin-dot"></div><div class="bili-pin-label">${labelText}</div>`,
     className: classes,
-    iconSize: [0, 0],
+    iconSize: [200, 50],
     iconAnchor: [0, 0],
     popupAnchor: [0, -14],
   });
@@ -73,7 +74,7 @@ function CollectionPopup({
     () => collection.finds.flatMap((f) => f.photos.map((p) => ({ find: f, photo: p, findNotes: f.notes }))),
     [collection.finds],
   );
-  const [latinName, croatianName] = collection.name.split(',').map((s) => s.trim());
+  const [latinNameRaw, croatianName] = collection.name.split(',').map((s) => s.trim());
   const current = allPhotos[photoIdx] ?? null;
   const photo = current?.photo ?? null;
   const existingLocalPolygon = current?.find
@@ -101,8 +102,8 @@ function CollectionPopup({
     <div className="flex w-[220px] flex-col gap-2 font-sans">
       {/* Header */}
       <div>
-        <p className="font-serif text-sm font-bold italic text-foreground">{latinName}</p>
-        {croatianName && <p className="text-xs text-muted-foreground/80 italic">{croatianName}</p>}
+        <p className="font-serif text-sm font-bold italic text-foreground">{renderSpeciesName(latinNameRaw)}</p>
+        {croatianName && <p className="text-xs text-muted-foreground/80 italic">{plainSpeciesName(croatianName)}</p>}
         <p className="text-xs text-muted-foreground">{collection.count} {collection.count === 1 ? 'find' : 'finds'}</p>
       </div>
 
@@ -381,7 +382,7 @@ export function collectionsFromFinds(finds: Find[]): Collection[] {
   for (const group of locationGroups) {
     const speciesInGroup = new Set(group.map((c) => c.name));
     if (speciesInGroup.size === 1) {
-      const latinName = group[0].name.split(',')[0].trim();
+      const latinName = plainSpeciesName(group[0].name.split(',')[0].trim());
       for (const col of group) {
         col.labelText = latinName;
         col.suppressLabel = false;
@@ -391,7 +392,7 @@ export function collectionsFromFinds(finds: Find[]): Collection[] {
       group[0].suppressLabel = false;
       for (let i = 1; i < group.length; i++) {
         // keep species name so hover over the dot reveals which species it is
-        group[i].labelText = group[i].name.split(',')[0].trim();
+        group[i].labelText = plainSpeciesName(group[i].name.split(',')[0].trim());
         group[i].suppressLabel = true;
       }
     }

@@ -1,7 +1,7 @@
 import { CircleMarker, MapContainer, Marker, Polygon, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Maximize2, Move, Plus, Trash2, X } from 'lucide-react';
+import { Check, LocateFixed, Move, Plus, Trash2, X } from 'lucide-react';
 import type { Find } from '@/lib/finds';
 import { parsePolygonJson, type PolygonEditorMode, type Zone, type ZonePolygonPoint, type ZoneType, type ZoneViewMode } from '@/lib/zones';
 import { applyLeafletIconFix } from './leafletIconFix';
@@ -248,7 +248,7 @@ export function FindsMap({
           title="Zoom to fit all pins"
           className="absolute bottom-8 right-3 z-[1000] flex items-center justify-center w-8 h-8 rounded-md bg-card/90 border border-border/70 shadow-sm text-foreground/60 hover:text-primary hover:border-primary/40 hover:bg-card transition-colors"
         >
-          <Maximize2 className="h-4 w-4" />
+          <LocateFixed className="h-4 w-4" />
         </button>
       )}
 
