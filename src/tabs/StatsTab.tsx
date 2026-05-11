@@ -17,7 +17,6 @@ import {
 import { useFinds } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { exportToCsv } from '@/lib/exportCsv';
-import type { TopSpot, BestMonth } from '@/lib/stats';
 import { buildSeasonalityInsights, buildSpeciesSpotHint } from '@/lib/insights';
 import { HistoricalComparison } from '@/components/stats/HistoricalComparison';
 import { buildHistoricalComparison } from '@/lib/historicalComparison';
@@ -37,21 +36,6 @@ function formatMonth(ym: string | null): string {
   );
 }
 
-function formatTopSpots(spots: TopSpot[] | undefined): { label: string; count: number }[] {
-  if (!spots) return [];
-  return spots.map((s) => ({
-    label: `${s.country} / ${s.region}${s.location_note ? ' / ' + s.location_note : ''}`,
-    count: s.count,
-  }));
-}
-
-function formatBestMonths(months: BestMonth[] | undefined): { label: string; count: number }[] {
-  if (!months) return [];
-  return months.map((s) => ({
-    label: new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(2024, s.month_num - 1)),
-    count: s.count,
-  }));
-}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -71,8 +55,36 @@ export default function StatsTab() {
   const [pdfStage, setPdfStage] = useState<string>('');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
-  const topSpotsFormatted = useMemo(() => formatTopSpots(topSpots), [topSpots]);
-  const bestMonthsFormatted = useMemo(() => formatBestMonths(bestMonths), [bestMonths]);
+  const topSpotsFormatted = useMemo(() => {
+    if (!topSpots) return [];
+    return topSpots.map((s) => {
+      const spotFinds = finds?.filter(
+        (f) => f.country === s.country && f.region === s.region && f.location_note === s.location_note,
+      ) ?? [];
+      const species = [...new Set(spotFinds.map((f) => f.species_name))].sort();
+      return {
+        label: `${s.country} / ${s.region}${s.location_note ? ' / ' + s.location_note : ''}`,
+        count: s.count,
+        species,
+      };
+    });
+  }, [topSpots, finds]);
+
+  const bestMonthsFormatted = useMemo(() => {
+    if (!bestMonths) return [];
+    return bestMonths.map((s) => {
+      const monthFinds = finds?.filter((f) => {
+        if (!f.date_found) return false;
+        return new Date(f.date_found).getMonth() + 1 === s.month_num;
+      }) ?? [];
+      const species = [...new Set(monthFinds.map((f) => f.species_name))].sort();
+      return {
+        label: new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(2024, s.month_num - 1)),
+        count: s.count,
+        species,
+      };
+    });
+  }, [bestMonths, finds]);
   const totalPhotos = useMemo(
     () => finds?.reduce((sum, find) => sum + find.photos.length, 0) ?? 0,
     [finds],
@@ -202,6 +214,25 @@ export default function StatsTab() {
           {/* Divider */}
           <div className="border-b border-border" />
 
+          {/* Ranked lists: 2-column flex */}
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <RankedList
+                title="Top Spots"
+                items={topSpotsFormatted}
+                emptyMessage="Start foraging to see your favourite spots appear here."
+                pageSize={10}
+              />
+            </div>
+            <div className="flex-1">
+              <RankedList
+                title="Best Months"
+                items={bestMonthsFormatted}
+                emptyMessage="Your most active months will appear here as you record more finds."
+              />
+            </div>
+          </div>
+
           {/* Seasonal Insights */}
           {seasonalityInsights.length > 0 && (
             <div>
@@ -236,28 +267,6 @@ export default function StatsTab() {
               <HistoricalComparison data={historicalComparison} />
             </div>
           )}
-
-          {/* Divider */}
-          <div className="border-b border-border" />
-
-          {/* Ranked lists: 2-column flex */}
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <RankedList
-                title="Top Spots"
-                items={topSpotsFormatted}
-                emptyMessage="Start foraging to see your favourite spots appear here."
-                pageSize={10}
-              />
-            </div>
-            <div className="flex-1">
-              <RankedList
-                title="Best Months"
-                items={bestMonthsFormatted}
-                emptyMessage="Your most active months will appear here as you record more finds."
-              />
-            </div>
-          </div>
 
           {/* Divider */}
           <div className="border-b border-border" />

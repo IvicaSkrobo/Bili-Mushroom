@@ -15,12 +15,6 @@ const MONTH_NAMES = [
   'December',
 ];
 
-function formatSpecies(species: string[]): string {
-  if (species.length === 0) return '';
-  if (species.length <= 2) return species.join(', ');
-  return `${species[0]}, +${species.length - 1} more`;
-}
-
 function PeriodColumn({
   heading,
   buckets,
@@ -36,17 +30,26 @@ function PeriodColumn({
       {buckets.length === 0 ? (
         <p className="text-sm text-muted-foreground/60 italic">{emptyText}</p>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-4">
           {buckets.map((b) => (
-            <div key={b.year} className="flex items-baseline gap-3">
-              <span className="font-serif italic text-primary w-10 shrink-0 text-sm">{b.year}</span>
-              <span className="text-sm text-foreground">
-                {b.findCount} {b.findCount === 1 ? 'find' : 'finds'}
-              </span>
-              {b.species.length > 0 && (
-                <span className="text-xs text-muted-foreground truncate">
-                  {formatSpecies(b.species)}
+            <div key={b.year}>
+              <div className="flex items-baseline gap-3 mb-1.5">
+                <span className="font-serif italic text-primary w-10 shrink-0 text-sm">{b.year}</span>
+                <span className="text-sm text-foreground">
+                  {b.findCount} {b.findCount === 1 ? 'find' : 'finds'}
                 </span>
+              </div>
+              {b.species.length > 0 && (
+                <div className="ml-13 flex flex-wrap gap-1">
+                  {b.species.map((s) => (
+                    <span
+                      key={s}
+                      className="text-xs text-muted-foreground bg-muted/50 border border-border/40 px-1.5 py-0.5 rounded-sm"
+                    >
+                      {s}
+                    </span>
+                  ))}
+                </div>
               )}
             </div>
           ))}

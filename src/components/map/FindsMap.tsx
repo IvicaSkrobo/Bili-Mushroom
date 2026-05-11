@@ -1,7 +1,7 @@
 import { CircleMarker, MapContainer, Marker, Polygon, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Move, Plus, Trash2, X } from 'lucide-react';
+import { Check, Maximize2, Move, Plus, Trash2, X } from 'lucide-react';
 import type { Find } from '@/lib/finds';
 import { parsePolygonJson, type PolygonEditorMode, type Zone, type ZonePolygonPoint, type ZoneType, type ZoneViewMode } from '@/lib/zones';
 import { applyLeafletIconFix } from './leafletIconFix';
@@ -94,7 +94,7 @@ export function FindsMap({
     ? null
     : zones.find((zone) => zone.id === activeZoneId) ?? null;
 
-  // When editing, show only relevant pins; outside editing show all finds.
+  // When editing, always show the pins tied to the zone being drawn.
   const focusFinds = useMemo(() => {
     if (!polygonEditorActive) return finds;
     if (polygonEditorZoneType === 'local' && drawTargetFind != null) {
@@ -103,7 +103,8 @@ export function FindsMap({
     if (polygonEditorZoneType === 'region' && drawTargetFind != null) {
       return finds.filter((f) => f.species_name === drawTargetFind.species_name);
     }
-    return [];
+    // Fallback: keep all pins visible so the user can orient themselves.
+    return finds;
   }, [polygonEditorActive, polygonEditorZoneType, drawTargetFind, finds]);
 
   // Fly to active polygon bounds when opening the unified editor for an existing polygon.
@@ -227,6 +228,30 @@ export function FindsMap({
         <FitBoundsControl finds={finds} />
         {!focusMode && <OnlineStatusBadge />}
       </MapContainer>
+      {/* Fit-to-pins button */}
+      {!polygonEditorActive && (
+        <button
+          onClick={() => {
+            if (!map) return;
+            const withCoords = finds.filter(
+              (f): f is Find & { lat: number; lng: number } => f.lat != null && f.lng != null,
+            );
+            if (withCoords.length > 0) {
+              map.fitBounds(
+                withCoords.map((f) => [f.lat, f.lng] as [number, number]),
+                { padding: [40, 40], maxZoom: 16 },
+              );
+            } else {
+              map.flyTo(CROATIA_CENTER, CROATIA_ZOOM, { animate: true, duration: 0.7 });
+            }
+          }}
+          title="Zoom to fit all pins"
+          className="absolute bottom-8 right-3 z-[1000] flex items-center justify-center w-8 h-8 rounded-md bg-card/90 border border-border/70 shadow-sm text-foreground/60 hover:text-primary hover:border-primary/40 hover:bg-card transition-colors"
+        >
+          <Maximize2 className="h-4 w-4" />
+        </button>
+      )}
+
       {activeZone && !polygonEditorActive && (
         <ZoneEditorPanel
           key={activeZone.id}
