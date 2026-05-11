@@ -18,7 +18,7 @@
 
 import { useRef, useEffect, useState } from 'react';
 import { rawToHtml, htmlToRaw } from '@/lib/speciesFormat';
-import { plainSpeciesName } from '@/lib/speciesName';
+import { plainSpeciesName, renderSpeciesName } from '@/lib/speciesName';
 import { cn } from '@/lib/utils';
 
 interface SpeciesNameEditorProps {
@@ -289,6 +289,7 @@ export function SpeciesNameEditor({
             'species-name-editor',
             'flex min-h-9 w-full rounded-md border border-border/90 bg-background/45 px-3 py-1',
             'text-sm font-semibold shadow-sm transition-colors outline-none',
+            'overflow-x-auto whitespace-nowrap',
             'focus-visible:border-primary/60 focus-visible:ring-1 focus-visible:ring-ring',
             className,
           )}
@@ -310,7 +311,7 @@ export function SpeciesNameEditor({
                 }}
                 onMouseEnter={() => setDropdownHighlight(i)}
               >
-                {s}
+                <span className="font-serif">{renderSpeciesName(s)}</span>
               </button>
             ))}
           </div>
