@@ -87,7 +87,7 @@ mod smoke {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .expect("user_version");
-        assert_eq!(version, 13, "user_version must be 13 after all migrations");
+        assert_eq!(version, 17, "user_version must be 17 after all migrations");
 
         let edibility_exists: i64 = conn
             .query_row(

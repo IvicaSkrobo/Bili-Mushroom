@@ -204,6 +204,6 @@ mod tests {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 10, "user_version must be 10 after all migrations");
+        assert_eq!(version, 17, "user_version must be 17 after all migrations");
     }
 }

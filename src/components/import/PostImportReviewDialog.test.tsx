@@ -50,6 +50,7 @@ const sampleFind: Find = {
 const sampleSummary: ImportSummary = {
   imported: [sampleFind],
   skipped: [],
+  delete_failures: [],
 };
 
 beforeEach(() => {
@@ -97,6 +98,7 @@ describe('PostImportReviewDialog', () => {
     const summaryWithSkipped: ImportSummary = {
       imported: [],
       skipped: ['photo1.jpg'],
+      delete_failures: [],
     };
     render(
       <Wrapper>

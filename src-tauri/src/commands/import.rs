@@ -94,6 +94,7 @@ const MIGRATION_0013: &str = include_str!("../../migrations/0013_species_profile
 const MIGRATION_0014: &str = include_str!("../../migrations/0014_find_edibility_note.sql");
 const MIGRATION_0015: &str = include_str!("../../migrations/0015_species_profile_edibility_note.sql");
 const MIGRATION_0016: &str = include_str!("../../migrations/0016_species_profile_threat_distribution.sql");
+const _MIGRATION_0017: &str = include_str!("../../migrations/0017_repair_finds_edibility_note.sql");
 
 fn normalize_observed_range(
     observed_count: Option<i64>,
@@ -329,6 +330,23 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
         }
         conn.execute_batch("PRAGMA user_version = 16")
             .map_err(|e| format!("Failed to set user_version=16: {}", e))?;
+    }
+    if version < 17 {
+        // Recovery for Case B users: 0014 originally targeted species_profiles instead of
+        // finds, so finds.edibility_note may be missing. Add it only if absent.
+        let finds_edibility_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('finds') WHERE name='edibility_note'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        if finds_edibility_exists == 0 {
+            conn.execute_batch("ALTER TABLE finds ADD COLUMN edibility_note TEXT")
+                .map_err(|e| format!("Migration 0017 (repair finds.edibility_note) failed: {}", e))?;
+        }
+        conn.execute_batch("PRAGMA user_version = 17")
+            .map_err(|e| format!("Failed to set user_version=17: {}", e))?;
     }
 
     Ok(())
@@ -888,7 +906,12 @@ pub(crate) mod test_helpers {
     const MIGRATION_0008: &str = include_str!("../../migrations/0008_observed_count.sql");
     const MIGRATION_0009: &str = include_str!("../../migrations/0009_species_profiles.sql");
     const MIGRATION_0010: &str = include_str!("../../migrations/0010_species_profile_tags.sql");
+    const MIGRATION_0011: &str = include_str!("../../migrations/0011_zones.sql");
     const MIGRATION_0012: &str = include_str!("../../migrations/0012_observed_count_range.sql");
+    const MIGRATION_0013: &str = include_str!("../../migrations/0013_species_profile_edibility.sql");
+    const MIGRATION_0014: &str = include_str!("../../migrations/0014_find_edibility_note.sql");
+    const MIGRATION_0015: &str = include_str!("../../migrations/0015_species_profile_edibility_note.sql");
+    const MIGRATION_0016: &str = include_str!("../../migrations/0016_species_profile_threat_distribution.sql");
 
     pub(crate) fn setup_in_memory_db() -> Connection {
         let conn = Connection::open_in_memory().expect("in-memory DB");
@@ -901,7 +924,12 @@ pub(crate) mod test_helpers {
         conn.execute_batch(MIGRATION_0008).expect("migration 0008");
         conn.execute_batch(MIGRATION_0009).expect("migration 0009");
         conn.execute_batch(MIGRATION_0010).expect("migration 0010");
+        conn.execute_batch(MIGRATION_0011).expect("migration 0011");
         conn.execute_batch(MIGRATION_0012).expect("migration 0012");
+        conn.execute_batch(MIGRATION_0013).expect("migration 0013");
+        conn.execute_batch(MIGRATION_0014).expect("migration 0014");
+        conn.execute_batch(MIGRATION_0015).expect("migration 0015");
+        conn.execute_batch(MIGRATION_0016).expect("migration 0016");
         conn
     }
 
