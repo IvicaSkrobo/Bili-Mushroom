@@ -114,6 +114,7 @@ function LevelTwoCard({
 
 export function FindPopup({ group, storagePath }: FindPopupProps) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const map = useMap();
 
   if (expandedId !== null) {
     const find = group.finds.find((f) => f.id === expandedId);
