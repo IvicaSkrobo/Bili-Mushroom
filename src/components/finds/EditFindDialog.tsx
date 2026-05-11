@@ -36,6 +36,7 @@ interface FormState {
   lng: string;
   notes: string;
   observed_count_range: string;
+  edibility_note: string;
 }
 
 function formatObservedRange(min: number | null, max: number | null, fallback: number | null): string {
@@ -80,6 +81,7 @@ function findToFormState(find: Find): FormState {
       find.observed_count_max,
       find.observed_count,
     ),
+    edibility_note: find.edibility_note ?? '',
   };
 }
 
@@ -128,6 +130,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     lng: '',
     notes: '',
     observed_count_range: '',
+    edibility_note: '',
   });
   const speciesProfile = useMemo(
     () => speciesProfiles?.find((profile) => profile.species_name === form.species_name) ?? null,
@@ -175,6 +178,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
         observed_count: observedRange.representative,
         observed_count_min: observedRange.min,
         observed_count_max: observedRange.max,
+        edibility_note: form.edibility_note.trim() || null,
       },
       { onSuccess: () => onOpenChange(false) },
     );
@@ -345,19 +349,6 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
                   <FolderOpen className="h-4 w-4 shrink-0" />
                   <span className="min-w-0 truncate">Open current photo folder</span>
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleOpenFolder('species')}
-                  disabled={!storagePath || openingFolder}
-                  className="justify-start gap-2 h-10 px-3 text-left"
-                >
-                  <FolderOpen className="h-4 w-4 shrink-0" />
-                  <span className="min-w-0 truncate">
-                    {openingFolder ? 'Opening species folder…' : 'Open species folder'}
-                  </span>
-                </Button>
               </div>
             </div>
             {pendingPhotos.length > 0 && (
@@ -398,6 +389,16 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
               placeholder={t('edit.notes')}
               rows={3}
             />
+          </div>
+          <div>
+            <label className="text-sm font-medium">{t('edit.edibilityNote')}</label>
+            <Textarea
+              value={form.edibility_note}
+              onChange={(e) => handleChange('edibility_note', e.target.value)}
+              placeholder={t('edit.edibilityNotePlaceholder')}
+              rows={3}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">{t('edit.edibilityNoteHelp')}</p>
           </div>
           <div>
             <div className="mb-1 flex items-center gap-1 text-sm font-medium">

@@ -159,6 +159,9 @@ const hr: Translations = {
   'edit.observedCount': 'Promatrani broj',
   'edit.observedCountPlaceholder': 'npr. 12',
   'edit.observedCountHelp': 'Gruba procjena koliko je gljiva bilo prisutno. Opcionalno.',
+  'edit.edibilityNote': 'Bilješka o jestivosti',
+  'edit.edibilityNotePlaceholder': 'Kako i kad se može jesti...',
+  'edit.edibilityNoteHelp': 'Napomene o pripremi, sezoni berbe ili uvjetima. Opcionalno.',
   'edit.cancel': 'Odustani',
   'edit.save': 'Spremi',
   'edit.saving': 'Spremanje…',
@@ -221,6 +224,56 @@ const hr: Translations = {
   'lightbox.close': 'Zatvori',
   'lightbox.addLocation': 'Dodaj lokaciju…',
   'lightbox.changeLocation': 'Promijeni lokaciju',
+  'lightbox.deletePhoto': 'Obriši fotografiju',
+  'lightbox.location': 'Lokacija',
+  'lightbox.notes': 'Bilješke',
+
+  // edibility labels
+  'edibility.unknown': 'Nepoznato',
+  'edibility.edible': 'Može se jesti',
+  'edibility.edible_raw': 'Jestiva sirova',
+  'edibility.conditionally_edible': 'Uvjetno jestiva',
+  'edibility.inedible': 'Nije za jelo',
+  'edibility.poisonous': 'Otrovna',
+  'edibility.deadly_poisonous': 'Smrtno otrovna',
+
+  // threat status labels (IUCN)
+  'threat.unknown': 'Nepoznato',
+  'threat.ne': 'NE – Neprocijenjivana',
+  'threat.dd': 'DD – Nedovoljno poznata',
+  'threat.lc': 'LC – Najmanje zabrinjavajuća',
+  'threat.nt': 'NT – Gotovo ugrožena',
+  'threat.vu': 'VU – Osjetljiva',
+  'threat.en': 'EN – Ugrožena',
+  'threat.cr': 'CR – Kritično ugrožena',
+
+  // distribution labels
+  'distribution.unknown': 'Nepoznato',
+  'distribution.widespread': 'Rasprostranjena',
+  'distribution.common': 'Česta',
+  'distribution.moderately_common': 'Umjereno česta',
+  'distribution.sporadic': 'Sporadična',
+  'distribution.rare': 'Rijetka',
+  'distribution.extremely_rare': 'Ekstremno rijetka',
+
+  // species metadata field labels (shared across SpeciesTab, FolderEditDialog, etc.)
+  'species.edibility': 'Jestivost',
+  'species.threatStatus': 'Ugroženost',
+  'species.distribution': 'Rasprostranjenost',
+
+  // folder edit dialog
+  'folder.title': 'Uredi mapu',
+  'folder.description': 'Ažuriraj podatke o vrsti i metapodatke statusa za ovu mapu.',
+  'folder.speciesName': 'Naziv vrste',
+  'folder.pickOnMap': 'Odaberi na karti',
+  'folder.changeLocation': 'Promijeni lokaciju',
+  'folder.openFolder': 'Otvori mapu vrste',
+  'folder.openingFolder': 'Otvara mapu…',
+  'folder.overwriteLabel': 'Prepiši postojeća polja Država / Regija',
+  'folder.overwriteHint': 'Popunit će samo prazna polja (država, regija, koordinate). Uključi prepisivanje za primjenu na svih {n} nalaza.',
+  'folder.cancel': 'Odustani',
+  'folder.save': 'Spremi',
+  'folder.saving': 'Spremanje…',
 };
 
 const en: Translations = {
@@ -378,6 +431,9 @@ const en: Translations = {
   'edit.observedCount': 'Observed count',
   'edit.observedCountPlaceholder': 'e.g. 12',
   'edit.observedCountHelp': 'A rough estimate of how many mushrooms were present. Optional.',
+  'edit.edibilityNote': 'Edibility note',
+  'edit.edibilityNotePlaceholder': 'How and when it can be eaten...',
+  'edit.edibilityNoteHelp': 'Notes on preparation, harvest season, or conditions. Optional.',
   'edit.cancel': 'Cancel',
   'edit.save': 'Save',
   'edit.saving': 'Saving…',
@@ -440,6 +496,56 @@ const en: Translations = {
   'lightbox.close': 'Close',
   'lightbox.addLocation': 'Add location…',
   'lightbox.changeLocation': 'Change location',
+  'lightbox.deletePhoto': 'Delete photo',
+  'lightbox.location': 'Location',
+  'lightbox.notes': 'Notes',
+
+  // edibility labels
+  'edibility.unknown': 'Unknown',
+  'edibility.edible': 'Edible',
+  'edibility.edible_raw': 'Edible Raw',
+  'edibility.conditionally_edible': 'Conditionally Edible',
+  'edibility.inedible': 'Inedible',
+  'edibility.poisonous': 'Poisonous',
+  'edibility.deadly_poisonous': 'Deadly Poisonous',
+
+  // threat status labels (IUCN)
+  'threat.unknown': 'Unknown',
+  'threat.ne': 'NE – Not Evaluated',
+  'threat.dd': 'DD – Data Deficient',
+  'threat.lc': 'LC – Least Concern',
+  'threat.nt': 'NT – Near Threatened',
+  'threat.vu': 'VU – Vulnerable',
+  'threat.en': 'EN – Endangered',
+  'threat.cr': 'CR – Critically Endangered',
+
+  // distribution labels
+  'distribution.unknown': 'Unknown',
+  'distribution.widespread': 'Widespread',
+  'distribution.common': 'Common',
+  'distribution.moderately_common': 'Moderately Common',
+  'distribution.sporadic': 'Sporadic',
+  'distribution.rare': 'Rare',
+  'distribution.extremely_rare': 'Extremely Rare',
+
+  // species metadata field labels
+  'species.edibility': 'Edibility',
+  'species.threatStatus': 'Threat Status',
+  'species.distribution': 'Distribution',
+
+  // folder edit dialog
+  'folder.title': 'Edit Folder',
+  'folder.description': 'Update species details and status metadata for this folder.',
+  'folder.speciesName': 'Species name',
+  'folder.pickOnMap': 'Pick on map',
+  'folder.changeLocation': 'Change location',
+  'folder.openFolder': 'Open species folder',
+  'folder.openingFolder': 'Opening folder…',
+  'folder.overwriteLabel': 'Overwrite existing country/region fields',
+  'folder.overwriteHint': 'Will only fill empty fields (country, region, coordinates). Enable overwrite to apply to all {n} finds.',
+  'folder.cancel': 'Cancel',
+  'folder.save': 'Save',
+  'folder.saving': 'Saving…',
 };
 
 const dict: Record<Lang, Translations> = { hr, en };

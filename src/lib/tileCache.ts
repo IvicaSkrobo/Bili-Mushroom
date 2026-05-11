@@ -21,6 +21,20 @@ export async function clearTileCache(storagePath?: string | null): Promise<void>
   });
 }
 
+export const DEFAULT_CACHE_MAX_BYTES = 200 * 1024 * 1024; // 200 MB
+
+export async function getCacheMaxBytes(): Promise<number> {
+  try {
+    return await invoke<number>('get_cache_max_bytes');
+  } catch {
+    return DEFAULT_CACHE_MAX_BYTES;
+  }
+}
+
+export async function setCacheMax(maxBytes: number): Promise<void> {
+  await invoke('set_cache_max', { maxBytes });
+}
+
 export function formatMb(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes < 0) return '0 MB';
   const mb = Math.round(bytes / (1024 * 1024));

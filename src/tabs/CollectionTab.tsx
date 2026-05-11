@@ -228,7 +228,9 @@ export default function CollectionTab() {
   const handleFolderSave = async (
     newName: string,
     edibility: string | null,
-    protectedStatus: string | null,
+    threatStatus: string | null,
+    distribution: string | null,
+    edibilityNote: string | null,
   ) => {
     if (!folderEditing) return;
     const existingProfile = speciesProfilesByName.get(folderEditing);
@@ -237,7 +239,9 @@ export default function CollectionTab() {
       coverPhotoId: existingProfile?.cover_photo_id ?? null,
       tags: existingProfile?.tags ?? [],
       edibility,
-      protectedStatus,
+      threatStatus,
+      distribution,
+      edibilityNote,
     });
   };
 
@@ -273,7 +277,8 @@ export default function CollectionTab() {
       coverPhotoId: photo.photo.id,
       tags: existingProfile?.tags ?? [],
       edibility: existingProfile?.edibility ?? null,
-      protectedStatus: existingProfile?.protected_status ?? null,
+      threatStatus: existingProfile?.threat_status ?? null,
+      distribution: existingProfile?.distribution ?? null,
     });
   };
 

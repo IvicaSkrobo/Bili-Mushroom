@@ -26,23 +26,20 @@ import {
   parseExif,
   importFind,
   upsertSpeciesNote,
+  upsertSpeciesProfile,
   FINDS_QUERY_KEY,
   SPECIES_NOTES_QUERY_KEY,
+  SPECIES_PROFILES_QUERY_KEY,
   SUPPORTED_EXTENSIONS,
   type ImportPayload,
   type ImportSummary,
 } from '@/lib/finds';
+import { EdibilitySelectBadge, ThreatStatusSelectBadge, DistributionSelectBadge } from '@/components/species/StatusSelectBadge';
 import { reverseGeocode } from '@/lib/geocoding';
 import { useAppStore } from '@/stores/appStore';
-import { useFinds, useSpeciesNotes, useSpeciesProfiles, useUpsertSpeciesProfile } from '@/hooks/useFinds';
+import { useFinds, useSpeciesNotes, useSpeciesProfiles } from '@/hooks/useFinds';
 import { useT } from '@/i18n/index';
 import { isInternalLibraryName } from '@/lib/internalEntries';
-import {
-  EDIBILITY_VALUES,
-  EDIBILITY_LABELS,
-  PROTECTED_STATUS_VALUES,
-  PROTECTED_STATUS_LABELS,
-} from '@/lib/speciesMetadata';
 
 interface ImportDialogProps {
   open: boolean;
@@ -114,7 +111,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   const { data: speciesNotesData } = useSpeciesNotes();
   const { data: findsData } = useFinds();
   const { data: speciesProfilesData } = useSpeciesProfiles();
-  const upsertProfile = useUpsertSpeciesProfile();
+
 
   const speciesFolders = useMemo(() => {
     if (!findsData) return [];
@@ -160,8 +157,18 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   const [sharedFindNotes, setSharedFindNotes] = useState('');
   const [sharedMapOpen, setSharedMapOpen] = useState(false);
   const [sharedLocation, setSharedLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [sharedEdibilityNote, setSharedEdibilityNote] = useState<string>('');
   const [sharedEdibility, setSharedEdibility] = useState<string>('unknown');
   const [sharedProtectedStatus, setSharedProtectedStatus] = useState<string>('unknown');
+  const [sharedDistribution, setSharedDistribution] = useState<string>('unknown');
+
+  const isNewSpecies = useMemo(() => {
+    const name = sharedName.trim().toLowerCase();
+    if (!name) return false;
+    const inFinds = findsData?.some((f) => f.species_name.toLowerCase() === name);
+    const inProfiles = speciesProfilesData?.some((p) => p.species_name.toLowerCase() === name);
+    return !inFinds && !inProfiles;
+  }, [sharedName, findsData, speciesProfilesData]);
 
   // When species name changes to a known folder, pre-fill notes + species metadata from DB
   useEffect(() => {
@@ -170,12 +177,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
       (sn) => sn.species_name.toLowerCase() === sharedName.toLowerCase(),
     );
     setSharedFolderNotes(existing?.notes ?? '');
-    const existingProfile = speciesProfilesData?.find(
-      (p) => p.species_name.toLowerCase() === sharedName.toLowerCase(),
-    );
-    setSharedEdibility(existingProfile?.edibility ?? 'unknown');
-    setSharedProtectedStatus(existingProfile?.protected_status ?? 'unknown');
-  }, [sharedName, speciesNotesData, speciesProfilesData]);
+  }, [sharedName, speciesNotesData]);
 
   const progress = useImportProgress(importing);
 
@@ -309,6 +311,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         observed_count_min: observedRange.min,
         observed_count_max: observedRange.max,
         additional_photos: photos.slice(1),
+        edibility_note: sharedEdibilityNote.trim() || null,
       };
 
       const summary = await importFind(storagePath, [payload], deleteSource);
@@ -318,15 +321,18 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         qc.invalidateQueries({ queryKey: [SPECIES_NOTES_QUERY_KEY, storagePath] });
       }
 
-      if (sharedName && (sharedEdibility !== 'unknown' || sharedProtectedStatus !== 'unknown')) {
-        const existingProfile = speciesProfilesData?.find((p) => p.species_name === sharedName);
-        upsertProfile.mutate({
-          speciesName: sharedName,
-          coverPhotoId: existingProfile?.cover_photo_id ?? null,
-          tags: existingProfile?.tags ?? [],
-          edibility: sharedEdibility === 'unknown' ? null : sharedEdibility,
-          protectedStatus: sharedProtectedStatus === 'unknown' ? null : sharedProtectedStatus,
-        });
+      if (isNewSpecies && (sharedEdibility !== 'unknown' || sharedProtectedStatus !== 'unknown' || sharedDistribution !== 'unknown')) {
+        await upsertSpeciesProfile(
+          storagePath,
+          sharedName.trim(),
+          null,
+          [],
+          sharedEdibility !== 'unknown' ? sharedEdibility : null,
+          sharedProtectedStatus !== 'unknown' ? sharedProtectedStatus : null,
+          sharedDistribution !== 'unknown' ? sharedDistribution : null,
+          null,
+        );
+        qc.invalidateQueries({ queryKey: [SPECIES_PROFILES_QUERY_KEY, storagePath] });
       }
 
       onImportComplete?.(summary.imported.length, summary.skipped.length);
@@ -357,6 +363,8 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     setError(null);
     setSharedEdibility('unknown');
     setSharedProtectedStatus('unknown');
+    setSharedDistribution('unknown');
+    setSharedEdibilityNote('');
   }
 
   function handleReviewClose(open: boolean) {
@@ -412,40 +420,49 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
           {/* Find metadata form */}
           <div className="rounded-md border bg-muted/50 p-3 space-y-2">
             {/* Row 1: species name + map pin */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-end gap-2">
               <div className="relative flex-1">
-                <span className="mb-1 block text-[10px] text-muted-foreground/50">
-                  {t('import.mushroomName')}
-                </span>
                 <SpeciesNameEditor
                   value={sharedName}
                   onChange={setSharedName}
                   placeholder={t('import.mushroomName')}
                   suggestions={speciesFolders}
                   showBoldButton
+                  label={t('import.mushroomName')}
                 />
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={t('import.pickLocation')}
-                onClick={() => setSharedMapOpen(true)}
-                className={[
-                  'border border-primary/35 bg-primary/14 text-primary shadow-[0_0_0_1px_oklch(from_var(--primary)_l_c_h_/_0.08),0_10px_24px_oklch(from_var(--primary)_l_c_h_/_0.18)]',
-                  'hover:bg-primary/22 hover:text-primary hover:border-primary/55',
-                  'focus-visible:ring-primary/45',
-                  sharedLocation ? 'bg-secondary/18 text-secondary border-secondary/45 hover:bg-secondary/26 hover:border-secondary/60' : '',
-                ].join(' ')}
-              >
-                <MapPin className="h-4.5 w-4.5" />
-              </Button>
-              {sharedLocation && (
-                <span className="text-xs text-muted-foreground whitespace-nowrap">
-                  {sharedLocation.lat.toFixed(4)}, {sharedLocation.lng.toFixed(4)}
-                </span>
-              )}
+              <div className="flex flex-col items-center gap-0.5 pb-0.5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t('import.pickLocation')}
+                  onClick={() => setSharedMapOpen(true)}
+                  className={[
+                    'border border-primary/35 bg-primary/14 text-primary',
+                    'hover:bg-primary/22 hover:text-primary hover:border-primary/55',
+                    'focus-visible:ring-primary/45',
+                    sharedLocation ? 'bg-secondary/18 text-secondary border-secondary/45 hover:bg-secondary/26 hover:border-secondary/60' : '',
+                  ].join(' ')}
+                >
+                  <MapPin className="h-4 w-4" />
+                </Button>
+                {sharedLocation && (
+                  <span className="text-[10px] text-muted-foreground/60 font-mono whitespace-nowrap">
+                    {sharedLocation.lat.toFixed(3)}, {sharedLocation.lng.toFixed(3)}
+                  </span>
+                )}
+              </div>
             </div>
+
+            {/* Status badges — only for new species */}
+            {isNewSpecies && (
+              <div className="flex flex-wrap gap-2">
+                <EdibilitySelectBadge value={sharedEdibility} onChange={setSharedEdibility} />
+                <ThreatStatusSelectBadge value={sharedProtectedStatus} onChange={setSharedProtectedStatus} />
+                <DistributionSelectBadge value={sharedDistribution} onChange={setSharedDistribution} />
+              </div>
+            )}
 
             {/* Row 2: date + country + region + location note + observed range */}
             <div className="grid grid-cols-2 gap-2">
@@ -509,32 +526,13 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
               onChange={(e) => setSharedFindNotes(e.target.value)}
             />
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-xs text-muted-foreground">Edibility</label>
-                <select
-                  value={sharedEdibility}
-                  onChange={(e) => setSharedEdibility(e.target.value)}
-                  className="mt-0.5 w-full h-8 rounded-md border border-border bg-input px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
-                >
-                  {EDIBILITY_VALUES.map((v) => (
-                    <option key={v} value={v}>{EDIBILITY_LABELS[v]}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Protected Status</label>
-                <select
-                  value={sharedProtectedStatus}
-                  onChange={(e) => setSharedProtectedStatus(e.target.value)}
-                  className="mt-0.5 w-full h-8 rounded-md border border-border bg-input px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
-                >
-                  {PROTECTED_STATUS_VALUES.map((v) => (
-                    <option key={v} value={v}>{PROTECTED_STATUS_LABELS[v]}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
+            <Textarea
+              placeholder={t('edit.edibilityNotePlaceholder')}
+              rows={2}
+              value={sharedEdibilityNote}
+              onChange={(e) => setSharedEdibilityNote(e.target.value)}
+            />
+
           </div>
 
           {/* Photo thumbnails */}

@@ -130,14 +130,18 @@ export function useUpsertSpeciesProfile() {
       coverPhotoId,
       tags,
       edibility,
-      protectedStatus,
+      threatStatus,
+      distribution,
+      edibilityNote,
     }: {
       speciesName: string;
       coverPhotoId: number | null;
       tags: string[];
       edibility?: string | null;
-      protectedStatus?: string | null;
-    }) => upsertSpeciesProfile(storagePath!, speciesName, coverPhotoId, tags, edibility, protectedStatus),
+      threatStatus?: string | null;
+      distribution?: string | null;
+      edibilityNote?: string | null;
+    }) => upsertSpeciesProfile(storagePath!, speciesName, coverPhotoId, tags, edibility, threatStatus, distribution, edibilityNote),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [SPECIES_PROFILES_QUERY_KEY, storagePath] });
     },

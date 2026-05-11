@@ -15,6 +15,7 @@ import { applyLeafletIconFix } from './leafletIconFix';
 import { createRustProxyTileLayer } from './RustProxyTileLayer';
 import type { MapLayer } from '@/stores/appStore';
 import { useFinds } from '@/hooks/useFinds';
+import { plainSpeciesName } from '@/lib/speciesName';
 
 applyLeafletIconFix();
 
@@ -103,8 +104,8 @@ const prevLocationIcon = L.divIcon({
   className: '',
   html: `<div style="
     width:14px;height:14px;
-    background:oklch(0.72 0.12 80);
-    border:2px solid oklch(0.5 0.08 80);
+    background:#D4941A;
+    border:2px solid #A67010;
     border-radius:50%;
     box-shadow:0 0 4px rgba(0,0,0,0.5);
     cursor:pointer;
@@ -153,7 +154,7 @@ export function LocationPickerMap({
           f.lng != null &&
           (!needle || f.species_name.toLowerCase() === needle),
       )
-      .map((f) => ({ lat: f.lat as number, lng: f.lng as number, label: f.species_name }));
+      .map((f) => ({ lat: f.lat as number, lng: f.lng as number, label: plainSpeciesName(f.species_name) }));
   }, [finds, speciesFilter]);
 
   return (
@@ -195,7 +196,7 @@ export function LocationPickerMap({
                       click: (e) => {
                         L.DomEvent.stopPropagation(e.originalEvent);
                         setPin({ lat: loc.lat, lng: loc.lng });
-                        setPinLabel(loc.label);
+                        setPinLabel(plainSpeciesName(loc.label));
                       },
                     }}
                     title={loc.label}
@@ -230,7 +231,7 @@ export function LocationPickerMap({
             {pin ? (
               pinLabel ? (
                 <>
-                  <span className="text-xs font-semibold truncate max-w-[300px]" style={{ color: 'oklch(0.72 0.12 80)' }}>
+                  <span className="text-xs font-semibold truncate max-w-[300px]" style={{ color: '#D4941A' }}>
                     ✓ {pinLabel}
                   </span>
                   <span className="text-xs text-muted-foreground font-mono shrink-0">

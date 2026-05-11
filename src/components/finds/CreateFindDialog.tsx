@@ -14,14 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useCreateFind, useFinds, useSpeciesProfiles, useUpsertSpeciesProfile } from '@/hooks/useFinds';
+import { useCreateFind, useFinds, useSpeciesProfiles } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
-import {
-  EDIBILITY_VALUES,
-  EDIBILITY_LABELS,
-  PROTECTED_STATUS_VALUES,
-  PROTECTED_STATUS_LABELS,
-} from '@/lib/speciesMetadata';
 import { useT } from '@/i18n/index';
 import { reverseGeocode } from '@/lib/geocoding';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
@@ -38,6 +32,7 @@ interface FormState {
   lng: string;
   notes: string;
   observed_count_range: string;
+  edibility_note: string;
 }
 
 function parseObservedRangeInput(value: string) {
@@ -69,6 +64,7 @@ const BLANK_FORM: FormState = {
   lng: '',
   notes: '',
   observed_count_range: '',
+  edibility_note: '',
 };
 
 interface CreateFindDialogProps {
@@ -82,7 +78,6 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   const createMutation = useCreateFind();
   const { data: findsData } = useFinds();
   const { data: speciesProfilesData } = useSpeciesProfiles();
-  const upsertProfile = useUpsertSpeciesProfile();
   const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
   const speciesSuggestions = useMemo(() => {
     const seen = new Set<string>();
@@ -115,27 +110,12 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   }, [findsData]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [form, setForm] = useState<FormState>(BLANK_FORM);
-  const [edibility, setEdibility] = useState<string>('unknown');
-  const [protectedStatus, setProtectedStatus] = useState<string>('unknown');
-
   // Reset form to blank when dialog opens
   useEffect(() => {
     if (open) {
       setForm(BLANK_FORM);
-      setEdibility('unknown');
-      setProtectedStatus('unknown');
     }
   }, [open]);
-
-  // Pre-fill edibility/protected from existing species profile when species name changes
-  useEffect(() => {
-    if (!speciesProfilesData || !form.species_name) return;
-    const existing = speciesProfilesData.find(
-      (p) => p.species_name.toLowerCase() === form.species_name.toLowerCase(),
-    );
-    setEdibility(existing?.edibility ?? 'unknown');
-    setProtectedStatus(existing?.protected_status ?? 'unknown');
-  }, [form.species_name, speciesProfilesData]);
 
   // Load species folder suggestions
   useEffect(() => {
@@ -170,21 +150,10 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
         observed_count: observedRange.representative,
         observed_count_min: observedRange.min,
         observed_count_max: observedRange.max,
+        edibility_note: form.edibility_note.trim() || null,
       },
       {
         onSuccess: () => {
-          if (edibility !== 'unknown' || protectedStatus !== 'unknown') {
-            const existing = speciesProfilesData?.find(
-              (p) => p.species_name === form.species_name.trim(),
-            );
-            upsertProfile.mutate({
-              speciesName: form.species_name.trim(),
-              coverPhotoId: existing?.cover_photo_id ?? null,
-              tags: existing?.tags ?? [],
-              edibility: edibility === 'unknown' ? null : edibility,
-              protectedStatus: protectedStatus === 'unknown' ? null : protectedStatus,
-            });
-          }
           onOpenChange(false);
         },
       },
@@ -192,6 +161,16 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   }
 
   const canSave = form.species_name.trim() !== '' && !createMutation.isPending;
+
+  const isKnownSpecies = useMemo(() => {
+    const name = form.species_name.trim().toLowerCase();
+    if (!name) return false;
+    return (
+      findsData?.some((f) => f.species_name.toLowerCase() === name) ||
+      speciesProfilesData?.some((p) => p.species_name.toLowerCase() === name) ||
+      false
+    );
+  }, [form.species_name, findsData, speciesProfilesData]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -205,44 +184,36 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-2.5">
         <div className="space-y-2">
-          <div>
-            <label className="text-sm font-medium">{t('edit.species')}</label>
-            <SpeciesNameEditor
-              value={form.species_name}
-              onChange={(raw) => handleChange('species_name', raw)}
-              placeholder={t('preview.speciesName')}
-              suggestions={speciesSuggestions}
-            />
-            <div className="mt-2 rounded-md border border-border/60 bg-card/35 p-2.5">
-              <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                Status vrste
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Edibility</label>
-                <select
-                  value={edibility}
-                  onChange={(e) => setEdibility(e.target.value)}
-                  className="mt-1 h-7 w-full rounded-md border border-border bg-input px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
-                >
-                  {EDIBILITY_VALUES.map((v) => (
-                    <option key={v} value={v}>{EDIBILITY_LABELS[v]}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Protected</label>
-                <select
-                  value={protectedStatus}
-                  onChange={(e) => setProtectedStatus(e.target.value)}
-                  className="mt-1 h-7 w-full rounded-md border border-border bg-input px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
-                >
-                  {PROTECTED_STATUS_VALUES.map((v) => (
-                    <option key={v} value={v}>{PROTECTED_STATUS_LABELS[v]}</option>
-                  ))}
-                </select>
-              </div>
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <SpeciesNameEditor
+                value={form.species_name}
+                onChange={(raw) => handleChange('species_name', raw)}
+                placeholder={t('preview.speciesName')}
+                suggestions={speciesSuggestions}
+                label={t('edit.species')}
+              />
             </div>
+            <div className="flex flex-col items-center gap-0.5 pb-0.5">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Pick on map"
+                onClick={() => setPickerOpen(true)}
+                className={[
+                  'border border-primary/35 bg-primary/14 text-primary',
+                  'hover:bg-primary/22 hover:text-primary hover:border-primary/55',
+                  (form.lat !== '' || form.lng !== '') ? 'bg-secondary/18 text-secondary border-secondary/45 hover:bg-secondary/26 hover:border-secondary/60' : '',
+                ].join(' ')}
+              >
+                <MapPin className="h-4 w-4" />
+              </Button>
+              {form.lat !== '' && form.lng !== '' && (
+                <span className="text-[10px] text-muted-foreground/60 font-mono whitespace-nowrap">
+                  {parseFloat(form.lat).toFixed(3)}, {parseFloat(form.lng).toFixed(3)}
+                </span>
+              )}
             </div>
           </div>
           <div>
@@ -301,26 +272,6 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
               />
             </div>
           </div>
-          <div className="rounded-md border border-border/60 bg-card/35 p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">Location</p>
-                <p className="text-xs text-muted-foreground">
-                  Pick coordinates on the map and auto-fill nearby country/region when available.
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setPickerOpen(true)}
-                className="shrink-0 gap-1.5"
-              >
-                <MapPin className="h-4 w-4" />
-                Pick on map
-              </Button>
-            </div>
-          </div>
           <div>
             <label className="text-sm font-medium">{t('edit.notes')}</label>
             <Textarea
@@ -329,6 +280,16 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
               placeholder={t('edit.notes')}
               rows={3}
             />
+          </div>
+          <div>
+            <label className="text-sm font-medium">{t('edit.edibilityNote')}</label>
+            <Textarea
+              value={form.edibility_note}
+              onChange={(e) => handleChange('edibility_note', e.target.value)}
+              placeholder={t('edit.edibilityNotePlaceholder')}
+              rows={3}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">{t('edit.edibilityNoteHelp')}</p>
           </div>
           <div>
             <div className="mb-1 flex items-center gap-1 text-sm font-medium">
@@ -380,6 +341,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
             ? { lat: parseFloat(form.lat), lng: parseFloat(form.lng) }
             : null
         }
+        speciesFilter={isKnownSpecies ? form.species_name : undefined}
         onConfirm={async (lat, lng) => {
           setForm((f) => ({ ...f, lat: String(lat), lng: String(lng) }));
           setPickerOpen(false);

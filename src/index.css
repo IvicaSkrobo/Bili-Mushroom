@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Enable class-based dark mode for dark: Tailwind variants */
+@variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -232,7 +235,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: po
   font-size: 11px;
   font-family: serif;
   font-style: italic;
-  font-weight: 600;
+  font-weight: 800;
   color: #fff;
   white-space: nowrap;
   text-shadow: 0 0 4px rgba(0,0,0,0.95), 0 1px 3px rgba(0,0,0,0.85);

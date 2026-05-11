@@ -11,6 +11,9 @@ import { useT } from '@/i18n/index';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 import type { Find, FindPhoto } from '@/lib/finds';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
+import { EdibilitySelectBadge, ThreatStatusSelectBadge, DistributionSelectBadge } from '@/components/species/StatusSelectBadge';
+import { PhotoLightbox } from '@/components/finds/PhotoLightbox';
+import { renderSpeciesName, plainSpeciesName } from '@/lib/speciesName';
 
 interface DateSummary {
   date: string;
@@ -190,16 +193,16 @@ function buildSpeciesJournal(speciesName: string, finds: Find[], coverPhotoId: n
   const spotCounts = new Map<string, {
     label: string;
     count: number;
-    observedMinTotal: number;
-    observedMaxTotal: number;
+    observedMidpointSum: number;
+    observedWithCount: number;
     favoriteCount: number;
     lastRecorded: string | null;
   }>();
-  const dateCounts = new Map<string, { recordedFinds: number; observedMinTotal: number; observedMaxTotal: number; observedKnown: boolean }>();
-  const yearCounts = new Map<string, { recordedFinds: number; observedMinTotal: number; observedMaxTotal: number; observedKnown: boolean }>();
+  const dateCounts = new Map<string, { recordedFinds: number; observedMidpointSum: number; observedWithCount: number; observedKnown: boolean }>();
+  const yearCounts = new Map<string, { recordedFinds: number; observedMidpointSum: number; observedWithCount: number; observedKnown: boolean }>();
 
-  let observedCountMinTotal = 0;
-  let observedCountMaxTotal = 0;
+  let observedMidpointSum = 0;
+  let observedWithCount = 0;
   let observedCountKnown = false;
   let favoriteCount = 0;
 
@@ -212,17 +215,18 @@ function buildSpeciesJournal(speciesName: string, finds: Find[], coverPhotoId: n
       const existingSpot = spotCounts.get(spotLabel) ?? {
         label: spotLabel,
         count: 0,
-        observedMinTotal: 0,
-        observedMaxTotal: 0,
+        observedMidpointSum: 0,
+        observedWithCount: 0,
         favoriteCount: 0,
         lastRecorded: null,
       };
       const observedRange = getObservedRange(find);
+      const midpoint = observedRange != null ? (observedRange.min + observedRange.max) / 2 : null;
       spotCounts.set(spotLabel, {
         label: spotLabel,
         count: existingSpot.count + 1,
-        observedMinTotal: existingSpot.observedMinTotal + (observedRange?.min ?? 0),
-        observedMaxTotal: existingSpot.observedMaxTotal + (observedRange?.max ?? 0),
+        observedMidpointSum: existingSpot.observedMidpointSum + (midpoint ?? 0),
+        observedWithCount: existingSpot.observedWithCount + (midpoint != null ? 1 : 0),
         favoriteCount: existingSpot.favoriteCount + (find.is_favorite ? 1 : 0),
         lastRecorded: existingSpot.lastRecorded && existingSpot.lastRecorded > find.date_found
           ? existingSpot.lastRecorded
@@ -236,18 +240,19 @@ function buildSpeciesJournal(speciesName: string, finds: Find[], coverPhotoId: n
 
     const currentDate = dateCounts.get(find.date_found) ?? {
       recordedFinds: 0,
-      observedMinTotal: 0,
-      observedMaxTotal: 0,
+      observedMidpointSum: 0,
+      observedWithCount: 0,
       observedKnown: false,
     };
     currentDate.recordedFinds += 1;
     const observedRange = getObservedRange(find);
-    if (observedRange != null) {
-      currentDate.observedMinTotal += observedRange.min;
-      currentDate.observedMaxTotal += observedRange.max;
+    const midpoint = observedRange != null ? (observedRange.min + observedRange.max) / 2 : null;
+    if (midpoint != null) {
+      currentDate.observedMidpointSum += midpoint;
+      currentDate.observedWithCount += 1;
       currentDate.observedKnown = true;
-      observedCountMinTotal += observedRange.min;
-      observedCountMaxTotal += observedRange.max;
+      observedMidpointSum += midpoint;
+      observedWithCount += 1;
       observedCountKnown = true;
     }
     dateCounts.set(find.date_found, currentDate);
@@ -255,14 +260,14 @@ function buildSpeciesJournal(speciesName: string, finds: Find[], coverPhotoId: n
     const year = find.date_found.slice(0, 4);
     const currentYear = yearCounts.get(year) ?? {
       recordedFinds: 0,
-      observedMinTotal: 0,
-      observedMaxTotal: 0,
+      observedMidpointSum: 0,
+      observedWithCount: 0,
       observedKnown: false,
     };
     currentYear.recordedFinds += 1;
-    if (observedRange != null) {
-      currentYear.observedMinTotal += observedRange.min;
-      currentYear.observedMaxTotal += observedRange.max;
+    if (midpoint != null) {
+      currentYear.observedMidpointSum += midpoint;
+      currentYear.observedWithCount += 1;
       currentYear.observedKnown = true;
     }
     yearCounts.set(year, currentYear);
@@ -272,8 +277,7 @@ function buildSpeciesJournal(speciesName: string, finds: Find[], coverPhotoId: n
   const seasonMonths = Array.from(monthCounts.keys()).sort((a, b) => a - b);
   const topSpot = Array.from(spotCounts.values()).sort((a, b) =>
     b.favoriteCount - a.favoriteCount ||
-    b.observedMaxTotal - a.observedMaxTotal ||
-    b.observedMinTotal - a.observedMinTotal ||
+    b.observedMidpointSum - a.observedMidpointSum ||
     b.count - a.count ||
     (b.lastRecorded ?? '').localeCompare(a.lastRecorded ?? '') ||
     a.label.localeCompare(b.label))[0] ?? null;
@@ -285,7 +289,7 @@ function buildSpeciesJournal(speciesName: string, finds: Find[], coverPhotoId: n
       date,
       recordedFinds: summary.recordedFinds,
       observedCountLabel: summary.observedKnown
-        ? formatObservedRange(summary.observedMinTotal, summary.observedMaxTotal)
+        ? String(Math.round(summary.observedMidpointSum / summary.observedWithCount))
         : null,
     }));
 
@@ -295,7 +299,7 @@ function buildSpeciesJournal(speciesName: string, finds: Find[], coverPhotoId: n
       year,
       recordedFinds: summary.recordedFinds,
       observedCountLabel: summary.observedKnown
-        ? formatObservedRange(summary.observedMinTotal, summary.observedMaxTotal)
+        ? String(Math.round(summary.observedMidpointSum / summary.observedWithCount))
         : null,
     }));
 
@@ -310,7 +314,7 @@ function buildSpeciesJournal(speciesName: string, finds: Find[], coverPhotoId: n
     heroPhotoId,
     recordedFinds: sortedFinds.length,
     observedCountTotalLabel: observedCountKnown
-      ? formatObservedRange(observedCountMinTotal, observedCountMaxTotal)
+      ? String(Math.round(observedMidpointSum / observedWithCount))
       : null,
     observedCountKnown,
     favoriteCount,
@@ -324,8 +328,8 @@ function buildSpeciesJournal(speciesName: string, finds: Find[], coverPhotoId: n
     seasonEndMonth: seasonMonths[seasonMonths.length - 1] ?? null,
     topSpotLabel: topSpot?.label ?? null,
     topSpotCount: topSpot?.count ?? 0,
-    topSpotObservedCountLabel: topSpot
-      ? formatObservedRange(topSpot.observedMinTotal, topSpot.observedMaxTotal)
+    topSpotObservedCountLabel: (topSpot && topSpot.observedWithCount > 0)
+      ? String(Math.round(topSpot.observedMidpointSum / topSpot.observedWithCount))
       : null,
     topSpotFavoriteCount: topSpot?.favoriteCount ?? 0,
     topSpotLastRecorded: topSpot?.lastRecorded ?? null,
@@ -348,6 +352,13 @@ export default function SpeciesTab() {
   const [selectedSpecies, setSelectedSpecies] = useState<string | null>(null);
   const [coverPickerOpen, setCoverPickerOpen] = useState(false);
   const [tagInput, setTagInput] = useState('');
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const openLightbox = (index: number) => {
+    setLightboxIndex(index);
+    setLightboxOpen(true);
+  };
 
   const locale = lang === 'hr' ? 'hr-HR' : 'en-US';
   const today = new Date();
@@ -390,8 +401,18 @@ export default function SpeciesTab() {
   const selectedProfile = speciesProfiles?.find((entry) => entry.species_name === selectedJournal?.speciesName) ?? null;
   const selectedTags = selectedProfile?.tags ?? [];
 
+  const [edibilityNoteInput, setEdibilityNoteInput] = useState(selectedProfile?.edibility_note ?? '');
+  const [edibilityInput, setEdibilityInput] = useState(selectedProfile?.edibility ?? 'unknown');
+  const [threatStatusInput, setThreatStatusInput] = useState(selectedProfile?.threat_status ?? 'unknown');
+  const [distributionInput, setDistributionInput] = useState(selectedProfile?.distribution ?? 'unknown');
+
   useEffect(() => {
     setTagInput('');
+    setEdibilityNoteInput(selectedProfile?.edibility_note ?? '');
+    setEdibilityInput(selectedProfile?.edibility ?? 'unknown');
+    setThreatStatusInput(selectedProfile?.threat_status ?? 'unknown');
+    setDistributionInput(selectedProfile?.distribution ?? 'unknown');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedJournal?.speciesName]);
 
   const InfoHint = ({ text }: { text: string }) => (
@@ -405,8 +426,15 @@ export default function SpeciesTab() {
   );
 
   const handleSelectCover = (speciesName: string, photoId: number) => {
-    const existingTags = speciesProfiles?.find((entry) => entry.species_name === speciesName)?.tags ?? [];
-    upsertSpeciesProfile.mutate({ speciesName, coverPhotoId: photoId, tags: existingTags });
+    const existingProfile = speciesProfiles?.find((entry) => entry.species_name === speciesName);
+    upsertSpeciesProfile.mutate({
+      speciesName,
+      coverPhotoId: photoId,
+      tags: existingProfile?.tags ?? [],
+      edibility: existingProfile?.edibility ?? null,
+      protectedStatus: existingProfile?.protected_status ?? null,
+      edibilityNote: existingProfile?.edibility_note ?? null,
+    });
     setCoverPickerOpen(false);
   };
 
@@ -421,6 +449,10 @@ export default function SpeciesTab() {
       speciesName: selectedJournal.speciesName,
       coverPhotoId: selectedJournal.heroPhotoId,
       tags: nextTags,
+      edibility: edibilityInput === 'unknown' ? null : edibilityInput,
+      threatStatus: threatStatusInput === 'unknown' ? null : threatStatusInput,
+      distribution: distributionInput === 'unknown' ? null : distributionInput,
+      edibilityNote: edibilityNoteInput.trim() || null,
     });
     setTagInput('');
   };
@@ -431,6 +463,40 @@ export default function SpeciesTab() {
       speciesName: selectedJournal.speciesName,
       coverPhotoId: selectedJournal.heroPhotoId,
       tags: selectedTags.filter((tag) => tag !== tagToRemove),
+      edibility: edibilityInput === 'unknown' ? null : edibilityInput,
+      threatStatus: threatStatusInput === 'unknown' ? null : threatStatusInput,
+      distribution: distributionInput === 'unknown' ? null : distributionInput,
+      edibilityNote: edibilityNoteInput.trim() || null,
+    });
+  };
+
+  const handleSaveEdibilityNote = () => {
+    if (!selectedJournal) return;
+    upsertSpeciesProfile.mutate({
+      speciesName: selectedJournal.speciesName,
+      coverPhotoId: selectedJournal.heroPhotoId,
+      tags: selectedTags,
+      edibility: edibilityInput === 'unknown' ? null : edibilityInput,
+      threatStatus: threatStatusInput === 'unknown' ? null : threatStatusInput,
+      distribution: distributionInput === 'unknown' ? null : distributionInput,
+      edibilityNote: edibilityNoteInput.trim() || null,
+    });
+  };
+
+  const handleSaveMetadataStatus = (
+    newEdibility: string,
+    newThreatStatus: string,
+    newDistribution: string,
+  ) => {
+    if (!selectedJournal) return;
+    upsertSpeciesProfile.mutate({
+      speciesName: selectedJournal.speciesName,
+      coverPhotoId: selectedJournal.heroPhotoId,
+      tags: selectedTags,
+      edibility: newEdibility === 'unknown' ? null : newEdibility,
+      threatStatus: newThreatStatus === 'unknown' ? null : newThreatStatus,
+      distribution: newDistribution === 'unknown' ? null : newDistribution,
+      edibilityNote: edibilityNoteInput.trim() || null,
     });
   };
 
@@ -515,7 +581,7 @@ export default function SpeciesTab() {
                       )}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <p className="truncate font-serif text-base font-semibold text-foreground">{entry.speciesName}</p>
+                          <p className="truncate font-serif text-base font-semibold text-foreground" title={plainSpeciesName(entry.speciesName)}>{renderSpeciesName(entry.speciesName)}</p>
                           {entry.favoriteCount > 0 && (
                             <span
                               className="inline-flex items-center gap-1 rounded-full border border-amber-500/35 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600"
@@ -547,21 +613,31 @@ export default function SpeciesTab() {
               <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)]">
                 <Card className="gap-0 self-start overflow-hidden py-0">
                   {selectedJournal.heroPhotoPath && storagePath ? (
-                    <button
-                      type="button"
-                      onClick={() => setCoverPickerOpen(true)}
-                      className="group relative block w-full text-left"
-                      aria-label={t('species.editCover')}
-                    >
-                      <img
-                        src={resolvePhotoSrc(storagePath, selectedJournal.heroPhotoPath)}
-                        alt={selectedJournal.speciesName}
-                        className="aspect-[5/4] max-h-[320px] w-full object-cover lg:max-h-[280px] xl:max-h-[320px]"
-                      />
-                      <span className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-background/40 bg-background/78 text-foreground shadow-sm transition-colors group-hover:bg-background group-hover:text-primary">
+                    <div className="group relative block w-full">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const heroIdx = selectedJournal.allPhotos.findIndex((e) => e.photo.id === selectedJournal.heroPhotoId);
+                          openLightbox(heroIdx >= 0 ? heroIdx : 0);
+                        }}
+                        className="block w-full text-left"
+                        aria-label={t('species.viewPhoto')}
+                      >
+                        <img
+                          src={resolvePhotoSrc(storagePath, selectedJournal.heroPhotoPath)}
+                          alt={selectedJournal.speciesName}
+                          className="aspect-[5/4] max-h-[320px] w-full object-cover lg:max-h-[280px] xl:max-h-[320px] cursor-zoom-in"
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCoverPickerOpen(true)}
+                        className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border border-background/40 bg-background/78 text-foreground shadow-sm transition-colors hover:bg-background hover:text-primary"
+                        aria-label={t('species.editCover')}
+                      >
                         <Pencil className="h-4 w-4" />
-                      </span>
-                    </button>
+                      </button>
+                    </div>
                   ) : (
                     <button
                       type="button"
@@ -578,7 +654,7 @@ export default function SpeciesTab() {
                   <CardContent className="space-y-3 px-5 py-5">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="font-serif text-3xl font-semibold text-foreground">{selectedJournal.speciesName}</h2>
+                        <h2 className="font-serif text-3xl font-semibold text-foreground">{renderSpeciesName(selectedJournal.speciesName)}</h2>
                         {selectedJournal.favoriteCount > 0 && (
                           <Badge variant="outline" className="gap-1 border-amber-500/35 bg-amber-500/10 text-amber-600">
                             <Star className="h-3.5 w-3.5 fill-current" />
@@ -657,6 +733,45 @@ export default function SpeciesTab() {
                         <p className="mt-1 text-sm text-muted-foreground">
                           {selectedNote.trim() || t('species.noJournalNote')}
                         </p>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <EdibilitySelectBadge
+                            value={edibilityInput}
+                            onChange={(v) => {
+                              setEdibilityInput(v);
+                              handleSaveMetadataStatus(v, threatStatusInput, distributionInput);
+                            }}
+                          />
+                          <ThreatStatusSelectBadge
+                            value={threatStatusInput}
+                            onChange={(v) => {
+                              setThreatStatusInput(v);
+                              handleSaveMetadataStatus(edibilityInput, v, distributionInput);
+                            }}
+                          />
+                          <DistributionSelectBadge
+                            value={distributionInput}
+                            onChange={(v) => {
+                              setDistributionInput(v);
+                              handleSaveMetadataStatus(edibilityInput, threatStatusInput, v);
+                            }}
+                          />
+                        </div>
+                        {['edible', 'edible_raw', 'conditionally_edible'].includes(edibilityInput) && (
+                          <div className="mt-3 space-y-1.5">
+                            <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
+                              {t('edit.edibilityNote')}
+                            </p>
+                            <textarea
+                              value={edibilityNoteInput}
+                              onChange={(e) => setEdibilityNoteInput(e.target.value)}
+                              onBlur={handleSaveEdibilityNote}
+                              rows={3}
+                              placeholder={t('edit.edibilityNotePlaceholder')}
+                              className="w-full resize-none rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
+                            />
+                            <p className="text-[11px] text-muted-foreground/50">{t('edit.edibilityNoteHelp')}</p>
+                          </div>
+                        )}
                         <div className="mt-3 flex flex-wrap gap-2">
                           <Badge variant="outline">{t('species.recordedFindsLabel', { count: selectedJournal.recordedFinds })}</Badge>
                           {selectedJournal.observedCountTotalLabel != null && (
@@ -694,28 +809,6 @@ export default function SpeciesTab() {
                           )) : (
                             <p className="text-sm text-muted-foreground">{t('species.noTags')}</p>
                           )}
-                        </div>
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={tagInput}
-                            onChange={(e) => setTagInput(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                handleAddTag();
-                              }
-                            }}
-                            placeholder={t('species.addTagPlaceholder')}
-                            className="h-9 flex-1 rounded-md border border-border bg-input px-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/40"
-                          />
-                          <Button
-                            variant="outline"
-                            onClick={handleAddTag}
-                            disabled={tagInput.trim() === ''}
-                          >
-                            {t('species.addTag')}
-                          </Button>
                         </div>
                       </div>
                       <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-2">
@@ -825,6 +918,74 @@ export default function SpeciesTab() {
                       </CardContent>
                     </Card>
                   </div>
+
+                  {/* Finds list */}
+                  <Card className="gap-0 py-5">
+                    <CardContent className="space-y-3 px-5">
+                      <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-foreground">
+                        {t('species.recordedFinds')}
+                      </h3>
+                      <div className="space-y-2">
+                        {selectedJournal.finds.map((find) => {
+                          const primaryPhoto = find.photos.find((p) => p.is_primary) ?? find.photos[0] ?? null;
+                          const photoIdx = primaryPhoto
+                            ? selectedJournal.allPhotos.findIndex((e) => e.photo.id === primaryPhoto.id)
+                            : -1;
+                          const thumbSrc = primaryPhoto && storagePath
+                            ? resolvePhotoSrc(storagePath, primaryPhoto.photo_path)
+                            : null;
+                          const obsMin = find.observed_count_min ?? find.observed_count;
+                          const obsMax = find.observed_count_max ?? find.observed_count_min ?? find.observed_count;
+                          const obsDisplay = obsMin != null
+                            ? (obsMin === obsMax ? String(obsMin) : `${obsMin}–${obsMax}`)
+                            : null;
+                          const locationParts = [find.location_note, find.region, find.country].filter(Boolean);
+
+                          return (
+                            <button
+                              key={find.id}
+                              type="button"
+                              onClick={() => photoIdx >= 0 ? openLightbox(photoIdx) : undefined}
+                              className="group flex w-full items-center gap-3 rounded-md border border-border/40 bg-card/40 px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"
+                            >
+                              {/* Thumbnail */}
+                              <div className="h-12 w-12 shrink-0 overflow-hidden rounded border border-border/30 bg-muted/40">
+                                {thumbSrc ? (
+                                  <img src={thumbSrc} alt="" className="h-full w-full object-cover" draggable={false} />
+                                ) : (
+                                  <div className="flex h-full w-full items-center justify-center text-muted-foreground/30">
+                                    <Camera className="h-5 w-5" />
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Info */}
+                              <div className="min-w-0 flex-1">
+                                <p className="font-mono text-sm font-medium text-foreground">
+                                  {formatDate(find.date_found, locale)}
+                                </p>
+                                {locationParts.length > 0 && (
+                                  <p className="truncate text-xs text-muted-foreground/70">
+                                    {locationParts.join(' · ')}
+                                  </p>
+                                )}
+                                {find.photos.length > 1 && (
+                                  <p className="text-[11px] text-muted-foreground/50">{find.photos.length} foto</p>
+                                )}
+                              </div>
+
+                              {/* Observed count */}
+                              {obsDisplay && (
+                                <span className="shrink-0 font-mono text-lg font-semibold text-primary/80">
+                                  {obsDisplay}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
             </div>
@@ -880,6 +1041,20 @@ export default function SpeciesTab() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {selectedJournal && (
+        <PhotoLightbox
+          open={lightboxOpen}
+          onOpenChange={setLightboxOpen}
+          photos={selectedJournal.allPhotos}
+          currentIndex={lightboxIndex}
+          onIndexChange={setLightboxIndex}
+          storagePath={storagePath!}
+          onSetAsSpeciesCover={(entry) => handleSelectCover(selectedJournal.speciesName, entry.photo.id)}
+          isCurrentSpeciesCover={(entry) => entry.photo.id === selectedJournal.heroPhotoId}
+          speciesProfile={selectedProfile ?? undefined}
+        />
+      )}
     </div>
   );
 }

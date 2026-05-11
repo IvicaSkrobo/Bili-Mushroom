@@ -32,6 +32,7 @@ export interface ImportPayload {
   observed_count_min: number | null;
   observed_count_max: number | null;
   additional_photos: string[];  // Mode A: extra source paths for same find
+  edibility_note: string | null;
 }
 
 export interface Find {
@@ -50,6 +51,7 @@ export interface Find {
   observed_count_max: number | null;
   is_favorite: boolean;
   created_at: string;
+  edibility_note: string | null;
   photos: FindPhoto[];
 }
 
@@ -71,7 +73,9 @@ export interface SpeciesProfile {
   cover_photo_id: number | null;
   tags: string[];
   edibility?: string | null;
-  protected_status?: string | null;
+  threat_status?: string | null;
+  distribution?: string | null;
+  edibility_note?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,6 +151,7 @@ export interface UpdateFindPayload {
   observed_count: number | null;
   observed_count_min: number | null;
   observed_count_max: number | null;
+  edibility_note: string | null;
 }
 
 /**
@@ -217,7 +222,9 @@ export async function upsertSpeciesProfile(
   coverPhotoId: number | null,
   tags: string[],
   edibility?: string | null,
-  protectedStatus?: string | null,
+  threatStatus?: string | null,
+  distribution?: string | null,
+  edibilityNote?: string | null,
 ): Promise<void> {
   return invoke<void>('upsert_species_profile', {
     storagePath,
@@ -225,7 +232,9 @@ export async function upsertSpeciesProfile(
     coverPhotoId,
     tags,
     edibility: edibility ?? null,
-    protectedStatus: protectedStatus ?? null,
+    threatStatus: threatStatus ?? null,
+    distribution: distribution ?? null,
+    edibilityNote: edibilityNote ?? null,
   });
 }
 
@@ -292,6 +301,7 @@ export interface CreateFindPayload {
   observed_count: number | null;
   observed_count_min: number | null;
   observed_count_max: number | null;
+  edibility_note: string | null;
 }
 
 /**

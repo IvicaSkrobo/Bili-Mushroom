@@ -6,6 +6,7 @@ import { useAppStore } from '@/stores/appStore';
 import type { Find } from '@/lib/finds';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import type { FindGroup } from './groupFindsByCoords';
+import { renderSpeciesName, plainSpeciesName } from '@/lib/speciesName';
 
 interface FindPopupProps {
   group: FindGroup;
@@ -30,8 +31,8 @@ function PopupRow({
       onClick={onExpand}
       className="flex w-full flex-col items-start gap-1 rounded-sm px-1 py-1 text-left hover:bg-secondary"
     >
-      <span className="font-serif text-base font-semibold italic text-foreground">
-        {find.species_name}
+      <span className="font-serif text-base font-semibold italic text-foreground" title={plainSpeciesName(find.species_name)}>
+        {renderSpeciesName(find.species_name)}
       </span>
       <span className="text-xs text-muted-foreground">{formatDate(find.date_found)}</span>
     </button>

@@ -315,6 +315,16 @@ export function CollectionPins({
 /** Max degree delta to consider two finds the same physical location (~22 m at mid-latitudes). */
 export const SAME_LOCATION_DEG = 0.0002;
 
+/**
+ * Converts raw species name format to HTML for pin labels.
+ * "Boletus *edulis*" → "Boletus <span style='font-weight:400'>edulis</span>"
+ * HTML-escapes the name before processing so user input can't inject tags.
+ */
+function rawToLabelHtml(raw: string): string {
+  const escaped = raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return escaped.replace(/\*(.*?)\*/g, (_m, word) => `<span style="font-weight:400">${word}</span>`);
+}
+
 /** Groups finds into per-location-bucket collections. Each distinct (species, location) pair
  *  gets its own pin. Finds within SAME_LOCATION_DEG of an existing bucket join that bucket.
  *  After grouping, a proximity pass assigns labelText and suppressLabel:
@@ -382,17 +392,16 @@ export function collectionsFromFinds(finds: Find[]): Collection[] {
   for (const group of locationGroups) {
     const speciesInGroup = new Set(group.map((c) => c.name));
     if (speciesInGroup.size === 1) {
-      const latinName = plainSpeciesName(group[0].name.split(',')[0].trim());
+      const labelHtml = rawToLabelHtml(group[0].name.split(',')[0].trim());
       for (const col of group) {
-        col.labelText = latinName;
+        col.labelText = labelHtml;
         col.suppressLabel = false;
       }
     } else {
       group[0].labelText = `${speciesInGroup.size} species`;
       group[0].suppressLabel = false;
       for (let i = 1; i < group.length; i++) {
-        // keep species name so hover over the dot reveals which species it is
-        group[i].labelText = plainSpeciesName(group[i].name.split(',')[0].trim());
+        group[i].labelText = rawToLabelHtml(group[i].name.split(',')[0].trim());
         group[i].suppressLabel = true;
       }
     }

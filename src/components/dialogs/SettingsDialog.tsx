@@ -14,7 +14,7 @@ import { useAppStore } from '@/stores/appStore';
 import { pickAndSaveStoragePath, clearStoragePath } from '@/lib/storage';
 import { useT } from '@/i18n/index';
 import type { Lang } from '@/i18n/index';
-import { getTileCacheStats, clearTileCache, formatMb, type TileCacheStats } from '@/lib/tileCache';
+import { getTileCacheStats, clearTileCache, getCacheMaxBytes, setCacheMax, formatMb, type TileCacheStats } from '@/lib/tileCache';
 import { APP_VERSION } from '@/lib/appMeta';
 
 export interface SettingsDialogProps {
@@ -36,11 +36,23 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const [picking, setPicking] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [stats, setStats] = useState<TileCacheStats>({ sizeBytes: 0, tileCount: 0 });
+  const [cacheMaxMb, setCacheMaxMb] = useState<string>('200');
 
   useEffect(() => {
     if (!open) return;
     getTileCacheStats().then(setStats).catch(() => {});
+    getCacheMaxBytes().then((b) => setCacheMaxMb(String(Math.round(b / (1024 * 1024))))).catch(() => {});
   }, [open]);
+
+  function handleCacheMaxBlur() {
+    const mb = parseInt(cacheMaxMb, 10);
+    if (!Number.isFinite(mb) || mb < 50) {
+      setCacheMaxMb('50');
+      setCacheMax(50 * 1024 * 1024).catch(() => {});
+    } else {
+      setCacheMax(mb * 1024 * 1024).catch(() => {});
+    }
+  }
 
   async function handleClear() {
     await clearTileCache(storagePath);
@@ -153,10 +165,19 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
               <div className="flex items-center justify-between">
                 <Label htmlFor="max-cache-size">Max cache size</Label>
                 <div className="flex items-center gap-2">
-                  <Input id="max-cache-size" className="w-20" value="200" readOnly />
+                  <Input
+                    id="max-cache-size"
+                    className="w-20 text-right"
+                    type="number"
+                    min={50}
+                    value={cacheMaxMb}
+                    onChange={(e) => setCacheMaxMb(e.target.value)}
+                    onBlur={handleCacheMaxBlur}
+                  />
                   <span className="text-sm text-muted-foreground">MB</span>
                 </div>
               </div>
+              <p className="text-xs text-muted-foreground/60">Minimum 50 MB. No upper limit — more cache means more offline map coverage.</p>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive" className="w-fit">

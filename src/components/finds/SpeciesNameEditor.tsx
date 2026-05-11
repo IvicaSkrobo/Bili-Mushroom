@@ -8,9 +8,12 @@
  *   "Boletus *edulis*"  →  "Boletus" is bold, "edulis" is font-normal
  *
  * UX:
- *   – All text starts bold (default weight)
- *   – Select text + click N → marks that range as font-normal
+ *   – All text starts bold (genus weight)
+ *   – B button = bold/genus; I button = normal-weight/epithet
+ *   – Toolbar always visible; active button reflects cursor position or selection
+ *   – Select text + click I → marks that range as font-normal
  *   – Select text + click B → removes font-normal from that range
+ *   – With no selection: buttons show current caret format (informational)
  *   – Autocomplete dropdown (same behaviour as old <Input>)
  *   – Paste is stripped to plain text (no formatting import)
  *   – Enter is prevented (single-line field)
@@ -29,6 +32,8 @@ interface SpeciesNameEditorProps {
   suggestions?: string[];
   className?: string;
   showBoldButton?: boolean;
+  /** When provided, renders the label inside the toolbar row (left side) */
+  label?: string;
 }
 
 export function SpeciesNameEditor({
@@ -38,13 +43,15 @@ export function SpeciesNameEditor({
   suggestions = [],
   className,
   showBoldButton = true,
+  label,
 }: SpeciesNameEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   /** Last value we wrote to the DOM — used to detect external changes */
   const lastSyncedRef = useRef<string>('__uninit__');
 
   const [hasSelection, setHasSelection] = useState(false);
-  const [selectionIsBold, setSelectionIsBold] = useState(true);
+  /** True when cursor/selection is in bold (non-data-normal) territory */
+  const [isBold, setIsBold] = useState(true);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [dropdownHighlight, setDropdownHighlight] = useState(0);
   const [plainText, setPlainText] = useState(() => plainSpeciesName(value));
@@ -67,36 +74,43 @@ export function SpeciesNameEditor({
     setPlainText(plainSpeciesName(value));
   }, [value]);
 
-  // ── Selection tracking ────────────────────────────────────────────────────
+  // ── Selection / cursor tracking ───────────────────────────────────────────
   useEffect(() => {
-    function rangeIsBold(sel: Selection) {
+    function nodeIsBold(node: Node | null): boolean {
+      const el = node?.nodeType === Node.TEXT_NODE ? node.parentElement : (node as Element | null);
+      return !el?.closest('[data-normal]');
+    }
+
+    function rangeIsBold(sel: Selection): boolean {
       if (!sel.rangeCount || !editorRef.current) return true;
       const range = sel.getRangeAt(0);
       const ancestor =
         range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
           ? (range.commonAncestorContainer as Element)
           : range.commonAncestorContainer.parentElement;
-
       if (ancestor?.closest('[data-normal]')) return false;
-
       const fragment = range.cloneContents();
       return !fragment.querySelector?.('[data-normal]');
     }
 
     function onSelectionChange() {
       const sel = window.getSelection();
-      if (
-        !sel ||
-        sel.isCollapsed ||
-        !editorRef.current?.contains(sel.anchorNode)
-      ) {
+      if (!sel || !editorRef.current?.contains(sel.anchorNode)) {
+        // Cursor left the editor — reset to default bold state
         setHasSelection(false);
-        setSelectionIsBold(true);
+        setIsBold(true);
         return;
       }
-      setHasSelection(true);
-      setSelectionIsBold(rangeIsBold(sel));
+      if (sel.isCollapsed) {
+        setHasSelection(false);
+        setIsBold(nodeIsBold(sel.anchorNode));
+      } else {
+        setHasSelection(true);
+        // Slack logic: ALL selected text bold → isBold=true; any non-bold → isBold=false
+        setIsBold(rangeIsBold(sel));
+      }
     }
+
     document.addEventListener('selectionchange', onSelectionChange);
     return () => document.removeEventListener('selectionchange', onSelectionChange);
   }, []);
@@ -111,7 +125,6 @@ export function SpeciesNameEditor({
     : [];
 
   function selectSuggestion(raw: string) {
-    // Update DOM immediately (avoids a flash before the useEffect fires)
     if (editorRef.current) {
       editorRef.current.innerHTML = rawToHtml(raw);
     }
@@ -120,6 +133,25 @@ export function SpeciesNameEditor({
     setDropdownOpen(false);
     setDropdownHighlight(0);
     onChange(raw);
+  }
+
+  // ── Read bold state directly from DOM (avoids stale React state) ─────────
+  function domIsBold(): boolean {
+    const sel = window.getSelection();
+    if (!sel || !editorRef.current?.contains(sel.anchorNode)) return true;
+    if (sel.isCollapsed) {
+      const el = sel.anchorNode?.nodeType === Node.TEXT_NODE
+        ? sel.anchorNode.parentElement
+        : (sel.anchorNode as Element | null);
+      return !el?.closest('[data-normal]');
+    }
+    if (!sel.rangeCount) return true;
+    const range = sel.getRangeAt(0);
+    const ancestor = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+      ? (range.commonAncestorContainer as Element)
+      : range.commonAncestorContainer.parentElement;
+    if (ancestor?.closest('[data-normal]')) return false;
+    return !range.cloneContents().querySelector?.('[data-normal]');
   }
 
   // ── Event handlers ────────────────────────────────────────────────────────
@@ -133,7 +165,28 @@ export function SpeciesNameEditor({
     onChange(raw);
   }
 
+  function handleDoubleClick() {
+    // Double-click selects a word — immediately toggle its format
+    requestAnimationFrame(() => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !editorRef.current?.contains(sel.anchorNode)) return;
+      if (domIsBold()) applyNormal();
+      else applyBold();
+    });
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    // Ctrl/Cmd+B = bold, Ctrl/Cmd+I = normal-weight (epithet)
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+      e.preventDefault();
+      if (hasSelection) applyBold();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i') {
+      e.preventDefault();
+      if (hasSelection) applyNormal();
+      return;
+    }
     if (e.key === 'Enter') {
       e.preventDefault();
       if (dropdownOpen && visibleSuggestions.length > 0) {
@@ -163,8 +216,6 @@ export function SpeciesNameEditor({
 
   function handleBlur() {
     setHasSelection(false);
-    setSelectionIsBold(true);
-    // Short delay so a click on a suggestion can fire before we close
     setTimeout(() => setDropdownOpen(false), 150);
   }
 
@@ -185,7 +236,6 @@ export function SpeciesNameEditor({
     range.collapse(true);
     sel.removeAllRanges();
     sel.addRange(range);
-    // Trigger sync
     handleInput();
   }
 
@@ -196,7 +246,6 @@ export function SpeciesNameEditor({
     if (!sel || sel.isCollapsed || !editorRef.current) return;
     const range = sel.getRangeAt(0);
 
-    // Extract, flatten nested data-normal spans, re-wrap entire selection
     const fragment = range.extractContents();
     for (const span of Array.from(fragment.querySelectorAll('[data-normal]'))) {
       span.replaceWith(document.createTextNode(span.textContent ?? ''));
@@ -222,7 +271,6 @@ export function SpeciesNameEditor({
     if (!sel || sel.isCollapsed || !editorRef.current) return;
     const range = sel.getRangeAt(0);
 
-    // Extract, strip all data-normal spans, re-insert as plain text
     const fragment = range.extractContents();
     for (const span of Array.from(fragment.querySelectorAll('[data-normal]'))) {
       span.replaceWith(document.createTextNode(span.textContent ?? ''));
@@ -239,34 +287,52 @@ export function SpeciesNameEditor({
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
+  const btnBase =
+    'inline-flex h-6 w-6 items-center justify-center rounded text-[11px] transition-colors border';
+  const btnActive =
+    'border-primary/70 bg-primary/15 text-foreground';
+  const btnInactive =
+    'border-transparent bg-transparent text-muted-foreground/60 hover:border-border/70 hover:bg-muted/60 hover:text-foreground';
+
   return (
     <div>
-      {/* Toolbar row */}
-      <div className="flex items-center justify-end gap-1 mb-1 h-6">
-        {hasSelection && (
-          <span className="text-[10px] text-muted-foreground/50 mr-0.5">
-            selected:
-          </span>
+      {/* Toolbar row: label (left) + format buttons (right) */}
+      <div className="flex items-center justify-between gap-1 mb-1 h-6">
+        {label ? (
+          <span className="text-[10px] font-medium text-muted-foreground/60">{label}</span>
+        ) : (
+          <span />
         )}
         {showBoldButton && (
-          <button
-            type="button"
-            disabled={!hasSelection}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              if (selectionIsBold) applyNormal();
-              else applyBold();
-            }}
-            className={cn(
-              'inline-flex h-6 w-6 items-center justify-center rounded border text-[11px] transition-colors disabled:pointer-events-none disabled:opacity-25',
-              selectionIsBold
-                ? 'border-primary/70 bg-primary/12 text-foreground'
-                : 'border-border/90 bg-card/55 text-foreground/75 hover:border-primary/60 hover:bg-primary/10 hover:text-foreground',
-            )}
-            title={selectionIsBold ? 'Turn off bold for selected text' : 'Turn on bold for selected text'}
-          >
-            <span className="font-serif font-bold">B</span>
-          </button>
+          <div className="flex items-center gap-px rounded border border-border/40 bg-card/30 p-px">
+            {/* B — bold / genus weight. Slack logic: active when cursor/selection is bold */}
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                if (!hasSelection) return;
+                // Read DOM state fresh — no stale React state
+                if (domIsBold()) applyNormal(); else applyBold();
+              }}
+              className={cn(btnBase, isBold ? btnActive : btnInactive)}
+              title="Bold — genus (Ctrl+B)"
+            >
+              <span className="font-sans font-bold">B</span>
+            </button>
+            {/* N — normal weight / epithet. Active when cursor/selection is normal */}
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                if (!hasSelection) return;
+                if (!domIsBold()) applyBold(); else applyNormal();
+              }}
+              className={cn(btnBase, !isBold ? btnActive : btnInactive)}
+              title="Normal — species epithet (Ctrl+I)"
+            >
+              <span className="font-sans text-[10px] font-medium tracking-tight">N</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -281,11 +347,11 @@ export function SpeciesNameEditor({
           data-placeholder={placeholder}
           onInput={handleInput}
           onKeyDown={handleKeyDown}
+          onDoubleClick={handleDoubleClick}
           onBlur={handleBlur}
           onFocus={handleFocus}
           onPaste={handlePaste}
           className={cn(
-            // Match shadcn Input appearance
             'species-name-editor',
             'flex min-h-9 w-full rounded-md border border-border/90 bg-background/45 px-3 py-1',
             'text-sm font-semibold shadow-sm transition-colors outline-none',
