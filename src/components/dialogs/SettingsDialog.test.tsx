@@ -51,6 +51,15 @@ vi.mock('@/i18n/index', () => ({
   useT: () => (key: string) => key,
 }));
 
+// Mock Tabs so all tab panels render unconditionally in jsdom
+// (Radix Presence does not mount inactive panels in jsdom)
+vi.mock('@/components/ui/tabs', () => ({
+  Tabs: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  TabsList: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  TabsTrigger: ({ children }: { children: React.ReactNode }) => <button type="button">{children}</button>,
+  TabsContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
 describe('SettingsDialog', () => {
   let tileCacheMock: typeof import('@/lib/tileCache');
 
@@ -63,7 +72,7 @@ describe('SettingsDialog', () => {
 
   it('displays the Map Cache section heading', () => {
     render(<SettingsDialog open={true} onOpenChange={vi.fn()} />);
-    expect(screen.getByText('Map Cache')).toBeTruthy();
+    expect(screen.getByText('settings.mapCache')).toBeTruthy();
   });
 
   it('shows formatted cache size after mount', async () => {
@@ -76,23 +85,19 @@ describe('SettingsDialog', () => {
 
   it('opens confirm dialog when Clear tile cache clicked', async () => {
     render(<SettingsDialog open={true} onOpenChange={vi.fn()} />);
-    const clearBtn = screen.getByText('Clear tile cache');
-    fireEvent.click(clearBtn);
+    fireEvent.click(screen.getByText('settings.clearCache'));
     await waitFor(() => {
-      expect(screen.getByText('Clear tile cache?')).toBeTruthy();
+      expect(screen.getByText('settings.clearCacheTitle')).toBeTruthy();
     });
   });
 
   it('calls clearTileCache on confirm and refetches stats', async () => {
     render(<SettingsDialog open={true} onOpenChange={vi.fn()} />);
-    // click the clear button to open the alert dialog
-    const clearBtn = screen.getByText('Clear tile cache');
-    fireEvent.click(clearBtn);
-    // click confirm in the alert dialog
+    fireEvent.click(screen.getByText('settings.clearCache'));
     await waitFor(() => {
-      expect(screen.getByText('Clear cache')).toBeTruthy();
+      expect(screen.getByText('settings.clearCacheConfirm')).toBeTruthy();
     });
-    fireEvent.click(screen.getByText('Clear cache'));
+    fireEvent.click(screen.getByText('settings.clearCacheConfirm'));
     await waitFor(() => {
       expect(tileCacheMock.clearTileCache).toHaveBeenCalledWith('/tmp/storage');
       expect(vi.mocked(tileCacheMock.getTileCacheStats).mock.calls.length).toBeGreaterThanOrEqual(2);
