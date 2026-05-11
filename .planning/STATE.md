@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: "Completed quick-260509-bt0: import/create flow consistency — separated find/species notes, added edibility+protected-status to CreateFindDialog, deleted dead FindPreviewCard"
-last_updated: "2026-05-09T06:51:24.341Z"
-last_activity: 2026-05-07 -- Release/update infrastructure and maintenance UX fixes landed; next verification focus is production updater behavior plus remaining map regressions
+stopped_at: "Released v0.1.22: stats drill-down, Windows compat, species editor UX overhaul, edibility note migrations, import/create dialog UX polish"
+last_updated: "2026-05-12T00:00:00.000Z"
+last_activity: 2026-05-12 -- v0.1.22 shipped: Windows compat fixes, species name editor B/N toolbar + double-click/shortcuts, stats species drill-down, fit-to-pins, import new-species badges, edibility note DB migrations 0014-0016
 progress:
   total_phases: 9
   completed_phases: 6
@@ -157,6 +157,11 @@ Recent decisions affecting current work:
 | 260509-0sc historical-weekly-monthly-comparison | 2026-05-09 | "This Time in Past Years" section in Stats tab; historicalComparison.ts (getISOWeek + buildHistoricalComparison); HistoricalComparison.tsx two-column grid; reuses calendar data; 10 Vitest tests pass. |
 | 260509-1u6 implement-edibility-and-protected-status | 2026-05-09 | Migration 0013 + Rust/TS model extension; speciesMetadata.ts enums + normalizers; SpeciesMetadataBadges component; FolderEditDialog selects + CollectionTab upsert wiring; ImportDialog prefill; badges in folder header, inline find row, CollectionPopup, PhotoLightbox. Status: Needs Review (runtime verification pending). |
 | 260509-bt0 audit-and-fix-consistency-between-import | 2026-05-09 | Separated find-level notes (sharedFindNotes) from species notes (sharedFolderNotes) in ImportDialog; added edibility+protected-status selects to CreateFindDialog matching ImportDialog/FolderEditDialog; deleted dead FindPreviewCard code and tests; fixed 10 stale ImportDialog tests. |
+| 260512-stats-map-improvements | 2026-05-12 | Stats: Seasonal Insights moved below Top Spots/Best Months; historical "this time in past years" shows all species per year bucket (no truncation); Top Spots + Best Months rows clickable — inline expand shows species found at that location/month. Map: fit-to-pins button (LocateFixed icon, bottom-right); flies to Croatia overview if no pins. |
+| 260512-windows-compat | 2026-05-12 | Input fields: bg-white hardcode replaced with bg-input CSS variable. Default theme changed to dark for fresh installs. Collection pin iconSize [0,0]→[200,50] fixes invisible pins on Win WebView2. LocationPickerMap pin icon + status span: oklch() → hex (#D4941A / #A67010). SpeciesNameEditor: overflow-x-hidden + whitespace-nowrap prevents field height expansion on long names. |
+| 260512-species-editor-ux | 2026-05-12 | SpeciesNameEditor: label prop renders inside toolbar row (eliminates wasted label row); B/N button pair always visible; Slack-style active state tracks cursor position + selection (resets on blur); button handlers read DOM state fresh (no stale React state); double-click word → instant format toggle; Ctrl+B/Ctrl+I shortcuts. Map pin labels: rawToLabelHtml renders genus at weight 800 and epithet at weight 400 for clear visual split. |
+| 260512-import-create-dialog-ux | 2026-05-12 | ImportDialog: status badges (edibility/threat/distribution) shown only when species is new (not in finds or profiles); saved to species profile on import. Label moved inside SpeciesNameEditor toolbar. MapPin button inline with species field in ImportDialog + CreateFindDialog. CreateFindDialog: location card removed, MapPin inline with species; speciesFilter passed to LocationPickerMap (known species → own pins only, new → all pins). FolderEditDialog: edibility note textarea always visible. Migrations 0014 (find edibility_note), 0015 (species_profile edibility_note), 0016 (species_profile threat/distribution). |
+| 260512-1yg settings-dialog-tabbed-ux-v0125 | 2026-05-12 | SettingsDialog redesigned from single tall scroll to compact 3-tab layout (Općenito/Mapa/Napredno); 12 new i18n keys; version bumped to 0.1.25 across package.json + tauri.conf.json + Cargo.toml; tagged v0.1.25. |
 
 ### Roadmap Evolution
 
@@ -168,6 +173,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-09T06:50:00.708Z
-Stopped at: Completed quick-260509-bt0: import/create flow consistency — separated find/species notes, added edibility+protected-status to CreateFindDialog, deleted dead FindPreviewCard
+Last session: 2026-05-12T00:00:00.000Z
+Stopped at: Released v0.1.22 — stats drill-down, Windows compat, species editor UX overhaul, edibility note migrations 0014-0016, import/create dialog UX polish
 Resume file: None
