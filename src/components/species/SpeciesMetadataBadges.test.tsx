@@ -2,17 +2,18 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { SpeciesMetadataBadges } from './SpeciesMetadataBadges';
 
-vi.mock('lucide-react', () => ({
-  CircleHelp: (props: Record<string, unknown>) => <svg data-testid="circle-help-icon" {...props} />,
-  Utensils: (props: Record<string, unknown>) => <svg data-testid="utensils-icon" {...props} />,
-  Skull: (props: Record<string, unknown>) => <svg data-testid="skull-icon" {...props} />,
-  Sparkles: (props: Record<string, unknown>) => <svg data-testid="sparkles-icon" {...props} />,
-  ShieldCheck: (props: Record<string, unknown>) => <svg data-testid="shield-check-icon" {...props} />,
-  ShieldOff: (props: Record<string, unknown>) => <svg data-testid="shield-off-icon" {...props} />,
-}));
+vi.mock('lucide-react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('lucide-react')>();
+  return {
+    ...actual,
+    CircleHelp: (props: Record<string, unknown>) => <svg data-testid="circle-help-icon" {...props} />,
+    Utensils: (props: Record<string, unknown>) => <svg data-testid="utensils-icon" {...props} />,
+    Skull: (props: Record<string, unknown>) => <svg data-testid="skull-icon" {...props} />,
+  };
+});
 
 describe('SpeciesMetadataBadges', () => {
-  it('renders the correct labels and icons for non-unknown values', () => {
+  it('renders edible + threat badges with correct labels and icons', () => {
     render(
       <SpeciesMetadataBadges
         speciesProfile={{
@@ -20,16 +21,15 @@ describe('SpeciesMetadataBadges', () => {
           cover_photo_id: null,
           tags: [],
           edibility: 'edible',
-          protected_status: 'protected',
+          threat_status: 'lc',
         }}
         hideUnknown={true}
       />,
     );
 
     expect(screen.getByText('Može se jesti')).toBeInTheDocument();
-    expect(screen.getByText('Protected')).toBeInTheDocument();
+    expect(screen.getByText('LC – Najmanje zabrinjavajuća')).toBeInTheDocument();
     expect(screen.getByTestId('utensils-icon')).toBeInTheDocument();
-    expect(screen.getByTestId('shield-check-icon')).toBeInTheDocument();
   });
 
   it('renders inedible badge with a full struck-through meal icon', () => {
@@ -40,7 +40,6 @@ describe('SpeciesMetadataBadges', () => {
           cover_photo_id: null,
           tags: [],
           edibility: 'inedible',
-          protected_status: null,
         }}
         hideUnknown={true}
       />,
@@ -58,32 +57,29 @@ describe('SpeciesMetadataBadges', () => {
           cover_photo_id: null,
           tags: [],
           edibility: 'poisonous',
-          protected_status: null,
         }}
         hideUnknown={true}
       />,
     );
 
-    expect(screen.getByText('Opasno / otrovno')).toBeInTheDocument();
+    expect(screen.getByText('Otrovna')).toBeInTheDocument();
     expect(screen.getByTestId('skull-icon')).toBeInTheDocument();
   });
 
-  it('renders psychedelic badge with sparkles icon', () => {
+  it('renders deadly poisonous badge', () => {
     render(
       <SpeciesMetadataBadges
         speciesProfile={{
-          species_name: 'Psilocybe cubensis',
+          species_name: 'Amanita phalloides',
           cover_photo_id: null,
           tags: [],
-          edibility: 'psychedelic',
-          protected_status: null,
+          edibility: 'deadly_poisonous',
         }}
         hideUnknown={true}
       />,
     );
 
-    expect(screen.getByText('Psihoaktivno')).toBeInTheDocument();
-    expect(screen.getByTestId('sparkles-icon')).toBeInTheDocument();
+    expect(screen.getByText('Smrtno otrovna')).toBeInTheDocument();
   });
 
   it('hides unknown badges when hideUnknown is enabled', () => {
@@ -94,7 +90,6 @@ describe('SpeciesMetadataBadges', () => {
           cover_photo_id: null,
           tags: [],
           edibility: null,
-          protected_status: null,
         }}
         hideUnknown={true}
       />,

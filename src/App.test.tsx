@@ -11,6 +11,12 @@ vi.mock('@/lib/db');
 describe('App', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // App guards on __TAURI_INTERNALS__ to avoid running in plain browser
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      value: {},
+      writable: true,
+      configurable: true,
+    });
     useAppStore.setState({
       activeTab: 'collection',
       storagePath: null,

@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
+vi.mock('react-leaflet', () => ({
+  useMap: vi.fn(() => ({
+    flyTo: vi.fn(),
+    getZoom: vi.fn(() => 13),
+  })),
+}));
+
 const setActiveTab = vi.fn();
 const setEditingFindId = vi.fn();
 vi.mock('@/stores/appStore', () => ({

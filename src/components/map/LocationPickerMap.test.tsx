@@ -19,6 +19,7 @@ vi.mock('leaflet', () => ({
     control: {
       layers: leafletMocks.layers,
     },
+    divIcon: vi.fn(() => ({ options: {} })),
   },
 }));
 
@@ -75,6 +76,11 @@ vi.mock('./RustProxyTileLayer', () => ({
 // Mock leafletIconFix
 vi.mock('./leafletIconFix', () => ({
   applyLeafletIconFix: vi.fn(),
+}));
+
+// LocationPickerMap uses useFinds to show existing pins — stub it out
+vi.mock('@/hooks/useFinds', () => ({
+  useFinds: () => ({ data: [] }),
 }));
 
 // Mock appStore to return a storagePath
@@ -164,7 +170,7 @@ describe('LocationPickerMap', () => {
         onConfirm={onConfirm}
       />,
     );
-    const btn = screen.getByText('Confirm location') as HTMLButtonElement;
+    const btn = screen.getByText('Potvrdi') as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
   });
 
@@ -177,7 +183,7 @@ describe('LocationPickerMap', () => {
         initialLatLng={{ lat: 45.1, lng: 15.2 }}
       />,
     );
-    const btn = screen.getByText('Confirm location') as HTMLButtonElement;
+    const btn = screen.getByText('Potvrdi') as HTMLButtonElement;
     expect(btn.disabled).toBe(false);
   });
 
@@ -190,11 +196,13 @@ describe('LocationPickerMap', () => {
         initialLatLng={{ lat: 45, lng: 15 }}
       />,
     );
-    fireEvent.click(screen.getByText('Confirm location'));
-    expect(onConfirm).toHaveBeenCalledWith(45, 15);
+    fireEvent.click(screen.getByText('Potvrdi'));
+    const [lat, lng] = onConfirm.mock.calls[0] as [number, number, unknown];
+    expect(lat).toBe(45);
+    expect(lng).toBe(15);
   });
 
-  it('shows "Selected: —" when no pin and formatted coords when pin set', () => {
+  it('shows no-pin placeholder and formatted coords when pin set', () => {
     const { rerender } = render(
       <LocationPickerMap
         open={true}
@@ -202,9 +210,8 @@ describe('LocationPickerMap', () => {
         onConfirm={onConfirm}
       />,
     );
-    // "Selected:" and "—" may be split across sibling text nodes in jsdom
-    const container = screen.getByText(/Selected:/).closest('div');
-    expect(container?.textContent).toContain('—');
+    // No pin: component shows a "click on map" prompt — no coords visible
+    expect(screen.queryByText(/45\./)).toBeNull();
 
     rerender(
       <LocationPickerMap
@@ -214,6 +221,6 @@ describe('LocationPickerMap', () => {
         initialLatLng={{ lat: 45, lng: 15 }}
       />,
     );
-    expect(screen.getByText(/45\.000000, 15\.000000/)).toBeTruthy();
+    expect(screen.getByText(/45\.00000, 15\.00000/)).toBeTruthy();
   });
 });

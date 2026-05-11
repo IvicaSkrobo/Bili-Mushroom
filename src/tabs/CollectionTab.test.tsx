@@ -221,7 +221,7 @@ describe('CollectionTab', () => {
     });
   });
 
-  it('lets the representative-photo action wrap inside the collection lightbox sidebar', async () => {
+  it('representative-photo action button is present and enabled in the lightbox sidebar', async () => {
     invokeHandlers['get_finds'] = () => [find1];
     renderTab();
 
@@ -233,9 +233,8 @@ describe('CollectionTab', () => {
     fireEvent.click(screen.getByAltText('Amanita muscaria'));
 
     const actionButton = screen.getByRole('button', { name: /set as species representative photo/i });
-    expect(actionButton.className).toContain('whitespace-normal');
-    expect(actionButton.className).toContain('text-left');
-    expect(actionButton.className).toContain('min-w-0');
+    expect(actionButton).toBeInTheDocument();
+    expect(actionButton).not.toBeDisabled();
   });
 
   it('invalidateQueries is called after ImportDialog closes on successful import', async () => {

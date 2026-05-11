@@ -810,6 +810,23 @@ export default function SpeciesTab() {
                             <p className="text-sm text-muted-foreground">{t('species.noTags')}</p>
                           )}
                         </div>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={tagInput}
+                            onChange={(e) => setTagInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddTag(); } }}
+                            placeholder={t('species.addTagPlaceholder')}
+                            className="h-8 flex-1 rounded-md border border-border bg-input px-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddTag}
+                            className="inline-flex h-8 items-center rounded-md border border-border bg-card px-3 text-xs font-medium hover:bg-accent transition-colors"
+                          >
+                            {t('species.addTag')}
+                          </button>
+                        </div>
                       </div>
                       <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-2">
                         <div>

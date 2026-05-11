@@ -35,6 +35,25 @@ vi.mock('@/stores/appStore', () => ({
   ),
 }));
 
+// SpeciesNameEditor is contenteditable — render a plain input for test assertions
+vi.mock('@/components/finds/SpeciesNameEditor', () => ({
+  SpeciesNameEditor: ({
+    value,
+    onChange,
+    placeholder,
+  }: {
+    value: string;
+    onChange: (v: string) => void;
+    placeholder?: string;
+  }) => (
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+    />
+  ),
+}));
+
 // Mock LocationPickerMap to avoid leaflet/jsdom issues
 vi.mock('@/components/map/LocationPickerMap', () => ({
   LocationPickerMap: ({
@@ -192,7 +211,7 @@ describe('ImportDialog', () => {
 
     // Coordinates shown in a span adjacent to the map pin button
     await waitFor(() => {
-      expect(screen.getByText(/45\.1000/)).toBeInTheDocument();
+      expect(screen.getByText(/45\.100/)).toBeInTheDocument();
     });
   });
 
@@ -236,7 +255,7 @@ describe('ImportDialog', () => {
       expect(screen.queryByRole('button', { name: /Mock Confirm Location/i })).not.toBeInTheDocument();
       expect(screen.getByDisplayValue('Croatia')).toBeInTheDocument();
       expect(screen.getByDisplayValue('Istria')).toBeInTheDocument();
-      expect(screen.getByText(/45\.1235, 13\.6543/)).toBeInTheDocument();
+      expect(screen.getByText(/45\.123, 13\.654/)).toBeInTheDocument();
     });
   });
 

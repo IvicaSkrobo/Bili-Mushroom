@@ -82,6 +82,10 @@ vi.mock('@/hooks/useFinds', () => ({
     mutate: mutateSpeciesProfile,
     isPending: false,
   }),
+  useUpdateFind: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
 }));
 
 vi.mock('@/stores/appStore', () => ({

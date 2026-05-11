@@ -2,6 +2,26 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactNode } from 'react';
+
+// SpeciesNameEditor is contenteditable — render a plain input for test assertions
+vi.mock('./SpeciesNameEditor', () => ({
+  SpeciesNameEditor: ({
+    value,
+    onChange,
+    placeholder,
+  }: {
+    value: string;
+    onChange: (v: string) => void;
+    placeholder?: string;
+  }) => (
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+    />
+  ),
+}));
+
 import { EditFindDialog } from './EditFindDialog';
 import { invokeHandlers } from '@/test/tauri-mocks';
 import { useAppStore } from '@/stores/appStore';
