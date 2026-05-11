@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAppStore } from '@/stores/appStore';
 import { loadStoragePath } from '@/lib/storage';
-import { initializeDatabase } from '@/lib/db';
+import { initializeDatabase, DatabaseInitError } from '@/lib/db';
 import { FirstRunDialog } from '@/components/dialogs/FirstRunDialog';
 import { MigrationErrorDialog } from '@/components/dialogs/MigrationErrorDialog';
 import { AutoImportDialog } from '@/components/dialogs/AutoImportDialog';
@@ -112,7 +112,12 @@ export default function App() {
     initializeDatabase(storagePath)
       .then(() => { if (!cancelled) setDbReady(true); })
       .catch((err) => {
-        if (!cancelled) setDbError(String(err?.message ?? err));
+        if (!cancelled) {
+          // Preserve root cause — DatabaseInitError wraps the Rust error in .cause
+          const cause = (err as DatabaseInitError)?.cause;
+          const detail = cause != null ? `\n\nCause: ${String(cause)}` : '';
+          setDbError(`${String(err?.message ?? err)}${detail}`);
+        }
       });
     return () => { cancelled = true; };
   }, [storagePath, setDbReady, setDbError]);
