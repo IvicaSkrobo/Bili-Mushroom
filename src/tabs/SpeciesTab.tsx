@@ -727,32 +727,6 @@ export default function SpeciesTab() {
                           )}
                         </div>
                       </div>
-                      <div className="space-y-3 border-t border-border/50 pt-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-medium text-foreground">{t('species.tags')}</p>
-                          {upsertSpeciesProfile.isPending && (
-                            <span className="text-xs text-muted-foreground">{t('species.savingTags')}</span>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {selectedTags.length > 0 ? selectedTags.map((tag) => (
-                            <button
-                              key={tag}
-                              type="button"
-                              onClick={() => handleRemoveTag(tag)}
-                              className="inline-flex"
-                              title={t('species.removeTag')}
-                              aria-label={`${t('species.removeTag')} ${tag}`}
-                            >
-                              <Badge variant="outline" className="cursor-pointer hover:border-primary/60 hover:text-primary">
-                                {tag} ×
-                              </Badge>
-                            </button>
-                          )) : (
-                            <p className="text-sm text-muted-foreground">{t('species.noTags')}</p>
-                          )}
-                        </div>
-                      </div>
                       <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-2">
                         <div>
                           <p className="font-medium text-foreground">{t('species.firstRecorded')}</p>
