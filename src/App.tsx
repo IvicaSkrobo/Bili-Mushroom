@@ -43,7 +43,17 @@ export default function App() {
   const setPendingScan = useAppStore((s) => s.setPendingScan);
   const setAvailableUpdate = useAppStore((s) => s.setAvailableUpdate);
   const setInstallingUpdate = useAppStore((s) => s.setInstallingUpdate);
+  const availableUpdate = useAppStore((s) => s.availableUpdate);
+  const updateConfirmPending = useAppStore((s) => s.updateConfirmPending);
+  const setUpdateConfirmPending = useAppStore((s) => s.setUpdateConfirmPending);
   const [confirmUpdate, setConfirmUpdate] = useState<{ version: string } | null>(null);
+
+  useEffect(() => {
+    if (updateConfirmPending && availableUpdate) {
+      setConfirmUpdate({ version: availableUpdate.version });
+      setUpdateConfirmPending(false);
+    }
+  }, [updateConfirmPending, availableUpdate, setUpdateConfirmPending]);
 
   useEffect(() => {
     if (theme === 'dark') {

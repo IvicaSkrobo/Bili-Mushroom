@@ -24,6 +24,7 @@ export interface AppState {
   selectedCollectionSpecies: string | null;
   availableUpdate: AvailableUpdate | null;
   installingUpdate: boolean;
+  updateConfirmPending: boolean;
   setActiveTab: (tab: Tab) => void;
   setStoragePath: (path: string | null) => void;
   setDbReady: (ready: boolean) => void;
@@ -36,6 +37,7 @@ export interface AppState {
   setSelectedCollectionSpecies: (species: string | null) => void;
   setAvailableUpdate: (update: AvailableUpdate | null) => void;
   setInstallingUpdate: (installing: boolean) => void;
+  setUpdateConfirmPending: (v: boolean) => void;
 }
 
 function loadLang(): Lang {
@@ -104,6 +106,7 @@ export const useAppStore = create<AppState>((set) => ({
   selectedCollectionSpecies: null,
   availableUpdate: null,
   installingUpdate: false,
+  updateConfirmPending: false,
   setActiveTab: (activeTab) => set({ activeTab }),
   setStoragePath: (storagePath) => set({ storagePath }),
   setDbReady: (dbReady) => set({ dbReady }),
@@ -113,6 +116,7 @@ export const useAppStore = create<AppState>((set) => ({
   setSelectedCollectionSpecies: (selectedCollectionSpecies) => set({ selectedCollectionSpecies }),
   setAvailableUpdate: (availableUpdate) => set({ availableUpdate }),
   setInstallingUpdate: (installingUpdate) => set({ installingUpdate }),
+  setUpdateConfirmPending: (updateConfirmPending) => set({ updateConfirmPending }),
   setLanguage: (language) => {
     try { localStorage.setItem('bili_lang', language); } catch { /* ignore */ }
     set({ language });

@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Pencil, Image, Trash2, Square, CheckSquare, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { isHeic, type Find, type SpeciesProfile } from '@/lib/finds';
@@ -23,11 +23,15 @@ interface FindCardProps {
 
 export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSelected, onToggleSelect, onToggleFavorite, onLongPress, onPhotoClick, speciesProfile }: FindCardProps) {
   const t = useT();
-  const primaryPhoto = find.photos[0] ?? null;
-  const heic = primaryPhoto ? isHeic(primaryPhoto.photo_path) : false;
-  const photoSrc = primaryPhoto ? resolvePhotoSrc(storagePath, primaryPhoto.photo_path) : null;
-  const extraCount = find.photos.length > 1 ? find.photos.length - 1 : 0;
+  const extraCount = uniquePhotos.length > 1 ? uniquePhotos.length - 1 : 0;
+  const heic = currentPhoto ? isHeic(currentPhoto.photo_path) : false;
 
+  const uniquePhotos = find.photos.filter(
+    (p, i, arr) => arr.findIndex((q) => q.photo_path === p.photo_path) === i,
+  );
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const currentPhoto = uniquePhotos[photoIndex] ?? null;
+  const currentPhotoSrc = currentPhoto ? resolvePhotoSrc(storagePath, currentPhoto.photo_path) : null;
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const startLongPress = () => {
@@ -40,7 +44,7 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
 
   const handleClick = selectMode && onToggleSelect
     ? () => onToggleSelect(find.id)
-    : !selectMode && onPhotoClick && primaryPhoto
+    : !selectMode && onPhotoClick && uniquePhotos.length > 0
     ? () => onPhotoClick(find.id, 0)
     : undefined;
 
@@ -51,7 +55,7 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
           ? isSelected
             ? 'border-primary/60 bg-primary/8 cursor-pointer'
             : 'border-border/50 bg-card/60 cursor-pointer hover:border-primary/25 hover:bg-card'
-          : `border-border/50 bg-card/60 hover:border-primary/25 hover:bg-card${!selectMode && onPhotoClick && primaryPhoto ? ' cursor-pointer' : ''}`
+          : `border-border/50 bg-card/60 hover:border-primary/25 hover:bg-card${!selectMode && onPhotoClick && currentPhoto ? ' cursor-pointer' : ''}`
       }`}
       onClick={handleClick}
       onMouseDown={startLongPress}
@@ -68,7 +72,7 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
       <div
         className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-sm bg-muted flex items-center justify-center"
       >
-        {primaryPhoto === null ? (
+        {currentPhoto === null ? (
           <Image className="h-7 w-7 text-muted-foreground/30" />
         ) : heic ? (
           <div className="flex flex-col items-center gap-1 text-muted-foreground/40">
@@ -77,9 +81,12 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
           </div>
         ) : (
           <img
-            src={photoSrc!}
+            src={currentPhotoSrc!}
             alt={find.original_filename}
             className="h-20 w-20 object-cover"
+            onError={() => {
+              setPhotoIndex((i) => i + 1);
+            }}
           />
         )}
         {extraCount > 0 && (

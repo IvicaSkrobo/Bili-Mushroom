@@ -32,12 +32,14 @@ export function AppShell() {
   const setTheme = useAppStore((s) => s.setTheme);
   const availableUpdate = useAppStore((s) => s.availableUpdate);
   const setAvailableUpdate = useAppStore((s) => s.setAvailableUpdate);
+  const setUpdateConfirmPending = useAppStore((s) => s.setUpdateConfirmPending);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
 
   async function handleCheckVersion() {
     if (!('__TAURI_INTERNALS__' in window)) return;
-    if (checkingUpdate || availableUpdate) return;
+    if (availableUpdate) { setUpdateConfirmPending(true); return; }
+    if (checkingUpdate) return;
     setCheckingUpdate(true);
     try {
       const update = await invoke<import('@/stores/appStore').AvailableUpdate | null>('check_app_update');
