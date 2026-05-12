@@ -98,89 +98,115 @@ function CollectionPopup({
     : null;
   const displayNote = (current?.findNotes?.trim()) || speciesNote;
 
+  const hasPhotos = allPhotos.length > 0;
+
   return (
-    <div className="flex w-[220px] flex-col gap-2 font-sans">
-      {/* Header */}
-      <div>
-        <p className="font-serif text-sm font-bold italic text-foreground">{renderSpeciesName(latinNameRaw)}</p>
-        {croatianName && <p className="text-xs text-muted-foreground/80 italic">{plainSpeciesName(croatianName)}</p>}
-        <p className="text-xs text-muted-foreground">{collection.count} {collection.count === 1 ? 'find' : 'finds'}</p>
+    <div className="w-[248px] overflow-hidden rounded-lg bg-background font-sans shadow-xl ring-1 ring-border/30">
+
+      {/* ── Visual header ────────────────────────────────── */}
+      <div className="relative h-[148px] w-full select-none">
+        {hasPhotos ? (
+          photoSrc
+            ? <img src={photoSrc} alt="" className="h-full w-full object-cover" draggable={false} />
+            : <div className="h-full w-full bg-secondary/60" />
+        ) : (
+          <div className="flex h-full w-full items-end bg-gradient-to-br from-[oklch(0.16_0.02_135)] to-[oklch(0.10_0.01_135)] p-3" />
+        )}
+
+        {/* Gradient scrim so text is always legible */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
+
+        {/* Find-count pill — top-right */}
+        <div className="absolute right-2 top-2">
+          <span className="rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium tracking-wide text-white/90 backdrop-blur-sm">
+            {collection.count} {collection.count === 1 ? 'nalaz' : 'nalaza'}
+          </span>
+        </div>
+
+        {/* Carousel side arrows — shown when multiple photos exist */}
+        {allPhotos.length > 1 && (
+          <>
+            <button
+              type="button"
+              aria-label="Previous photo"
+              onClick={() => setPhotoIdx((i) => (i - 1 + allPhotos.length) % allPhotos.length)}
+              className="absolute left-1 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-0.5 backdrop-blur-sm transition-colors hover:bg-black/75"
+            >
+              <ChevronLeft className="h-3.5 w-3.5 text-white" />
+            </button>
+            <button
+              type="button"
+              aria-label="Next photo"
+              onClick={() => setPhotoIdx((i) => (i + 1) % allPhotos.length)}
+              className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-0.5 backdrop-blur-sm transition-colors hover:bg-black/75"
+            >
+              <ChevronRight className="h-3.5 w-3.5 text-white" />
+            </button>
+            {/* Photo counter — bottom-right, above name */}
+            <span className="absolute bottom-[42px] right-2.5 text-[10px] font-medium text-white/50">
+              {photoIdx + 1}/{allPhotos.length}
+            </span>
+          </>
+        )}
+
+        {/* Species name block — bottom of header */}
+        <div className="absolute bottom-0 left-0 right-0 px-2.5 pb-2.5 pt-1">
+          <p className="font-serif text-[13px] font-bold italic leading-snug text-white">
+            {renderSpeciesName(latinNameRaw)}
+          </p>
+          {croatianName && (
+            <p className="mt-0.5 text-[11px] italic leading-tight text-white/65">
+              {plainSpeciesName(croatianName)}
+            </p>
+          )}
+        </div>
       </div>
 
-      <SpeciesMetadataBadges speciesProfile={speciesProfile} size="md" hideUnknown={true} />
+      {/* ── Body ─────────────────────────────────────────── */}
+      <div className="flex flex-col gap-2 px-2.5 py-2.5">
 
-      {/* Description — scrollable, per-photo notes or species fallback */}
-      {displayNote && (
-        <div className="max-h-[90px] overflow-y-auto rounded border border-border/40 bg-secondary/30 p-2 text-xs leading-relaxed text-foreground/80">
-          {displayNote}
-        </div>
-      )}
+        {/* Badges */}
+        <SpeciesMetadataBadges speciesProfile={speciesProfile} size="md" hideUnknown={true} />
 
-      {/* Photo carousel */}
-      {allPhotos.length > 0 && (
-        <div className="flex flex-col gap-1">
-          {photoSrc ? (
-            <img
-              src={photoSrc}
-              alt=""
-              className="h-[130px] w-full rounded object-cover"
-            />
-          ) : (
-            <div className="h-[130px] w-full rounded bg-secondary" />
-          )}
-          {allPhotos.length > 1 && (
-            <div className="flex items-center justify-between">
+        {/* Note — 3-line clamp, no box */}
+        {displayNote && (
+          <p className="line-clamp-3 text-[11px] leading-relaxed text-foreground/65">
+            {displayNote}
+          </p>
+        )}
+
+        {/* ── Footer ───────────────────────────────────────── */}
+        <div className="flex items-center justify-between border-t border-border/25 pt-2">
+          <button
+            type="button"
+            onClick={() => map.flyTo([collection.lat, collection.lng], Math.max(map.getZoom(), 16))}
+            className="flex items-center gap-1 text-[11px] text-primary/65 transition-colors hover:text-primary"
+          >
+            <ZoomIn className="h-3 w-3" />
+            Zoom
+          </button>
+
+          {current?.find.lat != null && current.find.lng != null && (
+            <div className="flex gap-1">
               <button
                 type="button"
-                aria-label="Previous photo"
-                onClick={() => setPhotoIdx((i) => (i - 1 + allPhotos.length) % allPhotos.length)}
-                className="rounded p-0.5 hover:bg-secondary"
+                onClick={(e) => { e.stopPropagation(); L.DomEvent.stopPropagation(e.nativeEvent); onStartLocalPolygonForFind(current.find); }}
+                className="rounded border border-[#D4512A]/45 bg-[#D4512A]/10 px-2 py-0.5 text-[10px] font-semibold text-foreground transition-colors hover:bg-[#D4512A]/22"
               >
-                <ChevronLeft className="h-4 w-4 text-foreground" />
+                {existingLocalPolygon ? 'Edit local' : 'Draw local'}
               </button>
-              <span className="text-xs text-muted-foreground">
-                {photoIdx + 1} / {allPhotos.length}
-              </span>
               <button
                 type="button"
-                aria-label="Next photo"
-                onClick={() => setPhotoIdx((i) => (i + 1) % allPhotos.length)}
-                className="rounded p-0.5 hover:bg-secondary"
+                onClick={(e) => { e.stopPropagation(); L.DomEvent.stopPropagation(e.nativeEvent); onStartRegionPolygonForFind(current.find); }}
+                className="rounded border border-primary/45 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-foreground transition-colors hover:bg-primary/22"
               >
-                <ChevronRight className="h-4 w-4 text-foreground" />
+                {existingRegionPolygon ? 'Edit region' : 'Draw region'}
               </button>
             </div>
           )}
         </div>
-      )}
 
-      <button
-        type="button"
-        onClick={() => map.flyTo([collection.lat, collection.lng], Math.max(map.getZoom(), 16))}
-        className="flex items-center gap-1.5 text-xs text-primary/70 hover:text-primary transition-colors"
-      >
-        <ZoomIn className="h-3.5 w-3.5" />
-        Zoom to location
-      </button>
-
-      {current?.find.lat != null && current.find.lng != null && (
-        <div className="grid grid-cols-2 gap-1.5">
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); L.DomEvent.stopPropagation(e.nativeEvent); onStartLocalPolygonForFind(current.find); }}
-            className="rounded border border-[#D4512A]/45 bg-[#D4512A]/10 px-2 py-1 text-xs font-semibold text-foreground hover:bg-[#D4512A]/18"
-          >
-            {existingLocalPolygon ? 'Edit local' : 'Draw local'}
-          </button>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); L.DomEvent.stopPropagation(e.nativeEvent); onStartRegionPolygonForFind(current.find); }}
-            className="rounded border border-primary/45 bg-primary/10 px-2 py-1 text-xs font-semibold text-foreground hover:bg-primary/18"
-          >
-            {existingRegionPolygon ? 'Edit region' : 'Draw region'}
-          </button>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -269,7 +295,7 @@ function CollectionPinsInner({
               click: () => onSelectSpecies(c.name),
             }}
           >
-            <Popup minWidth={220}>
+            <Popup minWidth={248}>
               <CollectionPopup
                 collection={c}
                 speciesNote={speciesNote}
