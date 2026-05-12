@@ -606,9 +606,7 @@ export default function CollectionTab() {
                         >
                           {/* Find header row */}
                           <div
-                            className={`flex items-center gap-2.5 px-3 py-2 transition-colors ${
-                              selectMode || !autoExpand ? 'cursor-pointer' : ''
-                            } ${
+                            className={`flex items-center gap-2.5 px-3 py-2 transition-colors cursor-pointer ${
                               selectMode && selectedIds.has(f.id)
                                 ? 'bg-primary/10'
                                 : 'hover:bg-accent/30'
@@ -618,8 +616,8 @@ export default function CollectionTab() {
                                 toggleSelect(f.id);
                               } else if (f.photos.length === 0) {
                                 setEditing(f);
-                              } else if (!autoExpand) {
-                                toggleFindExpand(f.id);
+                              } else {
+                                openLightbox(speciesFinds, f.id, 0);
                               }
                             }}
                           >
@@ -677,10 +675,17 @@ export default function CollectionTab() {
                             </div>
 
                             {/* Expand chevron */}
-                            {!autoExpand && (
-                              <ChevronDown
-                                className={`h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/50 transition-transform duration-150 ${isExpanded ? '' : '-rotate-90'}`}
-                              />
+                            {f.photos.length > 0 && (
+                              <button
+                                type="button"
+                                className="rounded p-1 text-muted-foreground/50 hover:text-muted-foreground hover:bg-accent/50 transition-colors flex-shrink-0"
+                                onClick={(e) => { e.stopPropagation(); toggleFindExpand(f.id); }}
+                                title={isExpanded ? (lang === 'hr' ? 'Sakrij fotografije' : 'Hide photos') : (lang === 'hr' ? 'Prikaži fotografije' : 'Show photos')}
+                              >
+                                <ChevronDown
+                                  className={`h-3.5 w-3.5 transition-transform duration-150 ${isExpanded ? '' : '-rotate-90'}`}
+                                />
+                              </button>
                             )}
                           </div>
 

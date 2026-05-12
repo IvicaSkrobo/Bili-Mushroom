@@ -13,6 +13,7 @@ import type { Find, FindPhoto } from '@/lib/finds';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { EdibilitySelectBadge, ThreatStatusSelectBadge, DistributionSelectBadge } from '@/components/species/StatusSelectBadge';
 import { PhotoLightbox } from '@/components/finds/PhotoLightbox';
+import { EditFindDialog } from '@/components/finds/EditFindDialog';
 import { renderSpeciesName, plainSpeciesName } from '@/lib/speciesName';
 
 interface DateSummary {
@@ -353,6 +354,7 @@ export default function SpeciesTab() {
   const [coverPickerOpen, setCoverPickerOpen] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [editingFind, setEditingFind] = useState<Find | null>(null);
 
   const openLightbox = (index: number) => {
     setLightboxIndex(index);
@@ -766,7 +768,7 @@ export default function SpeciesTab() {
                             <button
                               key={find.id}
                               type="button"
-                              onClick={() => photoIdx >= 0 ? openLightbox(photoIdx) : undefined}
+                              onClick={() => photoIdx >= 0 ? openLightbox(photoIdx) : setEditingFind(find)}
                               className="group flex w-full items-center gap-3 rounded-md border border-border/40 bg-card/40 px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"
                             >
                               {/* Thumbnail */}
@@ -1013,9 +1015,15 @@ export default function SpeciesTab() {
           storagePath={storagePath!}
           onSetAsSpeciesCover={(entry) => handleSelectCover(selectedJournal.speciesName, entry.photo.id)}
           isCurrentSpeciesCover={(entry) => entry.photo.id === selectedJournal.heroPhotoId}
+          onEditFind={(find) => setEditingFind(find)}
           speciesProfile={selectedProfile ?? undefined}
         />
       )}
+
+      <EditFindDialog
+        find={editingFind}
+        onOpenChange={(open) => { if (!open) setEditingFind(null); }}
+      />
     </div>
   );
 }

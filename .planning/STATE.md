@@ -167,6 +167,7 @@ Recent decisions affecting current work:
 | 260512-m5v fix-map-pins-not-showing-on-windows-webv | 2026-05-12 | collectionIcon iconAnchor [0,0]→[6,6]; removed translate(-50%,-50%) from .bili-pin-dot — dot now inside container bounds, no WebView2 clipping; label left:0→6px; prevLocationIcon className ''→'bili-picker-prev-icon' prevents white Leaflet div-icon background. |
 | 260512-r5n uat-fix-pass-nach-zadnjeg-builda | 2026-05-12 | 12 UAT fixes: stats bold rendering + section order + null-date crash + observed min–max; map viewport persistence to last find; lightbox notes contrast + no-photo find opens edit; species tab: remove add-tag, reorder sections, fix scroll lock; import overflow; edibility translations jestiva/nejestiva. |
 | 260512-rt7 fix-species-folder-star-markers | 2026-05-12 | plain_species_name() strips *italic* markers before folder path building in build_dest_path + bulk_rename_species; missing source files handled gracefully (DB path updated regardless); added test. |
+| 260512-find-row-open-lightbox-or-edit | 2026-05-12 | CollectionTab: find row click always opens lightbox (first photo) or EditFindDialog (no photos); chevron converted to standalone expand button with stopPropagation. SpeciesTab: find row click opens lightbox or EditFindDialog for no-photo finds; EditFindDialog imported + wired; PhotoLightbox onEditFind handler connected. |
 
 ### Roadmap Evolution
 
