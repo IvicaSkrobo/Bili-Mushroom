@@ -44,8 +44,14 @@ export function AppShell() {
     if (checkingUpdate) return;
     setCheckingUpdate(true);
     const checkToast = toast.loading('Checking for updates…');
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Update check timed out (15s)')), 15000),
+    );
     try {
-      const update = await invoke<import('@/stores/appStore').AvailableUpdate | null>('check_app_update');
+      const update = await Promise.race([
+        invoke<import('@/stores/appStore').AvailableUpdate | null>('check_app_update'),
+        timeout,
+      ]);
       toast.dismiss(checkToast);
       if (update) {
         setAvailableUpdate(update);

@@ -220,7 +220,7 @@ export default function App() {
       ) : (
         <>
           <AppShell />
-          <Toaster richColors />
+          <Toaster richColors position="top-right" />
         </>
       )}
       <AlertDialog open={!!confirmUpdate} onOpenChange={(o) => { if (!o) setConfirmUpdate(null); }}>
