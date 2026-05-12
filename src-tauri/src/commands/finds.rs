@@ -941,13 +941,13 @@ pub async fn bulk_delete_find_photos(
 pub async fn prune_missing_photos(storage_path: String) -> Result<u32, String> {
     let conn = open_db(&storage_path)?;
 
-    let rows: Vec<(i64, i64, String, bool)> = {
-        let mut stmt = conn
-            .prepare(
-                "SELECT id, find_id, photo_path, is_primary FROM find_photos ORDER BY find_id, is_primary DESC, id ASC",
-            )
-            .map_err(|e| e.to_string())?;
-        stmt.query_map([], |row| {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, find_id, photo_path, is_primary FROM find_photos ORDER BY find_id, is_primary DESC, id ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows: Vec<(i64, i64, String, bool)> = stmt
+        .query_map([], |row| {
             Ok((
                 row.get::<_, i64>(0)?,
                 row.get::<_, i64>(1)?,
@@ -957,8 +957,8 @@ pub async fn prune_missing_photos(storage_path: String) -> Result<u32, String> {
         })
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?
-    };
+        .map_err(|e| e.to_string())?;
+    drop(stmt);
 
     let mut deleted: u32 = 0;
     let mut primaries_deleted: std::collections::HashSet<i64> = Default::default();
