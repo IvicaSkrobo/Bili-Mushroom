@@ -100,6 +100,14 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   const { data: findsData } = useFinds();
   const { data: speciesProfiles } = useSpeciesProfiles();
 
+  // Always reflect the live cache — photo deletions/additions update immediately
+  // without waiting for the parent's `find` prop to re-capture the new snapshot.
+  const livePhotos = useMemo(() => {
+    if (!find) return [];
+    const live = findsData?.find(f => f.id === find.id);
+    return live?.photos ?? find.photos;
+  }, [findsData, find]);
+
   const locationNoteSuggestions = useMemo(() => {
     if (!findsData) return [];
     const seen = new Set<string>();
@@ -431,10 +439,10 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
               </p>
             )}
           </div>
-          {find && find.photos.length > 0 && (
+          {find && livePhotos.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <label className="text-sm font-medium">Photos ({find.photos.length})</label>
+                <label className="text-sm font-medium">Photos ({livePhotos.length})</label>
                 <div className="flex items-center gap-2">
                   <label className="inline-flex h-7 items-center gap-1.5 rounded border border-destructive/30 bg-destructive/5 px-2 text-[11px] font-medium text-destructive">
                     <input
@@ -445,7 +453,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
                     />
                     Permanently delete files
                   </label>
-                  {find.photos.length > 5 && (
+                  {livePhotos.length > 5 && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -478,7 +486,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
               </div>
               <div className={`overflow-y-auto rounded-md border border-border/40 p-2 ${photosExpanded ? 'max-h-60' : 'max-h-28'}`}>
                 <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-5">
-                  {find.photos.map((photo) => {
+                  {livePhotos.map((photo) => {
                     const selected = selectedPhotoIds.has(photo.id);
                     const src = resolvePhotoSrc(storagePath!, photo.photo_path);
                     return (
