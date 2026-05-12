@@ -30,9 +30,8 @@ Windows desktop app for mushroom foragers to catalogue, organize, explore finds.
 ### SQLite / Database
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
-| tauri-plugin-sql | 2.x | JS ↔ SQLite bridge via Tauri IPC | Official plugin. Exposes `execute()` and `select()` to React frontend. Handles migrations at startup. Uses sqlx. |
-| libsqlite3-sys | latest | SQLite native binding | Add with `features = ["bundled"]` to statically link SQLite into Windows binary. Without this, builds fail with "sqlite3.lib not found". |
-| sqlx | 0.8.x | Rust-side SQL (used internally by plugin) | Used indirectly via plugin. For direct Rust-side queries (e.g. Tauri commands), sqlx compile-time checked queries. |
+| rusqlite | 0.31.x | Rust-side SQLite access | Current implementation uses explicit Tauri commands backed by rusqlite, which keeps database behavior local, testable, and under app control. |
+| libsqlite3-sys | latest | SQLite native binding | Included with `features = ["bundled"]` so Windows builds do not depend on a system sqlite3 library. |
 ### State Management
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
@@ -42,8 +41,8 @@ Windows desktop app for mushroom foragers to catalogue, organize, explore finds.
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
 | Leaflet | 1.9.x | Core map engine | Battle-tested, 148KB JS, no API key, OSM out of box. Croatia has excellent OSM coverage. |
-| react-leaflet | 5.0.x | React bindings for Leaflet | Latest stable (v5.0.0). Declarative component model fits React patterns. |
-| leaflet.offline | 3.2.x | Offline tile caching via IndexedDB | Stores tiles in IndexedDB (Tauri native on Windows). Users pre-cache region tiles. |
+| react-leaflet | 4.2.x | React bindings for Leaflet | Current committed app uses React 18 with react-leaflet 4.2.x. Keep this unless intentionally upgrading map internals. |
+| Rust tile proxy + cache | app-local | Offline-friendly map tile handling | Current app routes tiles through Rust-side proxy/cache commands instead of relying on service-worker tile caching. |
 ### EXIF Parsing
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
@@ -56,7 +55,7 @@ Windows desktop app for mushroom foragers to catalogue, organize, explore finds.
 ### PDF Export
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
-| @react-pdf/renderer | 3.x | Generate PDF from React components | Pure JS, no native deps, 860K weekly downloads, active. Renders to Blob in-browser. Design layout as JSX. |
+| @react-pdf/renderer | 4.x | Generate PDF from React components | Current app uses v4.x with a worker-based export path. Design report layout as JSX. |
 | Comlink | 4.x | Web Worker bridge | Offloads PDF gen from main thread. Without it, complex reports freeze UI. Proven pattern for Tauri + react-pdf. |
 ### UI Component Library
 | Technology | Version | Purpose | Why |
@@ -75,11 +74,10 @@ Windows desktop app for mushroom foragers to catalogue, organize, explore finds.
 ## Alternatives Considered
 | Category | Recommended | Alternative | Why Not |
 |----------|-------------|-------------|---------|
-| SQLite plugin | tauri-plugin-sql | tauri-plugin-rusqlite2 | Community fork, not official, unneeded |
-| SQLite plugin | tauri-plugin-sql | Direct sqlx commands | More boilerplate, need own JS bindings; plugin handles it |
+| SQLite access | rusqlite Tauri commands | tauri-plugin-sql | Current app already owns migrations/queries through Rust commands; do not introduce a second DB access layer casually. |
 | State management | Zustand + TanStack Query | Redux Toolkit | 3x boilerplate, wrong fit for solo dev desktop app |
 | Map | react-leaflet | MapLibre GL JS | 800KB vs 148KB; WebGL overhead; Croatia use case doesn't need vector tiles or 3D |
-| Map tiles | leaflet.offline (IndexedDB) | Bundled .mbtiles + local server | Valid for fully-offline install; heavier; revisit in Phase 2 if needed |
+| Map tiles | Rust proxy/cache | leaflet.offline / service worker | Tauri desktop behavior is easier to control from Rust; keep cache logic in app-owned commands. |
 | EXIF | kamadak-exif | rexif | rexif is JPEG/TIFF only, less active maintenance, no HEIF support |
 | PDF | @react-pdf/renderer | printpdf (Rust) | Low-level; manual photo/text layout impractical |
 | PDF | @react-pdf/renderer | wkhtmltopdf | Requires bundling 30MB extra binary; deployment complexity |
@@ -89,35 +87,32 @@ Windows desktop app for mushroom foragers to catalogue, organize, explore finds.
 # Frontend packages
 # shadcn/ui (uses CLI, not npm install)
 # Tauri plugins (Cargo.toml additions)
-# tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 # tauri-plugin-fs = { version = "2", features = ["watch"] }
 # libsqlite3-sys = { version = ">=0.17.2", features = ["bundled"] }
+# rusqlite = { version = "0.31", features = ["bundled"] }
 # kamadak-exif = "0.6"
 ## Confidence Summary
 | Area | Confidence | Notes |
 |------|------------|-------|
 | Tauri 2.x version (2.10.3) | HIGH | Confirmed from GitHub releases |
-| tauri-plugin-sql + Windows bundled fix | HIGH | Official docs + confirmed community fix |
+| rusqlite + Windows bundled SQLite | HIGH | Matches current committed backend and avoids sqlite3.lib system dependency. |
 | Zustand v5 + TanStack Query v5 | HIGH | Both active, versions confirmed |
-| react-leaflet v5 + leaflet.offline | MEDIUM | Versions confirmed; Tauri WebView/ServiceWorker limitation inferred from architecture — verify in Phase 1 |
+| react-leaflet v4 + Rust tile cache | HIGH | Matches current committed package versions and map proxy/cache implementation. |
 | kamadak-exif 0.6.1 | HIGH | crates.io + docs.rs confirmed |
 | tauri-plugin-fs watch feature | HIGH | Official docs confirmed |
 | @react-pdf/renderer + Comlink | MEDIUM | Pattern confirmed Mar 2025 Tauri article |
 | shadcn/ui + Tailwind v4 | HIGH | Official docs confirmed Mar 2025 |
 | Species database (manual curation) | MEDIUM | No ready-made source found; approach is sound |
 ## Sources
-- [Tauri SQL Plugin — official docs](https://v2.tauri.app/plugin/sql/)
 - [Tauri File System Plugin — official docs](https://v2.tauri.app/plugin/file-system/)
 - [Tauri GitHub Releases](https://github.com/tauri-apps/tauri/releases)
 - [Windows sqlite3.lib build error + bundled fix](https://github.com/tauri-apps/tauri/discussions/6183)
-- [tauri-plugin-sql bundled resource limitation (issue #1155)](https://github.com/tauri-apps/plugins-workspace/issues/1155)
 - [kamadak-exif on crates.io](https://crates.io/crates/kamadak-exif)
 - [kamadak-exif docs.rs (latest 0.6.1)](https://docs.rs/crate/kamadak-exif/latest)
 - [notify crate — GitHub](https://github.com/notify-rs/notify)
 - [Generating PDFs in Tauri with React-PDF and Web Workers (March 2025)](https://medium.com/codex/generating-pdfs-in-a-tauri-app-using-react-pdf-and-web-workers-0419999f14cf)
 - [shadcn/ui Tailwind v4 docs](https://ui.shadcn.com/docs/tailwind-v4)
 - [MapLibre GL JS vs Leaflet comparison](https://blog.jawg.io/maplibre-gl-vs-leaflet-choosing-the-right-tool-for-your-interactive-map/)
-- [leaflet.offline on npm](https://www.npmjs.com/package/leaflet.offline)
 - [Zustand v5 release notes](https://github.com/pmndrs/zustand/releases)
 - [TanStack Query v5 announcement](https://tanstack.com/blog/announcing-tanstack-query-v5)
 - [iNaturalist Open Data on GitHub](https://github.com/inaturalist/inaturalist-open-data)
@@ -132,27 +127,45 @@ None yet. Populate as patterns emerge.
 
 ## Frontend Design
 
-`frontend-design` skill installed at `.claude/skills/frontend-design/SKILL.md`.
+`frontend-design` skill installed at `.agents/skills/frontend-design/SKILL.md`.
 
 **Always invoke `frontend-design` skill before implementing/modifying UI components, layouts, styling, UX flows.**
 
 ### Established aesthetic: Forest Codex
 
-Dark forest-floor theme. Initial redesign 2026-04-10:
+Dual light/dark herbarium theme. Current implementation is the source of truth:
 
-- **Palette**: Deep moss bg (`oklch(0.12 0.015 135)`), chanterelle amber primary (`oklch(0.72 0.12 80)`), warm off-white text. CSS vars in `src/index.css`.
-- **Typography**: Playfair Display (italic serif) for species names + headings; DM Sans for UI copy; JetBrains Mono for coords + paths. Fonts via Google Fonts in `index.html`.
+- **Theme modes**: Keep both light and dark themes. Light is "Herbarium Daybook"; dark is "Nocturne Herbarium". The theme toggle in `src/components/layout/AppShell.tsx` is intentional.
+- **Palette**: CSS vars in `src/index.css`. Light uses warm paper/herbarium neutrals with amber primary and green secondary. Dark uses deep nocturne blue-green surfaces with amber primary and teal secondary.
+- **Typography**: Cormorant Garamond for species names and headings, Manrope for UI copy, IBM Plex Mono for coordinates and technical paths. Fonts are loaded in `index.html` and mapped in `src/index.css`.
 - **Motion**: `animate-fade-up` on page-level content; `stagger-item` with `animationDelay` on list items. CSS-only.
-- **Cards/hover**: Amber left-border reveal on hover (`group-hover:opacity-100`), edit/delete actions hidden until hover.
+- **Cards/hover**: Use shared shadcn-style primitives from `src/components/ui/`. The shared Card component lives in `src/components/ui/card.tsx`; changing it affects every imported `Card`, `CardContent`, etc. Collection/find rows use amber left-border reveal on hover (`group-hover:opacity-100`) and restrained hover actions.
 - **Tab nav**: Uppercase tracked labels (`tracking-[0.18em]`), amber underline on active tab via `[data-slot="tabs-trigger"][data-state="active"]::after` in CSS.
 
-No Inter, Roboto, system-ui as primary font. No purple/blue gradients, no light-mode defaults. Dark-only.
+No Inter, Roboto, or system-ui as the primary app font. No purple/blue gradients. Do not remove light mode or force dark-only styling.
 <!-- GSD:conventions-end -->
 
 <!-- GSD:architecture-start source:ARCHITECTURE.md -->
 ## Architecture
 
-Not yet mapped. Follow existing codebase patterns.
+Current app structure:
+
+- `src/App.tsx`: bootstraps storage path, database readiness, updater state, first-run/auto-import flow, and global providers.
+- `src/components/layout/AppShell.tsx`: global header, theme/settings controls, update banner, and primary tab navigation.
+- `src/tabs/`: top-level feature screens (`CollectionTab`, `SpeciesTab`, `MapTab`, `StatsTab`). These are currently large orchestration components; prefer extracting pure helpers/hooks and section components when touching them.
+- `src/components/finds/`, `src/components/import/`, `src/components/map/`, `src/components/species/`, `src/components/stats/`: feature components grouped by domain.
+- `src/components/ui/`: shared shadcn-style primitives. Keep these generic and app-wide; avoid one-off feature behavior here.
+- `src/hooks/`: TanStack Query hooks wrapping async app data.
+- `src/lib/`: domain logic, data helpers, export code, storage/geocoding/tile utilities, and testable pure functions.
+- `src/stores/appStore.ts`: small Zustand store for global UI/app state only.
+- `src-tauri/src/commands/`: Rust command boundary for local filesystem, SQLite, EXIF, tile cache/proxy, updater, stats, zones, and imports.
+
+Architecture preferences:
+
+- Keep core data local-first and routed through app-owned Rust commands.
+- Reuse TanStack Query hooks for async reads/writes instead of ad hoc `useEffect` data loading.
+- Move duplicated parsing/formatting logic into `src/lib/` with focused tests.
+- Keep UI state near the feature unless it must coordinate across tabs; use Zustand only for cross-screen state such as active tab, map layer, selected species handoff, and update state.
 <!-- GSD:architecture-end -->
 
 <!-- GSD:skills-start source:skills/ -->

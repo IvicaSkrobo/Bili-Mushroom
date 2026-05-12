@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
+let mapEvents: Record<string, (event: any) => void> = {};
+
 // Stub react-leaflet so jsdom does not try to render a real map
 vi.mock('react-leaflet', () => ({
   MapContainer: ({ children, center, zoom }: any) => (
@@ -9,7 +11,10 @@ vi.mock('react-leaflet', () => ({
     </div>
   ),
   useMap: () => ({ addLayer: vi.fn(), removeLayer: vi.fn() }),
-  useMapEvents: () => ({}),
+  useMapEvents: (events: Record<string, (event: any) => void>) => {
+    mapEvents = events;
+    return {};
+  },
   Polygon: () => null,
   Polyline: () => null,
   CircleMarker: () => null,
@@ -26,6 +31,10 @@ vi.mock('./ZoneLayers', () => ({ ZoneLayers: () => null }));
 import { FindsMap } from './FindsMap';
 
 describe('FindsMap', () => {
+  beforeEach(() => {
+    mapEvents = {};
+  });
+
   it('renders MapContainer with Croatia center [45.1, 15.2] zoom 7 when finds is empty', () => {
     render(<FindsMap finds={[]} />);
     const container = screen.getByTestId('map-container');
@@ -54,5 +63,32 @@ describe('FindsMap', () => {
     expect(screen.getByRole('button', { name: /move \(m\)/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /add point \(n\)/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
+  });
+
+  it('inserts add-mode clicks into the nearest polygon edge once a polygon exists', () => {
+    const onAddPoint = vi.fn();
+    const onInsertPoint = vi.fn();
+
+    render(
+      <FindsMap
+        finds={[]}
+        polygonEditorActive={true}
+        polygonEditorMode="add"
+        polygonEditorPoints={[
+          [0, 0],
+          [0, 10],
+          [10, 10],
+          [10, 0],
+        ]}
+        polygonEditorZoneType="local"
+        onPolygonEditorAddPoint={onAddPoint}
+        onPolygonEditorInsertPoint={onInsertPoint}
+      />,
+    );
+
+    mapEvents.click?.({ latlng: { lat: 0.2, lng: 5 } });
+
+    expect(onAddPoint).not.toHaveBeenCalled();
+    expect(onInsertPoint).toHaveBeenCalledWith(0, [0.2, 5]);
   });
 });
