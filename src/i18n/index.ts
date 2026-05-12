@@ -90,6 +90,10 @@ const hr: Translations = {
   'species.observedCountLabel': 'promatrani broj {count}',
   'species.observedMissing': 'promatrani broj nije unesen',
   'species.lastRecordedShort': 'Zadnji zapis {date}',
+  'species.synonyms': 'Sinonimi',
+  'species.synonymsPlaceholder': 'Dodaj sinonim…',
+  'species.otherNames': 'Lokalna imena',
+  'species.otherNamesPlaceholder': 'Dodaj lokalno ime…',
 
   // import dialog
   'import.title': 'Uvezi fotografije',
@@ -286,6 +290,10 @@ const hr: Translations = {
   'folder.cancel': 'Odustani',
   'folder.save': 'Spremi',
   'folder.saving': 'Spremanje…',
+  'folder.synonyms': 'Sinonimi',
+  'folder.synonymsPlaceholder': 'npr. Boletus reticulatus…',
+  'folder.otherNames': 'Lokalna imena',
+  'folder.otherNamesPlaceholder': 'npr. vrganj, pravi vrganj…',
 };
 
 const en: Translations = {
@@ -374,6 +382,10 @@ const en: Translations = {
   'species.observedCountLabel': 'observed count {count}',
   'species.observedMissing': 'observed count not entered',
   'species.lastRecordedShort': 'Last recorded {date}',
+  'species.synonyms': 'Synonyms',
+  'species.synonymsPlaceholder': 'Add synonym…',
+  'species.otherNames': 'Other names',
+  'species.otherNamesPlaceholder': 'Add local name…',
 
   // import dialog
   'import.title': 'Import Photos',
@@ -570,6 +582,10 @@ const en: Translations = {
   'folder.cancel': 'Cancel',
   'folder.save': 'Save',
   'folder.saving': 'Saving…',
+  'folder.synonyms': 'Synonyms',
+  'folder.synonymsPlaceholder': 'e.g. Boletus reticulatus…',
+  'folder.otherNames': 'Other names',
+  'folder.otherNamesPlaceholder': 'e.g. penny bun, porcini…',
 };
 
 const dict: Record<Lang, Translations> = { hr, en };

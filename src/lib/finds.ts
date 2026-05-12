@@ -76,6 +76,8 @@ export interface SpeciesProfile {
   threat_status?: string | null;
   distribution?: string | null;
   edibility_note?: string | null;
+  synonyms?: string[];
+  other_names?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -225,6 +227,8 @@ export async function upsertSpeciesProfile(
   threatStatus?: string | null,
   distribution?: string | null,
   edibilityNote?: string | null,
+  synonyms?: string[],
+  otherNames?: string[],
 ): Promise<void> {
   return invoke<void>('upsert_species_profile', {
     storagePath,
@@ -235,6 +239,8 @@ export async function upsertSpeciesProfile(
     threatStatus: threatStatus ?? null,
     distribution: distribution ?? null,
     edibilityNote: edibilityNote ?? null,
+    synonyms: synonyms ?? [],
+    otherNames: otherNames ?? [],
   });
 }
 

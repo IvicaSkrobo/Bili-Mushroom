@@ -101,6 +101,8 @@ pub struct SpeciesProfile {
     pub threat_status: Option<String>,
     pub distribution: Option<String>,
     pub edibility_note: Option<String>,
+    pub synonyms: Vec<String>,
+    pub other_names: Vec<String>,
 }
 
 #[tauri::command]
@@ -121,11 +123,13 @@ pub async fn get_species_notes(storage_path: String) -> Result<Vec<SpeciesNote>,
 pub async fn get_species_profiles(storage_path: String) -> Result<Vec<SpeciesProfile>, String> {
     let conn = open_db(&storage_path)?;
     let mut stmt = conn
-        .prepare("SELECT species_name, cover_photo_id, tags_json, edibility, threat_status, distribution, edibility_note FROM species_profiles ORDER BY species_name")
+        .prepare("SELECT species_name, cover_photo_id, tags_json, edibility, threat_status, distribution, edibility_note, synonyms, other_names FROM species_profiles ORDER BY species_name")
         .map_err(|e| e.to_string())?;
     let profiles = stmt
         .query_map([], |row| {
             let tags_json: String = row.get(2)?;
+            let synonyms_json: Option<String> = row.get(7)?;
+            let other_names_json: Option<String> = row.get(8)?;
             Ok(SpeciesProfile {
                 species_name: row.get(0)?,
                 cover_photo_id: row.get(1)?,
@@ -134,6 +138,8 @@ pub async fn get_species_profiles(storage_path: String) -> Result<Vec<SpeciesPro
                 threat_status: row.get(4)?,
                 distribution: row.get(5)?,
                 edibility_note: row.get(6)?,
+                synonyms: synonyms_json.as_deref().and_then(|s| serde_json::from_str(s).ok()).unwrap_or_default(),
+                other_names: other_names_json.as_deref().and_then(|s| serde_json::from_str(s).ok()).unwrap_or_default(),
             })
         })
         .map_err(|e| e.to_string())?
@@ -152,14 +158,20 @@ pub async fn upsert_species_profile(
     threat_status: Option<String>,
     distribution: Option<String>,
     edibility_note: Option<String>,
+    synonyms: Vec<String>,
+    other_names: Vec<String>,
 ) -> Result<(), String> {
     let conn = open_db(&storage_path)?;
     let updated_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
     let tags_json = serde_json::to_string(&tags)
         .map_err(|e| format!("Failed to encode species tags: {}", e))?;
+    let synonyms_json = serde_json::to_string(&synonyms)
+        .map_err(|e| format!("Failed to encode synonyms: {}", e))?;
+    let other_names_json = serde_json::to_string(&other_names)
+        .map_err(|e| format!("Failed to encode other_names: {}", e))?;
     conn.execute(
-        "INSERT INTO species_profiles (species_name, cover_photo_id, tags_json, updated_at, edibility, threat_status, distribution, edibility_note)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+        "INSERT INTO species_profiles (species_name, cover_photo_id, tags_json, updated_at, edibility, threat_status, distribution, edibility_note, synonyms, other_names)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
          ON CONFLICT(species_name) DO UPDATE SET
            cover_photo_id = excluded.cover_photo_id,
            tags_json = excluded.tags_json,
@@ -167,8 +179,10 @@ pub async fn upsert_species_profile(
            edibility = excluded.edibility,
            threat_status = excluded.threat_status,
            distribution = excluded.distribution,
-           edibility_note = excluded.edibility_note",
-        params![species_name, cover_photo_id, tags_json, updated_at, edibility, threat_status, distribution, edibility_note],
+           edibility_note = excluded.edibility_note,
+           synonyms = excluded.synonyms,
+           other_names = excluded.other_names",
+        params![species_name, cover_photo_id, tags_json, updated_at, edibility, threat_status, distribution, edibility_note, synonyms_json, other_names_json],
     )
     .map_err(|e| format!("Upsert species profile failed: {}", e))?;
     Ok(())
@@ -1502,5 +1516,34 @@ mod tests {
 
         assert_eq!(result.photos.len(), 1, "one photo should remain");
         assert!(result.photos[0].is_primary, "remaining photo should be promoted to primary");
+    }
+
+    #[test]
+    fn test_upsert_and_get_species_profile_synonyms_other_names() {
+        let conn = setup_in_memory_db();
+        let updated_at = "2026-05-12T00:00:00Z".to_string();
+        let tags_json = serde_json::to_string(&Vec::<String>::new()).unwrap();
+        let synonyms = vec!["Boletus reticulatus".to_string(), "Boletus aestivalis".to_string()];
+        let other_names = vec!["vrganj".to_string(), "pravi vrganj".to_string()];
+        let synonyms_json = serde_json::to_string(&synonyms).unwrap();
+        let other_names_json = serde_json::to_string(&other_names).unwrap();
+
+        conn.execute(
+            "INSERT INTO species_profiles (species_name, cover_photo_id, tags_json, updated_at, edibility, threat_status, distribution, edibility_note, synonyms, other_names)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            rusqlite::params!["Boletus *edulis*", None::<i64>, tags_json, updated_at, None::<String>, None::<String>, None::<String>, None::<String>, synonyms_json, other_names_json],
+        ).expect("insert species profile");
+
+        let row: (Option<String>, Option<String>) = conn.query_row(
+            "SELECT synonyms, other_names FROM species_profiles WHERE species_name = ?1",
+            rusqlite::params!["Boletus *edulis*"],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        ).expect("query profile");
+
+        let got_synonyms: Vec<String> = serde_json::from_str(&row.0.unwrap()).unwrap();
+        let got_other_names: Vec<String> = serde_json::from_str(&row.1.unwrap()).unwrap();
+
+        assert_eq!(got_synonyms, synonyms, "synonyms round-trip must match");
+        assert_eq!(got_other_names, other_names, "other_names round-trip must match");
     }
 }

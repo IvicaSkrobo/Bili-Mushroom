@@ -232,6 +232,8 @@ export default function CollectionTab() {
     threatStatus: string | null,
     distribution: string | null,
     edibilityNote: string | null,
+    synonyms: string[],
+    otherNames: string[],
   ) => {
     if (!folderEditing) return;
     const existingProfile = speciesProfilesByName.get(folderEditing);
@@ -243,6 +245,8 @@ export default function CollectionTab() {
       threatStatus,
       distribution,
       edibilityNote,
+      synonyms,
+      otherNames,
     });
   };
 
@@ -280,6 +284,9 @@ export default function CollectionTab() {
       edibility: existingProfile?.edibility ?? null,
       threatStatus: existingProfile?.threat_status ?? null,
       distribution: existingProfile?.distribution ?? null,
+      edibilityNote: existingProfile?.edibility_note ?? null,
+      synonyms: existingProfile?.synonyms ?? [],
+      otherNames: existingProfile?.other_names ?? [],
     });
   };
 
@@ -549,6 +556,16 @@ export default function CollectionTab() {
                         hideUnknown={false}
                       />
                     </div>
+                    {(() => {
+                      const profile = speciesProfilesByName.get(speciesName);
+                      const allNames = [...(profile?.other_names ?? []), ...(profile?.synonyms ?? [])];
+                      if (allNames.length === 0) return null;
+                      return (
+                        <p className="mt-0.5 text-[10px] text-muted-foreground/60 truncate" title={allNames.join(' · ')}>
+                          {allNames.join(' · ')}
+                        </p>
+                      );
+                    })()}
                   </div>
                 </button>
 

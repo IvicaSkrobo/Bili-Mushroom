@@ -95,6 +95,7 @@ const MIGRATION_0014: &str = include_str!("../../migrations/0014_find_edibility_
 const MIGRATION_0015: &str = include_str!("../../migrations/0015_species_profile_edibility_note.sql");
 const MIGRATION_0016: &str = include_str!("../../migrations/0016_species_profile_threat_distribution.sql");
 const _MIGRATION_0017: &str = include_str!("../../migrations/0017_repair_finds_edibility_note.sql");
+const MIGRATION_0018: &str = include_str!("../../migrations/0018_species_profile_synonyms.sql");
 
 fn normalize_observed_range(
     observed_count: Option<i64>,
@@ -347,6 +348,21 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
         }
         conn.execute_batch("PRAGMA user_version = 17")
             .map_err(|e| format!("Failed to set user_version=17: {}", e))?;
+    }
+    if version < 18 {
+        let synonyms_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('species_profiles') WHERE name = 'synonyms'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        if synonyms_exists == 0 {
+            conn.execute_batch(MIGRATION_0018)
+                .map_err(|e| format!("Migration 0018 failed: {}", e))?;
+        }
+        conn.execute_batch("PRAGMA user_version = 18")
+            .map_err(|e| format!("Failed to set user_version=18: {}", e))?;
     }
 
     Ok(())

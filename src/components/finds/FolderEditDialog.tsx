@@ -16,7 +16,7 @@ import { useAppStore } from '@/stores/appStore';
 import { openSpeciesFolder } from '@/lib/finds';
 import { reverseGeocode } from '@/lib/geocoding';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
-import { FolderOpen, MapPin } from 'lucide-react';
+import { FolderOpen, MapPin, X, Plus } from 'lucide-react';
 import type { Find, SpeciesProfile } from '@/lib/finds';
 import { EdibilitySelectBadge, ThreatStatusSelectBadge, DistributionSelectBadge } from '@/components/species/StatusSelectBadge';
 import { useT } from '@/i18n/index';
@@ -32,6 +32,8 @@ interface FolderEditDialogProps {
     threatStatus: string | null,
     distribution: string | null,
     edibilityNote: string | null,
+    synonyms: string[],
+    otherNames: string[],
   ) => void | Promise<void>;
 }
 
@@ -56,6 +58,10 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
   const [threatStatus, setThreatStatus] = useState<string>('unknown');
   const [distribution, setDistribution] = useState<string>('unknown');
   const [edibilityNote, setEdibilityNote] = useState<string>('');
+  const [synonyms, setSynonyms] = useState<string[]>([]);
+  const [otherNames, setOtherNames] = useState<string[]>([]);
+  const [synonymInput, setSynonymInput] = useState('');
+  const [otherNameInput, setOtherNameInput] = useState('');
 
   // Sync state when dialog opens
   useEffect(() => {
@@ -71,6 +77,10 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
       setThreatStatus(speciesProfile?.threat_status ?? 'unknown');
       setDistribution(speciesProfile?.distribution ?? 'unknown');
       setEdibilityNote(speciesProfile?.edibility_note ?? '');
+      setSynonyms(speciesProfile?.synonyms ?? []);
+      setOtherNames(speciesProfile?.other_names ?? []);
+      setSynonymInput('');
+      setOtherNameInput('');
     }
   }, [speciesName, speciesProfile]);
 
@@ -127,6 +137,8 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
         threatStatus === 'unknown' ? null : threatStatus,
         distribution === 'unknown' ? null : distribution,
         edibilityNote.trim() || null,
+        synonyms,
+        otherNames,
       );
       onOpenChange(false);
     } catch (e) {
@@ -264,6 +276,96 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
                 className="w-full resize-none rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
               />
               <p className="text-[11px] text-muted-foreground/50">{t('edit.edibilityNoteHelp')}</p>
+            </div>
+
+            {/* Synonyms */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">{t('folder.synonyms')}</label>
+              <div className="flex gap-1.5">
+                <input
+                  value={synonymInput}
+                  onChange={(e) => setSynonymInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if ((e.key === 'Enter' || e.key === ',') && synonymInput.trim()) {
+                      e.preventDefault();
+                      const val = synonymInput.trim().replace(/,$/, '');
+                      if (val && !synonyms.includes(val)) setSynonyms((prev) => [...prev, val]);
+                      setSynonymInput('');
+                    }
+                  }}
+                  placeholder={t('folder.synonymsPlaceholder')}
+                  className="flex-1 rounded-md border border-border bg-input px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const val = synonymInput.trim();
+                    if (val && !synonyms.includes(val)) setSynonyms((prev) => [...prev, val]);
+                    setSynonymInput('');
+                  }}
+                  disabled={!synonymInput.trim()}
+                  className="rounded-md border border-border bg-input px-2.5 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-40 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+              {synonyms.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {synonyms.map((s) => (
+                    <span key={s} className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/50 px-2 py-0.5 text-xs text-foreground/80">
+                      <span className="italic">{s}</span>
+                      <button type="button" onClick={() => setSynonyms((prev) => prev.filter((x) => x !== s))} className="text-muted-foreground hover:text-destructive transition-colors">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Other names */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">{t('folder.otherNames')}</label>
+              <div className="flex gap-1.5">
+                <input
+                  value={otherNameInput}
+                  onChange={(e) => setOtherNameInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if ((e.key === 'Enter' || e.key === ',') && otherNameInput.trim()) {
+                      e.preventDefault();
+                      const val = otherNameInput.trim().replace(/,$/, '');
+                      if (val && !otherNames.includes(val)) setOtherNames((prev) => [...prev, val]);
+                      setOtherNameInput('');
+                    }
+                  }}
+                  placeholder={t('folder.otherNamesPlaceholder')}
+                  className="flex-1 rounded-md border border-border bg-input px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const val = otherNameInput.trim();
+                    if (val && !otherNames.includes(val)) setOtherNames((prev) => [...prev, val]);
+                    setOtherNameInput('');
+                  }}
+                  disabled={!otherNameInput.trim()}
+                  className="rounded-md border border-border bg-input px-2.5 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-40 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+              {otherNames.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {otherNames.map((n) => (
+                    <span key={n} className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/50 px-2 py-0.5 text-xs text-foreground/80">
+                      {n}
+                      <button type="button" onClick={() => setOtherNames((prev) => prev.filter((x) => x !== n))} className="text-muted-foreground hover:text-destructive transition-colors">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

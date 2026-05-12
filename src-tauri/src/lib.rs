@@ -88,7 +88,7 @@ mod smoke {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .expect("user_version");
-        assert_eq!(version, 17, "user_version must be 17 after all migrations");
+        assert_eq!(version, 18, "user_version must be 18 after all migrations");
 
         let edibility_exists: i64 = conn
             .query_row(
@@ -107,6 +107,24 @@ mod smoke {
             )
             .expect("query species_profiles.protected_status");
         assert_eq!(protected_exists, 1, "species_profiles.protected_status must exist after open_db");
+
+        let synonyms_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('species_profiles') WHERE name = 'synonyms'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("query species_profiles.synonyms");
+        assert_eq!(synonyms_exists, 1, "species_profiles.synonyms must exist after open_db");
+
+        let other_names_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('species_profiles') WHERE name = 'other_names'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("query species_profiles.other_names");
+        assert_eq!(other_names_exists, 1, "species_profiles.other_names must exist after open_db");
     }
 
     #[test]

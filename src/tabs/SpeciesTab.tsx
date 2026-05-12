@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Calendar, Camera, Info, MapPin, Pencil, Search, Star } from 'lucide-react';
+import { BookOpen, Calendar, Camera, Info, MapPin, Pencil, Plus, Search, Star, X } from 'lucide-react';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -406,12 +406,16 @@ export default function SpeciesTab() {
   const [edibilityInput, setEdibilityInput] = useState(selectedProfile?.edibility ?? 'unknown');
   const [threatStatusInput, setThreatStatusInput] = useState(selectedProfile?.threat_status ?? 'unknown');
   const [distributionInput, setDistributionInput] = useState(selectedProfile?.distribution ?? 'unknown');
+  const [synonymsInput, setSynonymsInput] = useState('');
+  const [otherNamesInput, setOtherNamesInput] = useState('');
 
   useEffect(() => {
     setEdibilityNoteInput(selectedProfile?.edibility_note ?? '');
     setEdibilityInput(selectedProfile?.edibility ?? 'unknown');
     setThreatStatusInput(selectedProfile?.threat_status ?? 'unknown');
     setDistributionInput(selectedProfile?.distribution ?? 'unknown');
+    setSynonymsInput('');
+    setOtherNamesInput('');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedJournal?.speciesName]);
 
@@ -433,6 +437,9 @@ export default function SpeciesTab() {
     </span>
   );
 
+  const selectedSynonyms = selectedProfile?.synonyms ?? [];
+  const selectedOtherNames = selectedProfile?.other_names ?? [];
+
   const handleSelectCover = (speciesName: string, photoId: number) => {
     const existingProfile = speciesProfiles?.find((entry) => entry.species_name === speciesName);
     upsertSpeciesProfile.mutate({
@@ -440,8 +447,10 @@ export default function SpeciesTab() {
       coverPhotoId: photoId,
       tags: existingProfile?.tags ?? [],
       edibility: existingProfile?.edibility ?? null,
-      protectedStatus: existingProfile?.protected_status ?? null,
+      threatStatus: existingProfile?.threat_status ?? null,
       edibilityNote: existingProfile?.edibility_note ?? null,
+      synonyms: existingProfile?.synonyms ?? [],
+      otherNames: existingProfile?.other_names ?? [],
     });
     setCoverPickerOpen(false);
   };
@@ -456,6 +465,8 @@ export default function SpeciesTab() {
       threatStatus: threatStatusInput === 'unknown' ? null : threatStatusInput,
       distribution: distributionInput === 'unknown' ? null : distributionInput,
       edibilityNote: edibilityNoteInput.trim() || null,
+      synonyms: selectedSynonyms,
+      otherNames: selectedOtherNames,
     });
   };
 
@@ -469,6 +480,8 @@ export default function SpeciesTab() {
       threatStatus: threatStatusInput === 'unknown' ? null : threatStatusInput,
       distribution: distributionInput === 'unknown' ? null : distributionInput,
       edibilityNote: edibilityNoteInput.trim() || null,
+      synonyms: selectedSynonyms,
+      otherNames: selectedOtherNames,
     });
   };
 
@@ -486,6 +499,72 @@ export default function SpeciesTab() {
       threatStatus: newThreatStatus === 'unknown' ? null : newThreatStatus,
       distribution: newDistribution === 'unknown' ? null : newDistribution,
       edibilityNote: edibilityNoteInput.trim() || null,
+      synonyms: selectedSynonyms,
+      otherNames: selectedOtherNames,
+    });
+  };
+
+  const handleAddSynonym = (value: string) => {
+    if (!selectedJournal || !value.trim() || selectedSynonyms.includes(value.trim())) return;
+    const updated = [...selectedSynonyms, value.trim()];
+    upsertSpeciesProfile.mutate({
+      speciesName: selectedJournal.speciesName,
+      coverPhotoId: selectedJournal.heroPhotoId,
+      tags: selectedTags,
+      edibility: edibilityInput === 'unknown' ? null : edibilityInput,
+      threatStatus: threatStatusInput === 'unknown' ? null : threatStatusInput,
+      distribution: distributionInput === 'unknown' ? null : distributionInput,
+      edibilityNote: edibilityNoteInput.trim() || null,
+      synonyms: updated,
+      otherNames: selectedOtherNames,
+    });
+    setSynonymsInput('');
+  };
+
+  const handleRemoveSynonym = (value: string) => {
+    if (!selectedJournal) return;
+    upsertSpeciesProfile.mutate({
+      speciesName: selectedJournal.speciesName,
+      coverPhotoId: selectedJournal.heroPhotoId,
+      tags: selectedTags,
+      edibility: edibilityInput === 'unknown' ? null : edibilityInput,
+      threatStatus: threatStatusInput === 'unknown' ? null : threatStatusInput,
+      distribution: distributionInput === 'unknown' ? null : distributionInput,
+      edibilityNote: edibilityNoteInput.trim() || null,
+      synonyms: selectedSynonyms.filter((s) => s !== value),
+      otherNames: selectedOtherNames,
+    });
+  };
+
+  const handleAddOtherName = (value: string) => {
+    if (!selectedJournal || !value.trim() || selectedOtherNames.includes(value.trim())) return;
+    const updated = [...selectedOtherNames, value.trim()];
+    upsertSpeciesProfile.mutate({
+      speciesName: selectedJournal.speciesName,
+      coverPhotoId: selectedJournal.heroPhotoId,
+      tags: selectedTags,
+      edibility: edibilityInput === 'unknown' ? null : edibilityInput,
+      threatStatus: threatStatusInput === 'unknown' ? null : threatStatusInput,
+      distribution: distributionInput === 'unknown' ? null : distributionInput,
+      edibilityNote: edibilityNoteInput.trim() || null,
+      synonyms: selectedSynonyms,
+      otherNames: updated,
+    });
+    setOtherNamesInput('');
+  };
+
+  const handleRemoveOtherName = (value: string) => {
+    if (!selectedJournal) return;
+    upsertSpeciesProfile.mutate({
+      speciesName: selectedJournal.speciesName,
+      coverPhotoId: selectedJournal.heroPhotoId,
+      tags: selectedTags,
+      edibility: edibilityInput === 'unknown' ? null : edibilityInput,
+      threatStatus: threatStatusInput === 'unknown' ? null : threatStatusInput,
+      distribution: distributionInput === 'unknown' ? null : distributionInput,
+      edibilityNote: edibilityNoteInput.trim() || null,
+      synonyms: selectedSynonyms,
+      otherNames: selectedOtherNames.filter((n) => n !== value),
     });
   };
 
@@ -716,6 +795,56 @@ export default function SpeciesTab() {
                             <p className="text-[11px] text-muted-foreground/50">{t('edit.edibilityNoteHelp')}</p>
                           </div>
                         )}
+                        {/* Synonyms */}
+                        <div className="mt-3 space-y-1.5">
+                          <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground/70">{t('species.synonyms')}</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {selectedSynonyms.map((s) => (
+                              <span key={s} className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/50 px-2 py-0.5 text-xs text-foreground/80">
+                                <span className="italic">{s}</span>
+                                <button type="button" onClick={() => handleRemoveSynonym(s)} className="text-muted-foreground hover:text-destructive transition-colors"><X className="h-3 w-3" /></button>
+                              </span>
+                            ))}
+                            <div className="flex gap-1">
+                              <input
+                                value={synonymsInput}
+                                onChange={(e) => setSynonymsInput(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); handleAddSynonym(synonymsInput.replace(/,$/, '')); } }}
+                                placeholder={t('species.synonymsPlaceholder')}
+                                className="rounded border border-border/60 bg-input px-2 py-0.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring/40 w-36"
+                              />
+                              <button type="button" onClick={() => handleAddSynonym(synonymsInput)} disabled={!synonymsInput.trim()} className="rounded border border-border/60 bg-input px-1.5 py-0.5 text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors">
+                                <Plus className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Other names */}
+                        <div className="mt-3 space-y-1.5">
+                          <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground/70">{t('species.otherNames')}</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {selectedOtherNames.map((n) => (
+                              <span key={n} className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/50 px-2 py-0.5 text-xs text-foreground/80">
+                                {n}
+                                <button type="button" onClick={() => handleRemoveOtherName(n)} className="text-muted-foreground hover:text-destructive transition-colors"><X className="h-3 w-3" /></button>
+                              </span>
+                            ))}
+                            <div className="flex gap-1">
+                              <input
+                                value={otherNamesInput}
+                                onChange={(e) => setOtherNamesInput(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); handleAddOtherName(otherNamesInput.replace(/,$/, '')); } }}
+                                placeholder={t('species.otherNamesPlaceholder')}
+                                className="rounded border border-border/60 bg-input px-2 py-0.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring/40 w-36"
+                              />
+                              <button type="button" onClick={() => handleAddOtherName(otherNamesInput)} disabled={!otherNamesInput.trim()} className="rounded border border-border/60 bg-input px-1.5 py-0.5 text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors">
+                                <Plus className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
                         <div className="mt-3 flex flex-wrap gap-2">
                           <Badge variant="outline">{t('species.recordedFindsLabel', { count: selectedJournal.recordedFinds })}</Badge>
                           {selectedJournal.observedCountTotalLabel != null && (
