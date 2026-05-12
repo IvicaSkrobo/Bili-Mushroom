@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { getVersion } from '@tauri-apps/api/app';
 import { Toaster } from 'sonner';
 import { toast } from 'sonner';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -41,17 +42,25 @@ export default function App() {
     }
   }, [theme]);
 
+  const currentVersionRef = useRef<string>('');
+
   useEffect(() => {
     if (!('__TAURI_INTERNALS__' in window)) return;
 
     let cancelled = false;
+
+    getVersion().then((v) => { currentVersionRef.current = v; });
+
     invoke<import('@/stores/appStore').AvailableUpdate | null>('check_app_update')
       .then((update) => {
         if (cancelled || !update) return;
         setAvailableUpdate(update);
 
+        const current = currentVersionRef.current;
+        const fromLabel = current ? `v${current} → ` : '';
+
         toast('Update available', {
-          description: `Version ${update.version} is ready to install.${update.notes ? ` ${update.notes}` : ''}`,
+          description: `${fromLabel}v${update.version} is ready to install.${update.notes ? ` ${update.notes}` : ''}`,
           duration: 20000,
           action: {
             label: 'Update',
@@ -78,8 +87,9 @@ export default function App() {
           },
         });
       })
-      .catch(() => {
-        // Updater is optional for local/dev builds, so silent failure keeps startup clean.
+      .catch((err) => {
+        // Updater is optional for local/dev builds — show in console for debugging.
+        console.warn('[updater] check failed:', err);
         setAvailableUpdate(null);
       });
 

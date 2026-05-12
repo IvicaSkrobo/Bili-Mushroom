@@ -15,16 +15,32 @@ fn updater_enabled() -> bool {
 
 #[tauri::command]
 pub async fn check_app_update(app: AppHandle) -> Result<Option<AvailableUpdate>, String> {
+    let current = app.package_info().version.to_string();
+
     if !updater_enabled() {
+        println!("[updater] disabled (no pubkey env var) — current: {current}");
         return Ok(None);
     }
 
+    println!("[updater] checking for updates — current: v{current}");
+
     let update = app
         .updater()
-        .map_err(|err| format!("Failed to initialize updater: {err}"))?
+        .map_err(|err| {
+            eprintln!("[updater] init error: {err}");
+            format!("Failed to initialize updater: {err}")
+        })?
         .check()
         .await
-        .map_err(|err| format!("Failed to check for updates: {err}"))?;
+        .map_err(|err| {
+            eprintln!("[updater] check error: {err}");
+            format!("Failed to check for updates: {err}")
+        })?;
+
+    match &update {
+        Some(u) => println!("[updater] update found: v{} (notes: {:?})", u.version, u.body),
+        None => println!("[updater] no update — already on latest"),
+    }
 
     Ok(update.map(|update| AvailableUpdate {
         version: update.version.to_string(),
