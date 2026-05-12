@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import { MapContainer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import {
@@ -10,7 +10,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { useAppStore } from '@/stores/appStore';
+import { useAppStore, saveMapViewport } from '@/stores/appStore';
 import { applyLeafletIconFix } from './leafletIconFix';
 import { createRustProxyTileLayer } from './RustProxyTileLayer';
 import type { MapLayer } from '@/stores/appStore';
@@ -114,6 +114,15 @@ const prevLocationIcon = L.divIcon({
   iconAnchor: [7, 7],
 });
 
+function MapZoomTracker({ zoomRef }: { zoomRef: React.MutableRefObject<number> }) {
+  useMapEvents({
+    zoomend(e) {
+      zoomRef.current = e.target.getZoom();
+    },
+  });
+  return null;
+}
+
 export function LocationPickerMap({
   open,
   onOpenChange,
@@ -125,12 +134,14 @@ export function LocationPickerMap({
     initialLatLng ?? null,
   );
   const [pinLabel, setPinLabel] = useState<string | null>(null);
+  const currentZoomRef = useRef<number>(initialLatLng ? EXISTING_PIN_ZOOM : CROATIA_ZOOM);
 
   // Reset pin when the dialog opens (so reopening doesn't keep stale state)
   useEffect(() => {
     if (open) {
       setPin(initialLatLng ?? null);
       setPinLabel(null);
+      currentZoomRef.current = initialLatLng ? EXISTING_PIN_ZOOM : CROATIA_ZOOM;
     }
   }, [open, initialLatLng]);
 
@@ -177,6 +188,7 @@ export function LocationPickerMap({
               style={{ height: '100%', width: '100%' }}
             >
               <PickerLayerSwitcher />
+              <MapZoomTracker zoomRef={currentZoomRef} />
               <ClickHandler
                 onPick={(latlng) => { setPin({ lat: latlng.lat, lng: latlng.lng }); setPinLabel(null); }}
               />
@@ -250,7 +262,12 @@ export function LocationPickerMap({
           <Button
             disabled={!pin}
             size="sm"
-            onClick={() => pin && onConfirm(pin.lat, pin.lng, pinLabel ?? undefined)}
+            onClick={() => {
+              if (pin) {
+                saveMapViewport(pin.lat, pin.lng, currentZoomRef.current);
+                onConfirm(pin.lat, pin.lng, pinLabel ?? undefined);
+              }
+            }}
             className="shrink-0"
           >
             Potvrdi
