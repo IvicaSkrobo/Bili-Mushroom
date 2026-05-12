@@ -101,7 +101,7 @@ function ClickHandler({ onPick }: { onPick: (latlng: L.LatLng) => void }) {
 
 // Small amber circle icon for previously found locations
 const prevLocationIcon = L.divIcon({
-  className: '',
+  className: 'bili-picker-prev-icon',
   html: `<div style="
     width:14px;height:14px;
     background:#D4941A;

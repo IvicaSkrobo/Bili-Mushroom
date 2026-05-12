@@ -259,6 +259,12 @@ input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: po
   border: none !important;
 }
 
+.bili-picker-prev-icon {
+  background: transparent !important;
+  border: none !important;
+  overflow: visible !important;
+}
+
 .bili-zone-vertex {
   width: 26px;
   height: 26px;
