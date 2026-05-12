@@ -37,6 +37,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const setTheme = useAppStore((s) => s.setTheme);
   const [picking, setPicking] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [pruneConfirmOpen, setPruneConfirmOpen] = useState(false);
   const [pruning, setPruning] = useState(false);
   const [pruneResult, setPruneResult] = useState<number | null>(null);
   const [stats, setStats] = useState<TileCacheStats>({ sizeBytes: 0, tileCount: 0 });
@@ -71,6 +72,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     try {
       const removed = await invoke<number>('prune_missing_photos', { storagePath });
       setPruneResult(removed);
+      setPruneConfirmOpen(false);
     } finally {
       setPruning(false);
     }
@@ -225,22 +227,39 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
 
           <TabsContent value="advanced" className="space-y-4 pt-3">
             <div>
-              <div className="text-xs font-medium text-muted-foreground mb-1">Remove missing photos</div>
+              <div className="text-xs font-medium text-muted-foreground mb-1">Clean missing photo references</div>
               <p className="text-xs text-muted-foreground/60 mb-2">
-                Scans the database for photo entries whose files no longer exist on disk and removes them.
+                Scans the database for photo entries whose files no longer exist on disk and removes only those database references.
               </p>
               <div className="flex items-center gap-3">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={handlePruneMissing}
-                  disabled={pruning || !storagePath}
-                >
-                  {pruning ? 'Scanning…' : 'Clean up missing photos'}
-                </Button>
+                <AlertDialog open={pruneConfirmOpen} onOpenChange={setPruneConfirmOpen}>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={pruning || !storagePath}
+                    >
+                      {pruning ? 'Scanning...' : 'Clean references'}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Clean missing photo references?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will not delete photo files. It only removes database entries for files the app cannot find right now. Use it only after you have checked that the selected library folder is correct.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>{t('delete.cancel')}</AlertDialogCancel>
+                      <AlertDialogAction onClick={handlePruneMissing}>
+                        {pruning ? 'Scanning...' : 'Clean references'}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
                 {pruneResult !== null && (
                   <span className="text-xs text-muted-foreground">
-                    {pruneResult === 0 ? 'No missing photos found.' : `Removed ${pruneResult} missing photo${pruneResult === 1 ? '' : 's'}.`}
+                    {pruneResult === 0 ? 'No missing references found.' : `Removed ${pruneResult} missing reference${pruneResult === 1 ? '' : 's'}.`}
                   </span>
                 )}
               </div>

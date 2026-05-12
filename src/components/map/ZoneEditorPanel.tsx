@@ -69,14 +69,14 @@ export function ZoneEditorPanel({
 
   return (
     <DraggablePanel
-      initialPosition={{ x: 560, y: 96 }}
-      storageKey="bili-zone-editor-position"
+      initialPosition={{ x: 12, y: 130 }}
+      storageKey="bili-zone-editor-position-v2"
       className="absolute z-[1002]"
     >
       {({ dragHandleProps }) => (
-        <div className="w-[min(330px,calc(100vw-24px))] rounded-md border border-border bg-card/95 p-3 font-sans text-foreground shadow-2xl backdrop-blur">
+        <div className="w-[min(318px,calc(100vw-24px))] rounded-md border border-border bg-card/95 p-2.5 font-sans text-foreground shadow-2xl backdrop-blur">
           <div
-            className="mb-2 flex cursor-move items-center justify-between gap-2 rounded border border-border/60 bg-secondary/15 px-2 py-1"
+            className="mb-2 flex cursor-move items-center justify-between gap-2 rounded border border-border/60 bg-secondary/15 px-2 py-0.5"
             {...dragHandleProps}
           >
             <GripHorizontal className="h-4 w-4 text-muted-foreground" />
@@ -101,7 +101,7 @@ export function ZoneEditorPanel({
             style={{ background: `linear-gradient(90deg, ${accent}, transparent)` }}
           />
 
-          <div className="mb-2 min-w-0">
+          <div className="mb-1.5 min-w-0">
             <p className="font-serif text-sm font-bold italic text-foreground">
               {name || (isLocal ? 'Local zone' : 'Region zone')}
             </p>
@@ -113,14 +113,14 @@ export function ZoneEditorPanel({
           <button
             type="button"
             onClick={() => onZoomToZone(zone, zone.zone_type)}
-            className="mb-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded border px-2 text-[11px] font-semibold text-foreground hover:bg-secondary/20"
+            className="mb-1.5 inline-flex h-7 w-full items-center justify-center gap-1.5 rounded border px-2 text-[11px] font-semibold text-foreground hover:bg-secondary/20"
             style={{ borderColor: accent }}
           >
             <Crosshair className="h-3.5 w-3.5" />
             Zoom to {isLocal ? 'local zone' : 'region'}
           </button>
 
-          <div className="mb-2 rounded border border-border bg-input p-1">
+          <div className="mb-1.5 rounded border border-border bg-input p-1">
             <div className="grid grid-cols-2 gap-1">
               {(['local', 'region'] as const).map((type) => {
                 const active = zone.zone_type === type;
@@ -143,13 +143,13 @@ export function ZoneEditorPanel({
             </div>
           </div>
 
-          <div className="mb-2 grid grid-cols-3 gap-1 text-[11px] text-muted-foreground">
+          <div className="mb-1.5 grid grid-cols-3 gap-1 text-[11px] text-muted-foreground">
             <ZoneStat label="Finds" value={String(summary.finds.length)} />
             <ZoneStat label="First" value={summary.firstFound ?? '-'} />
             <ZoneStat label="Last" value={summary.lastFound ?? '-'} />
           </div>
 
-          <label className="mb-2 flex flex-col gap-1 text-[11px] text-muted-foreground">
+          <label className="mb-1.5 flex flex-col gap-1 text-[11px] text-muted-foreground">
             Name
             <input
               value={name}
@@ -159,7 +159,7 @@ export function ZoneEditorPanel({
           </label>
 
           {isPolygon ? (
-            <div className="mb-2 rounded border border-border/60 bg-secondary/15 px-2 py-2 text-[11px] text-muted-foreground">
+            <div className="mb-1.5 rounded border border-border/60 bg-secondary/15 px-2 py-1.5 text-[11px] text-muted-foreground">
               <p className="font-semibold uppercase tracking-[0.12em] text-secondary">Boundary Shape</p>
               <p className="mt-1 leading-relaxed">
                 Polygon with {polygonPoints.length} points. Edit boundary on the map.
@@ -173,7 +173,7 @@ export function ZoneEditorPanel({
               </button>
             </div>
           ) : (
-            <label className="mb-2 flex flex-col gap-1 text-[11px] text-muted-foreground">
+            <label className="mb-1.5 flex flex-col gap-1 text-[11px] text-muted-foreground">
               Radius meters
               <input
                 type="text"
@@ -186,7 +186,7 @@ export function ZoneEditorPanel({
             </label>
           )}
 
-          <label className="mb-2 flex flex-col gap-1 text-[11px] text-muted-foreground">
+          <label className="mb-1.5 flex flex-col gap-1 text-[11px] text-muted-foreground">
             Notes
             <textarea
               value={notes}

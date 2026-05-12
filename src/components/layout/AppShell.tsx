@@ -1,5 +1,5 @@
 import { Suspense, lazy, useState } from 'react';
-import { Settings as SettingsIcon, Sun, Moon } from 'lucide-react';
+import { Settings as SettingsIcon, Sun, Moon, X } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -35,33 +35,39 @@ export function AppShell() {
   const setUpdateConfirmPending = useAppStore((s) => s.setUpdateConfirmPending);
   const installingUpdate = useAppStore((s) => s.installingUpdate);
   const installStatus = useAppStore((s) => s.installStatus);
+  const setInstallStatus = useAppStore((s) => s.setInstallStatus);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [checkLabel, setCheckLabel] = useState<string | null>(null);
+  const [checkError, setCheckError] = useState<string | null>(null);
 
   async function handleCheckVersion() {
     if (!('__TAURI_INTERNALS__' in window)) return;
     if (availableUpdate) { setUpdateConfirmPending(true); return; }
     if (checkingUpdate) return;
     setCheckingUpdate(true);
-    const checkToast = toast.loading('Checking for updates…');
+    setCheckError(null);
+    setCheckLabel('Checking…');
     const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Update check timed out (15s)')), 15000),
+      setTimeout(() => reject(new Error('Timed out after 45s — if this keeps happening, open Windows Security → Virus & threat protection → allow Bili Mushroom')), 45000),
     );
     try {
       const update = await Promise.race([
         invoke<import('@/stores/appStore').AvailableUpdate | null>('check_app_update'),
         timeout,
       ]);
-      toast.dismiss(checkToast);
       if (update) {
         setAvailableUpdate(update);
         setUpdateConfirmPending(true);
+        setCheckLabel(null);
       } else {
-        toast('You\'re up to date.');
+        setCheckLabel('Up to date');
+        setTimeout(() => setCheckLabel(null), 3000);
       }
     } catch (err) {
-      toast.dismiss(checkToast);
-      toast.error(`Update check failed: ${String((err as Error)?.message ?? err)}`);
+      const msg = String((err as Error)?.message ?? err);
+      setCheckLabel(null);
+      setCheckError(msg);
     } finally {
       setCheckingUpdate(false);
     }
@@ -80,15 +86,28 @@ export function AppShell() {
             <button
               type="button"
               onClick={handleCheckVersion}
-              title={availableUpdate ? `Update available: v${availableUpdate.version} — open Settings to install` : 'Click to check for updates'}
+              title={availableUpdate ? `Update available: v${availableUpdate.version} — click to install` : 'Click to check for updates'}
               className="relative rounded-full border border-primary/25 bg-primary/8 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-foreground/80 hover:border-primary/50 hover:text-primary transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
               disabled={checkingUpdate}
             >
-              {checkingUpdate ? '…' : `v${APP_VERSION}`}
+              {`v${APP_VERSION}`}
               {availableUpdate && (
                 <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary shadow-sm" />
               )}
             </button>
+            {checkLabel && (
+              <span className="text-[10px] text-muted-foreground/70 animate-pulse">
+                {checkLabel}
+              </span>
+            )}
+            {checkError && (
+              <span className="flex items-center gap-1 rounded border border-destructive/40 bg-destructive/10 px-2 py-0.5 text-[10px] text-destructive">
+                {checkError}
+                <button type="button" onClick={() => setCheckError(null)} className="ml-0.5 opacity-60 hover:opacity-100">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1.5 rounded-full border border-border/70 bg-background/35 px-1.5 py-1">
           <Button
@@ -113,11 +132,22 @@ export function AppShell() {
         </div>
       </header>
 
-      {/* Update progress banner */}
-      {installingUpdate && installStatus && (
-        <div className="flex items-center justify-center gap-2 border-b border-primary/30 bg-primary/10 px-4 py-2 text-xs font-medium text-primary">
-          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          {installStatus}
+      {/* Update progress / error banner */}
+      {installStatus && (
+        <div className={`flex items-center justify-center gap-2 border-b px-4 py-2 text-xs font-medium ${
+          installStatus.startsWith('Update failed')
+            ? 'border-destructive/30 bg-destructive/10 text-destructive'
+            : 'border-primary/30 bg-primary/10 text-primary'
+        }`}>
+          {installingUpdate && (
+            <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          )}
+          <span className="flex-1 text-center">{installStatus}</span>
+          {!installingUpdate && (
+            <button type="button" onClick={() => setInstallStatus(null)} className="opacity-60 hover:opacity-100">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       )}
 

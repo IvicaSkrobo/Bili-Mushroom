@@ -338,8 +338,9 @@ export async function deleteFindPhoto(
   storagePath: string,
   photoId: number,
   deleteFile: boolean,
+  permanentDelete = false,
 ): Promise<Find> {
-  return invoke<Find>('delete_find_photo', { storagePath, photoId, deleteFile });
+  return invoke<Find>('delete_find_photo', { storagePath, photoId, deleteFile, permanentDelete });
 }
 
 /**
@@ -350,6 +351,7 @@ export async function bulkDeleteFindPhotos(
   storagePath: string,
   photoIds: number[],
   deleteFiles: boolean,
+  permanentDelete = false,
 ): Promise<Find> {
-  return invoke<Find>('bulk_delete_find_photos', { storagePath, photoIds, deleteFiles });
+  return invoke<Find>('bulk_delete_find_photos', { storagePath, photoIds, deleteFiles, permanentDelete });
 }

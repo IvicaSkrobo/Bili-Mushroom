@@ -62,8 +62,8 @@ export function ZoneModeControl({
 
   return (
     <DraggablePanel
-      initialPosition={{ x: 16, y: 16 }}
-      storageKey="bili-zone-toolbar-position"
+      initialPosition={{ x: 44, y: 12 }}
+      storageKey="bili-zone-toolbar-position-v2"
       className="absolute z-[1001] flex max-w-[calc(100%-2rem)] flex-col gap-2 font-sans"
     >
       {({ dragHandleProps }) => (
@@ -73,13 +73,13 @@ export function ZoneModeControl({
           type="button"
           aria-label="Show zone controls"
           onClick={() => onCollapsedChange(false)}
-          className="flex h-9 w-9 items-center justify-center rounded-md border border-primary/35 bg-card/95 text-foreground shadow-xl backdrop-blur hover:bg-secondary/20"
+          className="flex h-8 w-8 items-center justify-center rounded-md border border-primary/35 bg-card/95 text-foreground shadow-xl backdrop-blur hover:bg-secondary/20"
         >
           <Layers3 className="h-4 w-4" />
         </button>
       ) : (
         <>
-      <div className="flex w-fit max-w-full items-center gap-1 rounded-md border border-primary/35 bg-card/95 p-1 shadow-xl backdrop-blur">
+      <div className="flex w-fit max-w-full items-center gap-1 rounded-md border border-primary/35 bg-card/95 p-0.5 shadow-xl backdrop-blur">
         <span
           className="flex h-7 w-7 shrink-0 cursor-move items-center justify-center rounded bg-secondary/25 text-foreground"
           title="Drag zone controls"
@@ -94,7 +94,7 @@ export function ZoneModeControl({
               type="button"
               onClick={() => onModeChange(option.mode)}
               className={[
-                'h-7 rounded px-2 text-[11px] font-semibold transition-colors',
+                'h-7 rounded px-1.5 text-[11px] font-semibold transition-colors',
                 mode === option.mode
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-secondary/25 hover:text-foreground',

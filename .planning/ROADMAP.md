@@ -104,12 +104,14 @@ Post-phase UI work:
 **Success Criteria** (what must be TRUE):
   1. A design-token/component governance doc exists and is referenced by future UI changes
   2. Startup and tab-switching performance improves via code-splitting/lazy-loading of heavy surfaces
-  3. End-to-end tests cover first-run, import, and edit/delete→stats update critical paths
-**Plans**: 3 plans
+  3. Updates and maintenance tools preserve user photo files; manual photo deletion remains explicit, visible, and user-controlled
+  4. End-to-end tests cover first-run, import, and edit/delete→stats update critical paths
+**Plans**: 4 plans
 Plans:
 - [x] 04.1-01-PLAN.md — Design token + component variant governance (completed 2026-04-16)
 - [x] 04.1-02-PLAN.md — Bundle/perf hardening (lazy tab loading + chunk reduction) (completed 2026-04-16)
 - [x] 04.1-03-PLAN.md — Critical-path test coverage for startup + insights flow (completed 2026-04-16)
+- [x] 260512-photo-safety-update-hardening — Manual per-photo deletes expose permanent-delete checkbox; missing-photo cleanup is confirmed and DB-reference-only
 **UI hint**: yes
 
 ### Phase 04.2: Seasonal Insights & Field Hints (INSERTED)
@@ -143,6 +145,20 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 04.2 Seasonal Insights & Field Hints | 2/2 | Complete | 2026-04-16 |
 
 ## Backlog
+
+### Phase 999.0: Windows Code Signing via SignPath Foundation (BACKLOG)
+
+**Goal:** Sign the Windows installer and executable with a trusted Authenticode certificate so SmartScreen no longer prompts on install and Windows Defender does not throttle the app's network connections (auto-updater)
+**Deferred at:** 2026-05-12 — updater times out due to Defender blocking unsigned native HTTPS; signing is the proper fix
+**Requirements**: None
+**Success Criteria** (when promoted):
+  1. Installer runs without SmartScreen "Unknown publisher" prompt on a clean Windows machine
+  2. Auto-updater check completes within 5 seconds on the same machine where it previously timed out
+  3. Certificate chain shows a trusted publisher in Windows security dialogs
+**Notes**:
+  - Apply at signpath.org (free for open source projects — no personal ID required, they verify builds from the public GitHub repo)
+  - Key technical constraint: Authenticode signing must happen INSIDE `tauri build` via `bundle.windows.signCommand` so minisign (Tauri updater signature) is computed on the already-signed installer
+  - After approval: add `SIGNPATH_API_TOKEN` secret to GitHub repo, update workflow to use `signpath/github-action-submit-signing-request@v2`, configure `signCommand` in tauri.conf.json
 
 ### Phase 999.1: Species Database (BACKLOG)
 

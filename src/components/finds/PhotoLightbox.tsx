@@ -31,7 +31,7 @@ interface PhotoLightboxProps {
   onSetAsSpeciesCover?: (photo: LightboxPhoto) => void;
   isCurrentSpeciesCover?: (photo: LightboxPhoto) => boolean;
   onEditFind?: (find: Find) => void;
-  onDeletePhoto?: (photo: LightboxPhoto) => void;
+  onDeletePhoto?: (photo: LightboxPhoto, permanentDelete: boolean) => void;
   speciesProfile?: SpeciesProfile;
 }
 
@@ -52,6 +52,7 @@ export function PhotoLightbox({
   const [visible, setVisible] = useState(true);
   const [locationPickerOpen, setLocationPickerOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [permanentPhotoDelete, setPermanentPhotoDelete] = useState(true);
   const updateFind = useUpdateFind();
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -276,7 +277,7 @@ export function PhotoLightbox({
                   <button
                     type="button"
                     title={t('lightbox.deletePhoto')}
-                    onClick={() => { onDeletePhoto(current); onOpenChange(false); }}
+                    onClick={() => { onDeletePhoto(current, permanentPhotoDelete); onOpenChange(false); }}
                     className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground/60 hover:bg-rose-500/10 hover:text-rose-400 transition-colors"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -295,6 +296,18 @@ export function PhotoLightbox({
                 )}
               </div>
             </div>
+
+            {onDeletePhoto && (
+              <label className="mx-5 mb-3 inline-flex items-center gap-1.5 rounded border border-destructive/30 bg-destructive/5 px-2 py-1 text-[11px] font-medium text-destructive">
+                <input
+                  type="checkbox"
+                  checked={permanentPhotoDelete}
+                  onChange={(event) => setPermanentPhotoDelete(event.target.checked)}
+                  className="h-3.5 w-3.5 accent-current"
+                />
+                Permanently delete file
+              </label>
+            )}
 
             {/* Edibility badge */}
             <div className="px-5 pb-4">

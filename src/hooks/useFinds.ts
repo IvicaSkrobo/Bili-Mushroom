@@ -187,8 +187,8 @@ export function useDeleteFindPhoto() {
   const storagePath = useAppStore((s) => s.storagePath);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ photoId, deleteFile }: { photoId: number; deleteFile: boolean }) =>
-      deleteFindPhoto(storagePath!, photoId, deleteFile),
+    mutationFn: ({ photoId, deleteFile, permanentDelete = false }: { photoId: number; deleteFile: boolean; permanentDelete?: boolean }) =>
+      deleteFindPhoto(storagePath!, photoId, deleteFile, permanentDelete),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
     },
@@ -199,8 +199,8 @@ export function useBulkDeleteFindPhotos() {
   const storagePath = useAppStore((s) => s.storagePath);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ photoIds, deleteFiles }: { photoIds: number[]; deleteFiles: boolean }) =>
-      bulkDeleteFindPhotos(storagePath!, photoIds, deleteFiles),
+    mutationFn: ({ photoIds, deleteFiles, permanentDelete = false }: { photoIds: number[]; deleteFiles: boolean; permanentDelete?: boolean }) =>
+      bulkDeleteFindPhotos(storagePath!, photoIds, deleteFiles, permanentDelete),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
     },

@@ -118,6 +118,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   const [openingFolder, setOpeningFolder] = useState(false);
   const [folderOpenError, setFolderOpenError] = useState<string | null>(null);
   const [photosExpanded, setPhotosExpanded] = useState(false);
+  const [permanentPhotoDelete, setPermanentPhotoDelete] = useState(true);
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [form, setForm] = useState<FormState>({
@@ -142,6 +143,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     setPendingPhotos([]);
     setSelectedPhotoIds(new Set());
     setPhotosExpanded(false);
+    setPermanentPhotoDelete(true);
   }, [find]);
 
   useEffect(() => {
@@ -428,6 +430,15 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
               <div className="flex items-center justify-between gap-2">
                 <label className="text-sm font-medium">Photos ({find.photos.length})</label>
                 <div className="flex items-center gap-2">
+                  <label className="inline-flex h-7 items-center gap-1.5 rounded border border-destructive/30 bg-destructive/5 px-2 text-[11px] font-medium text-destructive">
+                    <input
+                      type="checkbox"
+                      checked={permanentPhotoDelete}
+                      onChange={(event) => setPermanentPhotoDelete(event.target.checked)}
+                      className="h-3.5 w-3.5 accent-current"
+                    />
+                    Permanently delete files
+                  </label>
                   {find.photos.length > 5 && (
                     <Button
                       type="button"
@@ -446,7 +457,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
                       size="sm"
                       onClick={() => {
                         bulkDeletePhotosMutation.mutate(
-                          { photoIds: [...selectedPhotoIds], deleteFiles: true },
+                          { photoIds: [...selectedPhotoIds], deleteFiles: true, permanentDelete: permanentPhotoDelete },
                           { onSuccess: () => setSelectedPhotoIds(new Set()) },
                         );
                       }}
@@ -495,7 +506,11 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
                             aria-label="Delete photo"
                             onClick={(e) => {
                               e.stopPropagation();
-                              deletePhotoMutation.mutate({ photoId: photo.id, deleteFile: true });
+                              deletePhotoMutation.mutate({
+                                photoId: photo.id,
+                                deleteFile: true,
+                                permanentDelete: permanentPhotoDelete,
+                              });
                             }}
                             className="absolute top-1 right-1 hidden h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-rose-600 group-hover:flex"
                           >

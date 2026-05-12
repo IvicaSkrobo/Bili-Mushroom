@@ -96,8 +96,10 @@ export default function App() {
         setAvailableUpdate(null);
       }
     } catch (error) {
-      setInstallStatus(null);
-      toast.error(`Update failed: ${String(error)}`);
+      const msg = String((error as Error)?.message ?? error);
+      console.error('[updater] install failed:', msg);
+      setInstallStatus(`Update failed: ${msg}`);
+      // no auto-dismiss — user must click ✕ on the banner
     } finally {
       setInstallingUpdate(false);
     }
@@ -132,8 +134,8 @@ export default function App() {
         });
       })
       .catch((err) => {
-        console.warn('[updater] check failed:', err);
-        toast.error(`Update check failed: ${err}`);
+        const msg = String((err as Error)?.message ?? err);
+        console.error('[updater] startup check failed:', msg);
         setAvailableUpdate(null);
       });
 

@@ -106,6 +106,7 @@ Recent decisions affecting current work:
 - [ ] Rework query/list strategy for large libraries (5k+ photos): lighter query shapes, targeted cache updates, and/or virtualization where needed
 - [ ] Implement species-specific map zones: local circle zones first, polygon-ready region zones next, with map view modes for pins/local/region/all
 - [ ] Add manual "Check for updates" action plus low-noise background update re-check every few hours
+- [ ] Add non-mutating photo library health check: report missing files/references before any cleanup action
 - [x] Stabilize PDF export path — keep `@react-pdf/renderer`, add smoke-test diagnostics, and fall back to main-thread rendering when the worker stalls in Tauri
 - [x] Redesign PDF journal pacing/content — interleave stats pages with highlight spreads and photo ribbons, convert the trailing page into a species list, and align labels with photo-count semantics
 - [x] Add favorites support for finds — migration + backend command + collection UI toggle/filter + tests
@@ -162,6 +163,7 @@ Recent decisions affecting current work:
 | 260512-species-editor-ux | 2026-05-12 | SpeciesNameEditor: label prop renders inside toolbar row (eliminates wasted label row); B/N button pair always visible; Slack-style active state tracks cursor position + selection (resets on blur); button handlers read DOM state fresh (no stale React state); double-click word → instant format toggle; Ctrl+B/Ctrl+I shortcuts. Map pin labels: rawToLabelHtml renders genus at weight 800 and epithet at weight 400 for clear visual split. |
 | 260512-import-create-dialog-ux | 2026-05-12 | ImportDialog: status badges (edibility/threat/distribution) shown only when species is new (not in finds or profiles); saved to species profile on import. Label moved inside SpeciesNameEditor toolbar. MapPin button inline with species field in ImportDialog + CreateFindDialog. CreateFindDialog: location card removed, MapPin inline with species; speciesFilter passed to LocationPickerMap (known species → own pins only, new → all pins). FolderEditDialog: edibility note textarea always visible. Migrations 0014 (find edibility_note), 0015 (species_profile edibility_note), 0016 (species_profile threat/distribution). |
 | 260512-1yg settings-dialog-tabbed-ux-v0125 | 2026-05-12 | SettingsDialog redesigned from single tall scroll to compact 3-tab layout (Općenito/Mapa/Napredno); 12 new i18n keys; version bumped to 0.1.25 across package.json + tauri.conf.json + Cargo.toml; tagged v0.1.25. |
+| 260512-photo-safety-update-hardening | 2026-05-12 | Photo safety pass after missing-photo concern: per-photo and bulk per-photo deletes now expose a visible permanent-delete checkbox (default on) with Recycle Bin fallback when unchecked; Settings cleanup is confirmed and described as missing DB-reference cleanup only; zone toolbar/editor default positions reset compactly away from Leaflet zoom controls. |
 
 ### Roadmap Evolution
 

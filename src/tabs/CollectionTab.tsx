@@ -771,7 +771,9 @@ export default function CollectionTab() {
         onIndexChange={setLightboxIndex}
         storagePath={storagePath!}
         onEditFind={(find) => setEditing(find)}
-        onDeletePhoto={(lbp) => deletePhotoMutation.mutate({ photoId: lbp.photo.id, deleteFile: true })}
+        onDeletePhoto={(lbp, permanentDelete) =>
+          deletePhotoMutation.mutate({ photoId: lbp.photo.id, deleteFile: true, permanentDelete })
+        }
         onSetAsSpeciesCover={handleSetSpeciesCover}
         isCurrentSpeciesCover={(entry) => {
           const speciesName = lightboxSpeciesName ?? entry.find.species_name;

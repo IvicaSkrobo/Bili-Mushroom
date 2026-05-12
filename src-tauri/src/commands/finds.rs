@@ -757,6 +757,7 @@ pub async fn delete_find_photo(
     storage_path: String,
     photo_id: i64,
     delete_file: bool,
+    permanent_delete: Option<bool>,
 ) -> Result<FindRecord, String> {
     let conn = open_db(&storage_path)?;
 
@@ -769,13 +770,19 @@ pub async fn delete_find_photo(
         )
         .map_err(|_| "photo not found".to_string())?;
 
-    // 2. Optionally delete the file from disk
+    // 2. Optionally remove the file from disk. The UI exposes this as an
+    // explicit checkbox so users can see whether deletion is permanent.
     if delete_file {
         let abs_path = format!("{}/{}", storage_path, photo_path);
-        if let Err(e) = std::fs::remove_file(&abs_path) {
-            // Ignore "not found" errors — file may already be gone
-            if e.kind() != std::io::ErrorKind::NotFound {
-                eprintln!("remove_file failed for {}: {}", abs_path, e);
+        if std::path::Path::new(&abs_path).exists() {
+            if permanent_delete.unwrap_or(false) {
+                if let Err(e) = std::fs::remove_file(&abs_path) {
+                    if e.kind() != std::io::ErrorKind::NotFound {
+                        eprintln!("remove_file failed for {}: {}", abs_path, e);
+                    }
+                }
+            } else if let Err(e) = trash::delete(&abs_path) {
+                eprintln!("trash::delete failed for {}: {}", abs_path, e);
             }
         }
     }
@@ -842,6 +849,7 @@ pub async fn bulk_delete_find_photos(
     storage_path: String,
     photo_ids: Vec<i64>,
     delete_files: bool,
+    permanent_delete: Option<bool>,
 ) -> Result<FindRecord, String> {
     if photo_ids.is_empty() {
         return Err("no photo_ids provided".into());
@@ -875,9 +883,15 @@ pub async fn bulk_delete_find_photos(
             }
             if delete_files {
                 let abs_path = format!("{}/{}", storage_path, photo_path);
-                if let Err(e) = std::fs::remove_file(&abs_path) {
-                    if e.kind() != std::io::ErrorKind::NotFound {
-                        eprintln!("remove_file failed for {}: {}", abs_path, e);
+                if std::path::Path::new(&abs_path).exists() {
+                    if permanent_delete.unwrap_or(false) {
+                        if let Err(e) = std::fs::remove_file(&abs_path) {
+                            if e.kind() != std::io::ErrorKind::NotFound {
+                                eprintln!("remove_file failed for {}: {}", abs_path, e);
+                            }
+                        }
+                    } else if let Err(e) = trash::delete(&abs_path) {
+                        eprintln!("trash::delete failed for {}: {}", abs_path, e);
                     }
                 }
             }
