@@ -33,6 +33,8 @@ export function AppShell() {
   const availableUpdate = useAppStore((s) => s.availableUpdate);
   const setAvailableUpdate = useAppStore((s) => s.setAvailableUpdate);
   const setUpdateConfirmPending = useAppStore((s) => s.setUpdateConfirmPending);
+  const installingUpdate = useAppStore((s) => s.installingUpdate);
+  const installStatus = useAppStore((s) => s.installStatus);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
 
@@ -41,15 +43,19 @@ export function AppShell() {
     if (availableUpdate) { setUpdateConfirmPending(true); return; }
     if (checkingUpdate) return;
     setCheckingUpdate(true);
+    const checkToast = toast.loading('Checking for updates…');
     try {
       const update = await invoke<import('@/stores/appStore').AvailableUpdate | null>('check_app_update');
+      toast.dismiss(checkToast);
       if (update) {
         setAvailableUpdate(update);
+        setUpdateConfirmPending(true);
       } else {
         toast('You\'re up to date.');
       }
     } catch (err) {
-      toast.error(String((err as Error)?.message ?? err));
+      toast.dismiss(checkToast);
+      toast.error(`Update check failed: ${String((err as Error)?.message ?? err)}`);
     } finally {
       setCheckingUpdate(false);
     }
@@ -100,6 +106,14 @@ export function AppShell() {
           </div>
         </div>
       </header>
+
+      {/* Update progress banner */}
+      {installingUpdate && installStatus && (
+        <div className="flex items-center justify-center gap-2 border-b border-primary/30 bg-primary/10 px-4 py-2 text-xs font-medium text-primary">
+          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          {installStatus}
+        </div>
+      )}
 
       {/* Tabs */}
       <Tabs

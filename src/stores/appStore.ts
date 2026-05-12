@@ -24,6 +24,7 @@ export interface AppState {
   selectedCollectionSpecies: string | null;
   availableUpdate: AvailableUpdate | null;
   installingUpdate: boolean;
+  installStatus: string | null;
   updateConfirmPending: boolean;
   setActiveTab: (tab: Tab) => void;
   setStoragePath: (path: string | null) => void;
@@ -37,6 +38,7 @@ export interface AppState {
   setSelectedCollectionSpecies: (species: string | null) => void;
   setAvailableUpdate: (update: AvailableUpdate | null) => void;
   setInstallingUpdate: (installing: boolean) => void;
+  setInstallStatus: (status: string | null) => void;
   setUpdateConfirmPending: (v: boolean) => void;
 }
 
@@ -106,6 +108,7 @@ export const useAppStore = create<AppState>((set) => ({
   selectedCollectionSpecies: null,
   availableUpdate: null,
   installingUpdate: false,
+  installStatus: null,
   updateConfirmPending: false,
   setActiveTab: (activeTab) => set({ activeTab }),
   setStoragePath: (storagePath) => set({ storagePath }),
@@ -116,6 +119,7 @@ export const useAppStore = create<AppState>((set) => ({
   setSelectedCollectionSpecies: (selectedCollectionSpecies) => set({ selectedCollectionSpecies }),
   setAvailableUpdate: (availableUpdate) => set({ availableUpdate }),
   setInstallingUpdate: (installingUpdate) => set({ installingUpdate }),
+  setInstallStatus: (installStatus) => set({ installStatus }),
   setUpdateConfirmPending: (updateConfirmPending) => set({ updateConfirmPending }),
   setLanguage: (language) => {
     try { localStorage.setItem('bili_lang', language); } catch { /* ignore */ }

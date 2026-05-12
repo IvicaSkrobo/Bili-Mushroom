@@ -43,6 +43,7 @@ export default function App() {
   const setPendingScan = useAppStore((s) => s.setPendingScan);
   const setAvailableUpdate = useAppStore((s) => s.setAvailableUpdate);
   const setInstallingUpdate = useAppStore((s) => s.setInstallingUpdate);
+  const setInstallStatus = useAppStore((s) => s.setInstallStatus);
   const availableUpdate = useAppStore((s) => s.availableUpdate);
   const updateConfirmPending = useAppStore((s) => s.updateConfirmPending);
   const setUpdateConfirmPending = useAppStore((s) => s.setUpdateConfirmPending);
@@ -67,33 +68,36 @@ export default function App() {
 
   async function runInstallUpdate() {
     setInstallingUpdate(true);
-    const progressToast = toast.loading('Downloading update… 0%');
+    setInstallStatus('Checking for update…');
     try {
       const { listen } = await import('@tauri-apps/api/event');
       const unlisten = await listen<{ downloaded: number; total: number | null; status: string }>(
         'update-progress',
         ({ payload }) => {
           if (payload.status === 'installing') {
-            toast.loading('Installing update…', { id: progressToast });
+            setInstallStatus('Installing… do not close the app');
           } else if (payload.total) {
             const pct = Math.round((payload.downloaded / payload.total) * 100);
-            toast.loading(`Downloading update… ${pct}%`, { id: progressToast });
+            setInstallStatus(`Downloading update… ${pct}%`);
+          } else {
+            setInstallStatus('Downloading update…');
           }
         },
       );
       const installed = await invoke<boolean>('install_app_update');
       unlisten();
-      toast.dismiss(progressToast);
       if (installed) {
+        setInstallStatus('Update installed — restarting…');
         setAvailableUpdate(null);
         toast.success('Update installed. The app will restart.');
       } else {
+        setInstallStatus(null);
         toast('No newer update found.');
         setAvailableUpdate(null);
       }
     } catch (error) {
-      toast.dismiss(progressToast);
-      toast.error(String(error));
+      setInstallStatus(null);
+      toast.error(`Update failed: ${String(error)}`);
     } finally {
       setInstallingUpdate(false);
     }
