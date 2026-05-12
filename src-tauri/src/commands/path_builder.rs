@@ -56,7 +56,7 @@ pub fn build_dest_path(
     seq: u32,
     ext: &str,
 ) -> PathBuf {
-    let species_folder = resolve_location_component(species, "unknown_species");
+    let species_folder = resolve_location_component(&plain_species_name(species), "unknown_species");
     let loc = sanitize_path_component(location_label)
         .replace(' ', "_");
     let filename = if loc.is_empty() {
@@ -69,6 +69,13 @@ pub fn build_dest_path(
     path.push(&species_folder);
     path.push(&filename);
     path
+}
+
+/// Strip the `*text*` italic-marker format used by SpeciesNameEditor before
+/// using a species name as a filesystem path component.
+/// "Boletus *edulis*" → "Boletus edulis"
+pub fn plain_species_name(name: &str) -> String {
+    name.replace('*', "")
 }
 
 /// Returns the next sequence number for files in a folder.
@@ -217,5 +224,28 @@ mod tests {
         std::fs::write(dir.path().join("file1.jpg"), b"a").unwrap();
         std::fs::write(dir.path().join("file2.jpg"), b"b").unwrap();
         assert_eq!(next_seq_for_folder(dir.path()), 3);
+    }
+
+    #[test]
+    fn test_build_dest_path_formatted_species_strips_markers() {
+        let result = build_dest_path(
+            "/root",
+            "Boletus *edulis*",
+            "2024-05-10",
+            "",
+            1,
+            ".jpg",
+        );
+        let path_str = result.to_string_lossy();
+        assert!(
+            path_str.contains("Boletus edulis"),
+            "Expected 'Boletus edulis' folder (markers stripped), got: {}",
+            path_str
+        );
+        assert!(
+            !path_str.contains('*') && !path_str.contains('_'),
+            "Expected no asterisks or underscores from markers, got: {}",
+            path_str
+        );
     }
 }

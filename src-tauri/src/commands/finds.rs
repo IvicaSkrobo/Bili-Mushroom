@@ -4,7 +4,7 @@ use std::process::Command;
 use std::path::{Path, PathBuf};
 
 use crate::commands::import::{open_db, insert_find_photo, insert_find_row, find_record_from_row, FindPhoto, FindRecord};
-use crate::commands::path_builder::{build_dest_path, next_seq_for_folder, resolve_location_component};
+use crate::commands::path_builder::{build_dest_path, next_seq_for_folder, resolve_location_component, plain_species_name};
 
 // ---------------------------------------------------------------------------
 // create_find
@@ -463,7 +463,7 @@ pub async fn bulk_rename_species(
         photo_rows.extend(rows);
     }
 
-    let target_folder = Path::new(&storage_path).join(resolve_location_component(&new_species_name, "unknown_species"));
+    let target_folder = Path::new(&storage_path).join(resolve_location_component(&plain_species_name(&new_species_name), "unknown_species"));
     std::fs::create_dir_all(&target_folder)
         .map_err(|e| format!("Failed to create target folder '{}': {}", target_folder.display(), e))?;
 
@@ -475,19 +475,22 @@ pub async fn bulk_rename_species(
         let mut target_abs = target_folder.join(filename);
 
         if source_abs != target_abs {
-            target_abs = unique_destination_path(&target_abs);
-            std::fs::create_dir_all(
-                target_abs
-                    .parent()
-                    .ok_or_else(|| format!("Target path has no parent: {}", target_abs.display()))?,
-            )
-            .map_err(|e| format!("Failed to prepare target folder for '{}': {}", target_abs.display(), e))?;
-            std::fs::rename(&source_abs, &target_abs)
-                .or_else(|_| {
-                    std::fs::copy(&source_abs, &target_abs)?;
-                    std::fs::remove_file(&source_abs)
-                })
-                .map_err(|e| format!("Failed to move '{}' to '{}': {}", source_abs.display(), target_abs.display(), e))?;
+            if source_abs.exists() {
+                target_abs = unique_destination_path(&target_abs);
+                std::fs::create_dir_all(
+                    target_abs
+                        .parent()
+                        .ok_or_else(|| format!("Target path has no parent: {}", target_abs.display()))?,
+                )
+                .map_err(|e| format!("Failed to prepare target folder for '{}': {}", target_abs.display(), e))?;
+                std::fs::rename(&source_abs, &target_abs)
+                    .or_else(|_| {
+                        std::fs::copy(&source_abs, &target_abs)?;
+                        std::fs::remove_file(&source_abs)
+                    })
+                    .map_err(|e| format!("Failed to move '{}' to '{}': {}", source_abs.display(), target_abs.display(), e))?;
+            }
+            // Update DB path regardless — heals stale paths from partial earlier renames
         }
 
         let relative = target_abs
@@ -530,7 +533,7 @@ pub async fn bulk_rename_species(
     tx.commit().map_err(|e| e.to_string())?;
 
     for old_species_name in &old_species_names {
-        let old_folder = Path::new(&storage_path).join(resolve_location_component(&old_species_name, "unknown_species"));
+        let old_folder = Path::new(&storage_path).join(resolve_location_component(&plain_species_name(&old_species_name), "unknown_species"));
         remove_empty_dir_if_possible(&old_folder);
     }
 
