@@ -688,7 +688,8 @@ export default function CollectionTab() {
                           {isExpanded && f.photos.length > 0 && (
                             <div className="grid grid-cols-8 gap-1 border-t border-border/30 px-3 pb-3 pt-2 sm:grid-cols-10">
                               {f.photos.map((photo, photoIdx) => (
-                                <div key={photo.id} className="group relative aspect-square overflow-hidden rounded-sm bg-muted">
+                                <div key={photo.id} className="group relative aspect-square overflow-hidden rounded-sm bg-muted flex items-center justify-center">
+                                  <GalleryHorizontal className="h-4 w-4 text-muted-foreground/20 pointer-events-none" />
                                   <button
                                     type="button"
                                     className="absolute inset-0 w-full h-full"

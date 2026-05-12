@@ -53,16 +53,18 @@ export function PhotoLightbox({
   const [locationPickerOpen, setLocationPickerOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [permanentPhotoDelete, setPermanentPhotoDelete] = useState(true);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const updateFind = useUpdateFind();
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const dragActive = useRef(false);
   const dragStart = useRef({ mx: 0, my: 0, px: 0, py: 0 });
 
-  // Reset zoom/pan when photo changes
+  // Reset zoom/pan and delete confirmation when photo changes
   useEffect(() => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
+    setConfirmingDelete(false);
   }, [currentIndex]);
 
   const handleWheel = (e: React.WheelEvent) => {
@@ -266,36 +268,61 @@ export function PhotoLightbox({
 
               {/* Small action icons — top-right corner */}
               <div className="flex items-center gap-0.5 flex-shrink-0 mt-0.5">
-                {onEditFind && (
-                  <button
-                    type="button"
-                    title={t('edit.title')}
-                    onClick={() => { onEditFind(current.find); onOpenChange(false); }}
-                    className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground/60 hover:bg-primary/10 hover:text-primary transition-colors"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                )}
-                {onDeletePhoto && (
-                  <button
-                    type="button"
-                    title={t('lightbox.deletePhoto')}
-                    onClick={() => { onDeletePhoto(current, permanentPhotoDelete); onOpenChange(false); }}
-                    className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground/60 hover:bg-rose-500/10 hover:text-rose-400 transition-colors"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                )}
-                {onSetAsSpeciesCover && (
-                  <button
-                    type="button"
-                    title={isSpeciesCover ? t('collection.currentRepresentativePhoto') : t('collection.setRepresentativePhoto')}
-                    onClick={() => !isSpeciesCover && onSetAsSpeciesCover(current)}
-                    disabled={isSpeciesCover}
-                    className={`flex h-7 w-7 items-center justify-center rounded transition-colors ${isSpeciesCover ? 'text-primary/80 cursor-default' : 'text-muted-foreground/60 hover:bg-primary/10 hover:text-primary'}`}
-                  >
-                    {isSpeciesCover ? <Check className="h-3.5 w-3.5" /> : <Image className="h-3.5 w-3.5" />}
-                  </button>
+                {confirmingDelete ? (
+                  /* Inline delete confirmation */
+                  <div className="flex items-center gap-1 rounded border border-rose-500/30 bg-rose-500/8 px-2 py-0.5">
+                    <span className="text-[11px] font-medium text-rose-400/80 pr-1">
+                      {t('lightbox.deletePhoto')}?
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingDelete(false)}
+                      className="text-[11px] font-medium text-muted-foreground/60 hover:text-foreground transition-colors px-1"
+                    >
+                      {t('common.cancel') ?? 'Odustani'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { onDeletePhoto!(current, permanentPhotoDelete); onOpenChange(false); }}
+                      className="text-[11px] font-semibold text-rose-400 hover:text-rose-300 transition-colors px-1"
+                    >
+                      {t('common.delete') ?? 'Obriši'}
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {onEditFind && (
+                      <button
+                        type="button"
+                        title={t('edit.title')}
+                        onClick={() => { onEditFind(current.find); onOpenChange(false); }}
+                        className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground/60 hover:bg-primary/10 hover:text-primary transition-colors"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {onSetAsSpeciesCover && (
+                      <button
+                        type="button"
+                        title={isSpeciesCover ? t('collection.currentRepresentativePhoto') : t('collection.setRepresentativePhoto')}
+                        onClick={() => !isSpeciesCover && onSetAsSpeciesCover(current)}
+                        disabled={isSpeciesCover}
+                        className={`flex h-7 w-7 items-center justify-center rounded transition-colors ${isSpeciesCover ? 'text-primary/80 cursor-default' : 'text-muted-foreground/60 hover:bg-primary/10 hover:text-primary'}`}
+                      >
+                        {isSpeciesCover ? <Check className="h-3.5 w-3.5" /> : <Image className="h-3.5 w-3.5" />}
+                      </button>
+                    )}
+                    {onDeletePhoto && (
+                      <button
+                        type="button"
+                        title={t('lightbox.deletePhoto')}
+                        onClick={() => setConfirmingDelete(true)}
+                        className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground/60 hover:bg-rose-500/10 hover:text-rose-400 transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>
