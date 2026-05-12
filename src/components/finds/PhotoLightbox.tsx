@@ -130,15 +130,18 @@ export function PhotoLightbox({
   useEffect(() => {
     if (!open) return;
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') prev();
-      else if (e.key === 'ArrowRight') next();
-      else if (e.key === 'f' || e.key === 'F') setIsFullscreen((v) => !v);
+      if (e.key === 'ArrowLeft' && currentIndex > 0) {
+        onIndexChange(currentIndex - 1);
+      } else if (e.key === 'ArrowRight' && currentIndex < photos.length - 1) {
+        onIndexChange(currentIndex + 1);
+      } else if (e.key === 'f' || e.key === 'F') {
+        setIsFullscreen((v) => !v);
+      }
       // Esc is handled natively by Radix Dialog
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, currentIndex, photos.length]);
+  }, [open, currentIndex, photos.length, onIndexChange]);
 
   if (!current) return null;
 

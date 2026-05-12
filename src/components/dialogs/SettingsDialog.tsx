@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { FINDS_QUERY_KEY } from '@/lib/finds';
 import { Info } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
@@ -26,6 +28,7 @@ export interface SettingsDialogProps {
 
 export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const t = useT();
+  const qc = useQueryClient();
   const storagePath = useAppStore((s) => s.storagePath);
   const setStoragePath = useAppStore((s) => s.setStoragePath);
   const setDbReady = useAppStore((s) => s.setDbReady);
@@ -73,6 +76,9 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
       const removed = await invoke<number>('prune_missing_photos', { storagePath });
       setPruneResult(removed);
       setPruneConfirmOpen(false);
+      if (removed > 0) {
+        qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
+      }
     } finally {
       setPruning(false);
     }

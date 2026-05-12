@@ -89,22 +89,11 @@ export default function CollectionTab() {
       }
     }
     // Find the global index matching the clicked find + photoIndex (in deduplicated list)
-    let globalIndex = 0;
-    let counted = 0;
-    for (const f of speciesFinds) {
-      const seen2 = new Set<string>();
-      for (let pi = 0; pi < f.photos.length; pi++) {
-        const p = f.photos[pi];
-        const ext = p.photo_path.slice(p.photo_path.lastIndexOf('.')).toLowerCase();
-        if (!SUPPORTED_EXTENSIONS.includes(ext as (typeof SUPPORTED_EXTENSIONS)[number])) continue;
-        if (seen2.has(p.photo_path)) continue;
-        seen2.add(p.photo_path);
-        if (f.id === findId && pi === photoIndex) {
-          globalIndex = counted;
-        }
-        counted++;
-      }
-    }
+    const targetPhoto = speciesFinds.find((f) => f.id === findId)?.photos[photoIndex];
+    const foundIndex = flat.findIndex(
+      (entry) => entry.find.id === findId && entry.photo === targetPhoto,
+    );
+    const globalIndex = foundIndex >= 0 ? foundIndex : 0;
     setLightboxPhotos(flat);
     setLightboxIndex(globalIndex);
     setLightboxSpeciesName(speciesFinds[0]?.species_name ?? null);
@@ -771,9 +760,12 @@ export default function CollectionTab() {
         onIndexChange={setLightboxIndex}
         storagePath={storagePath!}
         onEditFind={(find) => setEditing(find)}
-        onDeletePhoto={(lbp, permanentDelete) =>
-          deletePhotoMutation.mutate({ photoId: lbp.photo.id, deleteFile: true, permanentDelete })
-        }
+        onDeletePhoto={(lbp, permanentDelete) => {
+          deletePhotoMutation.mutate(
+            { photoId: lbp.photo.id, deleteFile: true, permanentDelete },
+            { onSuccess: () => setLightboxPhotos((prev) => prev.filter((p) => p.photo.id !== lbp.photo.id)) },
+          );
+        }}
         onSetAsSpeciesCover={handleSetSpeciesCover}
         isCurrentSpeciesCover={(entry) => {
           const speciesName = lightboxSpeciesName ?? entry.find.species_name;

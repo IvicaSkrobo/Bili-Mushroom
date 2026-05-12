@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { SpeciesNameEditor } from './SpeciesNameEditor';
 import { LocationNoteInput } from './LocationNoteInput';
 import { readDir } from '@tauri-apps/plugin-fs';
@@ -119,6 +119,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   const [folderOpenError, setFolderOpenError] = useState<string | null>(null);
   const [photosExpanded, setPhotosExpanded] = useState(false);
   const [permanentPhotoDelete, setPermanentPhotoDelete] = useState(true);
+  const prevFindIdRef = useRef<number | null>(null);
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [form, setForm] = useState<FormState>({
@@ -139,11 +140,16 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   );
 
   useEffect(() => {
-    if (find) setForm(findToFormState(find));
+    if (find) {
+      setForm(findToFormState(find));
+      if (find.id !== prevFindIdRef.current) {
+        setPermanentPhotoDelete(true);
+        prevFindIdRef.current = find.id;
+      }
+    }
     setPendingPhotos([]);
     setSelectedPhotoIds(new Set());
     setPhotosExpanded(false);
-    setPermanentPhotoDelete(true);
   }, [find]);
 
   useEffect(() => {

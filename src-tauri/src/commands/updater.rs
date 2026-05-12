@@ -49,6 +49,13 @@ pub async fn check_app_update(app: AppHandle) -> Result<Option<AvailableUpdate>,
 
 #[tauri::command]
 pub async fn install_app_update(app: AppHandle) -> Result<bool, String> {
+    // NOTE: This function re-runs check() rather than reusing the Update object from
+    // check_app_update. This is an architectural constraint: the Tauri `Update` type is
+    // not `Send`, so it cannot be cached across IPC call boundaries or stored in shared
+    // state. The trade-off is an extra network round-trip and a small race window between
+    // the version shown in the UI and the version actually installed. A future mitigation
+    // would be to combine check + download + install into a single command invoked directly
+    // from the "Update" confirmation button.
     let Some(update) = app
         .updater()
         .map_err(|err| format!("Failed to initialize updater: {err}"))?

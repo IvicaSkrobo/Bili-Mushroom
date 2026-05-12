@@ -142,7 +142,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [setAvailableUpdate, setInstallingUpdate]);
+  }, [setAvailableUpdate]);
 
   // Load persisted path on mount
   useEffect(() => {

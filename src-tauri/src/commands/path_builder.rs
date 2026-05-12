@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 /// and trim outer whitespace/underscores while preserving user-entered spaces.
 pub fn sanitize_path_component(s: &str) -> String {
     let trimmed = s.trim();
-    let replaced: String = s
+    let replaced: String = trimmed
         .chars()
         .map(|c| match c {
             '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',

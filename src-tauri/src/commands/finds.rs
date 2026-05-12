@@ -221,7 +221,8 @@ pub async fn move_find_files(
         if std::fs::rename(&abs_src, &abs_dest).is_err() {
             std::fs::copy(&abs_src, &abs_dest)
                 .map_err(|e| format!("Failed to copy '{}': {}", abs_src, e))?;
-            let _ = std::fs::remove_file(&abs_src);
+            std::fs::remove_file(&abs_src)
+                .map_err(|e| format!("Copied '{}' but could not remove source: {}", abs_src, e))?;
         }
     }
 
@@ -774,16 +775,14 @@ pub async fn delete_find_photo(
     // explicit checkbox so users can see whether deletion is permanent.
     if delete_file {
         let abs_path = format!("{}/{}", storage_path, photo_path);
-        if std::path::Path::new(&abs_path).exists() {
-            if permanent_delete.unwrap_or(false) {
-                if let Err(e) = std::fs::remove_file(&abs_path) {
-                    if e.kind() != std::io::ErrorKind::NotFound {
-                        eprintln!("remove_file failed for {}: {}", abs_path, e);
-                    }
+        if permanent_delete.unwrap_or(false) {
+            if let Err(e) = std::fs::remove_file(&abs_path) {
+                if e.kind() != std::io::ErrorKind::NotFound {
+                    eprintln!("remove_file failed for {}: {}", abs_path, e);
                 }
-            } else if let Err(e) = trash::delete(&abs_path) {
-                eprintln!("trash::delete failed for {}: {}", abs_path, e);
             }
+        } else if let Err(e) = trash::delete(&abs_path) {
+            eprintln!("trash::delete failed for {}: {}", abs_path, e);
         }
     }
 
@@ -866,6 +865,23 @@ pub async fn bulk_delete_find_photos(
         )
         .map_err(|_| "photo not found".to_string())?;
 
+    // Validate: all photo_ids must belong to the same find
+    for &photo_id in &photo_ids[1..] {
+        let other_find_id: i64 = conn
+            .query_row(
+                "SELECT find_id FROM find_photos WHERE id = ?1",
+                params![photo_id],
+                |row| row.get(0),
+            )
+            .map_err(|_| format!("photo {} not found", photo_id))?;
+        if other_find_id != find_id {
+            return Err(format!(
+                "photo {} belongs to find {} but expected find {}",
+                photo_id, other_find_id, find_id
+            ));
+        }
+    }
+
     let mut any_primary_deleted = false;
 
     for &photo_id in &photo_ids {
@@ -883,16 +899,14 @@ pub async fn bulk_delete_find_photos(
             }
             if delete_files {
                 let abs_path = format!("{}/{}", storage_path, photo_path);
-                if std::path::Path::new(&abs_path).exists() {
-                    if permanent_delete.unwrap_or(false) {
-                        if let Err(e) = std::fs::remove_file(&abs_path) {
-                            if e.kind() != std::io::ErrorKind::NotFound {
-                                eprintln!("remove_file failed for {}: {}", abs_path, e);
-                            }
+                if permanent_delete.unwrap_or(false) {
+                    if let Err(e) = std::fs::remove_file(&abs_path) {
+                        if e.kind() != std::io::ErrorKind::NotFound {
+                            eprintln!("remove_file failed for {}: {}", abs_path, e);
                         }
-                    } else if let Err(e) = trash::delete(&abs_path) {
-                        eprintln!("trash::delete failed for {}: {}", abs_path, e);
                     }
+                } else if let Err(e) = trash::delete(&abs_path) {
+                    eprintln!("trash::delete failed for {}: {}", abs_path, e);
                 }
             }
             conn.execute("DELETE FROM find_photos WHERE id = ?1", params![photo_id])
