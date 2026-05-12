@@ -351,7 +351,6 @@ export default function SpeciesTab() {
   const [search, setSearch] = useState('');
   const [selectedSpecies, setSelectedSpecies] = useState<string | null>(null);
   const [coverPickerOpen, setCoverPickerOpen] = useState(false);
-  const [tagInput, setTagInput] = useState('');
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
 
@@ -407,13 +406,20 @@ export default function SpeciesTab() {
   const [distributionInput, setDistributionInput] = useState(selectedProfile?.distribution ?? 'unknown');
 
   useEffect(() => {
-    setTagInput('');
     setEdibilityNoteInput(selectedProfile?.edibility_note ?? '');
     setEdibilityInput(selectedProfile?.edibility ?? 'unknown');
     setThreatStatusInput(selectedProfile?.threat_status ?? 'unknown');
     setDistributionInput(selectedProfile?.distribution ?? 'unknown');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedJournal?.speciesName]);
+
+  // Radix Dialog sometimes leaves overflow:hidden on body after close in Tauri WebView
+  useEffect(() => {
+    if (!coverPickerOpen) {
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+    }
+  }, [coverPickerOpen]);
 
   const InfoHint = ({ text }: { text: string }) => (
     <span
@@ -436,25 +442,6 @@ export default function SpeciesTab() {
       edibilityNote: existingProfile?.edibility_note ?? null,
     });
     setCoverPickerOpen(false);
-  };
-
-  const handleAddTag = () => {
-    if (!selectedJournal) return;
-    const nextTags = normalizeTags([...selectedTags, tagInput]);
-    if (nextTags.length === selectedTags.length) {
-      setTagInput('');
-      return;
-    }
-    upsertSpeciesProfile.mutate({
-      speciesName: selectedJournal.speciesName,
-      coverPhotoId: selectedJournal.heroPhotoId,
-      tags: nextTags,
-      edibility: edibilityInput === 'unknown' ? null : edibilityInput,
-      threatStatus: threatStatusInput === 'unknown' ? null : threatStatusInput,
-      distribution: distributionInput === 'unknown' ? null : distributionInput,
-      edibilityNote: edibilityNoteInput.trim() || null,
-    });
-    setTagInput('');
   };
 
   const handleRemoveTag = (tagToRemove: string) => {
@@ -679,51 +666,6 @@ export default function SpeciesTab() {
                 </Card>
 
                 <div className="space-y-6">
-                  <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    <Card className="gap-0 py-4">
-                      <CardContent className="space-y-1 px-5">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                          <span className="inline-flex items-center gap-1.5">
-                            <span>{t('species.recordedFinds')}</span>
-                            <InfoHint text={t('species.recordedFindsHelp')} />
-                          </span>
-                        </p>
-                        <p className="text-2xl font-semibold text-foreground">{selectedJournal.recordedFinds}</p>
-                      </CardContent>
-                    </Card>
-                    <Card className="gap-0 py-4">
-                      <CardContent className="space-y-1 px-5">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                          <span className="inline-flex items-center gap-1.5">
-                            <span>{t('species.observedCount')}</span>
-                            <InfoHint text={t('species.observedCountHelp')} />
-                          </span>
-                        </p>
-                        <p className="text-2xl font-semibold text-foreground">
-                          {selectedJournal.observedCountKnown ? selectedJournal.observedCountTotalLabel : '--'}
-                        </p>
-                      </CardContent>
-                    </Card>
-                    <Card className="gap-0 py-4">
-                      <CardContent className="space-y-1 px-5">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                          {t('species.daysRecorded')}
-                        </p>
-                        <p className="text-2xl font-semibold text-foreground">{selectedJournal.daysRecorded}</p>
-                      </CardContent>
-                    </Card>
-                    <Card className="gap-0 py-4">
-                      <CardContent className="space-y-1 px-5">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                          {t('species.bestMonth')}
-                        </p>
-                        <p className="text-xl font-semibold text-foreground">
-                          {selectedJournal.bestMonth ? formatMonth(selectedJournal.bestMonth, locale) : '--'}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  </section>
-
                   <Card className="gap-0 py-5">
                     <CardContent className="space-y-3 px-5">
                       <div>
@@ -810,23 +752,6 @@ export default function SpeciesTab() {
                             <p className="text-sm text-muted-foreground">{t('species.noTags')}</p>
                           )}
                         </div>
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={tagInput}
-                            onChange={(e) => setTagInput(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddTag(); } }}
-                            placeholder={t('species.addTagPlaceholder')}
-                            className="h-8 flex-1 rounded-md border border-border bg-input px-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
-                          />
-                          <button
-                            type="button"
-                            onClick={handleAddTag}
-                            className="inline-flex h-8 items-center rounded-md border border-border bg-card px-3 text-xs font-medium hover:bg-accent transition-colors"
-                          >
-                            {t('species.addTag')}
-                          </button>
-                        </div>
                       </div>
                       <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-2">
                         <div>
@@ -840,6 +765,119 @@ export default function SpeciesTab() {
                       </div>
                     </CardContent>
                   </Card>
+
+                  {/* Finds list */}
+                  <Card className="gap-0 py-5">
+                    <CardContent className="space-y-3 px-5">
+                      <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-foreground">
+                        {t('species.recordedFinds')}
+                      </h3>
+                      <div className="space-y-2">
+                        {selectedJournal.finds.map((find) => {
+                          const primaryPhoto = find.photos.find((p) => p.is_primary) ?? find.photos[0] ?? null;
+                          const photoIdx = primaryPhoto
+                            ? selectedJournal.allPhotos.findIndex((e) => e.photo.id === primaryPhoto.id)
+                            : -1;
+                          const thumbSrc = primaryPhoto && storagePath
+                            ? resolvePhotoSrc(storagePath, primaryPhoto.photo_path)
+                            : null;
+                          const obsMin = find.observed_count_min ?? find.observed_count;
+                          const obsMax = find.observed_count_max ?? find.observed_count_min ?? find.observed_count;
+                          const obsDisplay = obsMin != null
+                            ? (obsMin === obsMax ? String(obsMin) : `${obsMin}–${obsMax}`)
+                            : null;
+                          const locationParts = [find.location_note, find.region, find.country].filter(Boolean);
+
+                          return (
+                            <button
+                              key={find.id}
+                              type="button"
+                              onClick={() => photoIdx >= 0 ? openLightbox(photoIdx) : undefined}
+                              className="group flex w-full items-center gap-3 rounded-md border border-border/40 bg-card/40 px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"
+                            >
+                              {/* Thumbnail */}
+                              <div className="h-12 w-12 shrink-0 overflow-hidden rounded border border-border/30 bg-muted/40">
+                                {thumbSrc ? (
+                                  <img src={thumbSrc} alt="" className="h-full w-full object-cover" draggable={false} />
+                                ) : (
+                                  <div className="flex h-full w-full items-center justify-center text-muted-foreground/30">
+                                    <Camera className="h-5 w-5" />
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Info */}
+                              <div className="min-w-0 flex-1">
+                                <p className="font-mono text-sm font-medium text-foreground">
+                                  {formatDate(find.date_found, locale)}
+                                </p>
+                                {locationParts.length > 0 && (
+                                  <p className="truncate text-xs text-muted-foreground/70">
+                                    {locationParts.join(' · ')}
+                                  </p>
+                                )}
+                                {find.photos.length > 1 && (
+                                  <p className="text-[11px] text-muted-foreground/50">{find.photos.length} foto</p>
+                                )}
+                              </div>
+
+                              {/* Observed count */}
+                              {obsDisplay && (
+                                <span className="shrink-0 font-mono text-lg font-semibold text-primary/80">
+                                  {obsDisplay}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <Card className="gap-0 py-4">
+                      <CardContent className="space-y-1 px-5">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                          <span className="inline-flex items-center gap-1.5">
+                            <span>{t('species.recordedFinds')}</span>
+                            <InfoHint text={t('species.recordedFindsHelp')} />
+                          </span>
+                        </p>
+                        <p className="text-2xl font-semibold text-foreground">{selectedJournal.recordedFinds}</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="gap-0 py-4">
+                      <CardContent className="space-y-1 px-5">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                          <span className="inline-flex items-center gap-1.5">
+                            <span>{t('species.observedCount')}</span>
+                            <InfoHint text={t('species.observedCountHelp')} />
+                          </span>
+                        </p>
+                        <p className="text-2xl font-semibold text-foreground">
+                          {selectedJournal.observedCountKnown ? selectedJournal.observedCountTotalLabel : '--'}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card className="gap-0 py-4">
+                      <CardContent className="space-y-1 px-5">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                          {t('species.daysRecorded')}
+                        </p>
+                        <p className="text-2xl font-semibold text-foreground">{selectedJournal.daysRecorded}</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="gap-0 py-4">
+                      <CardContent className="space-y-1 px-5">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                          {t('species.bestMonth')}
+                        </p>
+                        <p className="text-xl font-semibold text-foreground">
+                          {selectedJournal.bestMonth ? formatMonth(selectedJournal.bestMonth, locale) : '--'}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </section>
 
                   <div className="grid gap-6 xl:grid-cols-2">
                     <Card className="gap-0 py-5">
@@ -935,74 +973,6 @@ export default function SpeciesTab() {
                       </CardContent>
                     </Card>
                   </div>
-
-                  {/* Finds list */}
-                  <Card className="gap-0 py-5">
-                    <CardContent className="space-y-3 px-5">
-                      <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-foreground">
-                        {t('species.recordedFinds')}
-                      </h3>
-                      <div className="space-y-2">
-                        {selectedJournal.finds.map((find) => {
-                          const primaryPhoto = find.photos.find((p) => p.is_primary) ?? find.photos[0] ?? null;
-                          const photoIdx = primaryPhoto
-                            ? selectedJournal.allPhotos.findIndex((e) => e.photo.id === primaryPhoto.id)
-                            : -1;
-                          const thumbSrc = primaryPhoto && storagePath
-                            ? resolvePhotoSrc(storagePath, primaryPhoto.photo_path)
-                            : null;
-                          const obsMin = find.observed_count_min ?? find.observed_count;
-                          const obsMax = find.observed_count_max ?? find.observed_count_min ?? find.observed_count;
-                          const obsDisplay = obsMin != null
-                            ? (obsMin === obsMax ? String(obsMin) : `${obsMin}–${obsMax}`)
-                            : null;
-                          const locationParts = [find.location_note, find.region, find.country].filter(Boolean);
-
-                          return (
-                            <button
-                              key={find.id}
-                              type="button"
-                              onClick={() => photoIdx >= 0 ? openLightbox(photoIdx) : undefined}
-                              className="group flex w-full items-center gap-3 rounded-md border border-border/40 bg-card/40 px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"
-                            >
-                              {/* Thumbnail */}
-                              <div className="h-12 w-12 shrink-0 overflow-hidden rounded border border-border/30 bg-muted/40">
-                                {thumbSrc ? (
-                                  <img src={thumbSrc} alt="" className="h-full w-full object-cover" draggable={false} />
-                                ) : (
-                                  <div className="flex h-full w-full items-center justify-center text-muted-foreground/30">
-                                    <Camera className="h-5 w-5" />
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Info */}
-                              <div className="min-w-0 flex-1">
-                                <p className="font-mono text-sm font-medium text-foreground">
-                                  {formatDate(find.date_found, locale)}
-                                </p>
-                                {locationParts.length > 0 && (
-                                  <p className="truncate text-xs text-muted-foreground/70">
-                                    {locationParts.join(' · ')}
-                                  </p>
-                                )}
-                                {find.photos.length > 1 && (
-                                  <p className="text-[11px] text-muted-foreground/50">{find.photos.length} foto</p>
-                                )}
-                              </div>
-
-                              {/* Observed count */}
-                              {obsDisplay && (
-                                <span className="shrink-0 font-mono text-lg font-semibold text-primary/80">
-                                  {obsDisplay}
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </CardContent>
-                  </Card>
                 </div>
               </div>
             </div>
