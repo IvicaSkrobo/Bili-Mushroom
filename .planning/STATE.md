@@ -164,6 +164,7 @@ Recent decisions affecting current work:
 | 260512-import-create-dialog-ux | 2026-05-12 | ImportDialog: status badges (edibility/threat/distribution) shown only when species is new (not in finds or profiles); saved to species profile on import. Label moved inside SpeciesNameEditor toolbar. MapPin button inline with species field in ImportDialog + CreateFindDialog. CreateFindDialog: location card removed, MapPin inline with species; speciesFilter passed to LocationPickerMap (known species → own pins only, new → all pins). FolderEditDialog: edibility note textarea always visible. Migrations 0014 (find edibility_note), 0015 (species_profile edibility_note), 0016 (species_profile threat/distribution). |
 | 260512-1yg settings-dialog-tabbed-ux-v0125 | 2026-05-12 | SettingsDialog redesigned from single tall scroll to compact 3-tab layout (Općenito/Mapa/Napredno); 12 new i18n keys; version bumped to 0.1.25 across package.json + tauri.conf.json + Cargo.toml; tagged v0.1.25. |
 | 260512-photo-safety-update-hardening | 2026-05-12 | Photo safety pass after missing-photo concern: per-photo and bulk per-photo deletes now expose a visible permanent-delete checkbox (default on) with Recycle Bin fallback when unchecked; Settings cleanup is confirmed and described as missing DB-reference cleanup only; zone toolbar/editor default positions reset compactly away from Leaflet zoom controls. |
+| 260512-m5v fix-map-pins-not-showing-on-windows-webv | 2026-05-12 | collectionIcon iconAnchor [0,0]→[6,6]; removed translate(-50%,-50%) from .bili-pin-dot — dot now inside container bounds, no WebView2 clipping; label left:0→6px; prevLocationIcon className ''→'bili-picker-prev-icon' prevents white Leaflet div-icon background. |
 
 ### Roadmap Evolution
 
@@ -176,5 +177,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-12T00:00:00.000Z
-Stopped at: Released v0.1.22 — stats drill-down, Windows compat, species editor UX overhaul, edibility note migrations 0014-0016, import/create dialog UX polish
+Stopped at: Fixed map pins invisible on Windows WebView2 — iconAnchor/CSS overflow fix in CollectionPins; prevLocationIcon className fix
 Resume file: None
