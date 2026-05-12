@@ -35,7 +35,7 @@ function collectionIcon(labelText: string, showLabel: boolean, isSatellite: bool
     html: `<div class="bili-pin-dot"></div><div class="bili-pin-label">${labelText}</div>`,
     className: classes,
     iconSize: [200, 50],
-    iconAnchor: [0, 0],
+    iconAnchor: [6, 6],
     popupAnchor: [0, -14],
   });
 }
