@@ -114,7 +114,7 @@ function CollectionPopup({
         )}
 
         {/* Gradient scrim so text is always legible */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-black/5" />
 
         {/* Find-count pill — top-right */}
         <div className="absolute right-2 top-2">
@@ -151,11 +151,11 @@ function CollectionPopup({
 
         {/* Species name block — bottom of header */}
         <div className="absolute bottom-0 left-0 right-0 px-2.5 pb-2.5 pt-1">
-          <p className="font-serif text-[13px] font-bold italic leading-snug text-white">
+          <p className="font-serif text-[13px] font-bold italic leading-snug text-white [text-shadow:0_1px_6px_rgba(0,0,0,1),0_0_20px_rgba(0,0,0,0.8)]">
             {renderSpeciesName(latinNameRaw)}
           </p>
           {croatianName && (
-            <p className="mt-0.5 text-[11px] italic leading-tight text-white/65">
+            <p className="mt-0.5 text-[11px] italic leading-tight text-white/80 [text-shadow:0_1px_4px_rgba(0,0,0,1)]">
               {plainSpeciesName(croatianName)}
             </p>
           )}
