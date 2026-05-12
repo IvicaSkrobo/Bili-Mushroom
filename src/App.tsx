@@ -85,6 +85,10 @@ export default function App() {
               }
             },
           },
+          cancel: {
+            label: 'Not now',
+            onClick: () => {},
+          },
         });
       })
       .catch((err) => {
