@@ -613,7 +613,15 @@ export default function CollectionTab() {
                                 ? 'bg-primary/10'
                                 : 'hover:bg-accent/30'
                             }`}
-                            onClick={() => selectMode ? toggleSelect(f.id) : (!autoExpand && toggleFindExpand(f.id))}
+                            onClick={() => {
+                              if (selectMode) {
+                                toggleSelect(f.id);
+                              } else if (f.photos.length === 0) {
+                                setEditing(f);
+                              } else if (!autoExpand) {
+                                toggleFindExpand(f.id);
+                              }
+                            }}
                           >
                             {/* Thumbnail */}
                             {rowThumbSrc ? (

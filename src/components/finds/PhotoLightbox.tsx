@@ -366,10 +366,10 @@ export function PhotoLightbox({
               {/* Notes — full remaining space */}
               {find.notes && (
                 <div className="flex-1">
-                  <p className="mb-1.5 text-[10px] font-medium uppercase tracking-widest text-muted-foreground/50">
+                  <p className="mb-1.5 text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">
                     {t('lightbox.notes')}
                   </p>
-                  <p className="text-sm text-foreground/75 leading-relaxed overflow-y-auto max-h-52">
+                  <p className="text-sm text-foreground/90 leading-relaxed overflow-y-auto max-h-52">
                     {find.notes}
                   </p>
                 </div>
