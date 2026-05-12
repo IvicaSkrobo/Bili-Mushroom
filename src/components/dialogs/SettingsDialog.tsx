@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '@/stores/appStore';
 import { pickAndSaveStoragePath, clearStoragePath } from '@/lib/storage';
 import { useT } from '@/i18n/index';
@@ -36,6 +37,8 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const setTheme = useAppStore((s) => s.setTheme);
   const [picking, setPicking] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [pruning, setPruning] = useState(false);
+  const [pruneResult, setPruneResult] = useState<number | null>(null);
   const [stats, setStats] = useState<TileCacheStats>({ sizeBytes: 0, tileCount: 0 });
   const [cacheMaxMb, setCacheMaxMb] = useState<string>('200');
 
@@ -59,6 +62,18 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     await clearTileCache(storagePath);
     const fresh = await getTileCacheStats();
     setStats(fresh);
+  }
+
+  async function handlePruneMissing() {
+    if (!storagePath) return;
+    setPruning(true);
+    setPruneResult(null);
+    try {
+      const removed = await invoke<number>('prune_missing_photos', { storagePath });
+      setPruneResult(removed);
+    } finally {
+      setPruning(false);
+    }
   }
 
   async function handleReset() {
@@ -208,15 +223,39 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
             </AlertDialog>
           </TabsContent>
 
-          <TabsContent value="advanced" className="space-y-3 pt-3">
-            <div className="text-xs font-medium text-muted-foreground mb-2">{t('settings.resetSection')}</div>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setResetConfirmOpen(true)}
-            >
-              {t('settings.resetBtn')}
-            </Button>
+          <TabsContent value="advanced" className="space-y-4 pt-3">
+            <div>
+              <div className="text-xs font-medium text-muted-foreground mb-1">Remove missing photos</div>
+              <p className="text-xs text-muted-foreground/60 mb-2">
+                Scans the database for photo entries whose files no longer exist on disk and removes them.
+              </p>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handlePruneMissing}
+                  disabled={pruning || !storagePath}
+                >
+                  {pruning ? 'Scanning…' : 'Clean up missing photos'}
+                </Button>
+                {pruneResult !== null && (
+                  <span className="text-xs text-muted-foreground">
+                    {pruneResult === 0 ? 'No missing photos found.' : `Removed ${pruneResult} missing photo${pruneResult === 1 ? '' : 's'}.`}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-border/40 pt-3">
+              <div className="text-xs font-medium text-muted-foreground mb-2">{t('settings.resetSection')}</div>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setResetConfirmOpen(true)}
+              >
+                {t('settings.resetBtn')}
+              </Button>
+            </div>
           </TabsContent>
         </Tabs>
       </DialogContent>

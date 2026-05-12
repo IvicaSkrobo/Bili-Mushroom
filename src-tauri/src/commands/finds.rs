@@ -935,6 +935,67 @@ pub async fn bulk_delete_find_photos(
     Ok(record)
 }
 
+/// Remove find_photos entries whose files no longer exist on disk.
+/// Returns the number of photo rows deleted.
+#[tauri::command]
+pub async fn prune_missing_photos(storage_path: String) -> Result<u32, String> {
+    let conn = open_db(&storage_path)?;
+
+    let rows: Vec<(i64, i64, String, bool)> = {
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, find_id, photo_path, is_primary FROM find_photos ORDER BY find_id, is_primary DESC, id ASC",
+            )
+            .map_err(|e| e.to_string())?;
+        stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, i64>(3)? == 1,
+            ))
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?
+    };
+
+    let mut deleted: u32 = 0;
+    let mut primaries_deleted: std::collections::HashSet<i64> = Default::default();
+
+    for (photo_id, find_id, photo_path, is_primary) in &rows {
+        let abs = format!("{}/{}", storage_path, photo_path);
+        if !std::path::Path::new(&abs).exists() {
+            conn.execute("DELETE FROM find_photos WHERE id = ?1", params![photo_id])
+                .map_err(|e| format!("delete failed: {}", e))?;
+            if *is_primary {
+                primaries_deleted.insert(*find_id);
+            }
+            deleted += 1;
+        }
+    }
+
+    // Promote a new primary for any find whose primary was deleted
+    for find_id in primaries_deleted {
+        let remaining: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM find_photos WHERE find_id = ?1",
+                params![find_id],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
+        if remaining > 0 {
+            conn.execute(
+                "UPDATE find_photos SET is_primary = 1 WHERE id = (SELECT id FROM find_photos WHERE find_id = ?1 ORDER BY id ASC LIMIT 1)",
+                params![find_id],
+            )
+            .map_err(|e| format!("Primary promotion failed: {}", e))?;
+        }
+    }
+
+    Ok(deleted)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
