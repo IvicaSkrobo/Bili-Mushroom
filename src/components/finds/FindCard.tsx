@@ -23,15 +23,14 @@ interface FindCardProps {
 
 export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSelected, onToggleSelect, onToggleFavorite, onLongPress, onPhotoClick, speciesProfile }: FindCardProps) {
   const t = useT();
-  const extraCount = uniquePhotos.length > 1 ? uniquePhotos.length - 1 : 0;
-  const heic = currentPhoto ? isHeic(currentPhoto.photo_path) : false;
-
   const uniquePhotos = find.photos.filter(
     (p, i, arr) => arr.findIndex((q) => q.photo_path === p.photo_path) === i,
   );
   const [photoIndex, setPhotoIndex] = useState(0);
   const currentPhoto = uniquePhotos[photoIndex] ?? null;
   const currentPhotoSrc = currentPhoto ? resolvePhotoSrc(storagePath, currentPhoto.photo_path) : null;
+  const extraCount = uniquePhotos.length > 1 ? uniquePhotos.length - 1 : 0;
+  const heic = currentPhoto ? isHeic(currentPhoto.photo_path) : false;
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const startLongPress = () => {

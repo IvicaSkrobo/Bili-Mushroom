@@ -17,6 +17,7 @@ import { useFinds, useSpeciesNotes, useSpeciesProfiles, useUpsertSpeciesNote, us
 import { useAppStore } from '@/stores/appStore';
 import { useT, tFindsCount } from '@/i18n/index';
 import type { Find, SpeciesProfile } from '@/lib/finds';
+import { SUPPORTED_EXTENSIONS } from '@/lib/finds';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { renderSpeciesName, plainSpeciesName } from '@/lib/speciesName';
@@ -76,17 +77,28 @@ export default function CollectionTab() {
   const [lightboxSpeciesName, setLightboxSpeciesName] = useState<string | null>(null);
 
   const openLightbox = (speciesFinds: Find[], findId: number, photoIndex: number) => {
+    const seen = new Set<string>();
     const flat: LightboxPhoto[] = [];
     for (const f of speciesFinds) {
       for (const p of f.photos) {
+        const ext = p.photo_path.slice(p.photo_path.lastIndexOf('.')).toLowerCase();
+        if (!SUPPORTED_EXTENSIONS.includes(ext as (typeof SUPPORTED_EXTENSIONS)[number])) continue;
+        if (seen.has(p.photo_path)) continue;
+        seen.add(p.photo_path);
         flat.push({ photo: p, find: f });
       }
     }
-    // Find the global index matching the clicked find + photoIndex
+    // Find the global index matching the clicked find + photoIndex (in deduplicated list)
     let globalIndex = 0;
     let counted = 0;
     for (const f of speciesFinds) {
+      const seen2 = new Set<string>();
       for (let pi = 0; pi < f.photos.length; pi++) {
+        const p = f.photos[pi];
+        const ext = p.photo_path.slice(p.photo_path.lastIndexOf('.')).toLowerCase();
+        if (!SUPPORTED_EXTENSIONS.includes(ext as (typeof SUPPORTED_EXTENSIONS)[number])) continue;
+        if (seen2.has(p.photo_path)) continue;
+        seen2.add(p.photo_path);
         if (f.id === findId && pi === photoIndex) {
           globalIndex = counted;
         }
