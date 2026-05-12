@@ -9,20 +9,10 @@ interface SpeciesStatRowProps {
   index: number;
 }
 
-function formatObserved(min: number | null, max: number | null, avg: number | null): string {
-  const rangeStr =
-    min != null && max != null && min !== max
-      ? `${min}–${max}`
-      : min != null
-        ? String(min)
-        : max != null
-          ? String(max)
-          : null;
-  const avgStr = avg != null ? `avg ${avg % 1 === 0 ? avg : avg.toFixed(1)}` : null;
-  if (rangeStr && avgStr) return `${rangeStr} (${avgStr})`;
-  if (rangeStr) return rangeStr;
-  if (avgStr) return avgStr;
-  return '--';
+function formatObserved(min: number | null, max: number | null): string {
+  if (min == null && max == null) return '--';
+  if (min === max || max == null) return String(min ?? max!);
+  return `${min}–${max}`;
 }
 
 function formatBestMonth(ym: string): string {
@@ -101,13 +91,13 @@ export function SpeciesStatRow({ stat, rank, index }: SpeciesStatRowProps) {
                 {stat.best_month ? formatBestMonth(stat.best_month) : '--'}
               </p>
             </div>
-            {(stat.observed_min != null || stat.observed_max != null || stat.observed_avg != null) && (
+            {(stat.observed_min != null || stat.observed_max != null) && (
               <div>
                 <span className="text-xs uppercase tracking-[0.12em] text-muted-foreground">
                   Observed
                 </span>
                 <p className="text-sm text-foreground">
-                  {formatObserved(stat.observed_min, stat.observed_max, stat.observed_avg)}
+                  {formatObserved(stat.observed_min, stat.observed_max)}
                 </p>
               </div>
             )}
