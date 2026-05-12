@@ -218,19 +218,18 @@ input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: po
   border-radius: 50%;
   background: #D4941A;
   box-shadow: 0 2px 5px rgba(0,0,0,0.55);
-  transform: translate(-50%, -50%);
   cursor: pointer;
   transition: transform 0.15s ease;
 }
 .bili-collection-marker:hover .bili-pin-dot {
-  transform: translate(-50%, -50%) scale(1.25);
+  transform: scale(1.25);
 }
 
 /* Species name label below the dot */
 .bili-collection-marker .bili-pin-label {
   position: absolute;
   top: 9px;
-  left: 0;
+  left: 6px;
   transform: translateX(-50%);
   font-size: 11px;
   font-family: serif;
@@ -258,6 +257,12 @@ input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: po
 .bili-zone-vertex-icon {
   background: transparent !important;
   border: none !important;
+}
+
+.bili-picker-prev-icon {
+  background: transparent !important;
+  border: none !important;
+  overflow: visible !important;
 }
 
 .bili-zone-vertex {
