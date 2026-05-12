@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { Toaster } from 'sonner';
@@ -11,6 +11,16 @@ import { FirstRunDialog } from '@/components/dialogs/FirstRunDialog';
 import { MigrationErrorDialog } from '@/components/dialogs/MigrationErrorDialog';
 import { AutoImportDialog } from '@/components/dialogs/AutoImportDialog';
 import { AppShell } from '@/components/layout/AppShell';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,6 +43,7 @@ export default function App() {
   const setPendingScan = useAppStore((s) => s.setPendingScan);
   const setAvailableUpdate = useAppStore((s) => s.setAvailableUpdate);
   const setInstallingUpdate = useAppStore((s) => s.setInstallingUpdate);
+  const [confirmUpdate, setConfirmUpdate] = useState<{ version: string } | null>(null);
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -43,6 +54,40 @@ export default function App() {
   }, [theme]);
 
   const currentVersionRef = useRef<string>('');
+
+  async function runInstallUpdate() {
+    setInstallingUpdate(true);
+    const progressToast = toast.loading('Downloading update… 0%');
+    try {
+      const { listen } = await import('@tauri-apps/api/event');
+      const unlisten = await listen<{ downloaded: number; total: number | null; status: string }>(
+        'update-progress',
+        ({ payload }) => {
+          if (payload.status === 'installing') {
+            toast.loading('Installing update…', { id: progressToast });
+          } else if (payload.total) {
+            const pct = Math.round((payload.downloaded / payload.total) * 100);
+            toast.loading(`Downloading update… ${pct}%`, { id: progressToast });
+          }
+        },
+      );
+      const installed = await invoke<boolean>('install_app_update');
+      unlisten();
+      toast.dismiss(progressToast);
+      if (installed) {
+        setAvailableUpdate(null);
+        toast.success('Update installed. The app will restart.');
+      } else {
+        toast('No newer update found.');
+        setAvailableUpdate(null);
+      }
+    } catch (error) {
+      toast.dismiss(progressToast);
+      toast.error(String(error));
+    } finally {
+      setInstallingUpdate(false);
+    }
+  }
 
   useEffect(() => {
     if (!('__TAURI_INTERNALS__' in window)) return;
@@ -60,30 +105,11 @@ export default function App() {
         const fromLabel = current ? `v${current} → ` : '';
 
         toast('Update available', {
-          description: `${fromLabel}v${update.version} is ready to install.${update.notes ? ` ${update.notes}` : ''}`,
+          description: `${fromLabel}v${update.version} is ready to install.`,
           duration: 20000,
           action: {
             label: 'Update',
-            onClick: async () => {
-              setInstallingUpdate(true);
-              const loadingToast = toast.loading('Installing update…');
-              try {
-                const installed = await invoke<boolean>('install_app_update');
-                toast.dismiss(loadingToast);
-                if (installed) {
-                  setAvailableUpdate(null);
-                  toast.success('Update started. The app will close if the installer needs to continue.');
-                } else {
-                  toast('No newer update found.');
-                  setAvailableUpdate(null);
-                }
-              } catch (error) {
-                toast.dismiss(loadingToast);
-                toast.error(String(error));
-              } finally {
-                setInstallingUpdate(false);
-              }
-            },
+            onClick: () => setConfirmUpdate({ version: update.version }),
           },
           cancel: {
             label: 'Not now',
@@ -92,8 +118,8 @@ export default function App() {
         });
       })
       .catch((err) => {
-        // Updater is optional for local/dev builds — show in console for debugging.
         console.warn('[updater] check failed:', err);
+        toast.error(`Update check failed: ${err}`);
         setAvailableUpdate(null);
       });
 
@@ -183,6 +209,22 @@ export default function App() {
           <Toaster richColors />
         </>
       )}
+      <AlertDialog open={!!confirmUpdate} onOpenChange={(o) => { if (!o) setConfirmUpdate(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Update to v{confirmUpdate?.version}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The app will download and install the update, then restart automatically.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Not now</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setConfirmUpdate(null); runInstallUpdate(); }}>
+              Update now
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </QueryClientProvider>
   );
 }

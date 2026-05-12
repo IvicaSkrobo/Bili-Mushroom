@@ -1,5 +1,5 @@
 use serde::Serialize;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 use tauri_plugin_updater::UpdaterExt;
 
 #[derive(Serialize)]
@@ -7,6 +7,13 @@ pub struct AvailableUpdate {
     pub version: String,
     pub notes: Option<String>,
     pub pub_date: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct UpdateProgress {
+    pub downloaded: usize,
+    pub total: Option<u64>,
+    pub status: String,
 }
 
 #[tauri::command]
@@ -52,8 +59,30 @@ pub async fn install_app_update(app: AppHandle) -> Result<bool, String> {
         return Ok(false);
     };
 
+    let app_clone = app.clone();
+    let _ = app.emit("update-progress", UpdateProgress {
+        downloaded: 0,
+        total: None,
+        status: "downloading".into(),
+    });
+
     update
-        .download_and_install(|_, _| {}, || {})
+        .download_and_install(
+            |downloaded, total| {
+                let _ = app_clone.emit("update-progress", UpdateProgress {
+                    downloaded,
+                    total,
+                    status: "downloading".into(),
+                });
+            },
+            || {
+                let _ = app_clone.emit("update-progress", UpdateProgress {
+                    downloaded: 0,
+                    total: None,
+                    status: "installing".into(),
+                });
+            },
+        )
         .await
         .map_err(|err| format!("Failed to install update: {err}"))?;
 
