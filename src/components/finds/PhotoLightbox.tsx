@@ -54,6 +54,8 @@ export function PhotoLightbox({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [permanentPhotoDelete, setPermanentPhotoDelete] = useState(true);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notesValue, setNotesValue] = useState('');
   const updateFind = useUpdateFind();
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -65,6 +67,7 @@ export function PhotoLightbox({
     setZoom(1);
     setPan({ x: 0, y: 0 });
     setConfirmingDelete(false);
+    setEditingNotes(false);
   }, [currentIndex]);
 
   const handleWheel = (e: React.WheelEvent) => {
@@ -390,17 +393,74 @@ export function PhotoLightbox({
                 )}
               </div>
 
-              {/* Notes — full remaining space */}
-              {find.notes && (
-                <div className="flex-1">
-                  <p className="mb-1.5 text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">
+              {/* Notes — inline edit/add */}
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">
                     {t('lightbox.notes')}
                   </p>
-                  <p className="text-sm text-foreground/90 leading-relaxed overflow-y-auto max-h-52">
+                  {!editingNotes && (
+                    <button
+                      type="button"
+                      onClick={() => { setNotesValue(find.notes ?? ''); setEditingNotes(true); }}
+                      className="flex items-center gap-1 text-[10px] text-muted-foreground/50 hover:text-primary transition-colors"
+                      title={find.notes ? 'Uredi bilješku' : 'Dodaj bilješku'}
+                    >
+                      {find.notes ? <Pencil className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                      {find.notes ? 'Uredi' : 'Dodaj'}
+                    </button>
+                  )}
+                </div>
+                {editingNotes ? (
+                  <div className="flex flex-col gap-1.5">
+                    <textarea
+                      autoFocus
+                      value={notesValue}
+                      onChange={(e) => setNotesValue(e.target.value)}
+                      rows={4}
+                      className="w-full rounded border border-border/60 bg-background/40 px-2.5 py-1.5 text-sm text-foreground/90 leading-relaxed resize-none outline-none focus:border-primary/60 focus:ring-1 focus:ring-ring"
+                    />
+                    <div className="flex gap-1.5 justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setEditingNotes(false)}
+                        className="rounded px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                      >
+                        Odustani
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateFind.mutate({
+                            id: find.id,
+                            species_name: find.species_name ?? '',
+                            date_found: find.date_found ?? '',
+                            country: find.country ?? '',
+                            region: find.region ?? '',
+                            location_note: find.location_note ?? '',
+                            lat: find.lat ?? null,
+                            lng: find.lng ?? null,
+                            notes: notesValue,
+                            observed_count: find.observed_count ?? null,
+                            observed_count_min: find.observed_count_min ?? null,
+                            observed_count_max: find.observed_count_max ?? null,
+                          });
+                          setEditingNotes(false);
+                        }}
+                        className="rounded px-2.5 py-1 text-xs bg-primary/20 text-primary hover:bg-primary/30 transition-colors flex items-center gap-1"
+                      >
+                        <Check className="h-3 w-3" /> Spremi
+                      </button>
+                    </div>
+                  </div>
+                ) : find.notes ? (
+                  <p className="text-sm text-foreground/90 leading-relaxed overflow-y-auto max-h-40">
                     {find.notes}
                   </p>
-                </div>
-              )}
+                ) : (
+                  <p className="text-xs text-muted-foreground/30 italic">Nema bilješki</p>
+                )}
+              </div>
             </div>
           </div>
 

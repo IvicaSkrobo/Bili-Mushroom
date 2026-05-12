@@ -353,9 +353,9 @@ export function SpeciesNameEditor({
           onPaste={handlePaste}
           className={cn(
             'species-name-editor',
-            'flex min-h-9 w-full rounded-md border border-border/90 bg-background/45 px-3 py-1',
+            'block min-h-9 w-full rounded-md border border-border/90 bg-background/45 px-3 py-1',
             'text-sm font-semibold shadow-sm transition-colors outline-none',
-            'overflow-x-hidden whitespace-nowrap',
+            'whitespace-nowrap',
             'focus-visible:border-primary/60 focus-visible:ring-1 focus-visible:ring-ring',
             className,
           )}

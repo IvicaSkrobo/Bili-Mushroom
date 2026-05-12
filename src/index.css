@@ -87,7 +87,8 @@
   font-weight: 400;
   pointer-events: none;
 }
-.species-name-editor { white-space: nowrap; overflow: hidden; }
+.species-name-editor { white-space: nowrap; overflow-x: auto; scrollbar-width: none; }
+.species-name-editor::-webkit-scrollbar { display: none; }
 
 body {
   font-family: 'Manrope', 'Segoe UI', sans-serif;

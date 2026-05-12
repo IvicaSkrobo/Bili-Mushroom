@@ -8,11 +8,12 @@ import type { MapLayer } from '@/stores/appStore';
 const OSM_TEMPLATE = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const ESRI_TEMPLATE =
   'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-const TOPO_TEMPLATE = 'https://tile.opentopomap.org/{z}/{x}/{y}.png';
+const TOPO_TEMPLATE =
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}';
 
 /**
  * Attaches a Leaflet L.control.layers widget with three base layers:
- * Satellite (Esri, default), Street (OSM), and Topo (OpenTopoMap).
+ * Satellite (Esri), Street (OSM), and Topo (Esri World Topo — shows elevation contours).
  * All route through the Rust tile proxy. Persists the user's last picked
  * layer to localStorage via appStore. Does not render any React DOM directly.
  */
