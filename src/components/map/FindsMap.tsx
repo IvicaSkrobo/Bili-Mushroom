@@ -614,12 +614,7 @@ function PolygonEditorController({
     click(event) {
       if (!active || mode !== 'add') return;
       const clickPoint: ZonePolygonPoint = [event.latlng.lat, event.latlng.lng];
-      if (points.length < 2) {
-        onAddPoint(clickPoint);
-        return;
-      }
-      const { edgeStartIndex, projectedPoint } = findNearestEdge(clickPoint, points);
-      onInsertPoint(edgeStartIndex, projectedPoint);
+      onAddPoint(clickPoint);
     },
   });
   return null;
