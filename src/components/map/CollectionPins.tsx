@@ -150,7 +150,7 @@ function CollectionPopup({
         )}
 
         {/* Species name block — bottom of header */}
-        <div className="absolute bottom-0 left-0 right-0 px-2.5 pb-2.5 pt-1">
+        <div className="absolute bottom-0 left-0 right-0 px-2.5 pb-1 pt-1">
           <p className="font-serif text-[13px] font-bold italic leading-snug text-white [text-shadow:0_1px_6px_rgba(0,0,0,1),0_0_20px_rgba(0,0,0,0.8)]">
             {renderSpeciesName(latinNameRaw)}
           </p>
