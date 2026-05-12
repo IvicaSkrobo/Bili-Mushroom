@@ -502,8 +502,8 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
                           className="h-full w-full object-cover"
                         />
                         {photo.is_primary && (
-                          <span className="absolute bottom-0 left-0 right-0 bg-primary/80 py-0.5 text-center text-[9px] font-medium text-primary-foreground">
-                            Primary
+                          <span className="absolute top-1 left-1 rounded bg-sky-600/75 px-1 py-0.5 text-[8px] font-semibold text-white/90 pointer-events-none">
+                            ★
                           </span>
                         )}
                         {selectedPhotoIds.size === 0 && (

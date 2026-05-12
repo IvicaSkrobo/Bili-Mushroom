@@ -469,7 +469,11 @@ pub async fn bulk_rename_species(
         .map_err(|e| format!("Failed to create target folder '{}': {}", target_folder.display(), e))?;
 
     for (photo_id, photo_path) in &photo_rows {
-        let source_abs = Path::new(&storage_path).join(photo_path);
+        // Normalize DB-stored forward slashes to the OS separator so the
+        // path comparison below works correctly on Windows (mixed separators
+        // would make source_abs != target_abs even for the same file).
+        let normalized_photo_path = photo_path.replace('/', std::path::MAIN_SEPARATOR_STR);
+        let source_abs = Path::new(&storage_path).join(&normalized_photo_path);
         let filename = source_abs
             .file_name()
             .ok_or_else(|| format!("Photo path has no filename: {}", source_abs.display()))?;
