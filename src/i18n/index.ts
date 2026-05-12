@@ -242,10 +242,10 @@ const hr: Translations = {
 
   // edibility labels
   'edibility.unknown': 'Nepoznato',
-  'edibility.edible': 'jestiva',
+  'edibility.edible': 'Jestiva',
   'edibility.edible_raw': 'Jestiva sirova',
   'edibility.conditionally_edible': 'Uvjetno jestiva',
-  'edibility.inedible': 'nejestiva',
+  'edibility.inedible': 'Nejestiva',
   'edibility.poisonous': 'Otrovna',
   'edibility.deadly_poisonous': 'Smrtno otrovna',
 
