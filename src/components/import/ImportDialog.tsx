@@ -421,7 +421,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
           <div className="rounded-md border bg-muted/50 p-3 space-y-2">
             {/* Row 1: species name + map pin */}
             <div className="flex items-end gap-2">
-              <div className="relative flex-1">
+              <div className="relative flex-1 min-w-0">
                 <SpeciesNameEditor
                   value={sharedName}
                   onChange={setSharedName}
@@ -431,7 +431,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                   label={t('import.mushroomName')}
                 />
               </div>
-              <div className="flex flex-col items-center gap-0.5 pb-0.5">
+              <div className="flex flex-col items-center gap-0.5 pb-0.5 flex-shrink-0">
                 <Button
                   type="button"
                   variant="ghost"

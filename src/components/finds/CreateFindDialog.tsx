@@ -185,7 +185,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-2.5">
         <div className="space-y-2">
           <div className="flex items-end gap-2">
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <SpeciesNameEditor
                 value={form.species_name}
                 onChange={(raw) => handleChange('species_name', raw)}
@@ -194,7 +194,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
                 label={t('edit.species')}
               />
             </div>
-            <div className="flex flex-col items-center gap-0.5 pb-0.5">
+            <div className="flex flex-col items-center gap-0.5 pb-0.5 flex-shrink-0">
               <Button
                 type="button"
                 variant="ghost"
