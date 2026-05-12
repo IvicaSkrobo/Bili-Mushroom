@@ -165,6 +165,7 @@ Recent decisions affecting current work:
 | 260512-1yg settings-dialog-tabbed-ux-v0125 | 2026-05-12 | SettingsDialog redesigned from single tall scroll to compact 3-tab layout (Općenito/Mapa/Napredno); 12 new i18n keys; version bumped to 0.1.25 across package.json + tauri.conf.json + Cargo.toml; tagged v0.1.25. |
 | 260512-photo-safety-update-hardening | 2026-05-12 | Photo safety pass after missing-photo concern: per-photo and bulk per-photo deletes now expose a visible permanent-delete checkbox (default on) with Recycle Bin fallback when unchecked; Settings cleanup is confirmed and described as missing DB-reference cleanup only; zone toolbar/editor default positions reset compactly away from Leaflet zoom controls. |
 | 260512-m5v fix-map-pins-not-showing-on-windows-webv | 2026-05-12 | collectionIcon iconAnchor [0,0]→[6,6]; removed translate(-50%,-50%) from .bili-pin-dot — dot now inside container bounds, no WebView2 clipping; label left:0→6px; prevLocationIcon className ''→'bili-picker-prev-icon' prevents white Leaflet div-icon background. |
+| 260512-r5n uat-fix-pass-nach-zadnjeg-builda | 2026-05-12 | 12 UAT fixes: stats bold rendering + section order + null-date crash + observed min–max; map viewport persistence to last find; lightbox notes contrast + no-photo find opens edit; species tab: remove add-tag, reorder sections, fix scroll lock; import overflow; edibility translations jestiva/nejestiva. |
 
 ### Roadmap Evolution
 
