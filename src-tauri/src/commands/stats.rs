@@ -102,7 +102,8 @@ pub async fn get_stats_cards(storage_path: String) -> Result<StatsCards, String>
         .query_row(
             &format!(
                 "SELECT strftime('%Y-%m', date_found) as ym, COUNT(*) as cnt \
-                 FROM finds WHERE {} GROUP BY ym ORDER BY cnt DESC LIMIT 1",
+                 FROM finds WHERE {} AND date_found IS NOT NULL AND date_found != '' \
+                 GROUP BY ym ORDER BY cnt DESC LIMIT 1",
                 INTERNAL_SPECIES_FILTER
             ),
             [],
@@ -154,7 +155,8 @@ pub async fn get_best_months(storage_path: String) -> Result<Vec<BestMonth>, Str
         .prepare(
             &format!(
                 "SELECT CAST(strftime('%m', date_found) AS INTEGER) as month_num, COUNT(*) as cnt \
-                 FROM finds WHERE {} GROUP BY month_num ORDER BY cnt DESC",
+                 FROM finds WHERE {} AND date_found IS NOT NULL AND date_found != '' \
+                 GROUP BY month_num ORDER BY cnt DESC",
                 INTERNAL_SPECIES_FILTER
             ),
         )
@@ -181,7 +183,8 @@ pub async fn get_calendar(storage_path: String) -> Result<Vec<CalendarEntry>, St
         .prepare(
             &format!(
                 "SELECT CAST(strftime('%m', date_found) AS INTEGER) as month, species_name, date_found, location_note \
-                 FROM finds WHERE {} ORDER BY month ASC, date_found ASC",
+                 FROM finds WHERE {} AND date_found IS NOT NULL AND date_found != '' \
+                 ORDER BY month ASC, date_found ASC",
                 INTERNAL_SPECIES_FILTER
             ),
         )
@@ -211,7 +214,7 @@ pub async fn get_species_stats(storage_path: String) -> Result<Vec<SpeciesStatSu
     let mut stmt = conn
         .prepare(
             &format!(
-                "SELECT species_name, COUNT(*) as find_count, MIN(date_found) as first_find \
+                "SELECT species_name, COUNT(*) as find_count, MIN(CASE WHEN date_found IS NOT NULL AND date_found != '' THEN date_found END) as first_find \
                  FROM finds WHERE {} GROUP BY species_name ORDER BY find_count DESC",
                 INTERNAL_SPECIES_FILTER
             ),
@@ -230,7 +233,7 @@ pub async fn get_species_stats(storage_path: String) -> Result<Vec<SpeciesStatSu
             Ok(SpeciesRow {
                 species_name: row.get(0)?,
                 find_count: row.get(1)?,
-                first_find: row.get(2)?,
+                first_find: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
             })
         })
         .map_err(|e| e.to_string())?
@@ -245,7 +248,8 @@ pub async fn get_species_stats(storage_path: String) -> Result<Vec<SpeciesStatSu
             .query_row(
                 &format!(
                     "SELECT strftime('%Y-%m', date_found) as ym, COUNT(*) as cnt \
-                     FROM finds WHERE {} AND species_name = ?1 GROUP BY ym ORDER BY cnt DESC LIMIT 1",
+                     FROM finds WHERE {} AND species_name = ?1 AND date_found IS NOT NULL AND date_found != '' \
+                     GROUP BY ym ORDER BY cnt DESC LIMIT 1",
                     INTERNAL_SPECIES_FILTER
                 ),
                 params![row.species_name],

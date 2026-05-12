@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Loader2, BarChart3, Download, FileText, Compass } from 'lucide-react';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { StatCard } from '@/components/stats/StatCard';
@@ -24,6 +24,13 @@ import { buildHistoricalComparison } from '@/lib/historicalComparison';
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function renderBold(text: string): React.ReactNode {
+  const parts = text.split('**');
+  return parts.map((part, i) =>
+    i % 2 === 1 ? <strong key={i}>{part}</strong> : <span key={i}>{part}</span>
+  );
+}
 
 function formatMonth(ym: string | null): string {
   if (!ym) return '--';
@@ -214,6 +221,19 @@ export default function StatsTab() {
           {/* Divider */}
           <div className="border-b border-border" />
 
+          {/* Historical weekly/monthly comparison */}
+          {historicalComparison && (
+            <div>
+              <h3 className="text-base font-bold uppercase tracking-[0.12em] text-foreground mb-4">
+                This Time in Past Years
+              </h3>
+              <HistoricalComparison data={historicalComparison} />
+            </div>
+          )}
+
+          {/* Divider */}
+          <div className="border-b border-border" />
+
           {/* Ranked lists: 2-column flex */}
           <div className="flex gap-4">
             <div className="flex-1">
@@ -242,8 +262,8 @@ export default function StatsTab() {
               <div className="grid grid-cols-2 gap-4">
                 {seasonalityInsights.map((insight) => (
                   <div key={insight.title} className="rounded-lg border border-border/70 bg-card/60 p-4">
-                    <p className="text-sm font-semibold text-primary">{insight.title}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{insight.body}</p>
+                    <p className="text-sm font-semibold text-primary">{renderBold(insight.title)}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{renderBold(insight.body)}</p>
                   </div>
                 ))}
               </div>
@@ -254,18 +274,8 @@ export default function StatsTab() {
           {speciesSpotHint && (
             <Alert className="border-primary/35 bg-primary/8">
               <Compass className="h-4 w-4 text-primary" />
-              <AlertDescription className="text-sm">{speciesSpotHint}</AlertDescription>
+              <AlertDescription className="text-sm">{renderBold(speciesSpotHint)}</AlertDescription>
             </Alert>
-          )}
-
-          {/* Historical weekly/monthly comparison */}
-          {historicalComparison && (
-            <div>
-              <h3 className="text-base font-bold uppercase tracking-[0.12em] text-foreground mb-4">
-                This Time in Past Years
-              </h3>
-              <HistoricalComparison data={historicalComparison} />
-            </div>
           )}
 
           {/* Divider */}
