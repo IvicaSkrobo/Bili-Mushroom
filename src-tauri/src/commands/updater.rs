@@ -9,18 +9,9 @@ pub struct AvailableUpdate {
     pub pub_date: Option<String>,
 }
 
-fn updater_enabled() -> bool {
-    option_env!("TAURI_UPDATER_PUBLIC_KEY").is_some()
-}
-
 #[tauri::command]
 pub async fn check_app_update(app: AppHandle) -> Result<Option<AvailableUpdate>, String> {
     let current = app.package_info().version.to_string();
-
-    if !updater_enabled() {
-        println!("[updater] disabled (no pubkey env var) — current: {current}");
-        return Ok(None);
-    }
 
     println!("[updater] checking for updates — current: v{current}");
 
@@ -51,10 +42,6 @@ pub async fn check_app_update(app: AppHandle) -> Result<Option<AvailableUpdate>,
 
 #[tauri::command]
 pub async fn install_app_update(app: AppHandle) -> Result<bool, String> {
-    if !updater_enabled() {
-        return Err("Updater is not configured for this build yet.".to_string());
-    }
-
     let Some(update) = app
         .updater()
         .map_err(|err| format!("Failed to initialize updater: {err}"))?
