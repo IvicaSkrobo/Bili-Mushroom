@@ -341,7 +341,6 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
             ? { lat: parseFloat(form.lat), lng: parseFloat(form.lng) }
             : null
         }
-        speciesFilter={isKnownSpecies ? form.species_name : undefined}
         onConfirm={async (lat, lng) => {
           setForm((f) => ({ ...f, lat: String(lat), lng: String(lng) }));
           setPickerOpen(false);

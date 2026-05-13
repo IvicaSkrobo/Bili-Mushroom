@@ -87,9 +87,24 @@ vi.mock('./leafletIconFix', () => ({
   applyLeafletIconFix: vi.fn(),
 }));
 
-// LocationPickerMap uses useFinds to show existing pins — stub it out
+// LocationPickerMap uses useFinds to load finds passed to CollectionPins
 vi.mock('@/hooks/useFinds', () => ({
   useFinds: () => ({ data: findsMock.data }),
+  useSpeciesNotes: () => ({ data: [] }),
+  useSpeciesProfiles: () => ({ data: [] }),
+}));
+
+// Mock CollectionPins — renders one marker per find with coordinates
+vi.mock('./CollectionPins', () => ({
+  CollectionPins: ({ finds }: { finds: Array<{ id: number; lat?: number | null; lng?: number | null }> }) => (
+    <>
+      {finds
+        .filter((f) => f.lat != null && f.lng != null)
+        .map((f) => (
+          <div key={f.id} data-testid="marker" data-lat={f.lat} data-lng={f.lng} />
+        ))}
+    </>
+  ),
 }));
 
 // Mock appStore to return a storagePath
@@ -252,21 +267,4 @@ describe('LocationPickerMap', () => {
     expect(screen.getAllByTestId('marker')).toHaveLength(2);
   });
 
-  it('falls back to all previous pins when species filter has no matches', () => {
-    findsMock.data = [
-      { id: 1, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 },
-      { id: 2, species_name: 'Amanita muscaria', lat: 46.1, lng: 16.2 },
-    ];
-
-    render(
-      <LocationPickerMap
-        open={true}
-        onOpenChange={onOpenChange}
-        onConfirm={onConfirm}
-        speciesFilter="New species"
-      />,
-    );
-
-    expect(screen.getAllByTestId('marker')).toHaveLength(2);
-  });
 });

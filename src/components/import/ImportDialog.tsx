@@ -595,7 +595,6 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
             onOpenChange={setSharedMapOpen}
             initialLatLng={sharedLocation}
             onConfirm={handleSharedMapConfirm}
-            speciesFilter={sharedName || undefined}
           />
 
           <DialogFooter className="border-t border-border/60 px-5 py-4">

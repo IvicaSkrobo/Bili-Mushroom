@@ -523,7 +523,6 @@ export function PhotoLightbox({
         open={locationPickerOpen}
         onOpenChange={setLocationPickerOpen}
         initialLatLng={find.lat != null && find.lng != null ? { lat: find.lat, lng: find.lng } : null}
-        speciesFilter={find.species_name ?? undefined}
         onConfirm={(lat, lng, locationNote) => {
           updateFind.mutate({
             id: find.id,
