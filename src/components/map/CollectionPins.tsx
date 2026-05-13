@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef, type MouseEvent, type PointerEvent } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef, type MouseEvent } from 'react';
 import L from 'leaflet';
 import { Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import { ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
@@ -70,6 +70,8 @@ function CollectionPopup({
 }) {
   const map = useMap();
   const popupRef = useRef<HTMLDivElement | null>(null);
+  const previousButtonRef = useRef<HTMLButtonElement | null>(null);
+  const nextButtonRef = useRef<HTMLButtonElement | null>(null);
   const [findIdx, setFindIdx] = useState(0);
   const findEntries = useMemo(
     () => collection.finds.map((find) => ({
@@ -84,7 +86,6 @@ function CollectionPopup({
   }, [collection.key]);
   useEffect(() => {
     if (!popupRef.current) return;
-    L.DomEvent.disableClickPropagation(popupRef.current);
     L.DomEvent.disableScrollPropagation(popupRef.current);
   }, []);
   const [latinNameRaw, croatianName] = collection.name.split(',').map((s) => s.trim());
@@ -112,24 +113,72 @@ function CollectionPopup({
   const displayNote = (current?.findNotes?.trim()) || speciesNote;
 
   const hasPhoto = photoSrc != null;
-  const stopPopupButtonEvent = (event: MouseEvent<HTMLButtonElement> | PointerEvent<HTMLButtonElement>) => {
+  const stopPopupButtonEvent = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
     L.DomEvent.stopPropagation(event.nativeEvent);
   };
-  const goToPreviousFind = (event: MouseEvent<HTMLButtonElement> | PointerEvent<HTMLButtonElement>) => {
-    stopPopupButtonEvent(event);
-    setFindIdx((i) => (i - 1 + findEntries.length) % findEntries.length);
-  };
-  const goToNextFind = (event: MouseEvent<HTMLButtonElement> | PointerEvent<HTMLButtonElement>) => {
-    stopPopupButtonEvent(event);
-    setFindIdx((i) => (i + 1) % findEntries.length);
-  };
+  useEffect(() => {
+    const previousButton = previousButtonRef.current;
+    const nextButton = nextButtonRef.current;
+    if (!previousButton || !nextButton || findEntries.length <= 1) return;
+
+    const stopNativeEvent = (event: Event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      L.DomEvent.stopPropagation(event);
+    };
+    const goPrevious = (event: Event) => {
+      stopNativeEvent(event);
+      setFindIdx((i) => (i - 1 + findEntries.length) % findEntries.length);
+    };
+    const goNext = (event: Event) => {
+      stopNativeEvent(event);
+      setFindIdx((i) => (i + 1) % findEntries.length);
+    };
+
+    previousButton.addEventListener('pointerdown', goPrevious);
+    previousButton.addEventListener('click', stopNativeEvent);
+    nextButton.addEventListener('pointerdown', goNext);
+    nextButton.addEventListener('click', stopNativeEvent);
+
+    return () => {
+      previousButton.removeEventListener('pointerdown', goPrevious);
+      previousButton.removeEventListener('click', stopNativeEvent);
+      nextButton.removeEventListener('pointerdown', goNext);
+      nextButton.removeEventListener('click', stopNativeEvent);
+    };
+  }, [findEntries.length]);
 
   return (
-    <div ref={popupRef} className="w-[248px] overflow-hidden rounded-lg bg-background font-sans shadow-xl ring-1 ring-border/30">
+    <div ref={popupRef} className="relative w-[248px] overflow-visible font-sans">
+      {findEntries.length > 1 && (
+        <>
+          <button
+            ref={previousButtonRef}
+            type="button"
+            aria-label="Previous find"
+            onMouseDown={stopPopupButtonEvent}
+            onClick={stopPopupButtonEvent}
+            className="absolute -left-8 top-[42%] z-[20] flex h-11 w-7 -translate-y-1/2 items-center justify-center rounded-l-md border border-border/50 bg-background/95 text-foreground shadow-sm transition-colors hover:bg-secondary hover:text-primary"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            ref={nextButtonRef}
+            type="button"
+            aria-label="Next find"
+            onMouseDown={stopPopupButtonEvent}
+            onClick={stopPopupButtonEvent}
+            className="absolute -right-8 top-[42%] z-[20] flex h-11 w-7 -translate-y-1/2 items-center justify-center rounded-r-md border border-border/50 bg-background/95 text-foreground shadow-sm transition-colors hover:bg-secondary hover:text-primary"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </>
+      )}
 
       {/* ── Visual header ────────────────────────────────── */}
+      <div className="overflow-hidden rounded-lg bg-background shadow-xl ring-1 ring-border/30">
       <div className="relative h-[148px] w-full select-none">
         {hasPhoto ? (
           <>
@@ -154,34 +203,11 @@ function CollectionPopup({
           </span>
         </div>
 
-        {/* Carousel side arrows - shown when multiple finds share this pin */}
+        {/* Find counter - shown when multiple finds share this pin */}
         {findEntries.length > 1 && (
-          <>
-            <button
-              type="button"
-              aria-label="Previous find"
-              onPointerDown={goToPreviousFind}
-              onMouseDown={stopPopupButtonEvent}
-              onClick={stopPopupButtonEvent}
-              className="absolute left-1 top-1/2 z-[3] -translate-y-1/2 rounded-full bg-black/50 p-0.5 backdrop-blur-sm transition-colors hover:bg-black/75"
-            >
-              <ChevronLeft className="h-3.5 w-3.5 text-white" />
-            </button>
-            <button
-              type="button"
-              aria-label="Next find"
-              onPointerDown={goToNextFind}
-              onMouseDown={stopPopupButtonEvent}
-              onClick={stopPopupButtonEvent}
-              className="absolute right-1 top-1/2 z-[3] -translate-y-1/2 rounded-full bg-black/50 p-0.5 backdrop-blur-sm transition-colors hover:bg-black/75"
-            >
-              <ChevronRight className="h-3.5 w-3.5 text-white" />
-            </button>
-            {/* Find counter - bottom-right, above name */}
-            <span className="absolute bottom-[42px] right-2.5 z-[3] text-[10px] font-medium text-white/50">
-              {findIdx + 1}/{findEntries.length}
-            </span>
-          </>
+          <span className="absolute bottom-[42px] right-2.5 z-[3] text-[10px] font-medium text-white/50">
+            {findIdx + 1}/{findEntries.length}
+          </span>
         )}
 
         {/* Species name block — bottom of header */}
@@ -246,6 +272,7 @@ function CollectionPopup({
           )}
         </div>
 
+      </div>
       </div>
     </div>
   );
