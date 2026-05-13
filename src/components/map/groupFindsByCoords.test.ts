@@ -42,11 +42,11 @@ describe('groupFindsByCoords', () => {
     expect(groups[0].finds).toHaveLength(3);
   });
 
-  it('two finds differing by less than 0.0000001 degrees share a group', () => {
+  it('two finds with slightly different coordinates stay in separate groups', () => {
     const finds = [mk(1, 45.100000, 15.200000), mk(2, 45.1000001, 15.2000001)];
     const groups = groupFindsByCoords(finds);
-    expect(groups).toHaveLength(1);
-    expect(groups[0].finds).toHaveLength(2);
+    expect(groups).toHaveLength(2);
+    expect(groups.every((g) => g.finds.length === 1)).toBe(true);
   });
 
   it('different species at same coordinates produce one shared pin', () => {

@@ -14,6 +14,15 @@ leafletMocks.layers.mockImplementation(() => ({
   addTo: leafletMocks.addTo,
 }));
 
+const findsMock = vi.hoisted(() => ({
+  data: [] as Array<{
+    id: number;
+    species_name: string;
+    lat: number | null;
+    lng: number | null;
+  }>,
+}));
+
 vi.mock('leaflet', () => ({
   default: {
     control: {
@@ -80,13 +89,14 @@ vi.mock('./leafletIconFix', () => ({
 
 // LocationPickerMap uses useFinds to show existing pins — stub it out
 vi.mock('@/hooks/useFinds', () => ({
-  useFinds: () => ({ data: [] }),
+  useFinds: () => ({ data: findsMock.data }),
 }));
 
 // Mock appStore to return a storagePath
 vi.mock('@/stores/appStore', () => ({
   useAppStore: (selector: (s: { storagePath: string; mapLayer: 'Satellite'; setMapLayer: ReturnType<typeof vi.fn> }) => unknown) =>
     selector({ storagePath: '/tmp/storage', mapLayer: 'Satellite', setMapLayer: vi.fn() }),
+  saveMapViewport: vi.fn(),
 }));
 
 describe('LocationPickerMap', () => {
@@ -95,6 +105,7 @@ describe('LocationPickerMap', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    findsMock.data = [];
   });
 
   it('does not render MapContainer when open is false', () => {
@@ -222,5 +233,40 @@ describe('LocationPickerMap', () => {
       />,
     );
     expect(screen.getByText(/45\.00000, 15\.00000/)).toBeTruthy();
+  });
+
+  it('shows previous find pins in the picker', () => {
+    findsMock.data = [
+      { id: 1, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 },
+      { id: 2, species_name: 'Amanita muscaria', lat: 46.1, lng: 16.2 },
+    ];
+
+    render(
+      <LocationPickerMap
+        open={true}
+        onOpenChange={onOpenChange}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    expect(screen.getAllByTestId('marker')).toHaveLength(2);
+  });
+
+  it('falls back to all previous pins when species filter has no matches', () => {
+    findsMock.data = [
+      { id: 1, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 },
+      { id: 2, species_name: 'Amanita muscaria', lat: 46.1, lng: 16.2 },
+    ];
+
+    render(
+      <LocationPickerMap
+        open={true}
+        onOpenChange={onOpenChange}
+        onConfirm={onConfirm}
+        speciesFilter="New species"
+      />,
+    );
+
+    expect(screen.getAllByTestId('marker')).toHaveLength(2);
   });
 });

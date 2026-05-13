@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { collectionsFromFinds, SAME_LOCATION_DEG, LABEL_ZOOM_THRESHOLD } from './CollectionPins';
+import { collectionsFromFinds, LABEL_ZOOM_THRESHOLD } from './CollectionPins';
 import type { Find } from '@/lib/finds';
 
 function makeFind(overrides: Partial<Find> & { id: number; species_name: string; lat: number; lng: number }): Find {
@@ -40,16 +40,15 @@ describe('collectionsFromFinds', () => {
     expect(byCount[1].count).toBe(1);
   });
 
-  it('same species, two finds within tolerance → one shared pin', () => {
-    const epsilon = SAME_LOCATION_DEG * 0.5;
+  it('same species, two nearby finds stay as separate pins unless coordinates are identical', () => {
+    const epsilon = 0.0001;
     const finds = [
       makeFind({ id: 1, species_name: 'Amanita muscaria', lat: 45.1, lng: 15.2 }),
       makeFind({ id: 2, species_name: 'Amanita muscaria', lat: 45.1 + epsilon, lng: 15.2 + epsilon }),
     ];
     const result = collectionsFromFinds(finds);
-    expect(result).toHaveLength(1);
-    expect(result[0].count).toBe(2);
-    expect(result[0].finds).toHaveLength(2);
+    expect(result).toHaveLength(2);
+    expect(result.every((c) => c.count === 1)).toBe(true);
   });
 
   it('no pin at arithmetic midpoint of distant finds', () => {

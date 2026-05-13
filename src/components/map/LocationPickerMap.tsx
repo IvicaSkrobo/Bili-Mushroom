@@ -152,20 +152,25 @@ export function LocationPickerMap({
 
   const { data: finds } = useFinds();
 
-  // No deduplication — every find gets its own pin.
-  // Only hide the pin the user explicitly selected.
-  // When speciesFilter provided, only show pins for that species.
+  // No deduplication - every find gets its own pin.
+  // Prefer matching species when available, but fall back to all saved pins so
+  // the picker never opens as an empty map for new or misspelled species names.
   const prevLocations = useMemo(() => {
     if (!finds) return [];
     const needle = speciesFilter?.trim().toLowerCase();
-    return finds
-      .filter(
-        (f) =>
-          f.lat != null &&
-          f.lng != null &&
-          (!needle || f.species_name.toLowerCase() === needle),
-      )
-      .map((f) => ({ lat: f.lat as number, lng: f.lng as number, label: plainSpeciesName(f.species_name) }));
+    const withCoords = finds
+      .filter((f) => f.lat != null && f.lng != null)
+      .map((f) => ({
+        lat: f.lat as number,
+        lng: f.lng as number,
+        label: plainSpeciesName(f.species_name),
+        speciesName: f.species_name.toLowerCase(),
+      }));
+    const filtered = needle
+      ? withCoords.filter((loc) => loc.speciesName === needle)
+      : withCoords;
+    return (filtered.length > 0 ? filtered : withCoords)
+      .map(({ lat, lng, label }) => ({ lat, lng, label }));
   }, [finds, speciesFilter]);
 
   return (

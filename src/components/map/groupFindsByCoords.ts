@@ -11,7 +11,7 @@ export function groupFindsByCoords(finds: Find[]): FindGroup[] {
   const map = new Map<string, Find[]>();
   for (const f of finds) {
     if (f.lat === null || f.lng === null) continue;
-    const key = `${f.lat.toFixed(6)},${f.lng.toFixed(6)}`;
+    const key = `${f.lat},${f.lng}`;
     const existing = map.get(key) ?? [];
     existing.push(f);
     map.set(key, existing);

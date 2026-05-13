@@ -416,11 +416,33 @@ pub(crate) fn insert_find_photo(
     photo_path: &str,
     is_primary: bool,
 ) -> rusqlite::Result<i64> {
+    validate_library_relative_photo_path(photo_path)?;
     conn.execute(
         "INSERT INTO find_photos (find_id, photo_path, is_primary) VALUES (?1, ?2, ?3)",
         params![find_id, photo_path, if is_primary { 1i64 } else { 0i64 }],
     )?;
     Ok(conn.last_insert_rowid())
+}
+
+fn validate_library_relative_photo_path(photo_path: &str) -> rusqlite::Result<()> {
+    let trimmed = photo_path.trim();
+    let path = Path::new(trimmed);
+    let has_windows_drive = trimmed.len() >= 3
+        && trimmed.as_bytes()[1] == b':'
+        && (trimmed.as_bytes()[2] == b'\\' || trimmed.as_bytes()[2] == b'/');
+    let has_unc_prefix = trimmed.starts_with("\\\\") || trimmed.starts_with("//");
+    let has_parent_component = path
+        .components()
+        .any(|component| matches!(component, std::path::Component::ParentDir));
+
+    if trimmed.is_empty() || path.is_absolute() || has_windows_drive || has_unc_prefix || has_parent_component {
+        return Err(rusqlite::Error::InvalidParameterName(format!(
+            "photo_path must be relative to the Bili Mushroom library folder: {}",
+            photo_path
+        )));
+    }
+
+    Ok(())
 }
 
 /// Attempt to delete a source file after a successful copy, with retries.
@@ -1095,6 +1117,30 @@ mod tests {
             .expect("query photo");
         assert_eq!(path, "Croatia/Region/2024-05-10/photo_1.jpg");
         assert_eq!(is_primary, 1);
+    }
+
+    #[test]
+    fn test_insert_find_photo_rejects_absolute_and_parent_paths() {
+        let conn = setup_in_memory_db();
+        let record = make_find_record("photo.jpg", "2024-05-10");
+        let find_id = insert_find_row(&conn, &record).expect("insert find");
+
+        for bad_path in [
+            "/tmp/photo.jpg",
+            "C:\\Users\\Ivan\\photo.jpg",
+            "C:/Users/Ivan/photo.jpg",
+            "\\\\server\\share\\photo.jpg",
+            "../outside/photo.jpg",
+            "species/../../outside/photo.jpg",
+        ] {
+            let result = insert_find_photo(&conn, find_id, bad_path, true);
+            assert!(result.is_err(), "photo_path should stay library-relative: {bad_path}");
+        }
+
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM find_photos", [], |row| row.get(0))
+            .expect("count photos");
+        assert_eq!(count, 0);
     }
 
     #[test]

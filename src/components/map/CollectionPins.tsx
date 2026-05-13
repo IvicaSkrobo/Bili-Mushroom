@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef, type MouseEvent, type PointerEvent } from 'react';
 import L from 'leaflet';
 import { Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import { ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
@@ -69,13 +69,26 @@ function CollectionPopup({
   speciesProfile?: SpeciesProfile;
 }) {
   const map = useMap();
-  const [photoIdx, setPhotoIdx] = useState(0);
-  const allPhotos = useMemo(
-    () => collection.finds.flatMap((f) => f.photos.map((p) => ({ find: f, photo: p, findNotes: f.notes }))),
+  const popupRef = useRef<HTMLDivElement | null>(null);
+  const [findIdx, setFindIdx] = useState(0);
+  const findEntries = useMemo(
+    () => collection.finds.map((find) => ({
+      find,
+      photo: find.photos.find((p) => p.is_primary) ?? find.photos[0] ?? null,
+      findNotes: find.notes,
+    })),
     [collection.finds],
   );
+  useEffect(() => {
+    setFindIdx(0);
+  }, [collection.key]);
+  useEffect(() => {
+    if (!popupRef.current) return;
+    L.DomEvent.disableClickPropagation(popupRef.current);
+    L.DomEvent.disableScrollPropagation(popupRef.current);
+  }, []);
   const [latinNameRaw, croatianName] = collection.name.split(',').map((s) => s.trim());
-  const current = allPhotos[photoIdx] ?? null;
+  const current = findEntries[findIdx] ?? null;
   const photo = current?.photo ?? null;
   const existingLocalPolygon = current?.find
     ? zones.find(
@@ -98,65 +111,92 @@ function CollectionPopup({
     : null;
   const displayNote = (current?.findNotes?.trim()) || speciesNote;
 
-  const hasPhotos = allPhotos.length > 0;
+  const hasPhoto = photoSrc != null;
+  const stopPopupButtonEvent = (event: MouseEvent<HTMLButtonElement> | PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    L.DomEvent.stopPropagation(event.nativeEvent);
+  };
+  const goToPreviousFind = (event: MouseEvent<HTMLButtonElement> | PointerEvent<HTMLButtonElement>) => {
+    stopPopupButtonEvent(event);
+    setFindIdx((i) => (i - 1 + findEntries.length) % findEntries.length);
+  };
+  const goToNextFind = (event: MouseEvent<HTMLButtonElement> | PointerEvent<HTMLButtonElement>) => {
+    stopPopupButtonEvent(event);
+    setFindIdx((i) => (i + 1) % findEntries.length);
+  };
 
   return (
-    <div className="w-[248px] overflow-hidden rounded-lg bg-background font-sans shadow-xl ring-1 ring-border/30">
+    <div ref={popupRef} className="w-[248px] overflow-hidden rounded-lg bg-background font-sans shadow-xl ring-1 ring-border/30">
 
       {/* ── Visual header ────────────────────────────────── */}
       <div className="relative h-[148px] w-full select-none">
-        {hasPhotos ? (
-          photoSrc
-            ? <img src={photoSrc} alt="" className="h-full w-full object-cover" draggable={false} />
-            : <div className="h-full w-full bg-secondary/60" />
+        {hasPhoto ? (
+          <>
+            <img
+              src={photoSrc}
+              alt=""
+              className="relative z-[1] h-full w-full bg-black object-contain"
+              draggable={false}
+            />
+          </>
         ) : (
           <div className="flex h-full w-full items-end bg-gradient-to-br from-[oklch(0.16_0.02_135)] to-[oklch(0.10_0.01_135)] p-3" />
         )}
 
         {/* Gradient scrim so text is always legible */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-black/5" />
+        <div className="absolute inset-0 z-[2] bg-gradient-to-t from-black/95 via-black/50 to-black/5" />
 
         {/* Find-count pill — top-right */}
-        <div className="absolute right-2 top-2">
+        <div className="absolute right-2 top-2 z-[3]">
           <span className="rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium tracking-wide text-white/90 backdrop-blur-sm">
             {collection.count} {collection.count === 1 ? 'nalaz' : 'nalaza'}
           </span>
         </div>
 
-        {/* Carousel side arrows — shown when multiple photos exist */}
-        {allPhotos.length > 1 && (
+        {/* Carousel side arrows - shown when multiple finds share this pin */}
+        {findEntries.length > 1 && (
           <>
             <button
               type="button"
-              aria-label="Previous photo"
-              onClick={() => setPhotoIdx((i) => (i - 1 + allPhotos.length) % allPhotos.length)}
-              className="absolute left-1 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-0.5 backdrop-blur-sm transition-colors hover:bg-black/75"
+              aria-label="Previous find"
+              onPointerDown={goToPreviousFind}
+              onMouseDown={stopPopupButtonEvent}
+              onClick={stopPopupButtonEvent}
+              className="absolute left-1 top-1/2 z-[3] -translate-y-1/2 rounded-full bg-black/50 p-0.5 backdrop-blur-sm transition-colors hover:bg-black/75"
             >
               <ChevronLeft className="h-3.5 w-3.5 text-white" />
             </button>
             <button
               type="button"
-              aria-label="Next photo"
-              onClick={() => setPhotoIdx((i) => (i + 1) % allPhotos.length)}
-              className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-0.5 backdrop-blur-sm transition-colors hover:bg-black/75"
+              aria-label="Next find"
+              onPointerDown={goToNextFind}
+              onMouseDown={stopPopupButtonEvent}
+              onClick={stopPopupButtonEvent}
+              className="absolute right-1 top-1/2 z-[3] -translate-y-1/2 rounded-full bg-black/50 p-0.5 backdrop-blur-sm transition-colors hover:bg-black/75"
             >
               <ChevronRight className="h-3.5 w-3.5 text-white" />
             </button>
-            {/* Photo counter — bottom-right, above name */}
-            <span className="absolute bottom-[42px] right-2.5 text-[10px] font-medium text-white/50">
-              {photoIdx + 1}/{allPhotos.length}
+            {/* Find counter - bottom-right, above name */}
+            <span className="absolute bottom-[42px] right-2.5 z-[3] text-[10px] font-medium text-white/50">
+              {findIdx + 1}/{findEntries.length}
             </span>
           </>
         )}
 
         {/* Species name block — bottom of header */}
-        <div className="absolute bottom-0 left-0 right-0 px-2.5 pb-1 pt-1">
+        <div className="absolute bottom-0 left-0 right-0 z-[3] px-2.5 pb-1 pt-1">
           <p className="font-serif text-[13px] font-bold italic leading-snug text-white [text-shadow:0_1px_6px_rgba(0,0,0,1),0_0_20px_rgba(0,0,0,0.8)]">
             {renderSpeciesName(latinNameRaw)}
           </p>
           {croatianName && (
             <p className="mt-0.5 text-[11px] italic leading-tight text-white/80 [text-shadow:0_1px_4px_rgba(0,0,0,1)]">
               {plainSpeciesName(croatianName)}
+            </p>
+          )}
+          {current?.find.date_found && (
+            <p className="mt-0.5 text-[10px] leading-tight text-white/65 [text-shadow:0_1px_4px_rgba(0,0,0,1)]">
+              {current.find.date_found}
             </p>
           )}
         </div>
@@ -338,8 +378,9 @@ export function CollectionPins({
   );
 }
 
-/** Max degree delta to consider two finds the same physical location (~22 m at mid-latitudes). */
-export const SAME_LOCATION_DEG = 0.0002;
+function coordKey(lat: number, lng: number): string {
+  return `${lat},${lng}`;
+}
 
 /**
  * Converts raw species name format to HTML for pin labels.
@@ -351,31 +392,26 @@ function rawToLabelHtml(raw: string): string {
   return escaped.replace(/\*(.*?)\*/g, (_m, word) => `<span style="font-weight:400">${word}</span>`);
 }
 
-/** Groups finds into per-location-bucket collections. Each distinct (species, location) pair
- *  gets its own pin. Finds within SAME_LOCATION_DEG of an existing bucket join that bucket.
+/** Groups finds into per-location collections. Each distinct (species, exact saved coordinate) pair
+ *  gets its own pin. Shared pins only happen when finds have the same stored coordinate.
  *  After grouping, a proximity pass assigns labelText and suppressLabel:
  *  - Single species at a location: labelText = Latin name, suppressLabel = false
  *  - Multiple species at same location: first gets "N species", rest suppressed */
 export function collectionsFromFinds(finds: Find[]): Collection[] {
-  const bySpecies = new Map<string, Array<{ sumLat: number; sumLng: number; finds: Find[] }>>();
+  const bySpecies = new Map<string, Array<{ key: string; lat: number; lng: number; finds: Find[] }>>();
 
   for (const f of finds) {
     if (f.lat == null || f.lng == null) continue;
     if (!bySpecies.has(f.species_name)) bySpecies.set(f.species_name, []);
     const buckets = bySpecies.get(f.species_name)!;
+    const key = coordKey(f.lat, f.lng);
 
-    const existing = buckets.find(
-      (b) =>
-        Math.abs(b.sumLat / b.finds.length - f.lat!) <= SAME_LOCATION_DEG &&
-        Math.abs(b.sumLng / b.finds.length - f.lng!) <= SAME_LOCATION_DEG,
-    );
+    const existing = buckets.find((b) => b.key === key);
 
     if (existing) {
-      existing.sumLat += f.lat;
-      existing.sumLng += f.lng;
       existing.finds.push(f);
     } else {
-      buckets.push({ sumLat: f.lat, sumLng: f.lng, finds: [f] });
+      buckets.push({ key, lat: f.lat, lng: f.lng, finds: [f] });
     }
   }
 
@@ -383,12 +419,12 @@ export function collectionsFromFinds(finds: Find[]): Collection[] {
   for (const [name, buckets] of bySpecies) {
     const multi = buckets.length > 1;
     for (let i = 0; i < buckets.length; i++) {
-      const { sumLat, sumLng, finds } = buckets[i];
+      const { lat, lng, finds } = buckets[i];
       result.push({
         key: multi ? `${name}|${i}` : name,
         name,
-        lat: sumLat / finds.length,
-        lng: sumLng / finds.length,
+        lat,
+        lng,
         count: finds.length,
         finds,
         labelText: '',       // filled by proximity pass below
@@ -404,8 +440,7 @@ export function collectionsFromFinds(finds: Find[]): Collection[] {
     for (const group of locationGroups) {
       if (group.some(
         (other) =>
-          Math.abs(other.lat - col.lat) <= SAME_LOCATION_DEG &&
-          Math.abs(other.lng - col.lng) <= SAME_LOCATION_DEG,
+          coordKey(other.lat, other.lng) === coordKey(col.lat, col.lng),
       )) {
         group.push(col);
         placed = true;
