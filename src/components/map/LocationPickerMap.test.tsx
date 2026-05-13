@@ -94,9 +94,9 @@ vi.mock('@/hooks/useFinds', () => ({
   useSpeciesProfiles: () => ({ data: [] }),
 }));
 
-// Mock CollectionPins — renders one marker per find with coordinates
-vi.mock('./CollectionPins', () => ({
-  CollectionPins: ({ finds }: { finds: Array<{ id: number; lat?: number | null; lng?: number | null }> }) => (
+// Mock PickerPins — renders one marker per find with coordinates
+vi.mock('./PickerPins', () => ({
+  PickerPins: ({ finds }: { finds: Array<{ id: number; lat?: number | null; lng?: number | null }> }) => (
     <>
       {finds
         .filter((f) => f.lat != null && f.lng != null)

@@ -14,7 +14,7 @@ import { applyLeafletIconFix } from './leafletIconFix';
 import { createRustProxyTileLayer } from './RustProxyTileLayer';
 import type { MapLayer } from '@/stores/appStore';
 import { useFinds } from '@/hooks/useFinds';
-import { CollectionPins } from './CollectionPins';
+import { PickerPins } from './PickerPins';
 
 applyLeafletIconFix();
 
@@ -161,8 +161,14 @@ export function LocationPickerMap({
                 }}
               />
 
-              {/* All existing finds — same pins as the main map */}
-              <CollectionPins finds={finds ?? []} />
+              {/* Existing find pins — click to adopt that location, no popup */}
+              <PickerPins
+                finds={finds ?? []}
+                onPickLocation={(lat, lng, label) => {
+                  setPin({ lat, lng });
+                  setPinLabel(label);
+                }}
+              />
 
               {/* Selected pin — draggable */}
               {pin && (
