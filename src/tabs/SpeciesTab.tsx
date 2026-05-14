@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Calendar, Camera, Info, MapPin, Pencil, Plus, Repeat2, Search, Star, X } from 'lucide-react';
+import { BookOpen, Calendar, Camera, Info, Map as MapIcon, MapPin, Pencil, Plus, Repeat2, Search, Star, X } from 'lucide-react';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useFinds, useSpeciesNotes, useSpeciesProfiles, useUpsertSpeciesProfile, useSpeciesRecipes, useUpsertSpeciesRecipe, useDeleteSpeciesRecipe } from '@/hooks/useFinds';
+import { useFinds, useSpeciesNotes, useUpsertSpeciesNote, useSpeciesProfiles, useUpsertSpeciesProfile, useSpeciesRecipes, useUpsertSpeciesRecipe, useDeleteSpeciesRecipe } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
 import { isInternalLibraryName } from '@/lib/internalEntries';
@@ -14,7 +15,7 @@ import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { EdibilitySelectBadge, ThreatStatusSelectBadge, DistributionSelectBadge } from '@/components/species/StatusSelectBadge';
 import { PhotoLightbox, type LightboxPhoto } from '@/components/finds/PhotoLightbox';
 import { EditFindDialog } from '@/components/finds/EditFindDialog';
-import { renderSpeciesName, plainSpeciesName } from '@/lib/speciesName';
+import { renderSpeciesName, plainSpeciesName, normalizeCommonName, compareSpeciesNames } from '@/lib/speciesName';
 
 interface DateSummary {
   date: string;
@@ -83,11 +84,6 @@ function formatMonth(month: number | null, locale: string): string | null {
   return new Intl.DateTimeFormat(locale, { month: 'long' }).format(new Date(2024, month - 1, 1));
 }
 
-function monthsBetweenDates(earlier: Date, later: Date): number {
-  const yearDiff = later.getFullYear() - earlier.getFullYear();
-  const monthDiff = later.getMonth() - earlier.getMonth();
-  return yearDiff * 12 + monthDiff;
-}
 
 function getObservedRange(find: Pick<Find, 'observed_count' | 'observed_count_min' | 'observed_count_max'>) {
   const min = find.observed_count_min ?? find.observed_count;
@@ -98,18 +94,18 @@ function getObservedRange(find: Pick<Find, 'observed_count' | 'observed_count_mi
   return { min: Math.min(low, high), max: Math.max(low, high) };
 }
 
-function formatObservedRange(min: number | null, max: number | null): string | null {
-  if (min == null && max == null) return null;
-  const low = min ?? max!;
-  const high = max ?? min!;
-  return low === high ? String(low) : `${low}-${high}`;
-}
 
 function formatRoundedRange(min: number | null, max: number | null): string | null {
   if (min == null && max == null) return null;
   const low = Math.round(min ?? max!);
   const high = Math.round(max ?? min!);
   return low === high ? String(low) : `${low}-${high}`;
+}
+
+function monthsBetweenDates(earlier: Date, later: Date): number {
+  const yearDiff = later.getFullYear() - earlier.getFullYear();
+  const monthDiff = later.getMonth() - earlier.getMonth();
+  return yearDiff * 12 + monthDiff;
 }
 
 function buildWhenToLookCopy(
@@ -358,14 +354,34 @@ function buildSpeciesJournal(speciesName: string, finds: Find[], coverPhotoId: n
   };
 }
 
+function hasOpenModalLayer(): boolean {
+  return Boolean(document.querySelector(
+    '[data-slot="dialog-content"][data-state="open"], [data-slot="alert-dialog-content"][data-state="open"]',
+  ));
+}
+
+function releaseStaleModalScrollLock() {
+  if (typeof document === 'undefined' || hasOpenModalLayer()) return;
+
+  document.body.style.overflow = '';
+  document.body.style.paddingRight = '';
+  document.body.style.pointerEvents = '';
+  document.body.removeAttribute('data-scroll-locked');
+}
+
 export default function SpeciesTab() {
   const t = useT();
   const lang = useAppStore((s) => s.language);
   const storagePath = useAppStore((s) => s.storagePath);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const setSelectedCollectionSpecies = useAppStore((s) => s.setSelectedCollectionSpecies);
+  const pendingSpeciesSelection = useAppStore((s) => s.pendingSpeciesSelection);
+  const setPendingSpeciesSelection = useAppStore((s) => s.setPendingSpeciesSelection);
+  const setPendingMapCenter = useAppStore((s) => s.setPendingMapCenter);
+  const setPendingMapSpeciesFilter = useAppStore((s) => s.setPendingMapSpeciesFilter);
   const { data: finds, isLoading, isError, error } = useFinds();
   const { data: speciesNotes } = useSpeciesNotes();
+  const upsertSpeciesNote = useUpsertSpeciesNote();
   const { data: speciesProfiles } = useSpeciesProfiles();
   const { data: speciesRecipes } = useSpeciesRecipes();
   const upsertSpeciesProfile = useUpsertSpeciesProfile();
@@ -379,6 +395,7 @@ export default function SpeciesTab() {
   const [lightboxPhotosOverride, setLightboxPhotosOverride] = useState<LightboxPhoto[] | null>(null);
   const [lightboxFallbackFind, setLightboxFallbackFind] = useState<Find | null>(null);
   const [editingFind, setEditingFind] = useState<Find | null>(null);
+  const [detailTab, setDetailTab] = useState<'overview' | 'finds' | 'recipes' | 'description'>('overview');
 
   const openLightbox = (index: number, fallbackFind: Find | null = null) => {
     setLightboxPhotosOverride(fallbackFind && fallbackFind.photos.length === 0 ? [] : null);
@@ -403,7 +420,7 @@ export default function SpeciesTab() {
         const profile = speciesProfiles?.find((entry) => entry.species_name === speciesName);
         return buildSpeciesJournal(speciesName, speciesFinds, profile?.cover_photo_id ?? null);
       })
-      .sort((a, b) => a.speciesName.localeCompare(b.speciesName));
+      .sort((a, b) => compareSpeciesNames(a.speciesName, b.speciesName));
   }, [finds, speciesProfiles]);
 
   const filteredSpecies = useMemo(() => {
@@ -423,12 +440,21 @@ export default function SpeciesTab() {
     }
   }, [filteredSpecies, selectedSpecies]);
 
+  useEffect(() => {
+    if (!pendingSpeciesSelection || filteredSpecies.length === 0) return;
+    const match = filteredSpecies.find((e) => e.speciesName === pendingSpeciesSelection);
+    if (match) setSelectedSpecies(match.speciesName);
+    setPendingSpeciesSelection(null);
+  }, [pendingSpeciesSelection, filteredSpecies, setPendingSpeciesSelection]);
+
   const selectedJournal = filteredSpecies.find((entry) => entry.speciesName === selectedSpecies) ?? filteredSpecies[0] ?? null;
   const selectedNote = speciesNotes?.find((note) => note.species_name === selectedJournal?.speciesName)?.notes ?? '';
   const selectedProfile = speciesProfiles?.find((entry) => entry.species_name === selectedJournal?.speciesName) ?? null;
   const selectedTags = selectedProfile?.tags ?? [];
 
+  const [noteInput, setNoteInput] = useState(selectedNote);
   const [speciesDescriptionInput, setSpeciesDescriptionInput] = useState(selectedProfile?.description ?? selectedProfile?.edibility_note ?? '');
+  const [commonNameInput, setCommonNameInput] = useState(selectedProfile?.common_name ?? '');
   const [edibilityInput, setEdibilityInput] = useState(selectedProfile?.edibility ?? 'unknown');
   const [threatStatusInput, setThreatStatusInput] = useState(selectedProfile?.threat_status ?? 'unknown');
   const [distributionInput, setDistributionInput] = useState(selectedProfile?.distribution ?? 'unknown');
@@ -441,7 +467,9 @@ export default function SpeciesTab() {
   const [recipeDrafts, setRecipeDrafts] = useState<Record<number, { title: string; notes: string }>>({});
 
   useEffect(() => {
+    setNoteInput(selectedNote);
     setSpeciesDescriptionInput(selectedProfile?.description ?? selectedProfile?.edibility_note ?? '');
+    setCommonNameInput(selectedProfile?.common_name ?? '');
     setEdibilityInput(selectedProfile?.edibility ?? 'unknown');
     setThreatStatusInput(selectedProfile?.threat_status ?? 'unknown');
     setDistributionInput(selectedProfile?.distribution ?? 'unknown');
@@ -451,16 +479,29 @@ export default function SpeciesTab() {
     setOtherNamesInput('');
     setNewRecipeTitle('');
     setNewRecipeNotes('');
+    setDetailTab('overview');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedJournal?.speciesName]);
 
-  // Radix Dialog sometimes leaves overflow:hidden on body after close in Tauri WebView
+  // Keep noteInput in sync when the query updates from an external write (e.g. CollectionTab save).
   useEffect(() => {
-    if (!coverPickerOpen) {
-      document.body.style.overflow = '';
-      document.body.style.paddingRight = '';
-    }
-  }, [coverPickerOpen]);
+    setNoteInput(selectedNote);
+  }, [selectedNote]);
+
+  // Radix Dialog can occasionally leave body scroll/pointer locks behind in Tauri WebView.
+  useEffect(() => {
+    if (coverPickerOpen || lightboxOpen || editingFind) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      window.setTimeout(releaseStaleModalScrollLock, 80);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [coverPickerOpen, lightboxOpen, editingFind]);
+
+  useEffect(() => () => {
+    window.setTimeout(releaseStaleModalScrollLock, 80);
+  }, []);
 
   const InfoHint = ({ text }: { text: string }) => (
     <span
@@ -474,6 +515,7 @@ export default function SpeciesTab() {
 
   const selectedSynonyms = selectedProfile?.synonyms ?? [];
   const selectedOtherNames = selectedProfile?.other_names ?? [];
+  const selectedCommonName = normalizeCommonName(selectedProfile?.common_name, selectedJournal?.speciesName);
   const selectedFruitingBodyCountOverride = selectedProfile?.fruiting_body_count_override ?? null;
   const selectedRecipes = useMemo(
     () => (speciesRecipes ?? []).filter((recipe) => recipe.species_name === selectedJournal?.speciesName),
@@ -574,6 +616,24 @@ export default function SpeciesTab() {
       edibility: newEdibility === 'unknown' ? null : newEdibility,
       threatStatus: newThreatStatus === 'unknown' ? null : newThreatStatus,
       distribution: newDistribution === 'unknown' ? null : newDistribution,
+      edibilityNote: legacyEdibilityNote,
+      synonyms: selectedSynonyms,
+      otherNames: selectedOtherNames,
+      fruitingBodyCountOverride: selectedFruitingBodyCountOverride,
+      description: profileDescription,
+    });
+  };
+
+  const handleSaveCommonName = () => {
+    if (!selectedJournal) return;
+    upsertSpeciesProfile.mutate({
+      speciesName: selectedJournal.speciesName,
+      commonName: commonNameInput.trim() || null,
+      coverPhotoId: selectedJournal.heroPhotoId,
+      tags: selectedTags,
+      edibility: edibilityInput === 'unknown' ? null : edibilityInput,
+      threatStatus: threatStatusInput === 'unknown' ? null : threatStatusInput,
+      distribution: distributionInput === 'unknown' ? null : distributionInput,
       edibilityNote: legacyEdibilityNote,
       synonyms: selectedSynonyms,
       otherNames: selectedOtherNames,
@@ -742,7 +802,7 @@ export default function SpeciesTab() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t('species.search')}
-                className="h-10 w-full rounded-md border border-border bg-input pl-10 pr-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/40"
+                className="h-10 w-full rounded-md border border-border bg-input pl-10 pr-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
               />
             </div>
           </div>
@@ -759,6 +819,8 @@ export default function SpeciesTab() {
                     ? resolvePhotoSrc(storagePath, entry.heroPhotoPath)
                     : null;
                   const isActive = entry.speciesName === selectedJournal?.speciesName;
+                  const entryProfile = speciesProfiles?.find((profile) => profile.species_name === entry.speciesName) ?? null;
+                  const entryCommonName = normalizeCommonName(entryProfile?.common_name, entry.speciesName);
 
                   return (
                     <button
@@ -791,6 +853,11 @@ export default function SpeciesTab() {
                             </span>
                           )}
                         </div>
+                        {entryCommonName && (
+                          <p className="truncate text-xs font-medium text-secondary" title={entryCommonName}>
+                            {entryCommonName}
+                          </p>
+                        )}
                         <p className="text-xs text-muted-foreground">
                           {t('species.recordedFindsLabel', { count: entry.recordedFinds })}
                         </p>
@@ -861,9 +928,38 @@ export default function SpeciesTab() {
                           </Badge>
                         )}
                       </div>
+                      {selectedCommonName && (
+                        <p className="mt-1 text-sm font-semibold text-secondary">{selectedCommonName}</p>
+                      )}
                       <p className="mt-1 text-sm text-muted-foreground">{t('species.coverHint')}</p>
                     </div>
                     <div className="space-y-3 border-t border-border/50 pt-3">
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground/70">{t('species.commonName')}</p>
+                        <div className="flex gap-1.5">
+                          <Input
+                            value={commonNameInput}
+                            onChange={(e) => setCommonNameInput(e.target.value)}
+                            onBlur={handleSaveCommonName}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleSaveCommonName();
+                              }
+                            }}
+                            placeholder={t('species.commonNamePlaceholder')}
+                            className="h-8 text-sm"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleSaveCommonName}
+                            className="rounded border border-border/60 bg-input px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            {t('edit.save')}
+                          </button>
+                        </div>
+                      </div>
+
                       <div className="space-y-1.5">
                         <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground/70">{t('species.synonyms')}</p>
                         <div className="flex flex-wrap gap-1.5">
@@ -922,408 +1018,449 @@ export default function SpeciesTab() {
                       >
                         {t('species.viewCollection')}
                       </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setPendingMapSpeciesFilter(selectedJournal.speciesName);
+                          setActiveTab('map');
+                        }}
+                      >
+                        <MapIcon className="h-4 w-4 mr-1.5" />
+                        {lang === 'hr' ? 'Prikaži na karti' : 'View on map'}
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
 
-                <div className="space-y-6">
-                  <Card className="gap-0 py-5">
-                    <CardContent className="space-y-3 px-5">
-                      <div>
-                        <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-foreground">
-                          {t('species.fieldJournal')}
-                        </h3>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {selectedNote.trim() || t('species.noJournalNote')}
-                        </p>
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <EdibilitySelectBadge
-                            value={edibilityInput}
-                            onChange={(v) => {
-                              setEdibilityInput(v);
-                              handleSaveMetadataStatus(v, threatStatusInput, distributionInput);
-                            }}
-                          />
-                          <ThreatStatusSelectBadge
-                            value={threatStatusInput}
-                            onChange={(v) => {
-                              setThreatStatusInput(v);
-                              handleSaveMetadataStatus(edibilityInput, v, distributionInput);
-                            }}
-                          />
-                          <DistributionSelectBadge
-                            value={distributionInput}
-                            onChange={(v) => {
-                              setDistributionInput(v);
-                              handleSaveMetadataStatus(edibilityInput, threatStatusInput, v);
-                            }}
-                          />
-                        </div>
-                        <div className="mt-3 space-y-1.5">
-                          <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
-                            {t('edit.speciesDescription')}
-                          </p>
-                          <textarea
-                            value={speciesDescriptionInput}
-                            onChange={(e) => setSpeciesDescriptionInput(e.target.value)}
-                            onBlur={handleSaveSpeciesDescription}
-                            rows={3}
-                            placeholder={t('edit.speciesDescriptionPlaceholder')}
-                            className="w-full resize-none rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
-                          />
-                          <p className="text-[11px] text-muted-foreground/50">{t('edit.speciesDescriptionHelp')}</p>
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <Badge variant="outline">{t('species.recordedFindsLabel', { count: selectedJournal.recordedFinds })}</Badge>
-                          {selectedJournal.favoriteCount > 0 && (
-                            <Badge variant="outline" className="gap-1 border-amber-500/35 bg-amber-500/10 text-amber-600">
-                              <Star className="h-3.5 w-3.5 fill-current" />
-                              {t('species.favoriteCountLabel', { count: selectedJournal.favoriteCount })}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                      <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-2">
-                        <div>
-                          <p className="font-medium text-foreground">{t('species.firstRecorded')}</p>
-                          <p>{formatDate(selectedJournal.firstRecorded, locale)}</p>
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground">{t('species.lastRecorded')}</p>
-                          <p>{formatDate(selectedJournal.lastRecorded, locale)}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    <Card className="gap-0 py-4">
-                      <CardContent className="space-y-1 px-5">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                            <span className="inline-flex items-center gap-1.5">
-                              <span>{fruitingBodyCardLabel}</span>
-                              <InfoHint text={fruitingBodyCardHint} />
-                            </span>
-                          </p>
-                          {selectedJournal.fruitingBodyTotalLabel && (
-                            <button
-                              type="button"
-                              onClick={() => setShowFruitingBodyTotal((v) => !v)}
-                              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border/70 bg-background/70 text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
-                              title={showFruitingBodyTotal ? t('species.showAverage') : t('species.showTotal')}
-                              aria-label={showFruitingBodyTotal ? t('species.showAverage') : t('species.showTotal')}
-                            >
-                              <Repeat2 className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                        </div>
-                        {fruitingBodyCardIsTotal ? (
-                          <p className="h-9 font-mono text-2xl font-semibold text-foreground">
-                            {selectedJournal.fruitingBodyTotalLabel}
-                          </p>
-                        ) : (
-                          <input
-                            value={fruitingBodyCountInput}
-                            onChange={(e) => setFruitingBodyCountInput(e.target.value)}
-                            onBlur={() => handleSaveFruitingBodyCountOverride()}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.currentTarget.blur();
-                              }
-                            }}
-                            placeholder={defaultFruitingBodyLabel ?? t('species.fruitingBodyCountPlaceholder')}
-                            className="h-9 w-full rounded border border-border/60 bg-input px-2 font-mono text-2xl font-semibold text-foreground placeholder:text-foreground focus:outline-none focus:ring-1 focus:ring-ring/50"
-                          />
-                        )}
-                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground/70">
-                          <span>{fruitingBodyModeLabel}</span>
-                          {!fruitingBodyCardIsTotal && isCustomFruitingBodyCount && (
-                            <button
-                              type="button"
-                              onClick={() => handleSaveFruitingBodyCountOverride('')}
-                              className="text-muted-foreground transition-colors hover:text-foreground"
-                            >
-                              {t('species.resetAverage')}
-                            </button>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card className="gap-0 py-4">
-                      <CardContent className="space-y-1 px-5">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                          <span className="inline-flex items-center gap-1.5">
-                            <span>{t('species.recordedFinds')}</span>
-                            <InfoHint text={t('species.recordedFindsHelp')} />
+                <div>
+                  {/* Detail tab strip */}
+                  <div className="mb-6 flex border-b border-border/50">
+                    {(['overview', 'finds', 'recipes', 'description'] as const).map((tab) => (
+                      <button
+                        key={tab}
+                        type="button"
+                        onClick={() => setDetailTab(tab)}
+                        className={[
+                          'flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition-colors -mb-px',
+                          detailTab === tab
+                            ? 'border-primary text-foreground'
+                            : 'border-transparent text-muted-foreground hover:text-foreground',
+                        ].join(' ')}
+                      >
+                        {tab === 'overview' ? t('species.tabOverview')
+                          : tab === 'finds' ? t('species.tabFinds')
+                          : tab === 'recipes' ? t('species.tabRecipes')
+                          : t('species.tabDescription')}
+                        {tab === 'finds' && (
+                          <span className="rounded-full bg-muted px-1.5 text-[10px] font-mono font-normal text-muted-foreground">
+                            {selectedJournal.recordedFinds}
                           </span>
-                        </p>
-                        <p className="text-2xl font-semibold text-foreground">{selectedJournal.recordedFinds}</p>
-                      </CardContent>
-                    </Card>
-                    <Card className="gap-0 py-4">
-                      <CardContent className="space-y-1 px-5">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                          {t('species.daysRecorded')}
-                        </p>
-                        <p className="text-2xl font-semibold text-foreground">{selectedJournal.daysRecorded}</p>
-                      </CardContent>
-                    </Card>
-                    <Card className="gap-0 py-4">
-                      <CardContent className="space-y-1 px-5">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                          {t('species.bestMonth')}
-                        </p>
-                        <p className="text-xl font-semibold text-foreground">
-                          {selectedJournal.bestMonth ? formatMonth(selectedJournal.bestMonth, locale) : '--'}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  </section>
-
-                  {/* Finds list */}
-                  <Card className="gap-0 py-5">
-                    <CardContent className="space-y-3 px-5">
-                      <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-foreground">
-                        {t('species.recordedFinds')}
-                      </h3>
-                      <div className="space-y-2">
-                        {selectedJournal.finds.map((find) => {
-                          const primaryPhoto = find.photos.find((p) => p.is_primary) ?? find.photos[0] ?? null;
-                          const photoIdx = primaryPhoto
-                            ? selectedJournal.allPhotos.findIndex((e) => e.photo.id === primaryPhoto.id)
-                            : -1;
-                          const thumbSrc = primaryPhoto && storagePath
-                            ? resolvePhotoSrc(storagePath, primaryPhoto.photo_path)
-                            : null;
-                          const obsMin = find.observed_count_min ?? find.observed_count;
-                          const obsMax = find.observed_count_max ?? find.observed_count_min ?? find.observed_count;
-                          const obsDisplay = obsMin != null
-                            ? (obsMin === obsMax ? String(obsMin) : `${obsMin}–${obsMax}`)
-                            : null;
-                          const locationParts = [find.location_note, find.region, find.country].filter(Boolean);
-
-                          return (
-                            <button
-                              key={find.id}
-                              type="button"
-                              onClick={() => openLightbox(photoIdx >= 0 ? photoIdx : 0, find)}
-                              className="group flex w-full items-center gap-3 rounded-md border border-border/40 bg-card/40 px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"
-                            >
-                              {/* Thumbnail */}
-                              <div className="h-12 w-12 shrink-0 overflow-hidden rounded border border-border/30 bg-muted/40">
-                                {thumbSrc ? (
-                                  <img src={thumbSrc} alt="" className="h-full w-full object-contain" draggable={false} />
-                                ) : (
-                                  <div className="flex h-full w-full items-center justify-center text-muted-foreground/30">
-                                    <Camera className="h-5 w-5" />
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Info */}
-                              <div className="min-w-0 flex-1">
-                                <p className="font-mono text-sm font-medium text-foreground">
-                                  {formatDate(find.date_found, locale)}
-                                </p>
-                                {locationParts.length > 0 && (
-                                  <p className="truncate text-xs text-muted-foreground/70">
-                                    {locationParts.join(' · ')}
-                                  </p>
-                                )}
-                                {find.photos.length > 1 && (
-                                  <p className="text-[11px] text-muted-foreground/50">{find.photos.length} foto</p>
-                                )}
-                              </div>
-
-                              {/* Fruiting body count */}
-                              {obsDisplay && (
-                                <span className="shrink-0 font-mono text-lg font-semibold text-primary/80">
-                                  {obsDisplay}
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <div className="grid gap-6 xl:grid-cols-2">
-                    <Card className="gap-0 py-5">
-                      <CardContent className="space-y-3 px-5">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-primary" />
-                          <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-foreground">
-                            {t('species.whenToLook')}
-                          </h3>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          {buildWhenToLookCopy(selectedJournal, locale, t, today)}
-                        </p>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="gap-0 py-5">
-                      <CardContent className="space-y-3 px-5">
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-primary" />
-                          <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-foreground">
-                            {t('species.bestSpot')}
-                          </h3>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          {buildBestSpotCopy(selectedJournal, locale, t)}
-                        </p>
-                      </CardContent>
-                    </Card>
+                        )}
+                        {tab === 'recipes' && selectedRecipes.length > 0 && (
+                          <span className="rounded-full bg-muted px-1.5 text-[10px] font-mono font-normal text-muted-foreground">
+                            {selectedRecipes.length}
+                          </span>
+                        )}
+                      </button>
+                    ))}
                   </div>
 
-                  <div className="grid gap-6 xl:grid-cols-2">
-                    <Card className="gap-0 py-5">
-                      <CardContent className="space-y-4 px-5">
-                        <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-foreground">
-                          {t('species.datesFound')}
-                        </h3>
-                        <div className="space-y-3">
-                          {selectedJournal.dateSummaries.map((entry) => (
-                            <div
-                              key={entry.date}
-                              className="flex items-start justify-between gap-3 border-b border-border/50 pb-3 last:border-b-0 last:pb-0"
-                            >
-                              <div>
-                                <p className="font-medium text-foreground">{formatDate(entry.date, locale)}</p>
-                                <p className="text-sm text-muted-foreground">
-                                  {t('species.recordedFindsLabel', { count: entry.recordedFinds })}
-                                </p>
-                              </div>
-                              <p className="text-sm text-muted-foreground">
-                                {entry.observedCountLabel != null
-                                  ? t('species.observedCountLabel', { count: entry.observedCountLabel })
-                                  : t('species.observedMissing')}
-                              </p>
+                  {/* Overview tab */}
+                  {detailTab === 'overview' && (
+                    <div className="space-y-6">
+                      <Card className="gap-0 py-5">
+                        <CardContent className="space-y-3 px-5">
+                          <div>
+                            <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-foreground">
+                              {t('species.fieldJournal')}
+                            </h3>
+                            <textarea
+                              value={noteInput}
+                              onChange={(e) => setNoteInput(e.target.value)}
+                              onBlur={() => {
+                                if (!selectedJournal) return;
+                                upsertSpeciesNote.mutate({ speciesName: selectedJournal.speciesName, notes: noteInput });
+                              }}
+                              rows={3}
+                              placeholder={t('species.noJournalNote')}
+                              className="mt-1 w-full resize-none rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
+                            />
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              <EdibilitySelectBadge
+                                value={edibilityInput}
+                                onChange={(v) => {
+                                  setEdibilityInput(v);
+                                  handleSaveMetadataStatus(v, threatStatusInput, distributionInput);
+                                }}
+                              />
+                              <ThreatStatusSelectBadge
+                                value={threatStatusInput}
+                                onChange={(v) => {
+                                  setThreatStatusInput(v);
+                                  handleSaveMetadataStatus(edibilityInput, v, distributionInput);
+                                }}
+                              />
+                              <DistributionSelectBadge
+                                value={distributionInput}
+                                onChange={(v) => {
+                                  setDistributionInput(v);
+                                  handleSaveMetadataStatus(edibilityInput, threatStatusInput, v);
+                                }}
+                              />
                             </div>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <Badge variant="outline">{t('species.recordedFindsLabel', { count: selectedJournal.recordedFinds })}</Badge>
+                              {selectedJournal.favoriteCount > 0 && (
+                                <Badge variant="outline" className="gap-1 border-amber-500/35 bg-amber-500/10 text-amber-600">
+                                  <Star className="h-3.5 w-3.5 fill-current" />
+                                  {t('species.favoriteCountLabel', { count: selectedJournal.favoriteCount })}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
 
+                      <section className="grid gap-4 md:grid-cols-3">
+                        <Card className="gap-0 py-4">
+                          <CardContent className="space-y-1 px-5">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                                <span className="inline-flex items-center gap-1.5">
+                                  <span>{fruitingBodyCardLabel}</span>
+                                  <InfoHint text={fruitingBodyCardHint} />
+                                </span>
+                              </p>
+                              {selectedJournal.fruitingBodyTotalLabel && (
+                                <button
+                                  type="button"
+                                  onClick={() => setShowFruitingBodyTotal((v) => !v)}
+                                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border/70 bg-background/70 text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
+                                  title={showFruitingBodyTotal ? t('species.showAverage') : t('species.showTotal')}
+                                  aria-label={showFruitingBodyTotal ? t('species.showAverage') : t('species.showTotal')}
+                                >
+                                  <Repeat2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
+                            {fruitingBodyCardIsTotal ? (
+                              <p className="h-9 font-mono text-2xl font-semibold text-foreground">
+                                {selectedJournal.fruitingBodyTotalLabel}
+                              </p>
+                            ) : (
+                              <input
+                                value={fruitingBodyCountInput}
+                                onChange={(e) => setFruitingBodyCountInput(e.target.value)}
+                                onBlur={() => handleSaveFruitingBodyCountOverride()}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.currentTarget.blur();
+                                  }
+                                }}
+                                placeholder={defaultFruitingBodyLabel ?? t('species.fruitingBodyCountPlaceholder')}
+                                className="h-9 w-full rounded border border-border/60 bg-input px-2 font-mono text-2xl font-semibold text-foreground placeholder:text-foreground focus:outline-none focus:ring-1 focus:ring-ring/50"
+                              />
+                            )}
+                            <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground/70">
+                              <span>{fruitingBodyModeLabel}</span>
+                              {!fruitingBodyCardIsTotal && isCustomFruitingBodyCount && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveFruitingBodyCountOverride('')}
+                                  className="text-muted-foreground transition-colors hover:text-foreground"
+                                >
+                                  {t('species.resetAverage')}
+                                </button>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card className="gap-0 py-4">
+                          <CardContent className="space-y-1 px-5">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                              <span className="inline-flex items-center gap-1.5">
+                                <span>{t('species.recordedFinds')}</span>
+                                <InfoHint text={t('species.recordedFindsHelp')} />
+                              </span>
+                            </p>
+                            <p className="text-2xl font-semibold text-foreground">{selectedJournal.recordedFinds}</p>
+                          </CardContent>
+                        </Card>
+                        <Card className="gap-0 py-4">
+                          <CardContent className="space-y-1 px-5">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                              {t('species.bestMonth')}
+                            </p>
+                            <p className="text-xl font-semibold text-foreground">
+                              {selectedJournal.bestMonth ? formatMonth(selectedJournal.bestMonth, locale) : '--'}
+                            </p>
+                          </CardContent>
+                        </Card>
+                      </section>
+
+                      <div className="grid gap-6 xl:grid-cols-2">
+                        <Card className="gap-0 py-5">
+                          <CardContent className="space-y-3 px-5">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-4 w-4 text-primary" />
+                              <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-foreground">
+                                {t('species.whenToLook')}
+                              </h3>
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              {buildWhenToLookCopy(selectedJournal, locale, t, today)}
+                            </p>
+                          </CardContent>
+                        </Card>
+
+                        <Card className="gap-0 py-5">
+                          <CardContent className="space-y-3 px-5">
+                            <div className="flex items-center gap-2">
+                              <MapPin className="h-4 w-4 text-primary" />
+                              <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-foreground">
+                                {t('species.bestSpot')}
+                              </h3>
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              {buildBestSpotCopy(selectedJournal, locale, t)}
+                            </p>
+                          </CardContent>
+                        </Card>
+                      </div>
+
+                      <Card className="gap-0 py-5">
+                        <CardContent className="space-y-4 px-5">
+                          <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-foreground">
+                            {t('species.yearOverYear')}
+                          </h3>
+                          <div className="space-y-3">
+                            {(() => {
+                              const maxYearCount = Math.max(...selectedJournal.yearSummaries.map((entry) => entry.recordedFinds), 1);
+                              return selectedJournal.yearSummaries.map((entry) => (
+                                <div
+                                  key={entry.year}
+                                  className="space-y-2 border-b border-border/50 pb-3 last:border-b-0 last:pb-0"
+                                >
+                                  <div className="flex items-center justify-between gap-3">
+                                    <p className="font-medium text-foreground">{entry.year}</p>
+                                    <div className="text-right text-sm text-muted-foreground">
+                                      <p>{t('species.recordedFindsLabel', { count: entry.recordedFinds })}</p>
+                                      {entry.observedCountLabel != null && (
+                                        <p>{t('species.observedCountLabel', { count: entry.observedCountLabel })}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="h-2 overflow-hidden rounded-full bg-muted">
+                                    <div
+                                      className="h-full rounded-full bg-primary/75"
+                                      style={{ width: `${Math.max((entry.recordedFinds / maxYearCount) * 100, 12)}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              ));
+                            })()}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
+
+                  {/* Finds tab */}
+                  {detailTab === 'finds' && (
                     <Card className="gap-0 py-5">
-                      <CardContent className="space-y-4 px-5">
-                        <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-foreground">
-                          {t('species.yearOverYear')}
-                        </h3>
-                        <div className="space-y-3">
-                          {(() => {
-                            const maxYearCount = Math.max(...selectedJournal.yearSummaries.map((entry) => entry.recordedFinds), 1);
-                            return selectedJournal.yearSummaries.map((entry) => (
+                      <CardContent className="px-5">
+                        <div className="max-h-[calc(100vh-20rem)] space-y-2 overflow-y-auto pr-1">
+                          {selectedJournal.finds.map((find) => {
+                            const primaryPhoto = find.photos.find((p) => p.is_primary) ?? find.photos[0] ?? null;
+                            const photoIdx = primaryPhoto
+                              ? selectedJournal.allPhotos.findIndex((e) => e.photo.id === primaryPhoto.id)
+                              : -1;
+                            const thumbSrc = primaryPhoto && storagePath
+                              ? resolvePhotoSrc(storagePath, primaryPhoto.photo_path)
+                              : null;
+                            const obsMin = find.observed_count_min ?? find.observed_count;
+                            const obsMax = find.observed_count_max ?? find.observed_count_min ?? find.observed_count;
+                            const obsDisplay = obsMin != null
+                              ? (obsMin === obsMax ? String(obsMin) : `${obsMin}–${obsMax}`)
+                              : null;
+                            const locationParts = [find.location_note, find.region, find.country].filter(Boolean);
+
+                            return (
                               <div
-                                key={entry.year}
-                                className="space-y-2 border-b border-border/50 pb-3 last:border-b-0 last:pb-0"
+                                key={find.id}
+                                className="group flex w-full items-center gap-3 rounded-md border border-border/40 bg-card/40 px-3 py-2 transition-colors hover:border-primary/40 hover:bg-primary/5"
                               >
-                                <div className="flex items-center justify-between gap-3">
-                                  <p className="font-medium text-foreground">{entry.year}</p>
-                                  <div className="text-right text-sm text-muted-foreground">
-                                    <p>{t('species.recordedFindsLabel', { count: entry.recordedFinds })}</p>
-                                    {entry.observedCountLabel != null && (
-                                      <p>{t('species.observedCountLabel', { count: entry.observedCountLabel })}</p>
+                                <button
+                                  type="button"
+                                  onClick={() => openLightbox(photoIdx >= 0 ? photoIdx : 0, find)}
+                                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                                >
+                                  <div className="h-12 w-12 shrink-0 overflow-hidden rounded border border-border/30 bg-muted/40">
+                                    {thumbSrc ? (
+                                      <img src={thumbSrc} alt="" className="h-full w-full object-contain" draggable={false} />
+                                    ) : (
+                                      <div className="flex h-full w-full items-center justify-center text-muted-foreground/30">
+                                        <Camera className="h-5 w-5" />
+                                      </div>
                                     )}
                                   </div>
-                                </div>
-                                <div className="h-2 overflow-hidden rounded-full bg-muted">
-                                  <div
-                                    className="h-full rounded-full bg-primary/75"
-                                    style={{ width: `${Math.max((entry.recordedFinds / maxYearCount) * 100, 12)}%` }}
-                                  />
-                                </div>
-                              </div>
-                            ));
-                          })()}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  <Card className="gap-0 border-border/45 bg-card/25 py-4">
-                    <CardContent className="space-y-3 px-5">
-                      <div className="flex items-center justify-between gap-3">
-                        <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                          {t('species.recipes')}
-                        </h3>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleAddRecipe}
-                          disabled={!newRecipeTitle.trim() && !newRecipeNotes.trim()}
-                          className="h-8 gap-1.5 text-muted-foreground hover:text-foreground"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          {t('species.addRecipe')}
-                        </Button>
-                      </div>
-                      <div className="grid gap-2">
-                        <input
-                          value={newRecipeTitle}
-                          onChange={(e) => setNewRecipeTitle(e.target.value)}
-                          placeholder={t('species.recipeTitlePlaceholder')}
-                          className="rounded-md border border-border/60 bg-background/45 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/45 focus:outline-none focus:ring-1 focus:ring-ring/40"
-                        />
-                        <textarea
-                          value={newRecipeNotes}
-                          onChange={(e) => setNewRecipeNotes(e.target.value)}
-                          rows={3}
-                          placeholder={t('species.recipeNotesPlaceholder')}
-                          className="w-full resize-none rounded-md border border-border/60 bg-background/45 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/45 focus:outline-none focus:ring-1 focus:ring-ring/40"
-                        />
-                      </div>
-                      {selectedRecipes.length > 0 ? (
-                        <div className="space-y-2">
-                          {selectedRecipes.map((recipe) => {
-                            const draft = recipeDrafts[recipe.id] ?? { title: recipe.title, notes: recipe.notes };
-                            return (
-                              <div key={recipe.id} className="rounded-md border border-border/45 bg-background/35 p-3">
-                                <div className="flex items-start gap-2">
-                                  <div className="grid min-w-0 flex-1 gap-2">
-                                    <input
-                                      value={draft.title}
-                                      onChange={(e) => setRecipeDrafts((prev) => ({
-                                        ...prev,
-                                        [recipe.id]: { ...draft, title: e.target.value },
-                                      }))}
-                                      onBlur={() => handleSaveRecipe(recipe.id)}
-                                      className="rounded border border-border/50 bg-background/50 px-2 py-1 text-sm font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
-                                    />
-                                    <textarea
-                                      value={draft.notes}
-                                      onChange={(e) => setRecipeDrafts((prev) => ({
-                                        ...prev,
-                                        [recipe.id]: { ...draft, notes: e.target.value },
-                                      }))}
-                                      onBlur={() => handleSaveRecipe(recipe.id)}
-                                      rows={3}
-                                      className="w-full resize-none rounded border border-border/50 bg-background/50 px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
-                                    />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="font-mono text-sm font-medium text-foreground">
+                                      {formatDate(find.date_found, locale)}
+                                    </p>
+                                    {locationParts.length > 0 && (
+                                      <p className="truncate text-xs text-muted-foreground/70">
+                                        {locationParts.join(' · ')}
+                                      </p>
+                                    )}
+                                    {find.photos.length > 1 && (
+                                      <p className="text-[11px] text-muted-foreground/50">{find.photos.length} foto</p>
+                                    )}
                                   </div>
+                                  {obsDisplay && (
+                                    <span className="shrink-0 font-mono text-lg font-semibold text-primary/80">
+                                      {obsDisplay}
+                                    </span>
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingFind(find)}
+                                  className="shrink-0 rounded p-1 text-muted-foreground/40 opacity-40 transition-all hover:text-primary group-hover:opacity-100 focus:opacity-100"
+                                  title={lang === 'hr' ? 'Uredi nalaz' : 'Edit find'}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                                {find.lat != null && find.lng != null && (
                                   <button
                                     type="button"
-                                    onClick={() => deleteSpeciesRecipe.mutate(recipe.id)}
-                                    className="mt-1 text-muted-foreground transition-colors hover:text-destructive"
-                                    aria-label={t('species.deleteRecipe')}
-                                    title={t('species.deleteRecipe')}
+                                    onClick={() => { setPendingMapCenter({ lat: find.lat!, lng: find.lng!, zoom: 16 }); setActiveTab('map'); }}
+                                    className="shrink-0 rounded p-1 text-muted-foreground/40 opacity-40 transition-all hover:text-primary group-hover:opacity-100 focus:opacity-100"
+                                    title={lang === 'hr' ? 'Prikaži na karti' : 'View on map'}
                                   >
-                                    <X className="h-4 w-4" />
+                                    <MapIcon className="h-4 w-4" />
                                   </button>
-                                </div>
+                                )}
                               </div>
                             );
                           })}
                         </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">{t('species.noRecipes')}</p>
-                      )}
-                    </CardContent>
-                  </Card>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Recipes tab */}
+                  {detailTab === 'recipes' && (
+                    <Card className="gap-0 border-border/45 bg-card/25 py-4">
+                      <CardContent className="space-y-3 px-5">
+                        <div className="flex items-center justify-between gap-3">
+                          <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                            {t('species.recipes')}
+                          </h3>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleAddRecipe}
+                            disabled={!newRecipeTitle.trim() && !newRecipeNotes.trim()}
+                            className="h-8 gap-1.5 text-muted-foreground hover:text-foreground"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            {t('species.addRecipe')}
+                          </Button>
+                        </div>
+                        <div className="grid gap-2">
+                          <input
+                            value={newRecipeTitle}
+                            onChange={(e) => setNewRecipeTitle(e.target.value)}
+                            placeholder={t('species.recipeTitlePlaceholder')}
+                            className="rounded-md border border-border/60 bg-background/45 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring/40"
+                          />
+                          <textarea
+                            value={newRecipeNotes}
+                            onChange={(e) => setNewRecipeNotes(e.target.value)}
+                            rows={3}
+                            placeholder={t('species.recipeNotesPlaceholder')}
+                            className="w-full resize-none rounded-md border border-border/60 bg-background/45 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring/40"
+                          />
+                        </div>
+                        {selectedRecipes.length > 0 ? (
+                          <div className="max-h-[calc(100vh-26rem)] space-y-2 overflow-y-auto pr-1">
+                            {selectedRecipes.map((recipe) => {
+                              const draft = recipeDrafts[recipe.id] ?? { title: recipe.title, notes: recipe.notes };
+                              return (
+                                <div key={recipe.id} className="rounded-md border border-border/45 bg-background/35 p-3">
+                                  <div className="flex items-start gap-2">
+                                    <div className="grid min-w-0 flex-1 gap-2">
+                                      <input
+                                        value={draft.title}
+                                        onChange={(e) => setRecipeDrafts((prev) => ({
+                                          ...prev,
+                                          [recipe.id]: { ...draft, title: e.target.value },
+                                        }))}
+                                        onBlur={() => handleSaveRecipe(recipe.id)}
+                                        className="rounded border border-border/50 bg-background/50 px-2 py-1 text-sm font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
+                                      />
+                                      <textarea
+                                        value={draft.notes}
+                                        onChange={(e) => setRecipeDrafts((prev) => ({
+                                          ...prev,
+                                          [recipe.id]: { ...draft, notes: e.target.value },
+                                        }))}
+                                        onBlur={() => handleSaveRecipe(recipe.id)}
+                                        rows={3}
+                                        className="w-full resize-none rounded border border-border/50 bg-background/50 px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
+                                      />
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => deleteSpeciesRecipe.mutate(recipe.id)}
+                                      className="mt-1 text-muted-foreground transition-colors hover:text-destructive"
+                                      aria-label={t('species.deleteRecipe')}
+                                      title={t('species.deleteRecipe')}
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">{t('species.noRecipes')}</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Description tab */}
+                  {detailTab === 'description' && (
+                    <Card className="gap-0 py-5">
+                      <CardContent className="px-5 space-y-2">
+                        <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                          {t('species.tabDescription')}
+                        </h3>
+                        <textarea
+                          value={speciesDescriptionInput}
+                          onChange={(e) => {
+                            setSpeciesDescriptionInput(e.target.value);
+                            e.target.style.height = 'auto';
+                            e.target.style.height = `${e.target.scrollHeight}px`;
+                          }}
+                          onBlur={handleSaveSpeciesDescription}
+                          ref={(el) => {
+                            if (el) {
+                              el.style.height = 'auto';
+                              el.style.height = `${el.scrollHeight}px`;
+                            }
+                          }}
+                          rows={4}
+                          placeholder={t('edit.speciesDescriptionPlaceholder')}
+                          className="w-full resize-none overflow-hidden rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
+                        />
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
               </div>
             </div>

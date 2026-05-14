@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
+import { plainSpeciesName } from '@/lib/speciesName';
+import { useT } from '@/i18n/index';
 
 interface SpeciesFilterPanelProps {
   allSpecies: string[];
@@ -18,6 +20,7 @@ export function SpeciesFilterPanel({
   onToggle,
   onSelectAll,
 }: SpeciesFilterPanelProps) {
+  const t = useT();
   const [search, setSearch] = useState('');
 
   const isAll = selected.size === 0;
@@ -45,7 +48,7 @@ export function SpeciesFilterPanel({
             />
             <input
               type="text"
-              placeholder="Search species…"
+              placeholder={t('map.filterSearch')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full rounded py-1.5 pl-6 pr-6 text-xs outline-none placeholder:opacity-40"
@@ -76,7 +79,7 @@ export function SpeciesFilterPanel({
               className="accent-amber-500 h-3.5 w-3.5"
             />
             <span className="font-semibold" style={{ color: '#D4941A' }}>
-              See all ({allSpecies.length})
+              {t('map.filterSeeAll', { count: allSpecies.length })}
             </span>
           </label>
 
@@ -85,10 +88,10 @@ export function SpeciesFilterPanel({
           {/* Species list */}
           <div className="max-h-56 overflow-y-auto py-1">
             {filtered.length === 0 && (
-              <p className="px-3 py-2 text-xs opacity-40">No results</p>
+              <p className="px-3 py-2 text-xs opacity-40">{t('map.filterNoResults')}</p>
             )}
             {filtered.map((name) => {
-              const [latin, croatian] = name.split(',').map((s) => s.trim());
+              const label = plainSpeciesName(name);
               return (
                 <label
                   key={name}
@@ -101,10 +104,7 @@ export function SpeciesFilterPanel({
                     className="accent-amber-500 mt-0.5 h-3.5 w-3.5 shrink-0"
                   />
                   <span className="leading-snug">
-                    <span className="italic" style={{ color: '#F5E6C8' }}>{latin}</span>
-                    {croatian && (
-                      <span className="block opacity-55" style={{ color: '#F5E6C8' }}>{croatian}</span>
-                    )}
+                    <span className="italic" style={{ color: '#F5E6C8' }}>{label}</span>
                   </span>
                 </label>
               );
@@ -124,8 +124,8 @@ export function SpeciesFilterPanel({
         }}
       >
         <SlidersHorizontal className="h-3.5 w-3.5" />
-        {selected.size > 0 ? `${selected.size} selected` : 'All species'}
-        <span className="ml-1 opacity-40 text-[10px]">Space</span>
+        {selected.size > 0 ? t('map.filterSelected', { count: selected.size }) : t('map.filterAllSpecies')}
+        <span className="ml-1 opacity-40 text-[10px]">{t('map.filterSpaceHint')}</span>
       </button>
     </div>
   );

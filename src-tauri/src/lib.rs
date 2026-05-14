@@ -91,7 +91,7 @@ mod smoke {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .expect("user_version");
-        assert_eq!(version, 21, "user_version must be 21 after all migrations");
+        assert_eq!(version, 22, "user_version must be 22 after all migrations");
 
         let edibility_exists: i64 = conn
             .query_row(
@@ -137,6 +137,15 @@ mod smoke {
             )
             .expect("query species_profiles.description");
         assert_eq!(description_exists, 1, "species_profiles.description must exist after open_db");
+
+        let common_name_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('species_profiles') WHERE name = 'common_name'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("query species_profiles.common_name");
+        assert_eq!(common_name_exists, 1, "species_profiles.common_name must exist after open_db");
 
         let recipes_exists: i64 = conn
             .query_row(

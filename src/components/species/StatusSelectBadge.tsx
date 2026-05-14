@@ -42,11 +42,10 @@ function InedibleIcon({ className, ...props }: React.SVGProps<SVGSVGElement>) {
 const EDIBILITY_ICONS: Record<Edibility, React.ElementType> = {
   unknown:              CircleHelp,
   edible:               Utensils,
-  edible_raw:           Leaf,
-  conditionally_edible: AlertCircle,
+  conditionally_edible: Utensils,
   inedible:             InedibleIcon,
-  poisonous:            Skull,
-  deadly_poisonous:     AlertTriangle,
+  poisonous:            AlertTriangle,
+  deadly_poisonous:     Skull,
 };
 
 const THREAT_ICONS: Record<ThreatStatus, React.ElementType> = {
@@ -78,6 +77,7 @@ interface DropdownOption {
   value: string;
   label: string;
   icon: React.ElementType;
+  iconSecondary?: React.ElementType;
   badgeClasses: string;
 }
 
@@ -170,8 +170,9 @@ function StatusDropdown({ triggerRef, options, value, onSelect, onClose }: Statu
               `}
             >
               {/* Mini badge swatch — shows the option's color scheme */}
-              <span className={`inline-flex flex-shrink-0 items-center gap-1 rounded px-1.5 py-0.5 shadow-sm ${opt.badgeClasses}`}>
+              <span className={`inline-flex flex-shrink-0 items-center gap-0.5 rounded px-1.5 py-0.5 shadow-sm ${opt.badgeClasses}`}>
                 <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />
+                {opt.iconSecondary && <opt.iconSecondary className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />}
               </span>
               <span className="flex-1 text-left text-current">{opt.label}</span>
               {isSelected && (
@@ -208,6 +209,7 @@ export function EdibilitySelectBadge({ value, onChange }: EdibilitySelectBadgePr
     value: v,
     label: t(`edibility.${v}`),
     icon: EDIBILITY_ICONS[v],
+    iconSecondary: v === 'conditionally_edible' ? AlertCircle : undefined,
     badgeClasses: EDIBILITY_BADGE_CLASSES[v],
   }));
 
@@ -221,7 +223,14 @@ export function EdibilitySelectBadge({ value, onChange }: EdibilitySelectBadgePr
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen((o) => !o); } }}
         className={`inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold tracking-wide cursor-pointer select-none ${EDIBILITY_BADGE_CLASSES[edibility]}`}
       >
-        <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        {edibility === 'conditionally_edible' ? (
+          <span className="inline-flex items-center gap-0.5 mr-0.5" aria-hidden="true">
+            <Utensils className="h-3.5 w-3.5 shrink-0" />
+            <AlertCircle className="h-3 w-3 shrink-0" />
+          </span>
+        ) : (
+          <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        )}
         <span>{t(`edibility.${edibility}`)}</span>
         <ChevronDown className={`h-3 w-3 shrink-0 opacity-60 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
       </div>

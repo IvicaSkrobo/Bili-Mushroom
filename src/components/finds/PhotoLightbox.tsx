@@ -142,7 +142,8 @@ export function PhotoLightbox({
         onIndexChange(currentIndex - 1);
       } else if (e.key === 'ArrowRight' && currentIndex < photos.length - 1) {
         onIndexChange(currentIndex + 1);
-      } else if (e.key === 'f' || e.key === 'F') {
+      } else if (e.key === 'F11') {
+        e.preventDefault();
         setIsFullscreen((v) => !v);
       }
       // Esc is handled natively by Radix Dialog
@@ -278,7 +279,7 @@ export function PhotoLightbox({
                   {find.species_name ? renderSpeciesName(find.species_name) : t('findCard.unnamed')}
                 </p>
                 {find.date_found && (
-                  <p className="mt-0.5 font-mono text-[11px] text-muted-foreground/60">{find.date_found}</p>
+                  <p className="mt-0.5 font-mono text-[11px] text-muted-foreground/80">{find.date_found}</p>
                 )}
               </div>
 
@@ -356,13 +357,13 @@ export function PhotoLightbox({
               {/* Observed count — prominent */}
               {/* Location block */}
               <div>
-                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/65">
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/90">
                   {t('lightbox.location')}
                 </p>
                 {(find.country || find.region) && (
                   <div className="mb-1 flex flex-col gap-0.5">
-                    {find.country && <span className="text-xs font-medium text-foreground/75">{find.country}</span>}
-                    {find.region && <span className="text-xs font-medium text-foreground/75">{find.region}</span>}
+                    {find.country && <span className="text-xs font-medium text-foreground/90">{find.country}</span>}
+                    {find.region && <span className="text-xs font-medium text-foreground/90">{find.region}</span>}
                   </div>
                 )}
                 <button
@@ -377,7 +378,7 @@ export function PhotoLightbox({
                   </span>
                 </button>
                 {find.lat !== null && find.lng !== null && (
-                  <p className="mt-1.5 font-mono text-[10px] text-muted-foreground/50 bg-muted/30 rounded px-1.5 py-0.5 w-fit">
+                  <p className="mt-1.5 font-mono text-[10px] text-muted-foreground/80 bg-muted/40 rounded px-1.5 py-0.5 w-fit">
                     {find.lat?.toFixed(5)}, {find.lng?.toFixed(5)}
                   </p>
                 )}
@@ -386,14 +387,14 @@ export function PhotoLightbox({
               {/* Notes — inline edit/add */}
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-1.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/90">
                     {t('lightbox.notes')}
                   </p>
                   {!editingNotes && (
                     <button
                       type="button"
                       onClick={() => { setNotesValue(find.notes ?? ''); setEditingNotes(true); }}
-                      className="flex items-center gap-1 text-[10px] text-muted-foreground/50 hover:text-primary transition-colors"
+                      className="flex items-center gap-1 text-[10px] text-muted-foreground/65 hover:text-primary transition-colors"
                       title={find.notes ? 'Uredi bilješku' : 'Dodaj bilješku'}
                     >
                       {find.notes ? <Pencil className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
@@ -453,7 +454,7 @@ export function PhotoLightbox({
               </div>
               {observedDisplay && (
                 <div className="mt-auto border-t border-border/25 pt-4">
-                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/65">
+                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/90">
                     {t('species.observedCount')}
                   </p>
                   <p className="font-mono text-3xl font-bold text-primary leading-none">
@@ -469,8 +470,8 @@ export function PhotoLightbox({
             {/* Fullscreen toggle */}
             <button
               type="button"
-              aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen (F)'}
-              title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen (F)'}
+              aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen (F11)'}
+              title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen (F11)'}
               onClick={() => setIsFullscreen((v) => !v)}
               className="flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/60 hover:bg-black/70 hover:text-white transition-all duration-150"
             >

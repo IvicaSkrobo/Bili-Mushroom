@@ -21,6 +21,7 @@ export interface ImportPayload {
   source_path: string;
   original_filename: string;
   species_name: string;
+  common_name?: string | null;
   date_found: string; // ISO YYYY-MM-DD
   country: string;
   region: string;
@@ -70,6 +71,7 @@ export interface ImportProgress {
 
 export interface SpeciesProfile {
   species_name: string;
+  common_name?: string | null;
   cover_photo_id: number | null;
   tags: string[];
   edibility?: string | null;
@@ -154,6 +156,7 @@ export async function getFinds(storagePath: string): Promise<Find[]> {
 export interface UpdateFindPayload {
   id: number;
   species_name: string;
+  common_name?: string | null;
   date_found: string;
   country: string;
   region: string;
@@ -233,6 +236,7 @@ export async function getSpeciesProfiles(storagePath: string): Promise<SpeciesPr
 export async function upsertSpeciesProfile(
   storagePath: string,
   speciesName: string,
+  commonName: string | null | undefined,
   coverPhotoId: number | null,
   tags: string[],
   edibility?: string | null,
@@ -247,6 +251,7 @@ export async function upsertSpeciesProfile(
   return invoke<void>('upsert_species_profile', {
     storagePath,
     speciesName,
+    commonName: commonName?.trim() || null,
     coverPhotoId,
     tags,
     edibility: edibility ?? null,
@@ -337,6 +342,7 @@ export async function setFindFavorite(
 
 export interface CreateFindPayload {
   species_name: string;
+  common_name?: string | null;
   date_found: string;
   country: string;
   region: string;

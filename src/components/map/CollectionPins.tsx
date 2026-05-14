@@ -1,26 +1,29 @@
 import { useState, useCallback, useEffect, useMemo, useRef, type MouseEvent } from 'react';
 import L from 'leaflet';
-import { Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
-import { ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
+import { Marker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet';
+import { BookOpen, ChevronLeft, ChevronRight, LayoutList, ZoomIn } from 'lucide-react';
 import type { Find, SpeciesProfile } from '@/lib/finds';
 import type { Zone } from '@/lib/zones';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { useSpeciesNotes, useSpeciesProfiles } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
-import { renderSpeciesName, plainSpeciesName } from '@/lib/speciesName';
+import { renderSpeciesName, plainSpeciesName, normalizeCommonName } from '@/lib/speciesName';
+import { tFindsCount } from '@/i18n/index';
 
 export const LABEL_ZOOM_THRESHOLD = 13;
 
-interface Collection {
-  /** Unique key — species name when only one location, "species|index" for multiple. */
-  key: string;
-  name: string;
+interface SpeciesEntry {
+  name: string;   // stable species_name from DB
+  finds: Find[];
+}
+
+interface LocationGroup {
+  key: string;           // coordKey(lat, lng)
   lat: number;
   lng: number;
-  count: number;
-  finds: Find[];
-  labelText: string;
+  species: SpeciesEntry[];
+  labelText: string;     // HTML for pin label
   suppressLabel: boolean;
 }
 
@@ -34,7 +37,7 @@ function collectionIcon(labelText: string, showLabel: boolean, isSatellite: bool
   return L.divIcon({
     html: `<div class="bili-pin-dot"></div><div class="bili-pin-label">${labelText}</div>`,
     className: classes,
-    iconSize: [200, 50],
+    iconSize: [12, 12],
     iconAnchor: [6, 6],
     popupAnchor: [0, -14],
   });
@@ -52,77 +55,95 @@ function getCollectionIcon(labelText: string, showLabel: boolean, isSatellite: b
 }
 
 function CollectionPopup({
-  collection,
-  speciesNote,
+  locationGroup,
   storagePath,
   onStartLocalPolygonForFind,
   onStartRegionPolygonForFind,
   zones,
-  speciesProfile,
+  speciesNotesByName,
+  speciesProfilesByName,
 }: {
-  collection: Collection;
-  speciesNote: string | undefined;
+  locationGroup: LocationGroup;
   storagePath: string;
   onStartLocalPolygonForFind: (find: Find) => void;
   onStartRegionPolygonForFind: (find: Find) => void;
   zones: Zone[];
-  speciesProfile?: SpeciesProfile;
+  speciesNotesByName: Map<string, string>;
+  speciesProfilesByName: Map<string, SpeciesProfile>;
 }) {
   const map = useMap();
+  const setActiveTab = useAppStore((s) => s.setActiveTab);
+  const setSelectedCollectionSpecies = useAppStore((s) => s.setSelectedCollectionSpecies);
+  const setPendingSpeciesSelection = useAppStore((s) => s.setPendingSpeciesSelection);
+  const lang = useAppStore((s) => s.language);
   const popupRef = useRef<HTMLDivElement | null>(null);
   const previousButtonRef = useRef<HTMLButtonElement | null>(null);
   const nextButtonRef = useRef<HTMLButtonElement | null>(null);
-  const [findIdx, setFindIdx] = useState(0);
-  const findEntries = useMemo(
-    () => collection.finds.map((find) => ({
-      find,
-      photo: find.photos.find((p) => p.is_primary) ?? find.photos[0] ?? null,
-      findNotes: find.notes,
-    })),
-    [collection.finds],
-  );
-  useEffect(() => {
-    setFindIdx(0);
-  }, [collection.key]);
+  // Navigate by species_name (stable DB key) rather than array index so
+  // a refetch mid-session never silently shifts the carousel to the wrong species.
+  const [selectedSpeciesName, setSelectedSpeciesName] = useState<string | null>(null);
+  const speciesRef = useRef(locationGroup.species);
+  speciesRef.current = locationGroup.species;
+
+  useEffect(() => { setSelectedSpeciesName(null); }, [locationGroup.key]);
+
   useEffect(() => {
     if (!popupRef.current) return;
     L.DomEvent.disableScrollPropagation(popupRef.current);
   }, []);
-  const [latinNameRaw, croatianName] = collection.name.split(',').map((s) => s.trim());
-  const current = findEntries[findIdx] ?? null;
-  const photo = current?.photo ?? null;
-  const existingLocalPolygon = current?.find
-    ? zones.find(
-      (zone) =>
-        zone.zone_type === 'local' &&
-        zone.geometry_type === 'polygon' &&
-        zone.source_find_id === current.find.id,
-    ) ?? null
-    : null;
-  const existingRegionPolygon = current?.find
-    ? zones.find(
-      (zone) =>
-        zone.zone_type === 'region' &&
-        zone.geometry_type === 'polygon' &&
-        zone.species_name === current.find.species_name,
-    ) ?? null
-    : null;
-  const photoSrc = photo && storagePath
-    ? resolvePhotoSrc(storagePath, photo.photo_path)
-    : null;
-  const displayNote = (current?.findNotes?.trim()) || speciesNote;
 
+  const currentIdx = selectedSpeciesName != null
+    ? locationGroup.species.findIndex((s) => s.name === selectedSpeciesName)
+    : 0;
+  const safeIdx = currentIdx < 0 ? 0 : currentIdx;
+  const currentSpecies = locationGroup.species[safeIdx] ?? locationGroup.species[0];
+  if (!currentSpecies) return null;
+
+  const speciesProfile = speciesProfilesByName.get(currentSpecies.name);
+  const commonName = normalizeCommonName(speciesProfile?.common_name, currentSpecies.name);
+  const speciesNote = speciesNotesByName.get(currentSpecies.name);
+
+  const representativeFind =
+    currentSpecies.finds.find((f) => f.photos.some((p) => p.is_primary)) ??
+    currentSpecies.finds[0] ??
+    null;
+  const representativePhoto =
+    representativeFind?.photos.find((p) => p.is_primary) ??
+    representativeFind?.photos[0] ??
+    null;
+  const photoSrc = representativePhoto && storagePath
+    ? resolvePhotoSrc(storagePath, representativePhoto.photo_path)
+    : null;
   const hasPhoto = photoSrc != null;
+
+  const mostRecentFind = [...currentSpecies.finds].sort((a, b) => {
+    if (!a.date_found && !b.date_found) return 0;
+    if (!a.date_found) return 1;
+    if (!b.date_found) return -1;
+    return b.date_found.localeCompare(a.date_found);
+  })[0] ?? null;
+
+  const firstFind = currentSpecies.finds[0] ?? null;
+  const existingLocalPolygon = firstFind
+    ? zones.find((z) => z.zone_type === 'local' && z.geometry_type === 'polygon' && z.source_find_id === firstFind.id) ?? null
+    : null;
+  const existingRegionPolygon = firstFind
+    ? zones.find((z) => z.zone_type === 'region' && z.geometry_type === 'polygon' && z.species_name === currentSpecies.name) ?? null
+    : null;
+
+  const displayNote = speciesNote?.trim() || mostRecentFind?.notes?.trim() || null;
+  const multiSpecies = locationGroup.species.length > 1;
+
   const stopPopupButtonEvent = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
     L.DomEvent.stopPropagation(event.nativeEvent);
   };
+
   useEffect(() => {
     const previousButton = previousButtonRef.current;
     const nextButton = nextButtonRef.current;
-    if (!previousButton || !nextButton || findEntries.length <= 1) return;
-
+    if (!previousButton || !nextButton || !multiSpecies) return;
     const stopNativeEvent = (event: Event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -130,161 +151,177 @@ function CollectionPopup({
     };
     const goPrevious = (event: Event) => {
       stopNativeEvent(event);
-      setFindIdx((i) => (i - 1 + findEntries.length) % findEntries.length);
+      setSelectedSpeciesName((currentName) => {
+        const species = speciesRef.current;
+        const idx = currentName != null ? species.findIndex((s) => s.name === currentName) : 0;
+        const safe = idx < 0 ? 0 : idx;
+        return species[(safe - 1 + species.length) % species.length]?.name ?? null;
+      });
     };
     const goNext = (event: Event) => {
       stopNativeEvent(event);
-      setFindIdx((i) => (i + 1) % findEntries.length);
+      setSelectedSpeciesName((currentName) => {
+        const species = speciesRef.current;
+        const idx = currentName != null ? species.findIndex((s) => s.name === currentName) : 0;
+        const safe = idx < 0 ? 0 : idx;
+        return species[(safe + 1) % species.length]?.name ?? null;
+      });
     };
-
     previousButton.addEventListener('pointerdown', goPrevious);
     previousButton.addEventListener('click', stopNativeEvent);
     nextButton.addEventListener('pointerdown', goNext);
     nextButton.addEventListener('click', stopNativeEvent);
-
     return () => {
       previousButton.removeEventListener('pointerdown', goPrevious);
       previousButton.removeEventListener('click', stopNativeEvent);
       nextButton.removeEventListener('pointerdown', goNext);
       nextButton.removeEventListener('click', stopNativeEvent);
     };
-  }, [findEntries.length]);
+  }, [multiSpecies]);
 
   return (
     <div ref={popupRef} className="relative w-[248px] overflow-visible font-sans">
-      {findEntries.length > 1 && (
+      {multiSpecies && (
         <>
           <button
             ref={previousButtonRef}
             type="button"
-            aria-label="Previous find"
+            aria-label="Previous species"
             onMouseDown={stopPopupButtonEvent}
             onClick={stopPopupButtonEvent}
-            className="absolute -left-8 top-[42%] z-[20] flex h-11 w-7 -translate-y-1/2 items-center justify-center rounded-l-md border border-border/50 bg-background/95 text-foreground shadow-sm transition-colors hover:bg-secondary hover:text-primary"
+            className="absolute -left-8 top-[74px] z-[20] flex h-11 w-7 -translate-y-1/2 items-center justify-center rounded-l-md border border-border/50 bg-background/95 text-foreground shadow-sm transition-colors hover:bg-secondary hover:text-primary"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
           <button
             ref={nextButtonRef}
             type="button"
-            aria-label="Next find"
+            aria-label="Next species"
             onMouseDown={stopPopupButtonEvent}
             onClick={stopPopupButtonEvent}
-            className="absolute -right-8 top-[42%] z-[20] flex h-11 w-7 -translate-y-1/2 items-center justify-center rounded-r-md border border-border/50 bg-background/95 text-foreground shadow-sm transition-colors hover:bg-secondary hover:text-primary"
+            className="absolute -right-8 top-[74px] z-[20] flex h-11 w-7 -translate-y-1/2 items-center justify-center rounded-r-md border border-border/50 bg-background/95 text-foreground shadow-sm transition-colors hover:bg-secondary hover:text-primary"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
         </>
       )}
 
-      {/* ── Visual header ────────────────────────────────── */}
       <div className="overflow-hidden rounded-lg bg-background shadow-xl ring-1 ring-border/30">
-      <div className="relative h-[148px] w-full select-none">
-        {hasPhoto ? (
-          <>
+        <div className="relative h-[148px] w-full select-none">
+          {hasPhoto ? (
             <img
               src={photoSrc}
               alt=""
               className="relative z-[1] h-full w-full bg-black object-contain"
               draggable={false}
             />
-          </>
-        ) : (
-          <div className="flex h-full w-full items-end bg-gradient-to-br from-[oklch(0.16_0.02_135)] to-[oklch(0.10_0.01_135)] p-3" />
-        )}
-
-        {/* Gradient scrim so text is always legible */}
-        <div className="absolute inset-0 z-[2] bg-gradient-to-t from-black/95 via-black/50 to-black/5" />
-
-        {/* Find-count pill — top-right */}
-        <div className="absolute right-2 top-2 z-[3]">
-          <span className="rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium tracking-wide text-white/90 backdrop-blur-sm">
-            {collection.count} {collection.count === 1 ? 'nalaz' : 'nalaza'}
-          </span>
-        </div>
-
-        {/* Find counter - shown when multiple finds share this pin */}
-        {findEntries.length > 1 && (
-          <span className="absolute bottom-[42px] right-2.5 z-[3] text-[10px] font-medium text-white/50">
-            {findIdx + 1}/{findEntries.length}
-          </span>
-        )}
-
-        {/* Species name block — bottom of header */}
-        <div className="absolute bottom-0 left-0 right-0 z-[3] px-2.5 pb-1 pt-1">
-          <p className="font-serif text-[13px] font-bold italic leading-snug text-white [text-shadow:0_1px_6px_rgba(0,0,0,1),0_0_20px_rgba(0,0,0,0.8)]">
-            {renderSpeciesName(latinNameRaw)}
-          </p>
-          {croatianName && (
-            <p className="mt-0.5 text-[11px] italic leading-tight text-white/80 [text-shadow:0_1px_4px_rgba(0,0,0,1)]">
-              {plainSpeciesName(croatianName)}
-            </p>
+          ) : (
+            <div className="flex h-full w-full items-end bg-gradient-to-br from-[oklch(0.16_0.02_135)] to-[oklch(0.10_0.01_135)] p-3" />
           )}
-          {current?.find.date_found && (
-            <p className="mt-0.5 text-[10px] leading-tight text-white/65 [text-shadow:0_1px_4px_rgba(0,0,0,1)]">
-              {current.find.date_found}
-            </p>
-          )}
-        </div>
-      </div>
+          <div className="absolute inset-0 z-[2] bg-gradient-to-t from-black/95 via-black/50 to-black/5" />
 
-      {/* ── Body ─────────────────────────────────────────── */}
-      <div className="flex flex-col gap-2 px-2.5 py-2.5">
-
-        {/* Badges */}
-        <SpeciesMetadataBadges speciesProfile={speciesProfile} size="md" hideUnknown={true} />
-
-        {/* Note — 3-line clamp, no box */}
-        {displayNote && (
-          <p className="line-clamp-3 text-[11px] leading-relaxed text-foreground/65">
-            {displayNote}
-          </p>
-        )}
-
-        {/* ── Footer ───────────────────────────────────────── */}
-        <div className="flex items-center justify-between border-t border-border/25 pt-2">
-          <button
-            type="button"
-            onClick={() => map.flyTo([collection.lat, collection.lng], Math.max(map.getZoom(), 16))}
-            className="flex items-center gap-1 text-[11px] text-primary/65 transition-colors hover:text-primary"
-          >
-            <ZoomIn className="h-3 w-3" />
-            Zoom
-          </button>
-
-          {current?.find.lat != null && current.find.lng != null && (
-            <div className="flex gap-1">
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); L.DomEvent.stopPropagation(e.nativeEvent); onStartLocalPolygonForFind(current.find); }}
-                className="rounded border border-[#D4512A]/45 bg-[#D4512A]/10 px-2 py-0.5 text-[10px] font-semibold text-foreground transition-colors hover:bg-[#D4512A]/22"
-              >
-                {existingLocalPolygon ? 'Edit local' : 'Draw local'}
-              </button>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); L.DomEvent.stopPropagation(e.nativeEvent); onStartRegionPolygonForFind(current.find); }}
-                className="rounded border border-primary/45 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-foreground transition-colors hover:bg-primary/22"
-              >
-                {existingRegionPolygon ? 'Edit region' : 'Draw region'}
-              </button>
+          {multiSpecies && (
+            <div className="absolute right-2 top-2 z-[3]">
+              <span className="rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium tracking-wide text-white/90 backdrop-blur-sm">
+                {safeIdx + 1} / {locationGroup.species.length}
+              </span>
             </div>
           )}
+
+          <div className="absolute bottom-0 left-0 right-0 z-[3] px-2.5 pb-1 pt-1">
+            <p className="font-serif text-[13px] font-bold italic leading-snug text-white [text-shadow:0_1px_6px_rgba(0,0,0,1),0_0_20px_rgba(0,0,0,0.8)]">
+              {renderSpeciesName(currentSpecies.name)}
+            </p>
+            {commonName && (
+              <p className="mt-0.5 text-[11px] italic leading-tight text-white/80 [text-shadow:0_1px_4px_rgba(0,0,0,1)]">
+                {commonName}
+              </p>
+            )}
+            {mostRecentFind?.date_found && (
+              <p className="mt-0.5 text-[10px] leading-tight text-white/65 [text-shadow:0_1px_4px_rgba(0,0,0,1)]">
+                {mostRecentFind.date_found}
+              </p>
+            )}
+          </div>
         </div>
 
-      </div>
+        {/* Fixed-height content zone so the card never resizes between species */}
+        <div className="flex h-[168px] flex-col">
+          {/* Variable zone: count, badges, notes — overflow hidden, no scrollbar */}
+          <div className="flex flex-1 flex-col gap-1 overflow-hidden px-2.5 py-1.5">
+            <p className="text-[11px] font-medium text-muted-foreground/80">
+              {tFindsCount(currentSpecies.finds.length, lang)}
+            </p>
+            <SpeciesMetadataBadges speciesProfile={speciesProfile} hideUnknown={true} iconOnly={true} />
+            {displayNote && (
+              <p className="line-clamp-3 text-[11px] leading-relaxed text-foreground/65">
+                {displayNote}
+              </p>
+            )}
+          </div>
+
+          {/* Pinned action rows — always at the bottom */}
+          <div className="px-2.5">
+            <div className="flex items-center justify-between border-t border-border/25 py-1.5">
+              <button
+                type="button"
+                onClick={() => map.flyTo([locationGroup.lat, locationGroup.lng], Math.max(map.getZoom(), 16))}
+                className="flex items-center gap-1 text-[11px] text-primary/65 transition-colors hover:text-primary"
+              >
+                <ZoomIn className="h-3 w-3" />
+                Zoom
+              </button>
+              {firstFind?.lat != null && firstFind.lng != null && (
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); L.DomEvent.stopPropagation(e.nativeEvent); map.closePopup(); onStartLocalPolygonForFind(firstFind); }}
+                    className="rounded border border-[#D4512A]/45 bg-[#D4512A]/10 px-2 py-0.5 text-[10px] font-semibold text-foreground transition-colors hover:bg-[#D4512A]/22"
+                  >
+                    {existingLocalPolygon ? 'Edit local' : 'Draw local'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); L.DomEvent.stopPropagation(e.nativeEvent); map.closePopup(); onStartRegionPolygonForFind(firstFind); }}
+                    className="rounded border border-primary/45 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-foreground transition-colors hover:bg-primary/22"
+                  >
+                    {existingRegionPolygon ? 'Edit region' : 'Draw region'}
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-3 border-t border-border/20 py-1.5 pb-2">
+              <button
+                type="button"
+                onClick={() => { setPendingSpeciesSelection(currentSpecies.name); setActiveTab('species'); }}
+                className="flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-primary"
+              >
+                <BookOpen className="h-3 w-3" />
+                Vrsta
+              </button>
+              <button
+                type="button"
+                onClick={() => { setSelectedCollectionSpecies(currentSpecies.name); setActiveTab('collection'); }}
+                className="flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-primary"
+              >
+                <LayoutList className="h-3 w-3" />
+                Zbirka
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-const OVERLAP_PX = 18;
+const OVERLAP_PX = 40;
 
-function computeCrowded(map: L.Map, collections: Collection[]): Set<string> {
+function computeCrowded(map: L.Map, groups: LocationGroup[]): Set<string> {
   const crowded = new Set<string>();
-  const points = collections.map((c) => ({
-    key: c.key,
-    pt: map.latLngToLayerPoint([c.lat, c.lng]),
+  const points = groups.map((g) => ({
+    key: g.key,
+    pt: map.latLngToLayerPoint([g.lat, g.lng]),
   }));
   for (let i = 0; i < points.length; i++) {
     for (let j = i + 1; j < points.length; j++) {
@@ -300,13 +337,13 @@ function computeCrowded(map: L.Map, collections: Collection[]): Set<string> {
 }
 
 function CollectionPinsInner({
-  collections,
+  groups,
   onStartLocalPolygonForFind,
   onStartRegionPolygonForFind,
   onSelectSpecies,
   zones,
 }: {
-  collections: Collection[];
+  groups: LocationGroup[];
   onStartLocalPolygonForFind: (find: Find) => void;
   onStartRegionPolygonForFind: (find: Find) => void;
   onSelectSpecies: (speciesName: string) => void;
@@ -319,64 +356,107 @@ function CollectionPinsInner({
   const { data: speciesProfilesRaw } = useSpeciesProfiles();
   const storagePath = useAppStore((s) => s.storagePath) ?? '';
   const isSatellite = useAppStore((s) => s.mapLayer === 'Satellite');
+
   const speciesNotesByName = useMemo(() => {
     const notes = new Map<string, string>();
-    for (const entry of speciesNotesData ?? []) {
-      notes.set(entry.species_name, entry.notes);
-    }
+    for (const entry of speciesNotesData ?? []) notes.set(entry.species_name, entry.notes);
     return notes;
   }, [speciesNotesData]);
+
   const speciesProfilesByName = useMemo(() => {
     const m = new Map<string, SpeciesProfile>();
     speciesProfilesRaw?.forEach((p) => m.set(p.species_name, p));
     return m;
   }, [speciesProfilesRaw]);
-  const update = useCallback(() => {
-    setCrowded(computeCrowded(map, collections));
-  }, [map, collections]);
 
-  useEffect(() => {
-    update();
-  }, [update]);
-
+  const update = useCallback(() => { setCrowded(computeCrowded(map, groups)); }, [map, groups]);
+  useEffect(() => { update(); }, [update]);
   useMapEvents({
-    zoomend: () => {
-      update();
-      setZoom(map.getZoom());
-    },
+    zoomend: () => { update(); setZoom(map.getZoom()); },
     moveend: update,
   });
 
   return (
     <>
-      {collections.map((c) => {
-        const showLabel = zoom >= LABEL_ZOOM_THRESHOLD && !crowded.has(c.key) && !c.suppressLabel;
-        const speciesNote = speciesNotesByName.get(c.name);
-        const collectionZones = zones.filter((zone) => zone.species_name === c.name);
+      {groups.map((g) => {
+        const showLabel = zoom >= LABEL_ZOOM_THRESHOLD && !crowded.has(g.key) && !g.suppressLabel;
+        const groupZones = zones.filter((z) => g.species.some((s) => z.species_name === s.name));
         return (
-          <Marker
-            key={`col-${c.key}`}
-            position={[c.lat, c.lng]}
-            icon={getCollectionIcon(c.labelText, showLabel, isSatellite)}
-            eventHandlers={{
-              click: () => onSelectSpecies(c.name),
-            }}
-          >
-            <Popup minWidth={248}>
-              <CollectionPopup
-                collection={c}
-                speciesNote={speciesNote}
-                storagePath={storagePath}
-                onStartLocalPolygonForFind={onStartLocalPolygonForFind}
-                onStartRegionPolygonForFind={onStartRegionPolygonForFind}
-                zones={collectionZones}
-                speciesProfile={speciesProfilesByName.get(c.name)}
-              />
-            </Popup>
-          </Marker>
+          <CollectionMarker
+            key={`loc-${g.key}`}
+            group={g}
+            showLabel={showLabel}
+            isSatellite={isSatellite}
+            groupZones={groupZones}
+            storagePath={storagePath}
+            onStartLocalPolygonForFind={onStartLocalPolygonForFind}
+            onStartRegionPolygonForFind={onStartRegionPolygonForFind}
+            onSelectSpecies={onSelectSpecies}
+            speciesNotesByName={speciesNotesByName}
+            speciesProfilesByName={speciesProfilesByName}
+          />
         );
       })}
     </>
+  );
+}
+
+function CollectionMarker({
+  group: g,
+  showLabel,
+  isSatellite,
+  groupZones,
+  storagePath,
+  onStartLocalPolygonForFind,
+  onStartRegionPolygonForFind,
+  onSelectSpecies,
+  speciesNotesByName,
+  speciesProfilesByName,
+}: {
+  group: LocationGroup;
+  showLabel: boolean;
+  isSatellite: boolean;
+  groupZones: Zone[];
+  storagePath: string;
+  onStartLocalPolygonForFind: (find: Find) => void;
+  onStartRegionPolygonForFind: (find: Find) => void;
+  onSelectSpecies: (name: string) => void;
+  speciesNotesByName: Map<string, string>;
+  speciesProfilesByName: Map<string, SpeciesProfile>;
+}) {
+  const [popupOpen, setPopupOpen] = useState(false);
+
+  return (
+    <Marker
+      position={[g.lat, g.lng]}
+      icon={getCollectionIcon(g.labelText, showLabel, isSatellite)}
+      eventHandlers={{
+        click: () => onSelectSpecies(g.species[0]?.name ?? ''),
+        popupopen: () => setPopupOpen(true),
+        popupclose: () => setPopupOpen(false),
+      }}
+    >
+      {g.species.length > 1 && !popupOpen && (
+        <Tooltip direction="top" offset={[0, -10]} opacity={1} className="bili-species-tooltip">
+          <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: '12px', lineHeight: '1.6' }}>
+            {g.species.map((s) => (
+              <div key={s.name}>{plainSpeciesName(s.name)}</div>
+            ))}
+          </div>
+        </Tooltip>
+      )}
+      <Popup minWidth={248} autoPan={false}>
+        <CollectionPopup
+          locationGroup={g}
+          storagePath={storagePath}
+          onStartLocalPolygonForFind={onStartLocalPolygonForFind}
+          onStartRegionPolygonForFind={onStartRegionPolygonForFind}
+          zones={groupZones}
+          speciesNotesByName={speciesNotesByName}
+          speciesProfilesByName={speciesProfilesByName}
+        />
+      </Popup>
+    </Marker>
   );
 }
 
@@ -393,10 +473,10 @@ export function CollectionPins({
   onStartRegionPolygonForFind?: (find: Find) => void;
   onSelectSpecies?: (speciesName: string) => void;
 }) {
-  const collections = useMemo(() => collectionsFromFinds(finds), [finds]);
+  const groups = useMemo(() => locationGroupsFromFinds(finds), [finds]);
   return (
     <CollectionPinsInner
-      collections={collections}
+      groups={groups}
       onStartLocalPolygonForFind={onStartLocalPolygonForFind}
       onStartRegionPolygonForFind={onStartRegionPolygonForFind}
       onSelectSpecies={onSelectSpecies}
@@ -419,80 +499,33 @@ function rawToLabelHtml(raw: string): string {
   return escaped.replace(/\*(.*?)\*/g, (_m, word) => `<span style="font-weight:400">${word}</span>`);
 }
 
-/** Groups finds into per-location collections. Each distinct (species, exact saved coordinate) pair
- *  gets its own pin. Shared pins only happen when finds have the same stored coordinate.
- *  After grouping, a proximity pass assigns labelText and suppressLabel:
- *  - Single species at a location: labelText = Latin name, suppressLabel = false
- *  - Multiple species at same location: first gets "N species", rest suppressed */
-export function collectionsFromFinds(finds: Find[]): Collection[] {
-  const bySpecies = new Map<string, Array<{ key: string; lat: number; lng: number; finds: Find[] }>>();
+/**
+ * Groups finds into one LocationGroup per exact coordinate pair.
+ * Finds with identical lat/lng share a pin; genuinely different coordinates
+ * produce separate pins. When the picker adopts an existing pin's coordinates
+ * the new find is guaranteed to join that group.
+ */
+export function locationGroupsFromFinds(finds: Find[]): LocationGroup[] {
+  const byLocation = new Map<string, { lat: number; lng: number; bySpecies: Map<string, Find[]> }>();
 
   for (const f of finds) {
     if (f.lat == null || f.lng == null) continue;
-    if (!bySpecies.has(f.species_name)) bySpecies.set(f.species_name, []);
-    const buckets = bySpecies.get(f.species_name)!;
-    const key = coordKey(f.lat, f.lng);
-
-    const existing = buckets.find((b) => b.key === key);
-
-    if (existing) {
-      existing.finds.push(f);
-    } else {
-      buckets.push({ key, lat: f.lat, lng: f.lng, finds: [f] });
+    const locKey = coordKey(f.lat, f.lng);
+    if (!byLocation.has(locKey)) {
+      byLocation.set(locKey, { lat: f.lat, lng: f.lng, bySpecies: new Map() });
     }
+    const loc = byLocation.get(locKey)!;
+    if (!loc.bySpecies.has(f.species_name)) loc.bySpecies.set(f.species_name, []);
+    loc.bySpecies.get(f.species_name)!.push(f);
   }
 
-  const result: Collection[] = [];
-  for (const [name, buckets] of bySpecies) {
-    const multi = buckets.length > 1;
-    for (let i = 0; i < buckets.length; i++) {
-      const { lat, lng, finds } = buckets[i];
-      result.push({
-        key: multi ? `${name}|${i}` : name,
-        name,
-        lat,
-        lng,
-        count: finds.length,
-        finds,
-        labelText: '',       // filled by proximity pass below
-        suppressLabel: false,
-      });
-    }
-  }
-
-  // Proximity pass: group co-located collections, assign label text and suppress secondary pins.
-  const locationGroups: Collection[][] = [];
-  for (const col of result) {
-    let placed = false;
-    for (const group of locationGroups) {
-      if (group.some(
-        (other) =>
-          coordKey(other.lat, other.lng) === coordKey(col.lat, col.lng),
-      )) {
-        group.push(col);
-        placed = true;
-        break;
-      }
-    }
-    if (!placed) locationGroups.push([col]);
-  }
-
-  for (const group of locationGroups) {
-    const speciesInGroup = new Set(group.map((c) => c.name));
-    if (speciesInGroup.size === 1) {
-      const labelHtml = rawToLabelHtml(group[0].name.split(',')[0].trim());
-      for (const col of group) {
-        col.labelText = labelHtml;
-        col.suppressLabel = false;
-      }
-    } else {
-      group[0].labelText = `${speciesInGroup.size} species`;
-      group[0].suppressLabel = false;
-      for (let i = 1; i < group.length; i++) {
-        group[i].labelText = rawToLabelHtml(group[i].name.split(',')[0].trim());
-        group[i].suppressLabel = true;
-      }
-    }
+  const result: LocationGroup[] = [];
+  for (const [locKey, { lat, lng, bySpecies }] of byLocation) {
+    const species: SpeciesEntry[] = Array.from(bySpecies.entries()).map(([name, finds]) => ({ name, finds }));
+    const labelText = species.length === 1
+      ? rawToLabelHtml(plainSpeciesName(species[0].name).trim())
+      : `${species.length} species`;
+    result.push({ key: locKey, lat, lng, species, labelText, suppressLabel: false });
   }
 
   return result;

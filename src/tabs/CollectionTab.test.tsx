@@ -174,17 +174,17 @@ describe('CollectionTab', () => {
     });
   });
 
-  it('opens and filters the requested species when jumping from Species tab', async () => {
+  it('opens the requested species without pushing it through search when jumping from Species tab', async () => {
     useAppStore.setState({ selectedCollectionSpecies: 'Boletus edulis' });
     invokeHandlers['get_finds'] = () => [find1, find2];
     renderTab();
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Boletus edulis')).toBeInTheDocument();
+      expect(screen.getByDisplayValue('')).toBeInTheDocument();
       expect(screen.getAllByText('Boletus edulis').length).toBeGreaterThan(0);
     });
 
-    expect(screen.queryByText('Amanita muscaria')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Amanita muscaria').length).toBeGreaterThan(0);
     expect(useAppStore.getState().selectedCollectionSpecies).toBeNull();
   });
 

@@ -22,6 +22,9 @@ export interface AppState {
   pendingScan: boolean;
   editingFindId: number | null;
   selectedCollectionSpecies: string | null;
+  pendingSpeciesSelection: string | null;
+  pendingMapCenter: { lat: number; lng: number; zoom: number } | null;
+  pendingMapSpeciesFilter: string | null;
   availableUpdate: AvailableUpdate | null;
   installingUpdate: boolean;
   installStatus: string | null;
@@ -36,6 +39,9 @@ export interface AppState {
   setPendingScan: (v: boolean) => void;
   setEditingFindId: (id: number | null) => void;
   setSelectedCollectionSpecies: (species: string | null) => void;
+  setPendingSpeciesSelection: (species: string | null) => void;
+  setPendingMapCenter: (center: { lat: number; lng: number; zoom: number } | null) => void;
+  setPendingMapSpeciesFilter: (speciesName: string | null) => void;
   setAvailableUpdate: (update: AvailableUpdate | null) => void;
   setInstallingUpdate: (installing: boolean) => void;
   setInstallStatus: (status: string | null) => void;
@@ -106,6 +112,9 @@ export const useAppStore = create<AppState>((set) => ({
   pendingScan: false,
   editingFindId: null,
   selectedCollectionSpecies: null,
+  pendingSpeciesSelection: null,
+  pendingMapCenter: null,
+  pendingMapSpeciesFilter: null,
   availableUpdate: null,
   installingUpdate: false,
   installStatus: null,
@@ -117,6 +126,9 @@ export const useAppStore = create<AppState>((set) => ({
   setPendingScan: (pendingScan) => set({ pendingScan }),
   setEditingFindId: (editingFindId) => set({ editingFindId }),
   setSelectedCollectionSpecies: (selectedCollectionSpecies) => set({ selectedCollectionSpecies }),
+  setPendingSpeciesSelection: (pendingSpeciesSelection) => set({ pendingSpeciesSelection }),
+  setPendingMapCenter: (pendingMapCenter) => set({ pendingMapCenter }),
+  setPendingMapSpeciesFilter: (pendingMapSpeciesFilter) => set({ pendingMapSpeciesFilter }),
   setAvailableUpdate: (availableUpdate) => set({ availableUpdate }),
   setInstallingUpdate: (installingUpdate) => set({ installingUpdate }),
   setInstallStatus: (installStatus) => set({ installStatus }),

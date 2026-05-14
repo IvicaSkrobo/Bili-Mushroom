@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { GalleryHorizontal, Plus, ChevronDown, ChevronRight, FolderOpen, Search, X, CheckSquare, Pencil, Star, SquarePen, Trash2 } from 'lucide-react';
+import { GalleryHorizontal, Plus, ChevronDown, ChevronRight, FolderOpen, Search, X, CheckSquare, Pencil, Star, SquarePen, Trash2, BookOpen, Map as MapIcon } from 'lucide-react';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -20,7 +20,7 @@ import type { Find, SpeciesProfile } from '@/lib/finds';
 import { SUPPORTED_EXTENSIONS } from '@/lib/finds';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
-import { renderSpeciesName, plainSpeciesName } from '@/lib/speciesName';
+import { renderSpeciesName, plainSpeciesName, normalizeCommonName, compareSpeciesNames } from '@/lib/speciesName';
 
 export default function CollectionTab() {
   const t = useT();
@@ -30,6 +30,10 @@ export default function CollectionTab() {
   const setEditingFindId = useAppStore((s) => s.setEditingFindId);
   const selectedCollectionSpecies = useAppStore((s) => s.selectedCollectionSpecies);
   const setSelectedCollectionSpecies = useAppStore((s) => s.setSelectedCollectionSpecies);
+  const setActiveTab = useAppStore((s) => s.setActiveTab);
+  const setPendingSpeciesSelection = useAppStore((s) => s.setPendingSpeciesSelection);
+  const setPendingMapCenter = useAppStore((s) => s.setPendingMapCenter);
+  const setPendingMapSpeciesFilter = useAppStore((s) => s.setPendingMapSpeciesFilter);
   const { data: finds, isLoading, isError, error } = useFinds();
   const { data: speciesNotesData } = useSpeciesNotes();
   const { data: speciesProfiles } = useSpeciesProfiles();
@@ -47,6 +51,7 @@ export default function CollectionTab() {
   const [deleting, setDeleting] = useState<Find | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
+  const [jumpTargetSpecies, setJumpTargetSpecies] = useState<string | null>(null);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
 
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
@@ -167,9 +172,7 @@ export default function CollectionTab() {
     setNoteDrafts((prev) => {
       const next = { ...prev };
       for (const sn of speciesNotesData) {
-        if (!(sn.species_name in next)) {
-          next[sn.species_name] = sn.notes;
-        }
+        next[sn.species_name] = sn.notes;
       }
       return next;
     });
@@ -186,18 +189,6 @@ export default function CollectionTab() {
     setEditingFindId(null);
   }, [editingFindId, finds, setEditingFindId]);
 
-  useEffect(() => {
-    if (!selectedCollectionSpecies) return;
-    setExpanded((prev) => {
-      if (prev.has(selectedCollectionSpecies)) return prev;
-      const next = new Set(prev);
-      next.add(selectedCollectionSpecies);
-      return next;
-    });
-    setSearch(selectedCollectionSpecies);
-    setSelectedCollectionSpecies(null);
-  }, [selectedCollectionSpecies, setSelectedCollectionSpecies]);
-
   const groups = useMemo(() => {
     const map = new Map<string, Find[]>();
     for (const f of finds ?? []) {
@@ -207,12 +198,36 @@ export default function CollectionTab() {
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(f);
     }
-    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    return Array.from(map.entries()).sort((a, b) => compareSpeciesNames(a[0], b[0]));
   }, [favoritesOnly, finds]);
+
+  useEffect(() => {
+    if (!selectedCollectionSpecies || groups.length === 0) return;
+
+    const rawTarget = selectedCollectionSpecies.trim();
+    const plainTarget = plainSpeciesName(rawTarget).toLowerCase();
+    const resolvedSpecies = groups.find(([name]) => name === rawTarget)?.[0]
+      ?? groups.find(([name]) => plainSpeciesName(name).toLowerCase() === plainTarget)?.[0]
+      ?? groups.find(([name]) => plainTarget.startsWith(plainSpeciesName(name).toLowerCase()))?.[0]
+      ?? rawTarget;
+
+    setExpanded((prev) => {
+      if (prev.has(resolvedSpecies)) return prev;
+      const next = new Set(prev);
+      next.add(resolvedSpecies);
+      return next;
+    });
+    setSearch('');
+    setJumpTargetSpecies(resolvedSpecies);
+    setSelectedCollectionSpecies(null);
+
+    const timer = window.setTimeout(() => setJumpTargetSpecies(null), 2200);
+    return () => window.clearTimeout(timer);
+  }, [groups, selectedCollectionSpecies, setSelectedCollectionSpecies]);
 
   const filteredGroups = useMemo(() => {
     if (!search.trim()) return groups;
-    const q = search.trim().toLowerCase();
+    const q = plainSpeciesName(search).trim().toLowerCase();
     return groups.filter(([name]) => plainSpeciesName(name).toLowerCase().startsWith(q));
   }, [groups, search]);
 
@@ -243,7 +258,8 @@ export default function CollectionTab() {
     edibility: string | null,
     threatStatus: string | null,
     distribution: string | null,
-    description: string | null,
+    commonName: string | null,
+    note: string | null,
     synonyms: string[],
     otherNames: string[],
   ) => {
@@ -251,6 +267,7 @@ export default function CollectionTab() {
     const existingProfile = speciesProfilesByName.get(folderEditing);
     await upsertSpeciesProfile.mutateAsync({
       speciesName: newName,
+      commonName,
       coverPhotoId: existingProfile?.cover_photo_id ?? null,
       tags: existingProfile?.tags ?? [],
       edibility,
@@ -260,8 +277,9 @@ export default function CollectionTab() {
       synonyms,
       otherNames,
       fruitingBodyCountOverride: existingProfile?.fruiting_body_count_override ?? null,
-      description,
+      description: existingProfile?.description ?? null,
     });
+    await upsertNote.mutateAsync({ speciesName: newName, notes: note ?? '' });
   };
 
   const toggleExpand = (name: string) => {
@@ -293,6 +311,7 @@ export default function CollectionTab() {
     const existingProfile = speciesProfiles?.find((entry) => entry.species_name === speciesName);
     upsertSpeciesProfile.mutate({
       speciesName,
+      commonName: existingProfile?.common_name ?? null,
       coverPhotoId: photo.photo.id,
       tags: existingProfile?.tags ?? [],
       edibility: existingProfile?.edibility ?? null,
@@ -331,7 +350,7 @@ export default function CollectionTab() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={lang === 'hr' ? 'Pretraži vrste…' : 'Search species…'}
-                className="w-full h-9 rounded-md border border-border bg-input pl-9 pr-8 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/40 transition-colors"
+                className="w-full h-9 rounded-md border border-border bg-input pl-9 pr-8 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40 transition-colors"
               />
               {isSearching && (
                 <button
@@ -482,6 +501,7 @@ export default function CollectionTab() {
           // When searching: always show expanded. When not: use accordion.
           const isOpen = isSearching || expanded.has(speciesName);
           const profile = speciesProfiles?.find((entry) => entry.species_name === speciesName) ?? null;
+          const commonName = normalizeCommonName(profile?.common_name, speciesName);
           const coverPhotoId = profile?.cover_photo_id ?? null;
           const representativePhoto = speciesFinds
             .flatMap((find) => find.photos)
@@ -490,7 +510,7 @@ export default function CollectionTab() {
           const thumbSrc = primaryPhoto
             ? resolvePhotoSrc(storagePath!, primaryPhoto.photo_path)
             : null;
-          const isJumpTarget = speciesName === selectedCollectionSpecies;
+          const isJumpTarget = speciesName === jumpTargetSpecies;
           const speciesFavoriteCount = speciesFinds.filter((find) => find.is_favorite).length;
 
           const repFind = representativePhoto
@@ -558,6 +578,11 @@ export default function CollectionTab() {
                         </span>
                       )}
                     </div>
+                    {commonName && (
+                      <p className="mt-0.5 truncate text-xs font-medium text-secondary" title={commonName}>
+                        {commonName}
+                      </p>
+                    )}
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
                       {tFindsCount(speciesFinds.length, lang)}
                       {' · '}
@@ -574,8 +599,9 @@ export default function CollectionTab() {
                     </div>
                     {(() => {
                       const profile = speciesProfilesByName.get(speciesName);
+                      const hasNames = (profile?.other_names?.length ?? 0) > 0 || (profile?.synonyms?.length ?? 0) > 0;
+                      if (!hasNames) return null;
                       const allNames = [...(profile?.other_names ?? []), ...(profile?.synonyms ?? [])];
-                      if (allNames.length === 0) return null;
                       return (
                         <p className="mt-0.5 text-[10px] text-muted-foreground/60 truncate" title={allNames.join(' · ')}>
                           {allNames.join(' · ')}
@@ -587,9 +613,25 @@ export default function CollectionTab() {
 
                 <button
                   type="button"
-                  className="flex-shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground hover:bg-accent focus:opacity-100"
+                  className="flex-shrink-0 p-1 rounded opacity-50 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary hover:bg-accent focus:opacity-100"
+                  onClick={(e) => { e.stopPropagation(); setPendingSpeciesSelection(speciesName); setActiveTab('species'); }}
+                  title={lang === 'hr' ? 'Prikaži vrstu' : 'View species'}
+                >
+                  <BookOpen className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  className="flex-shrink-0 p-1 rounded opacity-50 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary hover:bg-accent focus:opacity-100"
+                  onClick={(e) => { e.stopPropagation(); setPendingMapSpeciesFilter(speciesName); setActiveTab('map'); }}
+                  title={lang === 'hr' ? 'Prikaži na karti' : 'View on map'}
+                >
+                  <MapIcon className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  className="flex-shrink-0 p-1 rounded opacity-50 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary hover:bg-accent focus:opacity-100"
                   onClick={(e) => { e.stopPropagation(); setFolderEditing(speciesName); }}
-                  title="Edit folder"
+                  title={lang === 'hr' ? 'Uredi mapu' : 'Edit folder'}
                 >
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
@@ -610,31 +652,59 @@ export default function CollectionTab() {
 
               {/* Folder body */}
               {isOpen && (
-                <div className="border-t border-border/50 px-4 pb-4 pt-3 space-y-3">
-                  <Textarea
-                    placeholder={t('collection.folderNotes', { name: speciesName })}
-                    rows={2}
+                <div className="border-t border-border/60 bg-muted/[0.07] px-4 pb-4 pt-4 space-y-3">
+                  <textarea
+                    placeholder={t('collection.folderNotes')}
+                    rows={3}
                     value={noteDrafts[speciesName] ?? ''}
                     onChange={(e) =>
                       setNoteDrafts((prev) => ({ ...prev, [speciesName]: e.target.value }))
                     }
                     onBlur={() => handleNoteSave(speciesName)}
-                    className="text-sm placeholder:text-muted-foreground/40"
+                    className="w-full resize-none rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
                   />
+                  {/* Synonyms and other names — compact inline pills, no section headers */}
+                  {(() => {
+                    const profile = speciesProfilesByName.get(speciesName);
+                    const otherNames = profile?.other_names ?? [];
+                    const synonyms = profile?.synonyms ?? [];
+                    if (otherNames.length === 0 && synonyms.length === 0) return null;
+                    return (
+                      <div className="flex flex-wrap gap-1">
+                        {synonyms.map((name) => (
+                          <span key={name} className="inline-flex items-center rounded border border-border/60 bg-muted/50 px-1.5 py-px text-[10px] italic text-foreground/70">
+                            {name}
+                          </span>
+                        ))}
+                        {otherNames.map((name) => (
+                          <span key={name} className="inline-flex items-center rounded border border-border/60 bg-muted/50 px-1.5 py-px text-[10px] text-foreground/70">
+                            {name}
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
                   {/* Per-find collapsible rows */}
-                  <div className="flex flex-col gap-1.5">
-                    {speciesFinds.map((f) => {
-                      const autoExpand = f.photos.length <= 1;
-                      const isExpanded = autoExpand || expandedFinds.has(f.id);
+                  <div className="flex items-center gap-2 pt-1">
+                    <div className="h-px flex-1 bg-border/40" />
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/45">
+                      {lang === 'hr' ? 'Nalazi' : 'Finds'}
+                    </span>
+                    <div className="h-px flex-1 bg-border/40" />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {speciesFinds.map((f, idx) => {
+                      const isExpanded = expandedFinds.has(f.id);
                       const firstPhoto = f.photos[0];
                       const rowThumbSrc = firstPhoto ? resolvePhotoSrc(storagePath!, firstPhoto.photo_path) : null;
                       return (
                         <div
                           key={f.id}
-                          className={`group/findrow overflow-hidden rounded border transition-colors ${
+                          className={`group/findrow overflow-hidden rounded border bg-card shadow-sm transition-colors ${
                             selectMode && selectedIds.has(f.id)
                               ? 'border-primary/60 bg-primary/8'
-                              : 'border-border/40 hover:border-border/70'
+                              : 'border-border/50 hover:border-border/80'
                           }`}
                         >
                           {/* Find header row */}
@@ -667,6 +737,7 @@ export default function CollectionTab() {
                             {/* Info */}
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-medium text-foreground/90 truncate">
+                                <span className="font-mono text-[10px] text-muted-foreground/45 mr-1 select-none">{idx + 1}.</span>
                                 {f.date_found || (lang === 'hr' ? 'Bez datuma' : 'No date')}
                                 {f.location_note && (
                                   <span className="text-muted-foreground"> · {f.location_note}</span>
@@ -686,7 +757,17 @@ export default function CollectionTab() {
                             </div>
 
                             {/* Actions — visible on hover */}
-                            <div className="flex items-center gap-0.5 opacity-0 group-hover/findrow:opacity-100 transition-opacity">
+                            <div className="flex items-center gap-0.5 opacity-40 group-hover/findrow:opacity-100 focus-within:opacity-100 transition-opacity">
+                              {f.lat != null && f.lng != null && (
+                                <button
+                                  type="button"
+                                  className="rounded p-1 text-muted-foreground hover:text-primary hover:bg-accent transition-colors"
+                                  onClick={(e) => { e.stopPropagation(); setPendingMapCenter({ lat: f.lat!, lng: f.lng!, zoom: 16 }); setActiveTab('map'); }}
+                                  title={lang === 'hr' ? 'Prikaži na karti' : 'View on map'}
+                                >
+                                  <MapIcon className="h-3.5 w-3.5" />
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
@@ -781,6 +862,7 @@ export default function CollectionTab() {
         finds={folderEditing ? (filteredGroups.find(([name]) => name === folderEditing)?.[1] ?? groups.find(([name]) => name === folderEditing)?.[1] ?? []) : []}
         onOpenChange={(open) => !open && setFolderEditing(null)}
         speciesProfile={folderEditing ? speciesProfilesByName.get(folderEditing) : undefined}
+        speciesNote={folderEditing ? (speciesNotesData?.find((n) => n.species_name === folderEditing)?.notes ?? '') : ''}
         onSave={handleFolderSave}
       />
       <DeleteFindDialog

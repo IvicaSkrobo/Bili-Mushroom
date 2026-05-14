@@ -40,7 +40,7 @@ export function RankedList({ title, items, emptyMessage, pageSize }: RankedListP
               return (
                 <div
                   key={idx}
-                  className={`group relative rounded-sm border border-border/70 bg-card hover:border-primary/25 hover:bg-muted stagger-item${isClickable ? ' cursor-pointer' : ''}`}
+                  className={`group relative rounded-sm border border-border bg-card shadow-sm hover:border-primary/40 hover:shadow-md stagger-item${isClickable ? ' cursor-pointer' : ''}`}
                   style={{ animationDelay: `${idx * 40}ms` }}
                   onClick={() => isClickable && setSelectedIdx(isOpen ? null : idx)}
                 >
@@ -75,12 +75,12 @@ export function RankedList({ title, items, emptyMessage, pageSize }: RankedListP
                       <p className="text-[11px] uppercase tracking-[0.1em] text-muted-foreground/60 mb-2">
                         Species found
                       </p>
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-1.5">
                         {item.species.map((s) => (
                           <span
                             key={s}
                             title={plainSpeciesName(s)}
-                            className="font-serif text-xs font-semibold italic text-foreground/80 bg-muted/60 border border-border/50 px-1.5 py-0.5 rounded-sm"
+                            className="font-serif text-xs font-semibold italic text-foreground bg-card border border-border/80 shadow-sm px-2 py-0.5 rounded-sm"
                           >
                             {renderSpeciesName(s)}
                           </span>

@@ -78,11 +78,35 @@ vi.mock('@/hooks/useFinds', () => ({
       { species_name: 'Boletus edulis', cover_photo_id: 2, tags: ['confirmed', 'oak'] },
     ],
   }),
+  useSpeciesRecipes: () => ({
+    data: [],
+  }),
   useUpsertSpeciesProfile: () => ({
     mutate: mutateSpeciesProfile,
     isPending: false,
   }),
+  useUpsertSpeciesRecipe: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
+  useDeleteSpeciesRecipe: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
   useUpdateFind: () => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+  useAddFindPhotos: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
+  useDeleteFindPhoto: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
+  useBulkDeleteFindPhotos: () => ({
     mutate: vi.fn(),
     isPending: false,
   }),

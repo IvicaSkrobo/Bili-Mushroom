@@ -4,6 +4,7 @@ import type { Find } from '@/lib/finds';
 import { formatRadius, parsePolygonJson, summarizeZone, type Zone } from '@/lib/zones';
 import { useDeleteZone, useUpsertZone } from '@/hooks/useZones';
 import { DraggablePanel } from './DraggablePanel';
+import { plainSpeciesName } from '@/lib/speciesName';
 
 interface ZoneEditorPanelProps {
   zone: Zone;
@@ -106,7 +107,7 @@ export function ZoneEditorPanel({
               {name || (isLocal ? 'Local zone' : 'Region zone')}
             </p>
             <p className="truncate text-xs text-muted-foreground">
-              {zone.species_name.split(',')[0]} / {isPolygon ? `${polygonPoints.length} points` : formatRadius(Number(radius))}
+              {plainSpeciesName(zone.species_name)} / {isPolygon ? `${polygonPoints.length} points` : formatRadius(Number(radius))}
             </p>
           </div>
 

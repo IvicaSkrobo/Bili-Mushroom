@@ -2,6 +2,7 @@ import { Layers3, MapPin, Minus, PencilRuler } from 'lucide-react';
 import type { Find } from '@/lib/finds';
 import type { ZoneViewMode } from '@/lib/zones';
 import { DraggablePanel } from './DraggablePanel';
+import { plainSpeciesName } from '@/lib/speciesName';
 
 interface ZoneModeControlProps {
   mode: ZoneViewMode;
@@ -120,7 +121,7 @@ export function ZoneModeControl({
             <div className="flex min-w-0 items-center gap-2">
               <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
               <span className="truncate">
-                {targetSpecies ? targetSpecies.split(',')[0] : 'Pick a species/filter'}
+                {targetSpecies ? plainSpeciesName(targetSpecies) : 'Pick a species/filter'}
               </span>
             </div>
             {hasRegionTarget && (
@@ -175,7 +176,7 @@ export function ZoneModeControl({
               <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
               <span className="truncate">
               {localTargetFind
-                ? `${localTargetFind.species_name.split(',')[0]} / ${localTargetFind.date_found}`
+                ? `${plainSpeciesName(localTargetFind.species_name)} / ${localTargetFind.date_found}`
                 : 'Pick a find or pin'}
               </span>
             </div>

@@ -21,7 +21,7 @@ const hr: Translations = {
   'collection.finds.one': 'nalaz',
   'collection.finds.few': 'nalaza',
   'collection.finds.many': 'nalaza',
-  'collection.folderNotes': 'Bilješke o {name}…',
+  'collection.folderNotes': 'Bilješka o vrsti…',
   'collection.imported': 'Uvezeno {n}',
   'collection.importSummary': 'Uvezeno {finds} nalaza, {photos} fotografija',
   'collection.skipped': ' · Preskočeno {n}',
@@ -71,7 +71,7 @@ const hr: Translations = {
   'species.daysRecorded': 'Zabilježeni dani',
   'species.bestMonth': 'Najbolji mjesec',
   'species.favoriteCountLabel': 'favoriti {count}',
-  'species.fieldJournal': 'Terenski dnevnik',
+  'species.fieldJournal': 'Bilješka o vrsti',
   'species.tags': 'Oznake',
   'species.noTags': 'Još nema oznaka za ovu vrstu.',
   'species.addTag': 'Dodaj oznaku',
@@ -103,6 +103,8 @@ const hr: Translations = {
   'species.lastRecordedShort': 'Zadnji zapis {date}',
   'species.synonyms': 'Sinonimi',
   'species.synonymsPlaceholder': 'Dodaj sinonim…',
+  'species.commonName': 'Narodni naziv',
+  'species.commonNamePlaceholder': 'npr. vrganj, lisičica…',
   'species.otherNames': 'Lokalna imena',
   'species.otherNamesPlaceholder': 'Dodaj lokalno ime…',
   'species.recipes': 'Recepti',
@@ -112,6 +114,10 @@ const hr: Translations = {
   'species.recipeTitlePlaceholder': 'Naziv recepta',
   'species.recipeNotesPlaceholder': 'Bilješka o receptu…',
   'species.deleteRecipe': 'Obriši recept',
+  'species.tabOverview': 'Pregled',
+  'species.tabFinds': 'Nalazi',
+  'species.tabRecipes': 'Recepti',
+  'species.tabDescription': 'Opis',
 
   // import dialog
   'import.title': 'Uvezi fotografije',
@@ -119,6 +125,10 @@ const hr: Translations = {
   'import.pickFolder': 'Odaberi mapu',
   'import.clearAll': 'Obriši sve',
   'import.mushroomName': 'Naziv gljive',
+  'import.latinName': 'Latinski naziv',
+  'import.latinNamePlaceholder': 'npr. Coprinellus micaceus *(Bull.) Vilgalys',
+  'import.commonName': 'Narodni naziv',
+  'import.commonNamePlaceholder': 'npr. svjetlucava gnojištarka',
   'import.pickLocation': 'Postavi zajedničku lokaciju',
   'import.newFolderHint': 'Nova mapa će biti stvorena',
   'import.date': 'Datum',
@@ -128,7 +138,7 @@ const hr: Translations = {
   'import.observedCount': 'Broj plodnih tijela',
   'import.observedCountPlaceholder': 'npr. 12',
   'import.observedCountHelp': 'Gruba procjena koliko je plodnih tijela bilo prisutno. Opcionalno.',
-  'import.folderNotes': 'Bilješke mape…',
+  'import.folderNotes': 'Bilješka o vrsti…',
   'import.nameRequired': 'Sve fotografije moraju imati naziv gljive prije uvoza.',
   'import.importAll': 'Uvezi sve',
   'import.reviewTitle': 'Uvoz završen — {finds} nalaza, {photos} fotografija',
@@ -170,6 +180,10 @@ const hr: Translations = {
   // edit dialog
   'edit.title': 'Uredi nalaz',
   'edit.species': 'Vrsta',
+  'edit.latinName': 'Latinski naziv',
+  'edit.latinNamePlaceholder': 'npr. Coprinellus micaceus *(Bull.) Vilgalys',
+  'edit.commonName': 'Narodni naziv',
+  'edit.commonNamePlaceholder': 'npr. svjetlucava gnojištarka',
   'edit.date': 'Datum pronalaska',
   'edit.country': 'Država',
   'edit.region': 'Regija',
@@ -207,6 +221,7 @@ const hr: Translations = {
 
   // settings dialog
   'settings.title': 'Postavke',
+  'settings.description': 'Upravljaj lokacijom knjižnice, jezikom, izgledom i cache-om karata.',
   'settings.tabGeneral': 'Opcenito',
   'settings.tabMap': 'Mapa',
   'settings.tabAdvanced': 'Napredno',
@@ -268,7 +283,6 @@ const hr: Translations = {
   // edibility labels
   'edibility.unknown': 'Nepoznato',
   'edibility.edible': 'Jestiva',
-  'edibility.edible_raw': 'Jestiva sirova',
   'edibility.conditionally_edible': 'Uvjetno jestiva',
   'edibility.inedible': 'Nejestiva',
   'edibility.poisonous': 'Otrovna',
@@ -277,6 +291,7 @@ const hr: Translations = {
   // threat status labels (IUCN)
   'threat.unknown': 'Nepoznato',
   'threat.ne': 'NE – Neprocijenjivana',
+  'threat.ua': 'UA – U postupku procjene',
   'threat.dd': 'DD – Nedovoljno poznata',
   'threat.lc': 'LC – Najmanje zabrinjavajuća',
   'threat.nt': 'NT – Gotovo ugrožena',
@@ -302,6 +317,8 @@ const hr: Translations = {
   'folder.title': 'Uredi mapu',
   'folder.description': 'Ažuriraj podatke o vrsti i metapodatke statusa za ovu mapu.',
   'folder.speciesName': 'Naziv vrste',
+  'folder.latinName': 'Latinski naziv',
+  'folder.commonName': 'Narodni naziv',
   'folder.pickOnMap': 'Odaberi na karti',
   'folder.changeLocation': 'Promijeni lokaciju',
   'folder.openFolder': 'Otvori mapu vrste',
@@ -315,6 +332,58 @@ const hr: Translations = {
   'folder.synonymsPlaceholder': 'npr. Boletus reticulatus…',
   'folder.otherNames': 'Lokalna imena',
   'folder.otherNamesPlaceholder': 'npr. vrganj, pravi vrganj…',
+
+  // stats tab — species stat row
+  'stats.totalFinds': 'Ukupno nalaza',
+  'stats.firstFind': 'Prvi nalaz',
+  'stats.bestMonth': 'Najaktivniji mjesec',
+  'stats.fruitingBodies': 'Plodna tijela',
+  'stats.locations': 'Lokacije',
+
+  // stats tab — seasonal calendar & insights
+  'stats.yourSeason': 'Vaša sezona',
+  'stats.noFindsInMonth': 'Nema nalaza u {month}.',
+  'stats.insightStrong': '{month} je povijesno jak',
+  'stats.insightMostActive': 'Najaktivnije vrste: {species}.',
+  'stats.insightLogged': 'Zabilježili ste {count} nalaza u {month}.',
+  'stats.spotHint': 'Savjet: **{species}** je najaktivnija oko {month} — pokušajte {location}.',
+
+  // stats tab — historical comparison
+  'stats.weekHeading': 'Ovaj tjedan — Tjedan {week}',
+  'stats.monthHeading': 'Ovaj mjesec — {month}',
+  'stats.weekEmpty': 'Nema nalaza u ovom tjednu u prethodnim godinama.',
+  'stats.monthEmpty': 'Nema nalaza u ovom mjesecu u prethodnim godinama.',
+  'stats.findOne': 'nalaz',
+  'stats.findMany': 'nalaza',
+
+  // stats tab
+  'stats.pageTitle': 'Vaša priča o berbi',
+  'stats.emptyHeading': 'Vaša priča počinje prvim nalazom',
+  'stats.emptyBody': 'Uvezite prvu fotografiju gljive da vidite statistiku ovdje.',
+  'stats.totalPhotos': 'UKUPNO FOTOGRAFIJA',
+  'stats.uniqueSpecies': 'JEDINSTVENE VRSTE',
+  'stats.locationsVisited': 'POSJEĆENE LOKACIJE',
+  'stats.mostActiveMonth': 'NAJAKTIVNIJI MJESEC',
+  'stats.noDataYet': 'Nema podataka',
+  'stats.thisTimePastYears': 'U ovo doba prošlih godina',
+  'stats.topSpots': 'Omiljene lokacije',
+  'stats.topSpotsEmpty': 'Počnite brati gljive da vidite omiljene lokacije.',
+  'stats.bestMonths': 'Najaktivniji mjeseci',
+  'stats.bestMonthsEmpty': 'Najaktivniji mjeseci prikazat će se ovdje uz više nalaza.',
+  'stats.seasonalInsights': 'Sezonski uvidi',
+  'stats.yourSpecies': 'Vaše vrste',
+  'stats.exportHint': 'Izvezite cijelu zbirku',
+
+  // map species filter panel
+  'map.filterSearch': 'Pretraži vrste…',
+  'map.filterSeeAll': 'Sve ({count})',
+  'map.filterNoResults': 'Nema rezultata',
+  'map.filterAllSpecies': 'Sve vrste',
+  'map.filterSelected': '{count} odabrano',
+  'map.filterSpaceHint': 'Space',
+
+  // find card
+  'findCard.countUnit': 'kom',
 };
 
 const en: Translations = {
@@ -334,7 +403,7 @@ const en: Translations = {
   'collection.finds.one': 'find',
   'collection.finds.few': 'finds',
   'collection.finds.many': 'finds',
-  'collection.folderNotes': 'Notes about {name}…',
+  'collection.folderNotes': 'Species note…',
   'collection.imported': 'Imported {n}',
   'collection.importSummary': 'Imported {finds} finds, {photos} photos',
   'collection.skipped': ' · Skipped {n}',
@@ -384,7 +453,7 @@ const en: Translations = {
   'species.daysRecorded': 'Days recorded',
   'species.bestMonth': 'Best month',
   'species.favoriteCountLabel': 'favorites {count}',
-  'species.fieldJournal': 'Field journal',
+  'species.fieldJournal': 'Species note',
   'species.tags': 'Tags',
   'species.noTags': 'No tags for this species yet.',
   'species.addTag': 'Add tag',
@@ -416,6 +485,8 @@ const en: Translations = {
   'species.lastRecordedShort': 'Last recorded {date}',
   'species.synonyms': 'Synonyms',
   'species.synonymsPlaceholder': 'Add synonym…',
+  'species.commonName': 'Common name',
+  'species.commonNamePlaceholder': 'e.g. mica cap',
   'species.otherNames': 'Other names',
   'species.otherNamesPlaceholder': 'Add local name…',
   'species.recipes': 'Recipes',
@@ -425,6 +496,10 @@ const en: Translations = {
   'species.recipeTitlePlaceholder': 'Recipe title',
   'species.recipeNotesPlaceholder': 'Recipe note…',
   'species.deleteRecipe': 'Delete recipe',
+  'species.tabOverview': 'Overview',
+  'species.tabFinds': 'Finds',
+  'species.tabRecipes': 'Recipes',
+  'species.tabDescription': 'Description',
 
   // import dialog
   'import.title': 'Import Photos',
@@ -432,6 +507,10 @@ const en: Translations = {
   'import.pickFolder': 'Pick Folder',
   'import.clearAll': 'Clear All',
   'import.mushroomName': 'Mushroom name',
+  'import.latinName': 'Latin name',
+  'import.latinNamePlaceholder': 'e.g. Coprinellus micaceus *(Bull.) Vilgalys',
+  'import.commonName': 'Common name',
+  'import.commonNamePlaceholder': 'e.g. mica cap',
   'import.pickLocation': 'Pick shared location',
   'import.newFolderHint': 'New folder will be created',
   'import.date': 'Date',
@@ -441,7 +520,7 @@ const en: Translations = {
   'import.observedCount': 'Fruiting body count',
   'import.observedCountPlaceholder': 'e.g. 12',
   'import.observedCountHelp': 'A rough estimate of how many fruiting bodies were present. Optional.',
-  'import.folderNotes': 'Folder notes…',
+  'import.folderNotes': 'Species note…',
   'import.nameRequired': 'All photos must have a mushroom name before importing.',
   'import.importAll': 'Import All',
   'import.reviewTitle': 'Import complete — {finds} finds, {photos} photos',
@@ -483,6 +562,10 @@ const en: Translations = {
   // edit dialog
   'edit.title': 'Edit Find',
   'edit.species': 'Species',
+  'edit.latinName': 'Latin name',
+  'edit.latinNamePlaceholder': 'e.g. Coprinellus micaceus *(Bull.) Vilgalys',
+  'edit.commonName': 'Common name',
+  'edit.commonNamePlaceholder': 'e.g. mica cap',
   'edit.date': 'Date found',
   'edit.country': 'Country',
   'edit.region': 'Region',
@@ -520,6 +603,7 @@ const en: Translations = {
 
   // settings dialog
   'settings.title': 'Settings',
+  'settings.description': 'Manage library location, language, theme, and cached map data.',
   'settings.tabGeneral': 'General',
   'settings.tabMap': 'Map',
   'settings.tabAdvanced': 'Advanced',
@@ -581,7 +665,6 @@ const en: Translations = {
   // edibility labels
   'edibility.unknown': 'Unknown',
   'edibility.edible': 'Edible',
-  'edibility.edible_raw': 'Edible Raw',
   'edibility.conditionally_edible': 'Conditionally Edible',
   'edibility.inedible': 'Inedible',
   'edibility.poisonous': 'Poisonous',
@@ -590,6 +673,7 @@ const en: Translations = {
   // threat status labels (IUCN)
   'threat.unknown': 'Unknown',
   'threat.ne': 'NE – Not Evaluated',
+  'threat.ua': 'UA – Under Assessment',
   'threat.dd': 'DD – Data Deficient',
   'threat.lc': 'LC – Least Concern',
   'threat.nt': 'NT – Near Threatened',
@@ -615,6 +699,8 @@ const en: Translations = {
   'folder.title': 'Edit Folder',
   'folder.description': 'Update species details and status metadata for this folder.',
   'folder.speciesName': 'Species name',
+  'folder.latinName': 'Latin name',
+  'folder.commonName': 'Common name',
   'folder.pickOnMap': 'Pick on map',
   'folder.changeLocation': 'Change location',
   'folder.openFolder': 'Open species folder',
@@ -628,6 +714,58 @@ const en: Translations = {
   'folder.synonymsPlaceholder': 'e.g. Boletus reticulatus…',
   'folder.otherNames': 'Other names',
   'folder.otherNamesPlaceholder': 'e.g. penny bun, porcini…',
+
+  // stats tab — species stat row
+  'stats.totalFinds': 'Total Finds',
+  'stats.firstFind': 'First Find',
+  'stats.bestMonth': 'Best Month',
+  'stats.fruitingBodies': 'Fruiting Bodies',
+  'stats.locations': 'Locations',
+
+  // stats tab — seasonal calendar & insights
+  'stats.yourSeason': 'Your Season',
+  'stats.noFindsInMonth': 'No finds recorded in {month}.',
+  'stats.insightStrong': '{month} is historically strong',
+  'stats.insightMostActive': 'Most active species: {species}.',
+  'stats.insightLogged': 'You logged {count} finds in {month}.',
+  'stats.spotHint': 'Hint: **{species}** peaks around {month} — try {location}.',
+
+  // stats tab — historical comparison
+  'stats.weekHeading': 'This Week — Week {week}',
+  'stats.monthHeading': 'This Month — {month}',
+  'stats.weekEmpty': 'No finds recorded during this calendar week in previous years.',
+  'stats.monthEmpty': 'No finds recorded during this month in previous years.',
+  'stats.findOne': 'find',
+  'stats.findMany': 'finds',
+
+  // stats tab
+  'stats.pageTitle': 'Your Foraging Story',
+  'stats.emptyHeading': 'Your story starts with one find',
+  'stats.emptyBody': 'Import your first mushroom photo to see your foraging stats here.',
+  'stats.totalPhotos': 'TOTAL PHOTOS',
+  'stats.uniqueSpecies': 'UNIQUE SPECIES',
+  'stats.locationsVisited': 'LOCATIONS VISITED',
+  'stats.mostActiveMonth': 'MOST ACTIVE MONTH',
+  'stats.noDataYet': 'No data yet',
+  'stats.thisTimePastYears': 'This Time in Past Years',
+  'stats.topSpots': 'Top Spots',
+  'stats.topSpotsEmpty': 'Start foraging to see your favourite spots appear here.',
+  'stats.bestMonths': 'Best Months',
+  'stats.bestMonthsEmpty': 'Your most active months will appear here as you record more finds.',
+  'stats.seasonalInsights': 'Seasonal Insights',
+  'stats.yourSpecies': 'Your Species',
+  'stats.exportHint': 'Export your full collection',
+
+  // map species filter panel
+  'map.filterSearch': 'Search species…',
+  'map.filterSeeAll': 'All ({count})',
+  'map.filterNoResults': 'No results',
+  'map.filterAllSpecies': 'All species',
+  'map.filterSelected': '{count} selected',
+  'map.filterSpaceHint': 'Space',
+
+  // find card
+  'findCard.countUnit': 'pcs',
 };
 
 const dict: Record<Lang, Translations> = { hr, en };

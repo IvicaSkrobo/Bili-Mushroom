@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { collectionsFromFinds, LABEL_ZOOM_THRESHOLD } from './CollectionPins';
+import { locationGroupsFromFinds, LABEL_ZOOM_THRESHOLD } from './CollectionPins';
 import type { Find } from '@/lib/finds';
 
 function makeFind(overrides: Partial<Find> & { id: number; species_name: string; lat: number; lng: number }): Find {
@@ -12,58 +12,108 @@ function makeFind(overrides: Partial<Find> & { id: number; species_name: string;
   } as unknown as Find;
 }
 
-describe('collectionsFromFinds', () => {
-  it('same species, two different locations → two pins', () => {
+function speciesNames(groups: ReturnType<typeof locationGroupsFromFinds>): string[][] {
+  return groups.map((g) => g.species.map((s) => s.name).sort());
+}
+
+describe('locationGroupsFromFinds', () => {
+  it('same species, two different locations → two LocationGroups', () => {
     const finds = [
       makeFind({ id: 1, species_name: 'Cantharellus cibarius', lat: 45.1, lng: 15.2 }),
       makeFind({ id: 2, species_name: 'Cantharellus cibarius', lat: 46.5, lng: 16.8 }),
     ];
-    const result = collectionsFromFinds(finds);
+    const result = locationGroupsFromFinds(finds);
     expect(result).toHaveLength(2);
-    // No pin at arithmetic midpoint
-    const lats = result.map((c) => c.lat);
-    expect(lats).not.toContain((45.1 + 46.5) / 2);
-    // Each pin contains exactly one find
-    expect(result.every((c) => c.count === 1)).toBe(true);
+    // Each group has one species entry with one find
+    expect(result.every((g) => g.species.length === 1)).toBe(true);
+    expect(result.every((g) => g.species[0].finds.length === 1)).toBe(true);
   });
 
-  it('same species, three finds — two share coords, one elsewhere → two pins', () => {
+  it('same species, two finds at same location → one LocationGroup with one SpeciesEntry with 2 finds', () => {
+    const finds = [
+      makeFind({ id: 1, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 }),
+      makeFind({ id: 2, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 }),
+    ];
+    const result = locationGroupsFromFinds(finds);
+    expect(result).toHaveLength(1);
+    expect(result[0].species).toHaveLength(1);
+    expect(result[0].species[0].name).toBe('Boletus edulis');
+    expect(result[0].species[0].finds).toHaveLength(2);
+  });
+
+  it('two different species at same location → ONE LocationGroup with two SpeciesEntries', () => {
+    const finds = [
+      makeFind({ id: 1, species_name: 'Cantharellus cibarius', lat: 45.1, lng: 15.2 }),
+      makeFind({ id: 2, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 }),
+    ];
+    const result = locationGroupsFromFinds(finds);
+    expect(result).toHaveLength(1);
+    expect(result[0].species).toHaveLength(2);
+    const names = result[0].species.map((s) => s.name).sort();
+    expect(names).toEqual(['Boletus edulis', 'Cantharellus cibarius']);
+  });
+
+  it('three finds — two share coords, one elsewhere → two LocationGroups', () => {
     const finds = [
       makeFind({ id: 1, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 }),
       makeFind({ id: 2, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 }),
       makeFind({ id: 3, species_name: 'Boletus edulis', lat: 46.5, lng: 16.8 }),
     ];
-    const result = collectionsFromFinds(finds);
+    const result = locationGroupsFromFinds(finds);
     expect(result).toHaveLength(2);
-    const byCount = result.sort((a, b) => b.count - a.count);
-    expect(byCount[0].count).toBe(2);
-    expect(byCount[1].count).toBe(1);
+    const findCounts = result.map((g) => g.species[0].finds.length).sort((a, b) => b - a);
+    expect(findCounts[0]).toBe(2);
+    expect(findCounts[1]).toBe(1);
   });
 
-  it('same species, two nearby finds stay as separate pins unless coordinates are identical', () => {
-    const epsilon = 0.0001;
+  it('label text: single species plain name → label equals that name', () => {
     const finds = [
-      makeFind({ id: 1, species_name: 'Amanita muscaria', lat: 45.1, lng: 15.2 }),
-      makeFind({ id: 2, species_name: 'Amanita muscaria', lat: 45.1 + epsilon, lng: 15.2 + epsilon }),
+      makeFind({ id: 1, species_name: 'Cantharellus cibarius', lat: 45.1, lng: 15.2 }),
     ];
-    const result = collectionsFromFinds(finds);
-    expect(result).toHaveLength(2);
-    expect(result.every((c) => c.count === 1)).toBe(true);
+    const result = locationGroupsFromFinds(finds);
+    expect(result).toHaveLength(1);
+    expect(result[0].labelText).toBe('Cantharellus cibarius');
   });
 
-  it('no pin at arithmetic midpoint of distant finds', () => {
-    const lat1 = 45.0;
-    const lat2 = 47.0;
-    const lng1 = 14.0;
-    const lng2 = 17.0;
+  it('label text: single species with asterisk markers → asterisks stripped by plainSpeciesName', () => {
     const finds = [
-      makeFind({ id: 1, species_name: 'Macrolepiota procera', lat: lat1, lng: lng1 }),
-      makeFind({ id: 2, species_name: 'Macrolepiota procera', lat: lat2, lng: lng2 }),
+      makeFind({ id: 1, species_name: 'Boletus *edulis*', lat: 45.1, lng: 15.2 }),
     ];
-    const result = collectionsFromFinds(finds);
-    const midLat = (lat1 + lat2) / 2;
-    const midLng = (lng1 + lng2) / 2;
-    expect(result.some((c) => Math.abs(c.lat - midLat) < 0.001 && Math.abs(c.lng - midLng) < 0.001)).toBe(false);
+    const result = locationGroupsFromFinds(finds);
+    expect(result).toHaveLength(1);
+    // plainSpeciesName strips asterisks, rawToLabelHtml wraps italic word in span
+    expect(result[0].labelText).toContain('edulis');
+    expect(result[0].labelText).not.toContain('*');
+  });
+
+  it('label text: multiple species → "N species"', () => {
+    const finds = [
+      makeFind({ id: 1, species_name: 'Cantharellus cibarius', lat: 45.1, lng: 15.2 }),
+      makeFind({ id: 2, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 }),
+      makeFind({ id: 3, species_name: 'Amanita muscaria', lat: 45.1, lng: 15.2 }),
+    ];
+    const result = locationGroupsFromFinds(finds);
+    expect(result).toHaveLength(1);
+    expect(result[0].labelText).toBe('3 species');
+  });
+
+  it('label text: two species at one location → "2 species"', () => {
+    const finds = [
+      makeFind({ id: 1, species_name: 'Cantharellus cibarius', lat: 45.1, lng: 15.2 }),
+      makeFind({ id: 2, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 }),
+    ];
+    const result = locationGroupsFromFinds(finds);
+    expect(result[0].labelText).toBe('2 species');
+  });
+
+  it('suppressLabel is always false', () => {
+    const finds = [
+      makeFind({ id: 1, species_name: 'Cantharellus cibarius', lat: 45.1, lng: 15.2 }),
+      makeFind({ id: 2, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 }),
+      makeFind({ id: 3, species_name: 'Amanita muscaria', lat: 46.0, lng: 16.0 }),
+    ];
+    const result = locationGroupsFromFinds(finds);
+    expect(result.every((g) => g.suppressLabel === false)).toBe(true);
   });
 
   it('finds with null coords are excluded', () => {
@@ -71,62 +121,65 @@ describe('collectionsFromFinds', () => {
       makeFind({ id: 1, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 }),
       { id: 2, species_name: 'Boletus edulis', lat: null, lng: null, photos: [], notes: null, date: null, location_name: null } as unknown as Find,
     ];
-    const result = collectionsFromFinds(finds);
+    const result = locationGroupsFromFinds(finds);
     expect(result).toHaveLength(1);
-    expect(result[0].count).toBe(1);
+    expect(result[0].species[0].finds).toHaveLength(1);
   });
 
-  it('different species at same location → separate pins', () => {
+  it('key is the coordKey of the location', () => {
     const finds = [
-      makeFind({ id: 1, species_name: 'Cantharellus cibarius', lat: 45.1, lng: 15.2 }),
-      makeFind({ id: 2, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 }),
+      makeFind({ id: 1, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 }),
     ];
-    const result = collectionsFromFinds(finds);
-    expect(result).toHaveLength(2);
-    expect(result.map((c) => c.name).sort()).toEqual(['Boletus edulis', 'Cantharellus cibarius']);
+    const result = locationGroupsFromFinds(finds);
+    expect(result[0].key).toBe('45.1,15.2');
   });
 
-  it('single-species single-location key equals species name', () => {
-    const finds = [makeFind({ id: 1, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 })];
-    const result = collectionsFromFinds(finds);
-    expect(result[0].key).toBe('Boletus edulis');
-  });
-
-  it('multi-location pins get unique keys', () => {
+  it('two locations produce groups with distinct keys', () => {
     const finds = [
       makeFind({ id: 1, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 }),
       makeFind({ id: 2, species_name: 'Boletus edulis', lat: 46.5, lng: 16.8 }),
     ];
-    const result = collectionsFromFinds(finds);
-    const keys = result.map((c) => c.key);
+    const result = locationGroupsFromFinds(finds);
+    const keys = result.map((g) => g.key);
     expect(new Set(keys).size).toBe(2);
-    expect(keys.every((k) => k !== 'Boletus edulis')).toBe(true);
   });
 
-  it('single-species pin gets Latin name as labelText, suppressLabel false', () => {
+  it('nearby but non-identical coords produce separate groups', () => {
+    const epsilon = 0.0001;
     const finds = [
-      makeFind({ id: 1, species_name: 'Cantharellus cibarius, Lisičica', lat: 45.1, lng: 15.2 }),
-      makeFind({ id: 2, species_name: 'Cantharellus cibarius, Lisičica', lat: 45.1, lng: 15.2 }),
+      makeFind({ id: 1, species_name: 'Amanita muscaria', lat: 45.1, lng: 15.2 }),
+      makeFind({ id: 2, species_name: 'Amanita muscaria', lat: 45.1 + epsilon, lng: 15.2 + epsilon }),
     ];
-    const result = collectionsFromFinds(finds);
-    expect(result).toHaveLength(1);
-    expect(result[0].labelText).toBe('Cantharellus cibarius');
-    expect(result[0].suppressLabel).toBe(false);
+    const result = locationGroupsFromFinds(finds);
+    expect(result).toHaveLength(2);
   });
 
-  it('two different species at same location: first gets "2 species" label, second suppressed', () => {
+  it('species entry finds count reflects actual finds grouped', () => {
     const finds = [
       makeFind({ id: 1, species_name: 'Cantharellus cibarius', lat: 45.1, lng: 15.2 }),
       makeFind({ id: 2, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 }),
+      makeFind({ id: 3, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 }),
     ];
-    const result = collectionsFromFinds(finds);
+    const result = locationGroupsFromFinds(finds);
+    expect(result).toHaveLength(1);
+    const boletusEntry = result[0].species.find((s) => s.name === 'Boletus edulis');
+    expect(boletusEntry?.finds).toHaveLength(2);
+    const cantharellusEntry = result[0].species.find((s) => s.name === 'Cantharellus cibarius');
+    expect(cantharellusEntry?.finds).toHaveLength(1);
+  });
+
+  it('speciesNames helper verifies grouping structure', () => {
+    const finds = [
+      makeFind({ id: 1, species_name: 'Cantharellus cibarius', lat: 45.1, lng: 15.2 }),
+      makeFind({ id: 2, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 }),
+      makeFind({ id: 3, species_name: 'Cantharellus cibarius', lat: 46.0, lng: 16.0 }),
+    ];
+    const result = locationGroupsFromFinds(finds);
     expect(result).toHaveLength(2);
-    const shown = result.filter((c) => !c.suppressLabel);
-    const hidden = result.filter((c) => c.suppressLabel);
-    expect(shown).toHaveLength(1);
-    expect(shown[0].labelText).toBe('2 species');
-    expect(hidden).toHaveLength(1);
-    expect(hidden[0].labelText).toBe('Boletus edulis'); // species name kept for hover reveal
+    // One group has both species, the other has only Cantharellus
+    const sorted = speciesNames(result).sort((a, b) => b.length - a.length);
+    expect(sorted[0]).toEqual(['Boletus edulis', 'Cantharellus cibarius']);
+    expect(sorted[1]).toEqual(['Cantharellus cibarius']);
   });
 
   it('LABEL_ZOOM_THRESHOLD is exported and equals 13', () => {

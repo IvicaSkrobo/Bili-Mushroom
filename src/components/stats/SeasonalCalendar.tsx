@@ -1,17 +1,23 @@
 import { useState, useMemo, type ReactNode } from 'react';
 import type { CalendarEntry } from '@/lib/stats';
 import { plainSpeciesName, renderSpeciesName } from '@/lib/speciesName';
+import { useT } from '@/i18n/index';
+import { useAppStore } from '@/stores/appStore';
 
 interface SeasonalCalendarProps {
   entries: CalendarEntry[];
 }
 
-function monthName(m: number): string {
-  return new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(2024, m - 1));
-}
-
 export function SeasonalCalendar({ entries }: SeasonalCalendarProps) {
+  const t = useT();
+  const lang = useAppStore((s) => s.language);
+  const locale = lang === 'hr' ? 'hr-HR' : 'en-US';
+
   const [expandedMonth, setExpandedMonth] = useState<number | null>(null);
+
+  function monthLabel(m: number): string {
+    return new Intl.DateTimeFormat(locale, { month: 'long' }).format(new Date(2024, m - 1));
+  }
 
   const monthBuckets = useMemo(() => {
     const buckets: Map<number, { species: Set<string>; entries: CalendarEntry[] }> = new Map();
@@ -48,16 +54,14 @@ export function SeasonalCalendar({ entries }: SeasonalCalendarProps) {
           .filter(Boolean)
           .join(' ')}
       >
-        {/* Month name */}
         <span
           className={`text-sm font-bold uppercase tracking-[0.12em] ${
             hasFins ? 'text-foreground' : 'text-muted-foreground'
           }`}
         >
-          {monthName(m)}
+          {monthLabel(m)}
         </span>
 
-        {/* Amber dots — one per unique species, max 5 */}
         {hasFins && (
           <div className="flex gap-1 flex-wrap items-center">
             {Array.from(bucket.species)
@@ -75,13 +79,11 @@ export function SeasonalCalendar({ entries }: SeasonalCalendarProps) {
       </button>,
     );
 
-    // After every 3rd cell (end of a row), check if expanded month falls in this row
     if (m % 3 === 0) {
       const rowStart = m - 2;
       if (expandedMonth !== null && expandedMonth >= rowStart && expandedMonth <= m) {
         const expBucket = monthBuckets.get(expandedMonth)!;
 
-        // Group entries by species_name
         const speciesMap = new Map<string, number>();
         expBucket.entries.forEach((e) => {
           speciesMap.set(e.species_name, (speciesMap.get(e.species_name) ?? 0) + 1);
@@ -94,11 +96,11 @@ export function SeasonalCalendar({ entries }: SeasonalCalendarProps) {
             className="col-span-3 border border-secondary/60 rounded-sm bg-card p-4 space-y-3"
           >
             <h4 className="font-serif text-4xl font-bold italic text-primary">
-              {monthName(expandedMonth)}
+              {monthLabel(expandedMonth)}
             </h4>
             {expBucket.entries.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No finds recorded in {monthName(expandedMonth)}.
+                {t('stats.noFindsInMonth', { month: monthLabel(expandedMonth) })}
               </p>
             ) : (
               <div className="space-y-2">
@@ -115,7 +117,7 @@ export function SeasonalCalendar({ entries }: SeasonalCalendarProps) {
                       {renderSpeciesName(sp)}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {count} find{count > 1 ? 's' : ''}
+                      {count} {count === 1 ? t('stats.findOne') : t('stats.findMany')}
                     </span>
                   </div>
                 ))}
@@ -130,7 +132,7 @@ export function SeasonalCalendar({ entries }: SeasonalCalendarProps) {
   return (
     <div>
       <h3 className="text-base font-bold uppercase tracking-[0.12em] text-foreground mb-4">
-        Your Season
+        {t('stats.yourSeason')}
       </h3>
       <div className="grid grid-cols-3 gap-3">{cells}</div>
     </div>

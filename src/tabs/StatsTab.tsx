@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { compareSpeciesNames } from '@/lib/speciesName';
 import { Loader2, BarChart3, Download, FileText, Compass } from 'lucide-react';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { StatCard } from '@/components/stats/StatCard';
@@ -20,6 +21,7 @@ import { exportToCsv } from '@/lib/exportCsv';
 import { buildSeasonalityInsights, buildSpeciesSpotHint } from '@/lib/insights';
 import { HistoricalComparison } from '@/components/stats/HistoricalComparison';
 import { buildHistoricalComparison } from '@/lib/historicalComparison';
+import { useT } from '@/i18n/index';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -32,13 +34,13 @@ function renderBold(text: string): React.ReactNode {
   );
 }
 
-function formatMonth(ym: string | null): string {
+function formatMonth(ym: string | null, locale: string): string {
   if (!ym) return '--';
   const [yearStr, monthStr] = ym.split('-');
   const year = parseInt(yearStr, 10);
   const month = parseInt(monthStr, 10);
   if (isNaN(year) || isNaN(month)) return '--';
-  return new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(
+  return new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(
     new Date(year, month - 1),
   );
 }
@@ -49,6 +51,7 @@ function formatMonth(ym: string | null): string {
 // ---------------------------------------------------------------------------
 
 export default function StatsTab() {
+  const t = useT();
   const showDebugPdf = import.meta.env.DEV;
   const { data: statsCards, isLoading: statsLoading } = useStatsCards();
   const { data: topSpots } = useTopSpots();
@@ -57,6 +60,8 @@ export default function StatsTab() {
   const { data: speciesStats } = useSpeciesStats();
   const { data: finds } = useFinds();
   const storagePath = useAppStore((s) => s.storagePath);
+  const lang = useAppStore((s) => s.language);
+  const locale = lang === 'hr' ? 'hr-HR' : 'en-US';
 
   const [pdfExporting, setPdfExporting] = useState(false);
   const [pdfStage, setPdfStage] = useState<string>('');
@@ -68,7 +73,7 @@ export default function StatsTab() {
       const spotFinds = finds?.filter(
         (f) => f.country === s.country && f.region === s.region && f.location_note === s.location_note,
       ) ?? [];
-      const species = [...new Set(spotFinds.map((f) => f.species_name))].sort();
+      const species = [...new Set(spotFinds.map((f) => f.species_name))].sort(compareSpeciesNames);
       return {
         label: `${s.country} / ${s.region}${s.location_note ? ' / ' + s.location_note : ''}`,
         count: s.count,
@@ -84,25 +89,25 @@ export default function StatsTab() {
         if (!f.date_found) return false;
         return new Date(f.date_found).getMonth() + 1 === s.month_num;
       }) ?? [];
-      const species = [...new Set(monthFinds.map((f) => f.species_name))].sort();
+      const species = [...new Set(monthFinds.map((f) => f.species_name))].sort(compareSpeciesNames);
       return {
-        label: new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(2024, s.month_num - 1)),
+        label: new Intl.DateTimeFormat(locale, { month: 'long' }).format(new Date(2024, s.month_num - 1)),
         count: s.count,
         species,
       };
     });
-  }, [bestMonths, finds]);
+  }, [bestMonths, finds, locale]);
   const totalPhotos = useMemo(
     () => finds?.reduce((sum, find) => sum + find.photos.length, 0) ?? 0,
     [finds],
   );
   const seasonalityInsights = useMemo(
-    () => buildSeasonalityInsights(bestMonths, speciesStats),
-    [bestMonths, speciesStats],
+    () => buildSeasonalityInsights(bestMonths, speciesStats, locale, t),
+    [bestMonths, speciesStats, locale],
   );
   const speciesSpotHint = useMemo(
-    () => buildSpeciesSpotHint(speciesStats, topSpots),
-    [speciesStats, topSpots],
+    () => buildSpeciesSpotHint(speciesStats, topSpots, locale, t),
+    [speciesStats, topSpots, locale],
   );
   const historicalComparison = useMemo(
     () => (calendar ? buildHistoricalComparison(calendar) : null),
@@ -191,8 +196,8 @@ export default function StatsTab() {
     return (
       <EmptyState
         icon={BarChart3}
-        heading="Your story starts with one find"
-        body="Import your first mushroom photo to see your foraging stats here."
+        heading={t('stats.emptyHeading')}
+        body={t('stats.emptyBody')}
       />
     );
   }
@@ -203,18 +208,18 @@ export default function StatsTab() {
       <div className="flex-1 overflow-y-auto">
         <div className="animate-fade-up px-6 pt-12 pb-8 space-y-8">
           {/* Page heading */}
-          <h1 className="font-serif text-5xl font-semibold italic text-primary tracking-[0.01em]">Your Foraging Story</h1>
+          <h1 className="font-serif text-5xl font-semibold italic text-primary tracking-[0.01em]">{t('stats.pageTitle')}</h1>
 
           {/* Stat cards: 4-column grid */}
           <div className="grid grid-cols-4 gap-6">
-            <StatCard label="TOTAL PHOTOS" value={totalPhotos} index={0} />
-            <StatCard label="UNIQUE SPECIES" value={statsCards.unique_species} index={1} />
-            <StatCard label="LOCATIONS VISITED" value={statsCards.locations_visited} index={2} />
+            <StatCard label={t('stats.totalPhotos')} value={totalPhotos} index={0} />
+            <StatCard label={t('stats.uniqueSpecies')} value={statsCards.unique_species} index={1} />
+            <StatCard label={t('stats.locationsVisited')} value={statsCards.locations_visited} index={2} />
             <StatCard
-              label="MOST ACTIVE MONTH"
-              value={formatMonth(statsCards.most_active_month)}
+              label={t('stats.mostActiveMonth')}
+              value={formatMonth(statsCards.most_active_month, locale)}
               index={3}
-              sublabel={statsCards.most_active_month ? undefined : 'No data yet'}
+              sublabel={statsCards.most_active_month ? undefined : t('stats.noDataYet')}
             />
           </div>
 
@@ -225,7 +230,7 @@ export default function StatsTab() {
           {historicalComparison && (
             <div>
               <h3 className="text-base font-bold uppercase tracking-[0.12em] text-foreground mb-4">
-                This Time in Past Years
+                {t('stats.thisTimePastYears')}
               </h3>
               <HistoricalComparison data={historicalComparison} />
             </div>
@@ -238,17 +243,17 @@ export default function StatsTab() {
           <div className="flex gap-4">
             <div className="flex-1">
               <RankedList
-                title="Top Spots"
+                title={t('stats.topSpots')}
                 items={topSpotsFormatted}
-                emptyMessage="Start foraging to see your favourite spots appear here."
+                emptyMessage={t('stats.topSpotsEmpty')}
                 pageSize={10}
               />
             </div>
             <div className="flex-1">
               <RankedList
-                title="Best Months"
+                title={t('stats.bestMonths')}
                 items={bestMonthsFormatted}
-                emptyMessage="Your most active months will appear here as you record more finds."
+                emptyMessage={t('stats.bestMonthsEmpty')}
               />
             </div>
           </div>
@@ -257,7 +262,7 @@ export default function StatsTab() {
           {seasonalityInsights.length > 0 && (
             <div>
               <h3 className="text-base font-bold uppercase tracking-[0.12em] text-foreground mb-4">
-                Seasonal Insights
+                {t('stats.seasonalInsights')}
               </h3>
               <div className="grid grid-cols-2 gap-4">
                 {seasonalityInsights.map((insight) => (
@@ -291,7 +296,7 @@ export default function StatsTab() {
           {speciesStats && speciesStats.length > 0 && (
             <div>
               <h3 className="text-base font-bold uppercase tracking-[0.12em] text-foreground mb-4">
-                Your Species
+                {t('stats.yourSpecies')}
               </h3>
               <div className="space-y-2">
                 {speciesStats.map((s, idx) => (
@@ -318,7 +323,7 @@ export default function StatsTab() {
           {exportError && <span className="text-destructive">{exportError}</span>}
           {pdfExporting && <span>{pdfStage}</span>}
           {!statusMessage && !exportError && !pdfExporting && (
-            <span>Export your full collection</span>
+            <span>{t('stats.exportHint')}</span>
           )}
         </div>
 

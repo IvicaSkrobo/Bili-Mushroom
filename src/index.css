@@ -41,7 +41,7 @@
   --secondary: oklch(0.51 0.065 154);
   --secondary-foreground: oklch(0.98 0.01 98);
   --muted: oklch(0.92 0.014 94);
-  --muted-foreground: oklch(0.50 0.03 80);
+  --muted-foreground: oklch(0.42 0.03 80);
   --accent: oklch(0.90 0.017 96);
   --accent-foreground: oklch(0.23 0.03 75);
   --destructive: oklch(0.57 0.2 25);
@@ -271,6 +271,20 @@ input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: po
 .bili-collection-marker--hidden-label:hover .bili-pin-label,
 .bili-collection-marker--hidden-label:focus-within .bili-pin-label {
   opacity: 1;
+}
+
+/* Multi-species pin hover tooltip */
+.bili-species-tooltip {
+  background: rgba(18, 24, 20, 0.92) !important;
+  border: 1px solid rgba(212, 160, 60, 0.35) !important;
+  border-radius: 6px !important;
+  color: #e8dcc8 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+  padding: 6px 10px !important;
+  white-space: nowrap;
+}
+.bili-species-tooltip::before {
+  border-top-color: rgba(18, 24, 20, 0.92) !important;
 }
 
 .bili-zone-vertex-icon {

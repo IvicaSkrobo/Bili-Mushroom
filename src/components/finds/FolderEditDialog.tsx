@@ -11,12 +11,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useUpdateFind, useBulkRenameSpecies } from '@/hooks/useFinds';
+import { useBulkRenameSpecies } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { openSpeciesFolder } from '@/lib/finds';
-import { reverseGeocode } from '@/lib/geocoding';
-import { LocationPickerMap } from '@/components/map/LocationPickerMap';
-import { FolderOpen, MapPin, X, Plus } from 'lucide-react';
+import { FolderOpen, X, Plus } from 'lucide-react';
 import type { Find, SpeciesProfile } from '@/lib/finds';
 import { EdibilitySelectBadge, ThreatStatusSelectBadge, DistributionSelectBadge } from '@/components/species/StatusSelectBadge';
 import { useT } from '@/i18n/index';
@@ -26,38 +24,33 @@ interface FolderEditDialogProps {
   finds: Find[];
   onOpenChange: (open: boolean) => void;
   speciesProfile?: SpeciesProfile | null;
+  speciesNote?: string;
   onSave?: (
     newName: string,
     edibility: string | null,
     threatStatus: string | null,
     distribution: string | null,
-    description: string | null,
+    commonName: string | null,
+    note: string | null,
     synonyms: string[],
     otherNames: string[],
   ) => void | Promise<void>;
 }
 
-export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProfile, onSave }: FolderEditDialogProps) {
+export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProfile, speciesNote, onSave }: FolderEditDialogProps) {
   const storagePath = useAppStore((s) => s.storagePath);
-  const lang = useAppStore((s) => s.language);
   const t = useT();
-  const updateFind = useUpdateFind();
   const bulkRename = useBulkRenameSpecies();
 
   const [speciesNameInput, setSpeciesNameInput] = useState('');
-  const [country, setCountry] = useState('');
-  const [region, setRegion] = useState('');
-  const [overwriteExisting, setOverwriteExisting] = useState(false);
-  const [pickedLat, setPickedLat] = useState<number | null>(null);
-  const [pickedLng, setPickedLng] = useState<number | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [commonNameInput, setCommonNameInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [openingFolder, setOpeningFolder] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [edibility, setEdibility] = useState<string>('unknown');
   const [threatStatus, setThreatStatus] = useState<string>('unknown');
   const [distribution, setDistribution] = useState<string>('unknown');
-  const [description, setDescription] = useState<string>('');
+  const [note, setNote] = useState<string>('');
   const [synonyms, setSynonyms] = useState<string[]>([]);
   const [otherNames, setOtherNames] = useState<string[]>([]);
   const [synonymInput, setSynonymInput] = useState('');
@@ -67,16 +60,12 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
   useEffect(() => {
     if (speciesName !== null) {
       setSpeciesNameInput(speciesName);
-      setCountry('');
-      setRegion('');
-      setOverwriteExisting(false);
-      setPickedLat(null);
-      setPickedLng(null);
+      setCommonNameInput(speciesProfile?.common_name ?? '');
       setError(null);
       setEdibility(speciesProfile?.edibility ?? 'unknown');
       setThreatStatus(speciesProfile?.threat_status ?? 'unknown');
       setDistribution(speciesProfile?.distribution ?? 'unknown');
-      setDescription(speciesProfile?.description ?? speciesProfile?.edibility_note ?? '');
+      setNote(speciesNote ?? '');
       setSynonyms(speciesProfile?.synonyms ?? []);
       setOtherNames(speciesProfile?.other_names ?? []);
       setSynonymInput('');
@@ -99,44 +88,13 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
         });
       }
 
-      // Step 2: Update location fields (country, region, and/or lat/lng)
-      const hasLocationUpdate = country || region || (pickedLat !== null && pickedLng !== null);
-      if (hasLocationUpdate) {
-        const updates = finds.filter((f) => {
-          if (overwriteExisting) return true;
-          const needsCountry = country && !f.country;
-          const needsRegion = region && !f.region;
-          const needsLatLng = pickedLat !== null && (f.lat === null || f.lng === null);
-          return needsCountry || needsRegion || needsLatLng;
-        });
-
-        await Promise.all(
-          updates.map((f) =>
-            updateFind.mutateAsync({
-              id: f.id,
-              species_name: speciesNameInput.trim() || f.species_name,
-              date_found: f.date_found,
-              country: country ? (overwriteExisting ? country : country || f.country) : f.country,
-              region: region ? (overwriteExisting ? region : region || f.region) : f.region,
-              location_note: f.location_note,
-              lat: pickedLat !== null ? pickedLat : f.lat,
-              lng: pickedLng !== null ? pickedLng : f.lng,
-              notes: f.notes,
-              observed_count: f.observed_count,
-              observed_count_min: f.observed_count_min,
-              observed_count_max: f.observed_count_max,
-              edibility_note: f.edibility_note,
-            }),
-          ),
-        );
-      }
-
       await onSave?.(
         speciesNameInput.trim() || speciesName!,
         edibility === 'unknown' ? null : edibility,
         threatStatus === 'unknown' ? null : threatStatus,
         distribution === 'unknown' ? null : distribution,
-        description.trim() || null,
+        commonNameInput.trim() || null,
+        note.trim() || null,
         synonyms,
         otherNames,
       );
@@ -162,40 +120,40 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
   }
 
   return (
-    <>
-      <Dialog open={speciesName !== null} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{t('folder.title')}</DialogTitle>
-            <DialogDescription>
-              {t('folder.description')}
-            </DialogDescription>
-          </DialogHeader>
+    <Dialog open={speciesName !== null} onOpenChange={onOpenChange}>
+        <DialogContent className="flex max-h-[82vh] !w-[min(600px,calc(100vw-2rem))] !max-w-none flex-col overflow-hidden p-0">
+          <div className="shrink-0 border-b border-border/60 px-5 py-3">
+            <DialogHeader>
+              <DialogTitle>{t('folder.title')}</DialogTitle>
+              <DialogDescription>
+                {t('folder.description')}
+              </DialogDescription>
+            </DialogHeader>
+          </div>
 
-          <div className="space-y-3">
-            <div>
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <label className="text-sm font-medium">{t('folder.speciesName')}</label>
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
+            <div className="space-y-3">
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label className="text-sm font-medium">{t('folder.latinName')}</label>
+                </div>
+                <SpeciesNameEditor
+                  value={speciesNameInput}
+                  onChange={setSpeciesNameInput}
+                  placeholder={t('edit.latinNamePlaceholder')}
+                />
               </div>
-              <SpeciesNameEditor
-                value={speciesNameInput}
-                onChange={setSpeciesNameInput}
-                placeholder={t('folder.speciesName')}
-              />
-            </div>
 
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setPickerOpen(true)}
-                  className="flex items-center gap-1"
-                >
-                  <MapPin className="h-4 w-4" />
-                  {pickedLat !== null ? t('folder.changeLocation') : t('folder.pickOnMap')}
-                </Button>
+              <div>
+                <label className="text-sm font-medium">{t('folder.commonName')}</label>
+                <Input
+                  value={commonNameInput}
+                  onChange={(e) => setCommonNameInput(e.target.value)}
+                  placeholder={t('edit.commonNamePlaceholder')}
+                />
+              </div>
+
+              <div>
                 <Button
                   type="button"
                   variant="ghost"
@@ -208,195 +166,133 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
                   {openingFolder ? t('folder.openingFolder') : t('folder.openFolder')}
                 </Button>
               </div>
-              {pickedLat !== null && (
-                <p className="mt-0.5 text-xs text-muted-foreground pl-1">
-                  {pickedLat.toFixed(4)}, {pickedLng!.toFixed(4)}
-                </p>
-              )}
-            </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-sm font-medium">{t('edit.country')}</label>
-                <Input
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                  placeholder={t('edit.country')}
+              <div className="flex flex-wrap gap-2">
+                <EdibilitySelectBadge value={edibility} onChange={setEdibility} />
+                <ThreatStatusSelectBadge value={threatStatus} onChange={setThreatStatus} />
+                <DistributionSelectBadge value={distribution} onChange={setDistribution} />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium">{t('species.fieldJournal')}</label>
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  rows={3}
+                  placeholder={t('species.noJournalNote')}
+                  className="w-full resize-none rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
                 />
               </div>
-              <div>
-                <label className="text-sm font-medium">{t('edit.region')}</label>
-                <Input
-                  value={region}
-                  onChange={(e) => setRegion(e.target.value)}
-                  placeholder={t('edit.region')}
-                />
-              </div>
-            </div>
 
-            {(country || region || pickedLat !== null) && (
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="overwrite-existing"
-                  checked={overwriteExisting}
-                  onChange={(e) => setOverwriteExisting(e.target.checked)}
-                  className="h-4 w-4 rounded border border-border bg-input accent-primary cursor-pointer"
-                />
-                <label
-                  htmlFor="overwrite-existing"
-                  className="text-sm text-muted-foreground cursor-pointer select-none"
-                >
-                  {t('folder.overwriteLabel')}
-                </label>
-              </div>
-            )}
-
-            {(country || region || pickedLat !== null) && !overwriteExisting && (
-              <p className="text-xs text-muted-foreground/70">
-                {t('folder.overwriteHint', { n: finds.length })}
-              </p>
-            )}
-
-            <div className="flex flex-wrap gap-2">
-              <EdibilitySelectBadge value={edibility} onChange={setEdibility} />
-              <ThreatStatusSelectBadge value={threatStatus} onChange={setThreatStatus} />
-              <DistributionSelectBadge value={distribution} onChange={setDistribution} />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm font-medium">{t('edit.speciesDescription')}</label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-                placeholder={t('edit.speciesDescriptionPlaceholder')}
-                className="w-full resize-none rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
-              />
-              <p className="text-[11px] text-muted-foreground/50">{t('edit.speciesDescriptionHelp')}</p>
-            </div>
-
-            {/* Synonyms */}
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">{t('folder.synonyms')}</label>
-              <div className="flex gap-1.5">
-                <input
-                  value={synonymInput}
-                  onChange={(e) => setSynonymInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if ((e.key === 'Enter' || e.key === ',') && synonymInput.trim()) {
-                      e.preventDefault();
-                      const val = synonymInput.trim().replace(/,$/, '');
+              {/* Synonyms */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">{t('folder.synonyms')}</label>
+                <div className="flex gap-1.5">
+                  <input
+                    value={synonymInput}
+                    onChange={(e) => setSynonymInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if ((e.key === 'Enter' || e.key === ',') && synonymInput.trim()) {
+                        e.preventDefault();
+                        const val = synonymInput.trim().replace(/,$/, '');
+                        if (val && !synonyms.includes(val)) setSynonyms((prev) => [...prev, val]);
+                        setSynonymInput('');
+                      }
+                    }}
+                    placeholder={t('folder.synonymsPlaceholder')}
+                    className="flex-1 rounded-md border border-border bg-input px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const val = synonymInput.trim();
                       if (val && !synonyms.includes(val)) setSynonyms((prev) => [...prev, val]);
                       setSynonymInput('');
-                    }
-                  }}
-                  placeholder={t('folder.synonymsPlaceholder')}
-                  className="flex-1 rounded-md border border-border bg-input px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const val = synonymInput.trim();
-                    if (val && !synonyms.includes(val)) setSynonyms((prev) => [...prev, val]);
-                    setSynonymInput('');
-                  }}
-                  disabled={!synonymInput.trim()}
-                  className="rounded-md border border-border bg-input px-2.5 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-40 transition-colors"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              </div>
-              {synonyms.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {synonyms.map((s) => (
-                    <span key={s} className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/50 px-2 py-0.5 text-xs text-foreground/80">
-                      <span className="italic">{s}</span>
-                      <button type="button" onClick={() => setSynonyms((prev) => prev.filter((x) => x !== s))} className="text-muted-foreground hover:text-destructive transition-colors">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  ))}
+                    }}
+                    disabled={!synonymInput.trim()}
+                    className="rounded-md border border-border bg-input px-2.5 py-1.5 text-sm text-muted-foreground hover:text-primary hover:bg-accent disabled:opacity-40 transition-colors"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
                 </div>
-              )}
-            </div>
+                {synonyms.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {synonyms.map((s) => (
+                      <span key={s} className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/50 px-2 py-0.5 text-xs text-foreground/70">
+                        <span className="italic">{s}</span>
+                        <button type="button" onClick={() => setSynonyms((prev) => prev.filter((x) => x !== s))} className="text-muted-foreground hover:text-destructive transition-colors">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-            {/* Other names */}
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">{t('folder.otherNames')}</label>
-              <div className="flex gap-1.5">
-                <input
-                  value={otherNameInput}
-                  onChange={(e) => setOtherNameInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if ((e.key === 'Enter' || e.key === ',') && otherNameInput.trim()) {
-                      e.preventDefault();
-                      const val = otherNameInput.trim().replace(/,$/, '');
+              {/* Other names */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">{t('folder.otherNames')}</label>
+                <div className="flex gap-1.5">
+                  <input
+                    value={otherNameInput}
+                    onChange={(e) => setOtherNameInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if ((e.key === 'Enter' || e.key === ',') && otherNameInput.trim()) {
+                        e.preventDefault();
+                        const val = otherNameInput.trim().replace(/,$/, '');
+                        if (val && !otherNames.includes(val)) setOtherNames((prev) => [...prev, val]);
+                        setOtherNameInput('');
+                      }
+                    }}
+                    placeholder={t('folder.otherNamesPlaceholder')}
+                    className="flex-1 rounded-md border border-border bg-input px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const val = otherNameInput.trim();
                       if (val && !otherNames.includes(val)) setOtherNames((prev) => [...prev, val]);
                       setOtherNameInput('');
-                    }
-                  }}
-                  placeholder={t('folder.otherNamesPlaceholder')}
-                  className="flex-1 rounded-md border border-border bg-input px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const val = otherNameInput.trim();
-                    if (val && !otherNames.includes(val)) setOtherNames((prev) => [...prev, val]);
-                    setOtherNameInput('');
-                  }}
-                  disabled={!otherNameInput.trim()}
-                  className="rounded-md border border-border bg-input px-2.5 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-40 transition-colors"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              </div>
-              {otherNames.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {otherNames.map((n) => (
-                    <span key={n} className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/50 px-2 py-0.5 text-xs text-foreground/80">
-                      {n}
-                      <button type="button" onClick={() => setOtherNames((prev) => prev.filter((x) => x !== n))} className="text-muted-foreground hover:text-destructive transition-colors">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  ))}
+                    }}
+                    disabled={!otherNameInput.trim()}
+                    className="rounded-md border border-border bg-input px-2.5 py-1.5 text-sm text-muted-foreground hover:text-primary hover:bg-accent disabled:opacity-40 transition-colors"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
                 </div>
+                {otherNames.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {otherNames.map((n) => (
+                      <span key={n} className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/50 px-2 py-0.5 text-xs text-foreground/70">
+                        {n}
+                        <button type="button" onClick={() => setOtherNames((prev) => prev.filter((x) => x !== n))} className="text-muted-foreground hover:text-destructive transition-colors">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {error && (
+                <Alert variant="destructive" role="alert">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
               )}
             </div>
           </div>
 
-          {error && (
-            <Alert variant="destructive" role="alert">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-              {t('folder.cancel')}
-            </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? t('folder.saving') : t('folder.save')}
-            </Button>
-          </DialogFooter>
+          <div className="shrink-0 border-t border-border/60 px-5 py-3">
+            <DialogFooter>
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+                {t('folder.cancel')}
+              </Button>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? t('folder.saving') : t('folder.save')}
+              </Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
-      </Dialog>
-
-      <LocationPickerMap
-        open={pickerOpen}
-        onOpenChange={setPickerOpen}
-        initialLatLng={null}
-        onConfirm={async (lat, lng) => {
-          setPickerOpen(false);
-          setPickedLat(lat);
-          setPickedLng(lng);
-          const geo = await reverseGeocode(lat, lng, lang);
-          if (geo.country) setCountry(geo.country);
-          if (geo.region) setRegion(geo.region);
-        }}
-      />
-    </>
+    </Dialog>
   );
 }

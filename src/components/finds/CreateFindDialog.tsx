@@ -24,6 +24,7 @@ import { isInternalLibraryName } from '@/lib/internalEntries';
 
 interface FormState {
   species_name: string;
+  common_name: string;
   date_found: string;
   country: string;
   region: string;
@@ -56,6 +57,7 @@ function isObservedRangeInputValid(value: string): boolean {
 
 const BLANK_FORM: FormState = {
   species_name: '',
+  common_name: '',
   date_found: '',
   country: '',
   region: '',
@@ -97,6 +99,18 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
     });
   }, [speciesFolders, findsData, speciesProfilesData]);
 
+  const speciesSuggestionsProfiles = useMemo(() => {
+    const map = new Map<string, { common_name?: string | null; synonyms?: string[] | null; other_names?: string[] | null }>();
+    for (const profile of speciesProfilesData ?? []) {
+      map.set(profile.species_name, {
+        common_name: profile.common_name,
+        synonyms: profile.synonyms,
+        other_names: profile.other_names,
+      });
+    }
+    return map;
+  }, [speciesProfilesData]);
+
   const locationNoteSuggestions = useMemo(() => {
     if (!findsData) return [];
     const seen = new Set<string>();
@@ -111,10 +125,20 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   }, [findsData]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [form, setForm] = useState<FormState>(BLANK_FORM);
+
+  useEffect(() => {
+    if (!open) setForm(BLANK_FORM);
+  }, [open]);
   const speciesProfile = useMemo(
     () => speciesProfilesData?.find((profile) => profile.species_name.toLowerCase() === form.species_name.trim().toLowerCase()) ?? null,
     [speciesProfilesData, form.species_name],
   );
+
+  useEffect(() => {
+    if (speciesProfile?.common_name && !form.common_name.trim()) {
+      setForm((prev) => ({ ...prev, common_name: speciesProfile.common_name ?? '' }));
+    }
+  }, [speciesProfile?.species_name]);
 
   // Load species folder suggestions
   useEffect(() => {
@@ -139,6 +163,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
     createMutation.mutate(
       {
         species_name: form.species_name,
+        common_name: form.common_name.trim() || null,
         date_found: form.date_found,
         country: form.country,
         region: form.region,
@@ -153,9 +178,10 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
       },
       {
         onSuccess: async () => {
-          if (form.species_name.trim() && form.species_description.trim()) {
+          if (form.species_name.trim() && (form.common_name.trim() || form.species_description.trim())) {
             await upsertSpeciesProfile.mutateAsync({
               speciesName: form.species_name.trim(),
+              commonName: form.common_name.trim() || (speciesProfile?.common_name ?? null),
               coverPhotoId: speciesProfile?.cover_photo_id ?? null,
               tags: speciesProfile?.tags ?? [],
               edibility: speciesProfile?.edibility ?? null,
@@ -195,43 +221,53 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[82vh] !w-[min(1040px,calc(100vw-2rem))] !max-w-none flex-col overflow-hidden p-0">
-        <DialogHeader className="border-b border-border/60 px-5 py-2">
+        <DialogHeader className="border-b border-border/60 px-5 py-3">
           <DialogTitle>{t('create.title')}</DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground/80">
             Ručni unos nalaza bez fotografija.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-2.5">
-        <div className="space-y-2">
-          <div className="flex items-end gap-2">
-            <div className="flex-1 min-w-0">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
+        <div className="space-y-3">
+          <div className="grid gap-2">
+            <div>
               <SpeciesNameEditor
                 value={form.species_name}
                 onChange={(raw) => handleChange('species_name', raw)}
-                placeholder={t('preview.speciesName')}
+                placeholder={t('edit.latinNamePlaceholder')}
                 suggestions={speciesSuggestions}
-                label={t('edit.species')}
+                suggestionsProfiles={speciesSuggestionsProfiles}
+                label={t('edit.latinName')}
               />
             </div>
-            <div className="flex flex-col items-center gap-0.5 pb-0.5 flex-shrink-0">
+            <div>
+              <label className="text-sm font-medium">{t('edit.commonName')}</label>
+              <Input
+                value={form.common_name}
+                onChange={(e) => handleChange('common_name', e.target.value)}
+                placeholder={t('edit.commonNamePlaceholder')}
+              />
+            </div>
+            <div className="flex items-center gap-3">
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
-                aria-label="Pick on map"
+                size="sm"
                 onClick={() => setPickerOpen(true)}
                 className={[
-                  'border border-primary/35 bg-primary/14 text-primary',
-                  'hover:bg-primary/22 hover:text-primary hover:border-primary/55',
-                  (form.lat !== '' || form.lng !== '') ? 'bg-secondary/18 text-secondary border-secondary/45 hover:bg-secondary/26 hover:border-secondary/60' : '',
+                  'gap-1.5 h-8 border text-primary',
+                  form.lat !== '' && form.lng !== ''
+                    ? 'border-secondary/50 bg-secondary/15 text-secondary hover:bg-secondary/25 hover:border-secondary/65'
+                    : 'border-primary/40 bg-primary/12 hover:bg-primary/22 hover:border-primary/60',
                 ].join(' ')}
               >
-                <MapPin className="h-4 w-4" />
+                <MapPin className="h-3.5 w-3.5" />
+                {t('folder.pickOnMap')}
               </Button>
               {form.lat !== '' && form.lng !== '' && (
-                <span className="text-[10px] text-muted-foreground/60 font-mono whitespace-nowrap">
-                  {parseFloat(form.lat).toFixed(3)}, {parseFloat(form.lng).toFixed(3)}
+                <span className="text-xs text-muted-foreground font-mono">
+                  {parseFloat(form.lat).toFixed(4)}, {parseFloat(form.lng).toFixed(4)}
                 </span>
               )}
             </div>

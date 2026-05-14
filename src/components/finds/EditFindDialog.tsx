@@ -28,6 +28,7 @@ import { isInternalLibraryName } from '@/lib/internalEntries';
 
 interface FormState {
   species_name: string;
+  common_name: string;
   date_found: string;
   country: string;
   region: string;
@@ -69,6 +70,7 @@ function isObservedRangeInputValid(value: string): boolean {
 function findToFormState(find: Find): FormState {
   return {
     species_name: find.species_name ?? '',
+    common_name: '',
     date_found: find.date_found ?? '',
     country: find.country ?? '',
     region: find.region ?? '',
@@ -121,6 +123,18 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
         return true;
       });
   }, [findsData]);
+
+  const speciesSuggestionsProfiles = useMemo(() => {
+    const map = new Map<string, { common_name?: string | null; synonyms?: string[] | null; other_names?: string[] | null }>();
+    for (const profile of speciesProfiles ?? []) {
+      map.set(profile.species_name, {
+        common_name: profile.common_name,
+        synonyms: profile.synonyms,
+        other_names: profile.other_names,
+      });
+    }
+    return map;
+  }, [speciesProfiles]);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<number>>(new Set());
   const [pendingPhotos, setPendingPhotos] = useState<string[]>([]);
   const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
@@ -133,6 +147,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [form, setForm] = useState<FormState>({
     species_name: '',
+    common_name: '',
     date_found: '',
     country: '',
     region: '',
@@ -163,10 +178,11 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
 
   useEffect(() => {
     if (!find || !speciesProfile) return;
-    setForm((prev) => ({
-      ...prev,
-      species_description: speciesProfile.description ?? speciesProfile.edibility_note ?? '',
-    }));
+      setForm((prev) => ({
+        ...prev,
+        common_name: speciesProfile.common_name ?? prev.common_name,
+        species_description: speciesProfile.description ?? speciesProfile.edibility_note ?? '',
+      }));
   }, [find, speciesProfile]);
 
   useEffect(() => {
@@ -193,6 +209,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
       {
         id: find.id,
         species_name: form.species_name,
+        common_name: form.common_name.trim() || null,
         date_found: form.date_found,
         country: form.country,
         region: form.region,
@@ -210,6 +227,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
           if (form.species_name.trim()) {
             await upsertSpeciesProfile.mutateAsync({
               speciesName: form.species_name.trim(),
+              commonName: form.common_name.trim() || (speciesProfile?.common_name ?? null),
               coverPhotoId: speciesProfile?.cover_photo_id ?? null,
               tags: speciesProfile?.tags ?? [],
               edibility: speciesProfile?.edibility ?? null,
@@ -268,21 +286,58 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
       <DialogContent className="flex max-h-[82vh] !w-[min(1180px,calc(100vw-2rem))] !max-w-none flex-col overflow-hidden p-0">
         <DialogHeader className="border-b border-border/60 px-5 py-3">
           <DialogTitle>{t('edit.title')}</DialogTitle>
-          <DialogDescription>
-            Update this find, manage its photos, and adjust its saved location.
+          <DialogDescription className="text-xs text-muted-foreground/80">
+            Uredi podatke nalaza, upravljaj fotografijama i lokacijom.
           </DialogDescription>
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
-        <div className="space-y-2.5">
-          <div>
-            <label className="text-sm font-medium">{t('edit.species')}</label>
-            <SpeciesNameEditor
-              value={form.species_name}
-              onChange={(raw) => handleChange('species_name', raw)}
-              placeholder={t('preview.speciesName')}
-              suggestions={speciesFolders}
-            />
+        <div className="space-y-3">
+          <div className="grid gap-2">
+            <div>
+              <label className="text-sm font-medium">{t('edit.latinName')}</label>
+              <SpeciesNameEditor
+                value={form.species_name}
+                onChange={(raw) => handleChange('species_name', raw)}
+                placeholder={t('edit.latinNamePlaceholder')}
+                suggestions={[
+                  ...speciesFolders,
+                  ...(findsData?.map((f) => f.species_name).filter(Boolean) ?? []),
+                  ...(speciesProfiles?.map((p) => p.species_name) ?? []),
+                ].filter((v, i, a) => v.trim() && a.findIndex((x) => x.toLowerCase() === v.toLowerCase()) === i)}
+                suggestionsProfiles={speciesSuggestionsProfiles}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">{t('edit.commonName')}</label>
+              <Input
+                value={form.common_name}
+                onChange={(e) => handleChange('common_name', e.target.value)}
+                placeholder={t('edit.commonNamePlaceholder')}
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setPickerOpen(true)}
+                className={[
+                  'gap-1.5 h-8 border',
+                  form.lat !== '' && form.lng !== ''
+                    ? 'border-secondary/50 bg-secondary/15 text-secondary hover:bg-secondary/25 hover:border-secondary/65'
+                    : 'border-primary/40 bg-primary/12 text-primary hover:bg-primary/22 hover:border-primary/60',
+                ].join(' ')}
+              >
+                <MapPin className="h-3.5 w-3.5" />
+                {t('folder.pickOnMap')}
+              </Button>
+              {form.lat !== '' && form.lng !== '' && (
+                <span className="text-xs text-muted-foreground font-mono">
+                  {parseFloat(form.lat).toFixed(4)}, {parseFloat(form.lng).toFixed(4)}
+                </span>
+              )}
+            </div>
             <div className="mt-1.5">
               <SpeciesMetadataBadges speciesProfile={speciesProfile} size="sm" hideUnknown={false} />
             </div>
@@ -341,26 +396,6 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
                 onChange={(e) => handleChange('lng', e.target.value)}
                 placeholder="e.g. 13.9876"
               />
-            </div>
-          </div>
-          <div className="rounded-md border border-border/60 bg-card/35 p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">Location</p>
-                <p className="text-xs text-muted-foreground">
-                  Pick coordinates on the map and auto-fill nearby country/region when available.
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setPickerOpen(true)}
-                className="shrink-0 gap-1.5"
-              >
-                <MapPin className="h-4 w-4" />
-                Pick on map
-              </Button>
             </div>
           </div>
           <div className="space-y-2">
@@ -598,7 +633,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
                 onChange={(event) => setPermanentPhotoDelete(event.target.checked)}
                 className="h-4 w-4 rounded accent-primary cursor-pointer"
               />
-              Permanently delete files
+              {t('preview.deleteSource')}
             </label>
           ) : (
             <span />

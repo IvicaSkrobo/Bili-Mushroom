@@ -5,8 +5,10 @@ export interface SeasonalityInsight {
   body: string;
 }
 
-function monthName(monthNum: number): string {
-  return new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(2024, monthNum - 1));
+type Translator = (key: string, vars?: Record<string, string | number>) => string;
+
+function localMonthName(monthNum: number, locale: string): string {
+  return new Intl.DateTimeFormat(locale, { month: 'long' }).format(new Date(2024, monthNum - 1));
 }
 
 function plainSpeciesName(name: string): string {
@@ -23,6 +25,8 @@ function extractMonthNum(ym: string | null): number | null {
 export function buildSeasonalityInsights(
   bestMonths: BestMonth[] | undefined,
   speciesStats: SpeciesStatSummary[] | undefined,
+  locale: string,
+  t: Translator,
 ): SeasonalityInsight[] {
   if (!bestMonths || bestMonths.length === 0 || !speciesStats || speciesStats.length === 0) return [];
 
@@ -30,6 +34,7 @@ export function buildSeasonalityInsights(
   const insights: SeasonalityInsight[] = [];
 
   for (const month of topMonths) {
+    const monthLabel = localMonthName(month.month_num, locale);
     const species = speciesStats
       .filter((s) => extractMonthNum(s.best_month) === month.month_num)
       .sort((a, b) => b.find_count - a.find_count)
@@ -37,10 +42,10 @@ export function buildSeasonalityInsights(
       .map((s) => plainSpeciesName(s.species_name));
 
     insights.push({
-      title: `${monthName(month.month_num)} is historically strong`,
+      title: t('stats.insightStrong', { month: monthLabel }),
       body: species.length > 0
-        ? `Most active species: ${species.join(' · ')}.`
-        : `You logged ${month.count} finds in ${monthName(month.month_num)}.`,
+        ? t('stats.insightMostActive', { species: species.join(' · ') })
+        : t('stats.insightLogged', { count: month.count, month: monthLabel }),
     });
   }
 
@@ -50,6 +55,8 @@ export function buildSeasonalityInsights(
 export function buildSpeciesSpotHint(
   speciesStats: SpeciesStatSummary[] | undefined,
   topSpots: TopSpot[] | undefined,
+  locale: string,
+  t: Translator,
   today: Date = new Date(),
 ): string | null {
   if (!speciesStats || speciesStats.length === 0) return null;
@@ -81,6 +88,11 @@ export function buildSpeciesSpotHint(
   const month = extractMonthNum(candidate.best_month);
   if (!month) return null;
 
-  return `Hint: ${plainSpeciesName(candidate.species_name)} peaks around ${monthName(month)} — try ${preferred.country} / ${preferred.region}${preferred.location_note ? ` / ${preferred.location_note}` : ''}.`;
-}
+  const locationParts = [preferred.country, preferred.region, preferred.location_note].filter(Boolean);
 
+  return t('stats.spotHint', {
+    species: plainSpeciesName(candidate.species_name),
+    month: localMonthName(month, locale),
+    location: locationParts.join(' / '),
+  });
+}

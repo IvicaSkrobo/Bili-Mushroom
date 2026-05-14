@@ -18,9 +18,14 @@ import {
 } from '@/lib/zones';
 import type { Zone } from '@/lib/zones';
 import type { Find } from '@/lib/finds';
+import { compareSpeciesNames, plainSpeciesName } from '@/lib/speciesName';
+import { X } from 'lucide-react';
 
 export default function MapTab() {
   const storagePath = useAppStore((s) => s.storagePath);
+  const lang = useAppStore((s) => s.language);
+  const pendingMapSpeciesFilter = useAppStore((s) => s.pendingMapSpeciesFilter);
+  const setPendingMapSpeciesFilter = useAppStore((s) => s.setPendingMapSpeciesFilter);
   const { data: finds } = useFinds();
   const { data: zones } = useZones();
   const upsertZone = useUpsertZone();
@@ -33,6 +38,7 @@ export default function MapTab() {
   const [polygonEditor, setPolygonEditor] = useState<PolygonEditorState | null>(null);
   const [localTargetFind, setLocalTargetFind] = useState<Find | null>(null);
   const [regionTargetFind, setRegionTargetFind] = useState<Find | null>(null);
+  const [fitBoundsTrigger, setFitBoundsTrigger] = useState(0);
   const polygonEditorActive = polygonEditor != null;
 
   // Space toggles filter panel when map tab is active
@@ -52,6 +58,15 @@ export default function MapTab() {
     setFilterOpen(false);
     setZoneControlsCollapsed(true);
   }, [polygonEditorActive]);
+
+  // Consume a species filter arriving from another tab (Collection / Species).
+  // Sets selectedSpecies to that one species and triggers a bounds fit.
+  useEffect(() => {
+    if (!pendingMapSpeciesFilter) return;
+    setSelectedSpecies(new Set([pendingMapSpeciesFilter]));
+    setFitBoundsTrigger((n) => n + 1);
+    setPendingMapSpeciesFilter(null);
+  }, [pendingMapSpeciesFilter, setPendingMapSpeciesFilter]);
 
   // Keyboard shortcuts active while polygon editor is open
   useEffect(() => {
@@ -84,7 +99,7 @@ export default function MapTab() {
       if (isInternalLibraryName(f.species_name)) continue;
       names.add(f.species_name);
     }
-    return Array.from(names).sort();
+    return Array.from(names).sort(compareSpeciesNames);
   }, [finds]);
 
   const filteredFinds = useMemo(() => {
@@ -224,7 +239,7 @@ export default function MapTab() {
     const zone = await upsertZone.mutateAsync({
       species_name: localTargetFind.species_name,
       zone_type: 'local',
-      name: `${localTargetFind.species_name.split(',')[0]} local`,
+      name: `${plainSpeciesName(localTargetFind.species_name)} local`,
       geometry_type: 'circle',
       center_lat: localTargetFind.lat,
       center_lng: localTargetFind.lng,
@@ -271,7 +286,7 @@ export default function MapTab() {
     const zone = await upsertZone.mutateAsync({
       species_name: speciesName,
       zone_type: 'region',
-      name: `${speciesName.split(',')[0]} region`,
+      name: `${plainSpeciesName(speciesName)} region`,
       geometry_type: 'circle',
       center_lat: centerLat,
       center_lng: centerLng,
@@ -324,7 +339,7 @@ export default function MapTab() {
       zoneId: existingRegionPolygon?.id ?? null,
       speciesName: regionTargetSpecies,
       sourceFindId: null,
-      name: existingRegionPolygon?.name ?? `${regionTargetSpecies.split(',')[0]} region`,
+      name: existingRegionPolygon?.name ?? `${plainSpeciesName(regionTargetSpecies)} region`,
       notes: existingRegionPolygon?.notes ?? '',
       points: existingRegionPolygon ? parsePolygonJson(existingRegionPolygon.polygon_json) : [],
       initialMode: existingRegionPolygon ? 'move' : 'add',
@@ -348,7 +363,7 @@ export default function MapTab() {
       zoneId: polygonZone?.id ?? null,
       speciesName: find.species_name,
       sourceFindId: null,
-      name: polygonZone?.name ?? `${find.species_name.split(',')[0]} region`,
+      name: polygonZone?.name ?? `${plainSpeciesName(find.species_name)} region`,
       notes: polygonZone?.notes ?? '',
       points: polygonZone ? parsePolygonJson(polygonZone.polygon_json) : [],
       initialMode: polygonZone ? 'move' : 'add',
@@ -371,7 +386,7 @@ export default function MapTab() {
       zoneId: localPolygon?.id ?? null,
       speciesName: find.species_name,
       sourceFindId: find.id,
-      name: localPolygon?.name ?? `${find.species_name.split(',')[0]} local`,
+      name: localPolygon?.name ?? `${plainSpeciesName(find.species_name)} local`,
       notes: localPolygon?.notes ?? '',
       points: localPolygon ? parsePolygonJson(localPolygon.polygon_json) : [],
       initialMode: localPolygon ? 'move' : 'add',
@@ -538,7 +553,7 @@ export default function MapTab() {
         return;
       }
 
-      const shouldCreate = window.confirm(`No local zone exists yet for ${zone.species_name.split(',')[0]}. Create one now?`);
+      const shouldCreate = window.confirm(`No local zone exists yet for ${plainSpeciesName(zone.species_name)}. Create one now?`);
       if (!shouldCreate) {
         setActiveZoneId(zone.id);
         return;
@@ -549,7 +564,7 @@ export default function MapTab() {
       return;
     }
 
-    const shouldCreate = window.confirm(`No region zone exists yet for ${zone.species_name.split(',')[0]}. Create one now?`);
+    const shouldCreate = window.confirm(`No region zone exists yet for ${plainSpeciesName(zone.species_name)}. Create one now?`);
     if (!shouldCreate) {
       setActiveZoneId(zone.id);
       return;
@@ -612,6 +627,7 @@ export default function MapTab() {
         onZoneSaved={handleZoneSaved}
         onZoneTypeSelected={handleZoneTypeSelected}
         focusMode={polygonEditorActive}
+        fitBoundsTrigger={fitBoundsTrigger}
         drawTargetFind={
           polygonEditor?.zoneType === 'local'
             ? localTargetFind
@@ -658,6 +674,31 @@ export default function MapTab() {
           onSelectAll={handleSelectAll}
         />
       )}
+
+      {/* Active species filter indicator — shown when exactly one species is selected */}
+      {selectedSpecies.size === 1 && !polygonEditorActive && (() => {
+        const name = [...selectedSpecies][0];
+        return (
+          <div className="pointer-events-none absolute inset-x-0 bottom-16 z-[1001] flex justify-center px-4">
+            <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-primary/40 bg-card/95 px-3.5 py-1.5 shadow-lg backdrop-blur-sm">
+              <span className="text-xs text-muted-foreground">
+                {lang === 'hr' ? 'Filtar:' : 'Showing:'}
+              </span>
+              <span className="font-serif text-sm font-semibold italic text-foreground">
+                {plainSpeciesName(name)}
+              </span>
+              <button
+                type="button"
+                onClick={handleSelectAll}
+                title={lang === 'hr' ? 'Ukloni filtar' : 'Clear filter'}
+                className="ml-0.5 rounded-full p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

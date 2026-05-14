@@ -21,8 +21,14 @@
 
 import { useRef, useEffect, useState } from 'react';
 import { rawToHtml, htmlToRaw } from '@/lib/speciesFormat';
-import { plainSpeciesName, renderSpeciesName } from '@/lib/speciesName';
+import { compareSpeciesNames, matchesSpeciesQuery, plainSpeciesName, renderSpeciesName } from '@/lib/speciesName';
 import { cn } from '@/lib/utils';
+
+type SpeciesMeta = {
+  common_name?: string | null;
+  synonyms?: string[] | null;
+  other_names?: string[] | null;
+};
 
 interface SpeciesNameEditorProps {
   value: string;
@@ -34,15 +40,14 @@ interface SpeciesNameEditorProps {
   showBoldButton?: boolean;
   /** When provided, renders the label inside the toolbar row (left side) */
   label?: string;
+  /** Profile metadata keyed by raw species name — enables common name / synonym / other name search */
+  suggestionsProfiles?: Map<string, SpeciesMeta>;
 }
 
 function normalizedName(value: string): string {
   return plainSpeciesName(value).trim().toLocaleLowerCase();
 }
 
-function compareSpeciesNames(a: string, b: string): number {
-  return plainSpeciesName(a).localeCompare(plainSpeciesName(b), undefined, { sensitivity: 'base' });
-}
 
 export function SpeciesNameEditor({
   value,
@@ -52,6 +57,7 @@ export function SpeciesNameEditor({
   className,
   showBoldButton = true,
   label,
+  suggestionsProfiles,
 }: SpeciesNameEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   /** Last value we wrote to the DOM — used to detect external changes */
@@ -128,8 +134,7 @@ export function SpeciesNameEditor({
   const visibleSuggestions = normalizedQuery
     ? [...suggestions]
         .sort(compareSpeciesNames)
-        .filter((s) => normalizedName(s).startsWith(normalizedQuery))
-        .slice(0, 8)
+        .filter((s) => matchesSpeciesQuery(normalizedQuery, s, suggestionsProfiles?.get(s)))
     : [];
 
   function selectSuggestion(raw: string) {
@@ -370,24 +375,31 @@ export function SpeciesNameEditor({
         />
 
         {dropdownOpen && visibleSuggestions.length > 0 && (
-          <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto">
-            {visibleSuggestions.map((s, i) => (
-              <button
-                key={s}
-                type="button"
-                className={cn(
-                  'w-full text-left px-3 py-1.5 text-sm transition-colors',
-                  i === dropdownHighlight ? 'bg-accent' : 'hover:bg-accent',
-                )}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  selectSuggestion(s);
-                }}
-                onMouseEnter={() => setDropdownHighlight(i)}
-              >
-                <span className="font-serif">{renderSpeciesName(s)}</span>
-              </button>
-            ))}
+          <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-64 overflow-y-auto">
+            {visibleSuggestions.map((s, i) => {
+              const meta = suggestionsProfiles?.get(s);
+              const commonName = meta?.common_name?.trim() || null;
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  className={cn(
+                    'w-full text-left px-3 py-1.5 text-sm transition-colors',
+                    i === dropdownHighlight ? 'bg-accent' : 'hover:bg-accent',
+                  )}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    selectSuggestion(s);
+                  }}
+                  onMouseEnter={() => setDropdownHighlight(i)}
+                >
+                  <span className="font-serif">{renderSpeciesName(s)}</span>
+                  {commonName && (
+                    <span className="ml-1.5 text-xs text-muted-foreground">{commonName}</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

@@ -13,6 +13,8 @@ pub struct ImportPayload {
     pub source_path: String,
     pub original_filename: String,
     pub species_name: String,
+    #[serde(default)]
+    pub common_name: Option<String>,
     pub date_found: String,
     pub country: String,
     pub region: String,
@@ -99,6 +101,7 @@ const MIGRATION_0018: &str = include_str!("../../migrations/0018_species_profile
 const MIGRATION_0019: &str = include_str!("../../migrations/0019_species_profile_fruiting_body_override.sql");
 const MIGRATION_0020: &str = include_str!("../../migrations/0020_species_profile_description.sql");
 const MIGRATION_0021: &str = include_str!("../../migrations/0021_species_recipes.sql");
+const MIGRATION_0022: &str = include_str!("../../migrations/0022_species_profile_common_name.sql");
 
 fn normalize_observed_range(
     observed_count: Option<i64>,
@@ -412,6 +415,21 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
         conn.execute_batch("PRAGMA user_version = 21")
             .map_err(|e| format!("Failed to set user_version=21: {}", e))?;
     }
+    if version < 22 {
+        let common_name_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('species_profiles') WHERE name = 'common_name'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        if common_name_exists == 0 {
+            conn.execute_batch(MIGRATION_0022)
+                .map_err(|e| format!("Migration 0022 failed: {}", e))?;
+        }
+        conn.execute_batch("PRAGMA user_version = 22")
+            .map_err(|e| format!("Failed to set user_version=22: {}", e))?;
+    }
 
     Ok(())
 }
@@ -470,6 +488,28 @@ pub(crate) fn insert_find_photo(
         params![find_id, photo_path, if is_primary { 1i64 } else { 0i64 }],
     )?;
     Ok(conn.last_insert_rowid())
+}
+
+pub(crate) fn upsert_species_common_name(
+    conn: &Connection,
+    species_name: &str,
+    common_name: Option<&str>,
+) -> Result<(), String> {
+    let Some(common_name) = common_name.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(());
+    };
+
+    let updated_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    conn.execute(
+        "INSERT INTO species_profiles (species_name, cover_photo_id, tags_json, updated_at, common_name)
+         VALUES (?1, NULL, '[]', ?2, ?3)
+         ON CONFLICT(species_name) DO UPDATE SET
+           common_name = excluded.common_name,
+           updated_at = excluded.updated_at",
+        params![species_name.trim(), updated_at, common_name],
+    )
+    .map_err(|e| format!("Upsert species common name failed: {}", e))?;
+    Ok(())
 }
 
 fn validate_library_relative_photo_path(photo_path: &str) -> rusqlite::Result<()> {
@@ -656,6 +696,8 @@ pub async fn import_find(
         let new_id = insert_find_row(&conn, &record)
             .map_err(|e| format!("DB insert failed: {}", e))?;
 
+        upsert_species_common_name(&conn, &payload.species_name, payload.common_name.as_deref())?;
+
         // Insert primary photo into find_photos
         insert_find_photo(&conn, new_id, &primary_photo_path, true)
             .map_err(|e| format!("DB insert primary photo failed: {}", e))?;
@@ -789,6 +831,8 @@ pub async fn get_finds(storage_path: String) -> Result<Vec<FindRecord>, String> 
 pub struct UpdateFindPayload {
     pub id: i64,
     pub species_name: String,
+    #[serde(default)]
+    pub common_name: Option<String>,
     pub date_found: String,
     pub country: String,
     pub region: String,
@@ -851,6 +895,8 @@ pub async fn update_find(
     if rows_affected == 0 {
         return Err("find not found".into());
     }
+
+    upsert_species_common_name(&tx, &payload.species_name, payload.common_name.as_deref())?;
 
     let mut record = tx
         .query_row(
@@ -1374,6 +1420,7 @@ mod tests {
         let payload = UpdateFindPayload {
             id,
             species_name: "Cantharellus cibarius".to_string(),
+            common_name: None,
             date_found: "2024-06-01".to_string(),
             country: "Slovenia".to_string(),
             region: "Triglav".to_string(),
@@ -1414,6 +1461,7 @@ mod tests {
         let payload = UpdateFindPayload {
             id: 9999,
             species_name: "Ghost".to_string(),
+            common_name: None,
             date_found: "2024-01-01".to_string(),
             country: "Nowhere".to_string(),
             region: "Void".to_string(),

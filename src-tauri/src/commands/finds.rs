@@ -3,7 +3,7 @@ use chrono::Utc;
 use std::process::Command;
 use std::path::{Path, PathBuf};
 
-use crate::commands::import::{open_db, insert_find_photo, insert_find_row, find_record_from_row, FindPhoto, FindRecord};
+use crate::commands::import::{open_db, insert_find_photo, insert_find_row, find_record_from_row, upsert_species_common_name, FindPhoto, FindRecord};
 use crate::commands::path_builder::{build_dest_path, next_seq_for_folder, resolve_location_component, plain_species_name};
 
 // ---------------------------------------------------------------------------
@@ -13,6 +13,8 @@ use crate::commands::path_builder::{build_dest_path, next_seq_for_folder, resolv
 #[derive(serde::Deserialize)]
 pub struct CreateFindPayload {
     pub species_name: String,
+    #[serde(default)]
+    pub common_name: Option<String>,
     pub date_found: String,
     pub country: String,
     pub region: String,
@@ -34,6 +36,7 @@ pub async fn create_find(
     if payload.species_name.trim().is_empty() {
         return Err("species_name cannot be empty".into());
     }
+    let inserted_species_name = payload.species_name.trim().to_string();
 
     let conn = open_db(&storage_path)?;
 
@@ -49,7 +52,7 @@ pub async fn create_find(
     let record = FindRecord {
         id: 0,
         original_filename: String::new(),
-        species_name: payload.species_name,
+        species_name: inserted_species_name.clone(),
         date_found: payload.date_found,
         country: payload.country,
         region: payload.region,
@@ -68,6 +71,8 @@ pub async fn create_find(
 
     let new_id = insert_find_row(&conn, &record)
         .map_err(|e| format!("Failed to insert find: {}", e))?;
+
+    upsert_species_common_name(&conn, &inserted_species_name, payload.common_name.as_deref())?;
 
     let mut inserted = conn
         .query_row(
@@ -95,6 +100,7 @@ pub struct SpeciesNote {
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct SpeciesProfile {
     pub species_name: String,
+    pub common_name: Option<String>,
     pub cover_photo_id: Option<i64>,
     pub tags: Vec<String>,
     pub edibility: Option<String>,
@@ -135,25 +141,26 @@ pub async fn get_species_notes(storage_path: String) -> Result<Vec<SpeciesNote>,
 pub async fn get_species_profiles(storage_path: String) -> Result<Vec<SpeciesProfile>, String> {
     let conn = open_db(&storage_path)?;
     let mut stmt = conn
-        .prepare("SELECT species_name, cover_photo_id, tags_json, edibility, threat_status, distribution, edibility_note, description, synonyms, other_names, fruiting_body_count_override FROM species_profiles ORDER BY species_name")
+        .prepare("SELECT species_name, common_name, cover_photo_id, tags_json, edibility, threat_status, distribution, edibility_note, description, synonyms, other_names, fruiting_body_count_override FROM species_profiles ORDER BY species_name")
         .map_err(|e| e.to_string())?;
     let profiles = stmt
         .query_map([], |row| {
-            let tags_json: String = row.get(2)?;
-            let synonyms_json: Option<String> = row.get(8)?;
-            let other_names_json: Option<String> = row.get(9)?;
+            let tags_json: String = row.get(3)?;
+            let synonyms_json: Option<String> = row.get(9)?;
+            let other_names_json: Option<String> = row.get(10)?;
             Ok(SpeciesProfile {
                 species_name: row.get(0)?,
-                cover_photo_id: row.get(1)?,
+                common_name: row.get(1)?,
+                cover_photo_id: row.get(2)?,
                 tags: serde_json::from_str(&tags_json).unwrap_or_default(),
-                edibility: row.get(3)?,
-                threat_status: row.get(4)?,
-                distribution: row.get(5)?,
-                edibility_note: row.get(6)?,
-                description: row.get(7)?,
+                edibility: row.get(4)?,
+                threat_status: row.get(5)?,
+                distribution: row.get(6)?,
+                edibility_note: row.get(7)?,
+                description: row.get(8)?,
                 synonyms: synonyms_json.as_deref().and_then(|s| serde_json::from_str(s).ok()).unwrap_or_default(),
                 other_names: other_names_json.as_deref().and_then(|s| serde_json::from_str(s).ok()).unwrap_or_default(),
-                fruiting_body_count_override: row.get(10)?,
+                fruiting_body_count_override: row.get(11)?,
             })
         })
         .map_err(|e| e.to_string())?
@@ -166,6 +173,7 @@ pub async fn get_species_profiles(storage_path: String) -> Result<Vec<SpeciesPro
 pub async fn upsert_species_profile(
     storage_path: String,
     species_name: String,
+    common_name: Option<String>,
     cover_photo_id: Option<i64>,
     tags: Vec<String>,
     edibility: Option<String>,
@@ -186,9 +194,10 @@ pub async fn upsert_species_profile(
     let other_names_json = serde_json::to_string(&other_names)
         .map_err(|e| format!("Failed to encode other_names: {}", e))?;
     conn.execute(
-        "INSERT INTO species_profiles (species_name, cover_photo_id, tags_json, updated_at, edibility, threat_status, distribution, edibility_note, synonyms, other_names, fruiting_body_count_override, description)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+        "INSERT INTO species_profiles (species_name, common_name, cover_photo_id, tags_json, updated_at, edibility, threat_status, distribution, edibility_note, synonyms, other_names, fruiting_body_count_override, description)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
          ON CONFLICT(species_name) DO UPDATE SET
+           common_name = COALESCE(excluded.common_name, species_profiles.common_name),
            cover_photo_id = excluded.cover_photo_id,
            tags_json = excluded.tags_json,
            updated_at = excluded.updated_at,
@@ -200,7 +209,7 @@ pub async fn upsert_species_profile(
            other_names = excluded.other_names,
            fruiting_body_count_override = excluded.fruiting_body_count_override,
            description = excluded.description",
-        params![species_name, cover_photo_id, tags_json, updated_at, edibility, threat_status, distribution, edibility_note, synonyms_json, other_names_json, fruiting_body_count_override, description],
+        params![species_name, common_name, cover_photo_id, tags_json, updated_at, edibility, threat_status, distribution, edibility_note, synonyms_json, other_names_json, fruiting_body_count_override, description],
     )
     .map_err(|e| format!("Upsert species profile failed: {}", e))?;
     Ok(())
@@ -1153,6 +1162,7 @@ mod tests {
     fn make_create_payload(species_name: &str) -> CreateFindPayload {
         CreateFindPayload {
             species_name: species_name.to_string(),
+            common_name: None,
             date_found: "2026-05-08".to_string(),
             country: "Croatia".to_string(),
             region: "Istria".to_string(),

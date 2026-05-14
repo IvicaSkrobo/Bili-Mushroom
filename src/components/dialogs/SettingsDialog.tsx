@@ -116,7 +116,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
         <DialogHeader>
           <DialogTitle>{t('settings.title')}</DialogTitle>
           <DialogDescription>
-            Manage library location, language, theme, and cached map data.
+            {t('settings.description')}
           </DialogDescription>
         </DialogHeader>
 

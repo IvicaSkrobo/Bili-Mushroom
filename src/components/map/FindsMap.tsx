@@ -52,6 +52,7 @@ interface FindsMapProps {
   onEditZone?: (zone: Zone | null) => void;
   drawTargetFind?: Find | null;
   drawTargetZoneType?: ZoneType | null;
+  fitBoundsTrigger?: number;
 }
 
 export function FindsMap({
@@ -87,6 +88,7 @@ export function FindsMap({
   onEditZone = () => undefined,
   drawTargetFind = null,
   drawTargetZoneType = null,
+  fitBoundsTrigger = 0,
 }: FindsMapProps) {
   const [map, setMap] = useState<L.Map | null>(null);
   const initialViewport = useRef(loadMapViewport());
@@ -185,9 +187,12 @@ export function FindsMap({
         zoom={initialViewport.current ? initialViewport.current.zoom : CROATIA_ZOOM}
         style={{ height: '100%', width: '100%' }}
         className="rounded-md"
+        boxZoom={false}
       >
         <MapReady onReady={setMap} />
         <MapViewportSaver />
+        <MapFlyTo />
+        <FitBoundsOnTrigger trigger={fitBoundsTrigger} finds={focusFinds} />
         <PolygonEditorController
           active={polygonEditorActive}
           mode={polygonEditorMode}
@@ -752,6 +757,28 @@ function PolygonDraftLayer({
   );
 }
 
+function FitBoundsOnTrigger({ trigger, finds }: { trigger: number; finds: Find[] }) {
+  const map = useMap();
+  useEffect(() => {
+    if (trigger === 0) return;
+    const withCoords = finds.filter(
+      (f): f is Find & { lat: number; lng: number } => f.lat != null && f.lng != null,
+    );
+    if (withCoords.length === 0) return;
+    if (withCoords.length === 1) {
+      map.flyTo([withCoords[0].lat, withCoords[0].lng], 15, { animate: true, duration: 0.7 });
+    } else {
+      map.fitBounds(
+        withCoords.map((f) => [f.lat, f.lng] as [number, number]),
+        { padding: [60, 60], maxZoom: 15, animate: true },
+      );
+    }
+  // trigger is the only signal — finds is already up-to-date in the same render cycle
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trigger]);
+  return null;
+}
+
 function MapReady({ onReady }: { onReady: (map: L.Map) => void }) {
   const map = useMap();
   const didSet = useRef(false);
@@ -764,16 +791,23 @@ function MapReady({ onReady }: { onReady: (map: L.Map) => void }) {
 }
 
 function MapViewportSaver() {
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useMapEvents({
     moveend(e) {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
-        const center = (e.target as L.Map).getCenter();
-        saveMapViewport(center.lat, center.lng, (e.target as L.Map).getZoom());
-      }, 500);
+      const center = (e.target as L.Map).getCenter();
+      saveMapViewport(center.lat, center.lng, (e.target as L.Map).getZoom());
     },
   });
-  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+  return null;
+}
+
+function MapFlyTo() {
+  const map = useMap();
+  const pending = useAppStore((s) => s.pendingMapCenter);
+  const setPendingMapCenter = useAppStore((s) => s.setPendingMapCenter);
+  useEffect(() => {
+    if (!pending) return;
+    map.flyTo([pending.lat, pending.lng], pending.zoom, { animate: true, duration: 0.8 });
+    setPendingMapCenter(null);
+  }, [pending, map, setPendingMapCenter]);
   return null;
 }

@@ -10,14 +10,14 @@ import L from 'leaflet';
 import { Marker, useMap, useMapEvents } from 'react-leaflet';
 import type { Find } from '@/lib/finds';
 import { useAppStore } from '@/stores/appStore';
-import { collectionsFromFinds, LABEL_ZOOM_THRESHOLD } from './CollectionPins';
+import { locationGroupsFromFinds, LABEL_ZOOM_THRESHOLD } from './CollectionPins';
 import { plainSpeciesName } from '@/lib/speciesName';
 
 const OVERLAP_PX = 18;
 
 function computeCrowded(
   map: L.Map,
-  collections: ReturnType<typeof collectionsFromFinds>,
+  collections: ReturnType<typeof locationGroupsFromFinds>,
 ): Set<string> {
   const crowded = new Set<string>();
   const points = collections.map((c) => ({
@@ -55,7 +55,7 @@ function pickerPinIcon(
   return L.divIcon({
     html: `<div class="bili-pin-dot"></div><div class="bili-pin-label">${labelText}</div>`,
     className: classes,
-    iconSize: [200, 50],
+    iconSize: [12, 12],
     iconAnchor: [6, 6],
   });
 }
@@ -82,7 +82,7 @@ interface PickerPinsProps {
 export function PickerPins({ finds, onPickLocation }: PickerPinsProps) {
   const map = useMap();
   const isSatellite = useAppStore((s) => s.mapLayer === 'Satellite');
-  const collections = collectionsFromFinds(finds);
+  const collections = locationGroupsFromFinds(finds);
 
   const [crowded, setCrowded] = useState<Set<string>>(new Set());
   const [zoom, setZoom] = useState(() => map.getZoom());
@@ -108,7 +108,7 @@ export function PickerPins({ finds, onPickLocation }: PickerPinsProps) {
       {collections.map((c) => {
         const showLabel =
           zoom >= LABEL_ZOOM_THRESHOLD && !crowded.has(c.key) && !c.suppressLabel;
-        const label = plainSpeciesName(c.name.split(',')[0].trim());
+        const label = plainSpeciesName((c.species[0]?.name ?? '').trim());
 
         return (
           <Marker

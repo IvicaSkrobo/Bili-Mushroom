@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { isHeic, type Find, type SpeciesProfile } from '@/lib/finds';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { useT } from '@/i18n/index';
-import { renderSpeciesName, plainSpeciesName } from '@/lib/speciesName';
+import { renderSpeciesName, plainSpeciesName, normalizeCommonName } from '@/lib/speciesName';
 import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
 
 interface FindCardProps {
@@ -31,6 +31,7 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
   const currentPhotoSrc = currentPhoto ? resolvePhotoSrc(storagePath, currentPhoto.photo_path) : null;
   const extraCount = uniquePhotos.length > 1 ? uniquePhotos.length - 1 : 0;
   const heic = currentPhoto ? isHeic(currentPhoto.photo_path) : false;
+  const commonName = normalizeCommonName(speciesProfile?.common_name, find.species_name);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const startLongPress = () => {
@@ -105,6 +106,9 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
             </span>
           </span>
         </p>
+        {commonName && (
+          <p className="truncate text-xs font-medium text-secondary" title={commonName}>{commonName}</p>
+        )}
         <div className="flex flex-wrap gap-x-3 gap-y-0.5">
           {find.date_found && (
             <span className="text-xs text-muted-foreground">{find.date_found}</span>
@@ -117,13 +121,13 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
           {(find.observed_count_min != null || find.observed_count != null) && (
             <span className="text-xs text-muted-foreground">
               {find.observed_count_min != null
-                ? `${find.observed_count_min}–${find.observed_count_max ?? '?'} pcs`
-                : `${find.observed_count} pcs`}
+                ? `${find.observed_count_min}–${find.observed_count_max ?? '?'} ${t('findCard.countUnit')}`
+                : `${find.observed_count} ${t('findCard.countUnit')}`}
             </span>
           )}
         </div>
         {find.location_note && (
-          <p className="text-xs text-muted-foreground/60 truncate">{find.location_note}</p>
+          <p className="text-xs text-muted-foreground/75 truncate">{find.location_note}</p>
         )}
         {(find.lat !== null && find.lng !== null) && (
           <p className="font-mono text-[10px] text-muted-foreground/40">
@@ -131,7 +135,7 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
           </p>
         )}
         {find.notes && (
-          <p className="line-clamp-2 text-xs text-muted-foreground/55 italic">{find.notes}</p>
+          <p className="line-clamp-2 text-xs text-muted-foreground/70 italic">{find.notes}</p>
         )}
         <SpeciesMetadataBadges speciesProfile={speciesProfile} size="sm" hideUnknown={true} />
       </div>
@@ -145,7 +149,7 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
           }
         </div>
       ) : (
-        <div className="absolute top-2 right-2 flex items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+        <div className="absolute top-2 right-2 flex items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
           <Button
             variant="ghost"
             size="icon"

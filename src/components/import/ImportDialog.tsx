@@ -148,6 +148,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
 
   // Find metadata
   const [sharedName, setSharedName] = useState('');
+  const [sharedCommonName, setSharedCommonName] = useState('');
   const [sharedDate, setSharedDate] = useState('');
   const [sharedCountry, setSharedCountry] = useState('');
   const [sharedRegion, setSharedRegion] = useState('');
@@ -174,6 +175,12 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     () => speciesProfilesData?.find((p) => p.species_name.toLowerCase() === sharedName.trim().toLowerCase()) ?? null,
     [speciesProfilesData, sharedName],
   );
+
+  useEffect(() => {
+    if (sharedSpeciesProfile) {
+      setSharedCommonName(sharedSpeciesProfile.common_name ?? '');
+    }
+  }, [sharedSpeciesProfile?.species_name]);
 
   // When species name changes to a known folder, pre-fill notes + species metadata from DB
   useEffect(() => {
@@ -305,6 +312,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         source_path: photos[0],
         original_filename: photos[0].split('/').pop()?.split('\\').pop() ?? photos[0],
         species_name: sharedName.trim(),
+        common_name: sharedCommonName.trim() || null,
         date_found: sharedDate,
         country: sharedCountry,
         region: sharedRegion,
@@ -329,6 +337,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
       if (
         sharedName.trim() &&
         (isNewSpecies ||
+          sharedCommonName.trim() ||
           sharedSpeciesDescription.trim() ||
           sharedEdibility !== 'unknown' ||
           sharedProtectedStatus !== 'unknown' ||
@@ -337,6 +346,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         await upsertSpeciesProfile(
           storagePath,
           sharedName.trim(),
+          sharedCommonName.trim() || (sharedSpeciesProfile?.common_name ?? null),
           sharedSpeciesProfile?.cover_photo_id ?? null,
           sharedSpeciesProfile?.tags ?? [],
           sharedEdibility !== 'unknown' ? sharedEdibility : (sharedSpeciesProfile?.edibility ?? null),
@@ -363,9 +373,15 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     }
   }
 
+  useEffect(() => {
+    if (!open) resetState();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   function resetState() {
     setPhotos([]);
     setSharedName('');
+    setSharedCommonName('');
     setSharedDate('');
     setSharedCountry('');
     setSharedRegion('');
@@ -406,15 +422,12 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
           <DialogHeader className="border-b border-border/60 px-5 py-3">
             <DialogTitle>{t('import.title')}</DialogTitle>
             <DialogDescription>
-              Build one new find from selected photos, metadata, and optional species-level notes.
+              {t('import.summaryHint')}
             </DialogDescription>
           </DialogHeader>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
           <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            {t('import.summaryHint')}
-          </p>
 
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" size="sm" onClick={handlePickFiles} disabled={importing}>
@@ -440,37 +453,43 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
 
           {/* Find metadata form */}
           <div className="rounded-md border bg-muted/50 p-3 space-y-2">
-            {/* Row 1: species name + map pin */}
-            <div className="flex items-end gap-2">
-              <div className="relative flex-1 min-w-0">
-                <SpeciesNameEditor
-                  value={sharedName}
-                  onChange={setSharedName}
-                  placeholder={t('import.mushroomName')}
-                  suggestions={speciesFolders}
-                  showBoldButton
-                  label={t('import.mushroomName')}
+            {/* Row 1: Latin/common names + map pin */}
+            <div className="grid gap-2">
+              <SpeciesNameEditor
+                value={sharedName}
+                onChange={setSharedName}
+                placeholder={t('import.latinNamePlaceholder')}
+                suggestions={speciesFolders}
+                showBoldButton
+                label={t('import.latinName')}
+              />
+              <div>
+                <label className="text-sm font-medium">{t('import.commonName')}</label>
+                <Input
+                  value={sharedCommonName}
+                  onChange={(e) => setSharedCommonName(e.target.value)}
+                  placeholder={t('import.commonNamePlaceholder')}
                 />
               </div>
-              <div className="flex flex-col items-center gap-0.5 pb-0.5 flex-shrink-0">
+              <div className="flex items-center gap-3">
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon"
-                  aria-label={t('import.pickLocation')}
+                  size="sm"
                   onClick={() => setSharedMapOpen(true)}
                   className={[
-                    'border border-primary/35 bg-primary/14 text-primary',
-                    'hover:bg-primary/22 hover:text-primary hover:border-primary/55',
-                    'focus-visible:ring-primary/45',
-                    sharedLocation ? 'bg-secondary/18 text-secondary border-secondary/45 hover:bg-secondary/26 hover:border-secondary/60' : '',
+                    'gap-1.5 h-8 border',
+                    sharedLocation
+                      ? 'border-secondary/50 bg-secondary/15 text-secondary hover:bg-secondary/25 hover:border-secondary/65'
+                      : 'border-primary/40 bg-primary/12 text-primary hover:bg-primary/22 hover:border-primary/60',
                   ].join(' ')}
                 >
-                  <MapPin className="h-4 w-4" />
+                  <MapPin className="h-3.5 w-3.5" />
+                  {t('folder.pickOnMap')}
                 </Button>
                 {sharedLocation && (
-                  <span className="text-[10px] text-muted-foreground/60 font-mono whitespace-nowrap">
-                    {sharedLocation.lat.toFixed(3)}, {sharedLocation.lng.toFixed(3)}
+                  <span className="text-xs text-muted-foreground font-mono">
+                    {sharedLocation.lat.toFixed(4)}, {sharedLocation.lng.toFixed(4)}
                   </span>
                 )}
               </div>
@@ -540,19 +559,12 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
               onChange={(e) => setSharedFolderNotes(e.target.value)}
             />
 
-            <Textarea
-              placeholder="Notes about this specific find..."
-              rows={2}
-              value={sharedFindNotes}
-              onChange={(e) => setSharedFindNotes(e.target.value)}
-            />
-
             <div>
               <label className="mb-1 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
                 {t('edit.speciesDescription')}
               </label>
               <Textarea
-                placeholder={sharedSpeciesProfile?.description ?? sharedSpeciesProfile?.edibility_note ?? t('edit.speciesDescriptionPlaceholder')}
+                placeholder={t('edit.speciesDescriptionPlaceholder')}
                 rows={2}
                 value={sharedSpeciesDescription}
                 onChange={(e) => setSharedSpeciesDescription(e.target.value)}
@@ -595,7 +607,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
 
           {photos.length > 0 && (
             <p className="text-xs text-muted-foreground flex-shrink-0">
-              {photos.length} {photos.length === 1 ? 'photo' : 'photos'} → 1 find
+              {photos.length} {photos.length === 1 ? 'fotografija' : 'fotografija'} → 1 nalaz
             </p>
           )}
 
@@ -639,7 +651,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                     onChange={(e) => setDeleteSource(e.target.checked)}
                     className="h-4 w-4 rounded accent-primary cursor-pointer"
                   />
-                  Delete from source folder after import
+                  {t('preview.deleteSource')}
                 </label>
                 <div className="flex items-center gap-2">
                   <Button variant="outline" onClick={handleCancel} disabled={importing}>

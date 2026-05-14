@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { useAppStore, saveMapViewport } from '@/stores/appStore';
+import { useAppStore, saveMapViewport, loadMapViewport } from '@/stores/appStore';
 import { applyLeafletIconFix } from './leafletIconFix';
 import { createRustProxyTileLayer } from './RustProxyTileLayer';
 import type { MapLayer } from '@/stores/appStore';
@@ -106,6 +106,16 @@ function MapZoomTracker({ zoomRef }: { zoomRef: React.MutableRefObject<number> }
   return null;
 }
 
+function PickerViewportSaver() {
+  useMapEvents({
+    moveend(e) {
+      const center = (e.target as L.Map).getCenter();
+      saveMapViewport(center.lat, center.lng, (e.target as L.Map).getZoom());
+    },
+  });
+  return null;
+}
+
 export function LocationPickerMap({
   open,
   onOpenChange,
@@ -116,21 +126,30 @@ export function LocationPickerMap({
     initialLatLng ?? null,
   );
   const [pinLabel, setPinLabel] = useState<string | null>(null);
-  const currentZoomRef = useRef<number>(initialLatLng ? EXISTING_PIN_ZOOM : CROATIA_ZOOM);
+
+  const savedViewport = !initialLatLng ? loadMapViewport() : null;
+  const initialCenter: [number, number] = initialLatLng
+    ? [initialLatLng.lat, initialLatLng.lng]
+    : savedViewport
+      ? [savedViewport.lat, savedViewport.lng]
+      : CROATIA_CENTER;
+  const initialZoom = initialLatLng
+    ? EXISTING_PIN_ZOOM
+    : savedViewport
+      ? savedViewport.zoom
+      : CROATIA_ZOOM;
+
+  const currentZoomRef = useRef<number>(initialZoom);
 
   // Reset pin when the dialog opens
   useEffect(() => {
     if (open) {
       setPin(initialLatLng ?? null);
       setPinLabel(null);
-      currentZoomRef.current = initialLatLng ? EXISTING_PIN_ZOOM : CROATIA_ZOOM;
+      const sv = !initialLatLng ? loadMapViewport() : null;
+      currentZoomRef.current = initialLatLng ? EXISTING_PIN_ZOOM : (sv?.zoom ?? CROATIA_ZOOM);
     }
   }, [open, initialLatLng]);
-
-  const initialCenter: [number, number] = initialLatLng
-    ? [initialLatLng.lat, initialLatLng.lng]
-    : CROATIA_CENTER;
-  const initialZoom = initialLatLng ? EXISTING_PIN_ZOOM : CROATIA_ZOOM;
 
   const { data: finds } = useFinds();
 
@@ -151,9 +170,11 @@ export function LocationPickerMap({
               center={initialCenter}
               zoom={initialZoom}
               style={{ height: '100%', width: '100%' }}
+              boxZoom={false}
             >
               <PickerLayerSwitcher />
               <MapZoomTracker zoomRef={currentZoomRef} />
+              <PickerViewportSaver />
               <ClickHandler
                 onPick={(latlng) => {
                   setPin({ lat: latlng.lat, lng: latlng.lng });

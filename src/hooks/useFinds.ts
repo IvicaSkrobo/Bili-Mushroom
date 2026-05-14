@@ -136,6 +136,7 @@ export function useUpsertSpeciesProfile() {
   return useMutation({
     mutationFn: ({
       speciesName,
+      commonName,
       coverPhotoId,
       tags,
       edibility,
@@ -148,6 +149,7 @@ export function useUpsertSpeciesProfile() {
       description,
     }: {
       speciesName: string;
+      commonName?: string | null;
       coverPhotoId: number | null;
       tags: string[];
       edibility?: string | null;
@@ -158,7 +160,7 @@ export function useUpsertSpeciesProfile() {
       otherNames?: string[];
       fruitingBodyCountOverride?: string | null;
       description?: string | null;
-    }) => upsertSpeciesProfile(storagePath!, speciesName, coverPhotoId, tags, edibility, threatStatus, distribution, edibilityNote, synonyms, otherNames, fruitingBodyCountOverride, description),
+    }) => upsertSpeciesProfile(storagePath!, speciesName, commonName, coverPhotoId, tags, edibility, threatStatus, distribution, edibilityNote, synonyms, otherNames, fruitingBodyCountOverride, description),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [SPECIES_PROFILES_QUERY_KEY, storagePath] });
     },
