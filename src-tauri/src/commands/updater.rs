@@ -20,6 +20,11 @@ pub struct UpdateProgress {
 pub async fn check_app_update(app: AppHandle) -> Result<Option<AvailableUpdate>, String> {
     let current = app.package_info().version.to_string();
 
+    if option_env!("TAURI_UPDATER_PUBLIC_KEY").is_none() {
+        println!("[updater] disabled - no public key configured (current: v{current})");
+        return Ok(None);
+    }
+
     println!("[updater] checking for updates — current: v{current}");
 
     let update = app
@@ -49,6 +54,10 @@ pub async fn check_app_update(app: AppHandle) -> Result<Option<AvailableUpdate>,
 
 #[tauri::command]
 pub async fn install_app_update(app: AppHandle) -> Result<bool, String> {
+    if option_env!("TAURI_UPDATER_PUBLIC_KEY").is_none() {
+        return Ok(false);
+    }
+
     // NOTE: This function re-runs check() rather than reusing the Update object from
     // check_app_update. This is an architectural constraint: the Tauri `Update` type is
     // not `Send`, so it cannot be cached across IPC call boundaries or stored in shared
