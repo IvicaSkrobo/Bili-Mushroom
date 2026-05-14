@@ -9,6 +9,10 @@ function monthName(monthNum: number): string {
   return new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(2024, monthNum - 1));
 }
 
+function plainSpeciesName(name: string): string {
+  return name.replace(/\*([^*]+)\*/g, '$1');
+}
+
 function extractMonthNum(ym: string | null): number | null {
   if (!ym) return null;
   const [, monthStr] = ym.split('-');
@@ -30,7 +34,7 @@ export function buildSeasonalityInsights(
       .filter((s) => extractMonthNum(s.best_month) === month.month_num)
       .sort((a, b) => b.find_count - a.find_count)
       .slice(0, 2)
-      .map((s) => s.species_name);
+      .map((s) => plainSpeciesName(s.species_name));
 
     insights.push({
       title: `${monthName(month.month_num)} is historically strong`,
@@ -77,5 +81,6 @@ export function buildSpeciesSpotHint(
   const month = extractMonthNum(candidate.best_month);
   if (!month) return null;
 
-  return `Hint: ${candidate.species_name} peaks around ${monthName(month)} — try ${preferred.country} / ${preferred.region}${preferred.location_note ? ` / ${preferred.location_note}` : ''}.`;
+  return `Hint: ${plainSpeciesName(candidate.species_name)} peaks around ${monthName(month)} — try ${preferred.country} / ${preferred.region}${preferred.location_note ? ` / ${preferred.location_note}` : ''}.`;
 }
+

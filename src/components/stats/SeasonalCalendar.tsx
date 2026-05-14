@@ -1,5 +1,6 @@
 import { useState, useMemo, type ReactNode } from 'react';
 import type { CalendarEntry } from '@/lib/stats';
+import { plainSpeciesName, renderSpeciesName } from '@/lib/speciesName';
 
 interface SeasonalCalendarProps {
   entries: CalendarEntry[];
@@ -107,7 +108,12 @@ export function SeasonalCalendar({ entries }: SeasonalCalendarProps) {
                     className="stagger-item flex items-baseline gap-2"
                     style={{ animationDelay: `${i * 30}ms` }}
                   >
-                    <span className="font-serif italic text-sm text-foreground">{sp}</span>
+                    <span
+                      className="font-serif text-sm font-semibold italic text-foreground"
+                      title={plainSpeciesName(sp)}
+                    >
+                      {renderSpeciesName(sp)}
+                    </span>
                     <span className="text-xs text-muted-foreground">
                       {count} find{count > 1 ? 's' : ''}
                     </span>

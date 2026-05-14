@@ -90,7 +90,19 @@
 .species-name-editor { white-space: nowrap; overflow-x: auto; scrollbar-width: none; }
 .species-name-editor::-webkit-scrollbar { display: none; }
 
+html {
+  min-height: 100%;
+  background: oklch(0.12 0.02 245);
+  color-scheme: dark;
+}
+
+html:not(.dark) {
+  color-scheme: light;
+}
+
 body {
+  margin: 0;
+  min-height: 100vh;
   font-family: 'Manrope', 'Segoe UI', sans-serif;
   background-color: var(--background);
   color: var(--foreground);
@@ -106,6 +118,12 @@ body {
   opacity: 1;
   letter-spacing: 0.004em;
 }
+
+#root {
+  min-height: 100vh;
+  background-color: var(--background);
+}
+
 body::before {
   content: '';
   position: fixed;

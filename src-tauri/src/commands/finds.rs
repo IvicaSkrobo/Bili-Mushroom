@@ -101,8 +101,20 @@ pub struct SpeciesProfile {
     pub threat_status: Option<String>,
     pub distribution: Option<String>,
     pub edibility_note: Option<String>,
+    pub description: Option<String>,
     pub synonyms: Vec<String>,
     pub other_names: Vec<String>,
+    pub fruiting_body_count_override: Option<String>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct SpeciesRecipe {
+    pub id: i64,
+    pub species_name: String,
+    pub title: String,
+    pub notes: String,
+    pub created_at: String,
+    pub updated_at: String,
 }
 
 #[tauri::command]
@@ -123,13 +135,13 @@ pub async fn get_species_notes(storage_path: String) -> Result<Vec<SpeciesNote>,
 pub async fn get_species_profiles(storage_path: String) -> Result<Vec<SpeciesProfile>, String> {
     let conn = open_db(&storage_path)?;
     let mut stmt = conn
-        .prepare("SELECT species_name, cover_photo_id, tags_json, edibility, threat_status, distribution, edibility_note, synonyms, other_names FROM species_profiles ORDER BY species_name")
+        .prepare("SELECT species_name, cover_photo_id, tags_json, edibility, threat_status, distribution, edibility_note, description, synonyms, other_names, fruiting_body_count_override FROM species_profiles ORDER BY species_name")
         .map_err(|e| e.to_string())?;
     let profiles = stmt
         .query_map([], |row| {
             let tags_json: String = row.get(2)?;
-            let synonyms_json: Option<String> = row.get(7)?;
-            let other_names_json: Option<String> = row.get(8)?;
+            let synonyms_json: Option<String> = row.get(8)?;
+            let other_names_json: Option<String> = row.get(9)?;
             Ok(SpeciesProfile {
                 species_name: row.get(0)?,
                 cover_photo_id: row.get(1)?,
@@ -138,8 +150,10 @@ pub async fn get_species_profiles(storage_path: String) -> Result<Vec<SpeciesPro
                 threat_status: row.get(4)?,
                 distribution: row.get(5)?,
                 edibility_note: row.get(6)?,
+                description: row.get(7)?,
                 synonyms: synonyms_json.as_deref().and_then(|s| serde_json::from_str(s).ok()).unwrap_or_default(),
                 other_names: other_names_json.as_deref().and_then(|s| serde_json::from_str(s).ok()).unwrap_or_default(),
+                fruiting_body_count_override: row.get(10)?,
             })
         })
         .map_err(|e| e.to_string())?
@@ -160,6 +174,8 @@ pub async fn upsert_species_profile(
     edibility_note: Option<String>,
     synonyms: Vec<String>,
     other_names: Vec<String>,
+    fruiting_body_count_override: Option<String>,
+    description: Option<String>,
 ) -> Result<(), String> {
     let conn = open_db(&storage_path)?;
     let updated_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
@@ -170,8 +186,8 @@ pub async fn upsert_species_profile(
     let other_names_json = serde_json::to_string(&other_names)
         .map_err(|e| format!("Failed to encode other_names: {}", e))?;
     conn.execute(
-        "INSERT INTO species_profiles (species_name, cover_photo_id, tags_json, updated_at, edibility, threat_status, distribution, edibility_note, synonyms, other_names)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+        "INSERT INTO species_profiles (species_name, cover_photo_id, tags_json, updated_at, edibility, threat_status, distribution, edibility_note, synonyms, other_names, fruiting_body_count_override, description)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
          ON CONFLICT(species_name) DO UPDATE SET
            cover_photo_id = excluded.cover_photo_id,
            tags_json = excluded.tags_json,
@@ -181,10 +197,89 @@ pub async fn upsert_species_profile(
            distribution = excluded.distribution,
            edibility_note = excluded.edibility_note,
            synonyms = excluded.synonyms,
-           other_names = excluded.other_names",
-        params![species_name, cover_photo_id, tags_json, updated_at, edibility, threat_status, distribution, edibility_note, synonyms_json, other_names_json],
+           other_names = excluded.other_names,
+           fruiting_body_count_override = excluded.fruiting_body_count_override,
+           description = excluded.description",
+        params![species_name, cover_photo_id, tags_json, updated_at, edibility, threat_status, distribution, edibility_note, synonyms_json, other_names_json, fruiting_body_count_override, description],
     )
     .map_err(|e| format!("Upsert species profile failed: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_species_recipes(storage_path: String) -> Result<Vec<SpeciesRecipe>, String> {
+    let conn = open_db(&storage_path)?;
+    let mut stmt = conn
+        .prepare("SELECT id, species_name, title, notes, created_at, updated_at FROM species_recipes ORDER BY species_name, id")
+        .map_err(|e| e.to_string())?;
+    let recipes = stmt
+        .query_map([], |row| {
+            Ok(SpeciesRecipe {
+                id: row.get(0)?,
+                species_name: row.get(1)?,
+                title: row.get(2)?,
+                notes: row.get(3)?,
+                created_at: row.get(4)?,
+                updated_at: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    Ok(recipes)
+}
+
+#[tauri::command]
+pub async fn upsert_species_recipe(
+    storage_path: String,
+    id: Option<i64>,
+    species_name: String,
+    title: String,
+    notes: String,
+) -> Result<SpeciesRecipe, String> {
+    let conn = open_db(&storage_path)?;
+    let now = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let recipe_id = match id {
+        Some(existing_id) => {
+            conn.execute(
+                "UPDATE species_recipes SET species_name = ?1, title = ?2, notes = ?3, updated_at = ?4 WHERE id = ?5",
+                params![species_name, title, notes, now, existing_id],
+            )
+            .map_err(|e| format!("Update species recipe failed: {}", e))?;
+            existing_id
+        }
+        None => {
+            conn.execute(
+                "INSERT INTO species_recipes (species_name, title, notes, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)",
+                params![species_name, title, notes, now],
+            )
+            .map_err(|e| format!("Insert species recipe failed: {}", e))?;
+            conn.last_insert_rowid()
+        }
+    };
+
+    conn.query_row(
+        "SELECT id, species_name, title, notes, created_at, updated_at FROM species_recipes WHERE id = ?1",
+        params![recipe_id],
+        |row| {
+            Ok(SpeciesRecipe {
+                id: row.get(0)?,
+                species_name: row.get(1)?,
+                title: row.get(2)?,
+                notes: row.get(3)?,
+                created_at: row.get(4)?,
+                updated_at: row.get(5)?,
+            })
+        },
+    )
+    .map_err(|e| format!("Read species recipe failed: {}", e))
+}
+
+#[tauri::command]
+pub async fn delete_species_recipe(storage_path: String, id: i64) -> Result<(), String> {
+    let conn = open_db(&storage_path)?;
+    conn.execute("DELETE FROM species_recipes WHERE id = ?1", params![id])
+        .map_err(|e| format!("Delete species recipe failed: {}", e))?;
     Ok(())
 }
 

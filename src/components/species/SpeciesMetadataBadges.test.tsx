@@ -9,6 +9,8 @@ vi.mock('lucide-react', async (importOriginal) => {
     CircleHelp: (props: Record<string, unknown>) => <svg data-testid="circle-help-icon" {...props} />,
     Utensils: (props: Record<string, unknown>) => <svg data-testid="utensils-icon" {...props} />,
     Skull: (props: Record<string, unknown>) => <svg data-testid="skull-icon" {...props} />,
+    AlertCircle: (props: Record<string, unknown>) => <svg data-testid="alert-circle-icon" {...props} />,
+    AlertTriangle: (props: Record<string, unknown>) => <svg data-testid="alert-triangle-icon" {...props} />,
   };
 });
 
@@ -27,7 +29,7 @@ describe('SpeciesMetadataBadges', () => {
       />,
     );
 
-    expect(screen.getByText('Može se jesti')).toBeInTheDocument();
+    expect(screen.getByText('Jestiva')).toBeInTheDocument();
     expect(screen.getByText('LC – Najmanje zabrinjavajuća')).toBeInTheDocument();
     expect(screen.getByTestId('utensils-icon')).toBeInTheDocument();
   });
@@ -45,11 +47,29 @@ describe('SpeciesMetadataBadges', () => {
       />,
     );
 
-    expect(screen.getByText('Nije za jelo')).toBeInTheDocument();
+    expect(screen.getByText('Nejestiva')).toBeInTheDocument();
     expect(screen.getByTestId('inedible-icon')).toBeInTheDocument();
   });
 
-  it('renders poisonous badge with skull icon', () => {
+  it('renders conditionally edible badge as edible plus caution', () => {
+    render(
+      <SpeciesMetadataBadges
+        speciesProfile={{
+          species_name: 'Morchella esculenta',
+          cover_photo_id: null,
+          tags: [],
+          edibility: 'conditionally_edible',
+        }}
+        hideUnknown={true}
+      />,
+    );
+
+    expect(screen.getByText('Uvjetno jestiva')).toBeInTheDocument();
+    expect(screen.getByTestId('utensils-icon')).toBeInTheDocument();
+    expect(screen.getByTestId('alert-circle-icon')).toBeInTheDocument();
+  });
+
+  it('renders poisonous badge with warning triangle icon', () => {
     render(
       <SpeciesMetadataBadges
         speciesProfile={{
@@ -63,10 +83,10 @@ describe('SpeciesMetadataBadges', () => {
     );
 
     expect(screen.getByText('Otrovna')).toBeInTheDocument();
-    expect(screen.getByTestId('skull-icon')).toBeInTheDocument();
+    expect(screen.getByTestId('alert-triangle-icon')).toBeInTheDocument();
   });
 
-  it('renders deadly poisonous badge', () => {
+  it('renders deadly poisonous badge with skull icon', () => {
     render(
       <SpeciesMetadataBadges
         speciesProfile={{
@@ -80,6 +100,7 @@ describe('SpeciesMetadataBadges', () => {
     );
 
     expect(screen.getByText('Smrtno otrovna')).toBeInTheDocument();
+    expect(screen.getByTestId('skull-icon')).toBeInTheDocument();
   });
 
   it('hides unknown badges when hideUnknown is enabled', () => {

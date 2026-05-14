@@ -115,6 +115,63 @@ describe('CreateFindDialog', () => {
     });
   });
 
+  it('preserves draft when dismissed and reopened without cancelling', async () => {
+    const qc = makeQueryClient();
+    const Wrapper = makeWrapper(qc);
+    const { rerender } = render(
+      <Wrapper>
+        <CreateFindDialog open={true} onOpenChange={onOpenChange} />
+      </Wrapper>,
+    );
+
+    const speciesInput = screen.getByRole('textbox', { name: /species name/i });
+    speciesInput.textContent = 'Amanita muscaria';
+    fireEvent.input(speciesInput);
+
+    rerender(
+      <Wrapper>
+        <CreateFindDialog open={false} onOpenChange={onOpenChange} />
+      </Wrapper>,
+    );
+    rerender(
+      <Wrapper>
+        <CreateFindDialog open={true} onOpenChange={onOpenChange} />
+      </Wrapper>,
+    );
+
+    expect(screen.getByRole('textbox', { name: /species name/i })).toHaveTextContent('Amanita muscaria');
+  });
+
+  it('clears draft when Cancel is clicked', async () => {
+    const qc = makeQueryClient();
+    const Wrapper = makeWrapper(qc);
+    const { rerender } = render(
+      <Wrapper>
+        <CreateFindDialog open={true} onOpenChange={onOpenChange} />
+      </Wrapper>,
+    );
+
+    const speciesInput = screen.getByRole('textbox', { name: /species name/i });
+    speciesInput.textContent = 'Amanita muscaria';
+    fireEvent.input(speciesInput);
+
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+
+    rerender(
+      <Wrapper>
+        <CreateFindDialog open={false} onOpenChange={onOpenChange} />
+      </Wrapper>,
+    );
+    rerender(
+      <Wrapper>
+        <CreateFindDialog open={true} onOpenChange={onOpenChange} />
+      </Wrapper>,
+    );
+
+    expect(screen.getByRole('textbox', { name: /species name/i })).toHaveTextContent('');
+  });
+
   it('calls create_find invoke and closes on success', async () => {
     const invokeCallArgs: unknown[] = [];
     invokeHandlers['create_find'] = (args: unknown) => {

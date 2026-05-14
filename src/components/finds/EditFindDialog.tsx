@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useUpdateFind, useAddFindPhotos, useDeleteFindPhoto, useBulkDeleteFindPhotos, useFinds, useSpeciesProfiles } from '@/hooks/useFinds';
+import { useUpdateFind, useAddFindPhotos, useDeleteFindPhoto, useBulkDeleteFindPhotos, useFinds, useSpeciesProfiles, useUpsertSpeciesProfile } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
 import { openFindFolder, SUPPORTED_EXTENSIONS, type Find } from '@/lib/finds';
@@ -36,7 +36,7 @@ interface FormState {
   lng: string;
   notes: string;
   observed_count_range: string;
-  edibility_note: string;
+  species_description: string;
 }
 
 function formatObservedRange(min: number | null, max: number | null, fallback: number | null): string {
@@ -81,7 +81,7 @@ function findToFormState(find: Find): FormState {
       find.observed_count_max,
       find.observed_count,
     ),
-    edibility_note: find.edibility_note ?? '',
+    species_description: '',
   };
 }
 
@@ -94,6 +94,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   const t = useT();
   const storagePath = useAppStore((s) => s.storagePath);
   const updateMutation = useUpdateFind();
+  const upsertSpeciesProfile = useUpsertSpeciesProfile();
   const addPhotosMutation = useAddFindPhotos();
   const deletePhotoMutation = useDeleteFindPhoto();
   const bulkDeletePhotosMutation = useBulkDeleteFindPhotos();
@@ -140,7 +141,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     lng: '',
     notes: '',
     observed_count_range: '',
-    edibility_note: '',
+    species_description: '',
   });
   const speciesProfile = useMemo(
     () => speciesProfiles?.find((profile) => profile.species_name === form.species_name) ?? null,
@@ -159,6 +160,14 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     setSelectedPhotoIds(new Set());
     setPhotosExpanded(false);
   }, [find]);
+
+  useEffect(() => {
+    if (!find || !speciesProfile) return;
+    setForm((prev) => ({
+      ...prev,
+      species_description: speciesProfile.description ?? speciesProfile.edibility_note ?? '',
+    }));
+  }, [find, speciesProfile]);
 
   useEffect(() => {
     if (!find || !storagePath) return;
@@ -194,9 +203,28 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
         observed_count: observedRange.representative,
         observed_count_min: observedRange.min,
         observed_count_max: observedRange.max,
-        edibility_note: form.edibility_note.trim() || null,
+        edibility_note: find.edibility_note ?? null,
       },
-      { onSuccess: () => onOpenChange(false) },
+      {
+        onSuccess: async () => {
+          if (form.species_name.trim()) {
+            await upsertSpeciesProfile.mutateAsync({
+              speciesName: form.species_name.trim(),
+              coverPhotoId: speciesProfile?.cover_photo_id ?? null,
+              tags: speciesProfile?.tags ?? [],
+              edibility: speciesProfile?.edibility ?? null,
+              threatStatus: speciesProfile?.threat_status ?? null,
+              distribution: speciesProfile?.distribution ?? null,
+              edibilityNote: speciesProfile?.edibility_note ?? null,
+              synonyms: speciesProfile?.synonyms ?? [],
+              otherNames: speciesProfile?.other_names ?? [],
+              fruitingBodyCountOverride: speciesProfile?.fruiting_body_count_override ?? null,
+              description: form.species_description.trim() || null,
+            });
+          }
+          onOpenChange(false);
+        },
+      },
     );
   }
 
@@ -237,7 +265,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
 
   return (
     <Dialog open={find !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[82vh] max-w-2xl flex-col overflow-hidden p-0">
+      <DialogContent className="flex max-h-[82vh] !w-[min(1180px,calc(100vw-2rem))] !max-w-none flex-col overflow-hidden p-0">
         <DialogHeader className="border-b border-border/60 px-5 py-3">
           <DialogTitle>{t('edit.title')}</DialogTitle>
           <DialogDescription>
@@ -407,14 +435,14 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
             />
           </div>
           <div>
-            <label className="text-sm font-medium">{t('edit.edibilityNote')}</label>
+            <label className="text-sm font-medium">{t('edit.speciesDescription')}</label>
             <Textarea
-              value={form.edibility_note}
-              onChange={(e) => handleChange('edibility_note', e.target.value)}
-              placeholder={t('edit.edibilityNotePlaceholder')}
+              value={form.species_description}
+              onChange={(e) => handleChange('species_description', e.target.value)}
+              placeholder={t('edit.speciesDescriptionPlaceholder')}
               rows={3}
             />
-            <p className="mt-1 text-xs text-muted-foreground">{t('edit.edibilityNoteHelp')}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t('edit.speciesDescriptionHelp')}</p>
           </div>
           <div>
             <div className="mb-1 flex items-center gap-1 text-sm font-medium">
@@ -444,15 +472,6 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
               <div className="flex items-center justify-between gap-2">
                 <label className="text-sm font-medium">Photos ({livePhotos.length})</label>
                 <div className="flex items-center gap-2">
-                  <label className="inline-flex h-7 items-center gap-1.5 rounded border border-destructive/30 bg-destructive/5 px-2 text-[11px] font-medium text-destructive">
-                    <input
-                      type="checkbox"
-                      checked={permanentPhotoDelete}
-                      onChange={(event) => setPermanentPhotoDelete(event.target.checked)}
-                      className="h-3.5 w-3.5 accent-current"
-                    />
-                    Permanently delete files
-                  </label>
                   {livePhotos.length > 5 && (
                     <Button
                       type="button"
@@ -484,8 +503,8 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
                   )}
                 </div>
               </div>
-              <div className={`overflow-y-auto rounded-md border border-border/40 p-2 ${photosExpanded ? 'max-h-60' : 'max-h-28'}`}>
-                <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-5">
+              <div className={`overflow-y-auto rounded-md border border-border/40 p-2 ${photosExpanded ? 'max-h-72' : 'max-h-44'}`}>
+                <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-7 lg:grid-cols-9 xl:grid-cols-10">
                   {livePhotos.map((photo) => {
                     const selected = selectedPhotoIds.has(photo.id);
                     const src = resolvePhotoSrc(storagePath!, photo.photo_path);
@@ -570,13 +589,28 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
           </Alert>
         )}
 
-        <DialogFooter className="border-t border-border/60 px-5 py-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t('edit.cancel')}
-          </Button>
-          <Button onClick={handleSave} disabled={updateMutation.isPending}>
-            {updateMutation.isPending ? t('edit.saving') : t('edit.save')}
-          </Button>
+        <DialogFooter className="w-full items-center justify-between border-t border-border/60 px-5 py-4 sm:justify-between">
+          {find && livePhotos.length > 0 ? (
+            <label className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground cursor-pointer select-none transition-colors hover:text-foreground">
+              <input
+                type="checkbox"
+                checked={permanentPhotoDelete}
+                onChange={(event) => setPermanentPhotoDelete(event.target.checked)}
+                className="h-4 w-4 rounded accent-primary cursor-pointer"
+              />
+              Permanently delete files
+            </label>
+          ) : (
+            <span />
+          )}
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              {t('edit.cancel')}
+            </Button>
+            <Button onClick={handleSave} disabled={updateMutation.isPending}>
+              {updateMutation.isPending ? t('edit.saving') : t('edit.save')}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
       <LocationPickerMap

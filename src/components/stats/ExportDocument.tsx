@@ -230,6 +230,10 @@ function uniqueCount(vals: string[]): number {
   return new Set(vals.filter(Boolean)).size;
 }
 
+function plainSpeciesName(name: string): string {
+  return name.replace(/\*([^*]+)\*/g, '$1');
+}
+
 function buildSpeciesRanking(finds: FindForPdf[]): { label: string; count: number }[] {
   const map = new Map<string, number>();
   for (const f of finds) map.set(f.species_name, (map.get(f.species_name) ?? 0) + 1);
@@ -374,7 +378,7 @@ export function SmokeTestDocument({ finds }: SmokeTestProps) {
               {fmtDate(find.date_found)}
             </Text>
             <Text style={{ flex: 1, fontFamily: 'Helvetica-Bold', fontSize: 9.5, color: C.text }}>
-              {find.species_name}
+              {plainSpeciesName(find.species_name)}
             </Text>
           </View>
         ))}
@@ -421,7 +425,7 @@ function BarChart({ items, maxValue }: { items: { label: string; count: number }
         const pct = maxValue > 0 ? Math.max(2, (item.count / maxValue) * 100) : 2;
         return (
           <View key={`bar-${i}-${item.label}`} style={S.barRow}>
-            <Text style={S.barLabel}>{item.label}</Text>
+            <Text style={S.barLabel}>{plainSpeciesName(item.label)}</Text>
             <View style={S.barTrack}>
               <View style={[S.barFill, { width: `${pct}%` }]} />
             </View>
@@ -529,7 +533,7 @@ export function MushroomJournal({ finds, speciesNotes, smokeTest = false }: Prop
           <View style={S.cell3}><StatCard value={`${uniqueSpots}`} label="Locations" /></View>
           <View style={S.cell3}><StatCard value={datedFinds.length > 0 ? fmtDate(datedFinds[0].toISOString().split('T')[0]) : '—'} label="First find" /></View>
           <View style={S.cell3}><StatCard value={yearSpan || '—'} label="Journal span" /></View>
-          <View style={S.cell3}><StatCard value={speciesRanking[0]?.label ?? '—'} label="Most found" /></View>
+          <View style={S.cell3}><StatCard value={speciesRanking[0] ? plainSpeciesName(speciesRanking[0].label) : '—'} label="Most found" /></View>
         </View>
 
         <Text style={[S.eyebrow, { marginBottom: 10 }]}>Top Species</Text>
@@ -573,7 +577,7 @@ export function MushroomJournal({ finds, speciesNotes, smokeTest = false }: Prop
                   <View style={S.spotSpreadCard}>
                     {photo ? <Image src={photo} style={S.spotSpreadPhoto} /> : null}
                     <View style={S.spotSpreadBody}>
-                      <Text style={S.spotSpreadName}>{name}</Text>
+                      <Text style={S.spotSpreadName}>{plainSpeciesName(name)}</Text>
                       <Text style={S.spotSpreadMeta}>
                         {`${speciesFinds.reduce((sum, find) => sum + find.photo_count, 0)} photo${speciesFinds.reduce((sum, find) => sum + find.photo_count, 0) === 1 ? '' : 's'}`}
                         {locations.length > 0
@@ -624,7 +628,7 @@ export function MushroomJournal({ finds, speciesNotes, smokeTest = false }: Prop
                 {yearTopSpecies && (
                   <HighlightCard
                     label="Most Photographed Species"
-                    text={`${yearTopSpecies.label} led with ${yearTopSpecies.count} photo${yearTopSpecies.count === 1 ? '' : 's'}.`}
+                    text={`${plainSpeciesName(yearTopSpecies.label)} led with ${yearTopSpecies.count} photo${yearTopSpecies.count === 1 ? '' : 's'}.`}
                   />
                 )}
                 {yearTopSpot && (
@@ -642,7 +646,7 @@ export function MushroomJournal({ finds, speciesNotes, smokeTest = false }: Prop
                 {yearChron.length > 0 && (
                   <HighlightCard
                     label="Season Bookends"
-                    text={`Opened with ${yearChron[0].species_name} on ${fmtDate(yearChron[0].date_found)}${yearChron.length > 1 ? `. Most recent: ${yearChron[yearChron.length - 1].species_name} on ${fmtDate(yearChron[yearChron.length - 1].date_found)}` : ''}.`}
+                    text={`Opened with ${plainSpeciesName(yearChron[0].species_name)} on ${fmtDate(yearChron[0].date_found)}${yearChron.length > 1 ? `. Most recent: ${plainSpeciesName(yearChron[yearChron.length - 1].species_name)} on ${fmtDate(yearChron[yearChron.length - 1].date_found)}` : ''}.`}
                   />
                 )}
               </>
@@ -688,7 +692,7 @@ export function MushroomJournal({ finds, speciesNotes, smokeTest = false }: Prop
                       <View style={S.spotSpreadCard}>
                         {photo ? <Image src={photo} style={S.spotSpreadPhoto} /> : null}
                         <View style={S.spotSpreadBody}>
-                          <Text style={S.spotSpreadName}>{name}</Text>
+                          <Text style={S.spotSpreadName}>{plainSpeciesName(name)}</Text>
                           <Text style={S.spotSpreadMeta}>
                             {`${speciesFinds.reduce((sum, find) => sum + find.photo_count, 0)} photo${speciesFinds.reduce((sum, find) => sum + find.photo_count, 0) === 1 ? '' : 's'}`}
                             {locations.length > 0
@@ -728,7 +732,7 @@ export function MushroomJournal({ finds, speciesNotes, smokeTest = false }: Prop
             >
               <Text style={S.rankNum}>{i + 1}</Text>
               <View style={{ flex: 1, marginRight: 10 }}>
-                <Text style={S.rankLabel}>{item.label}</Text>
+                <Text style={S.rankLabel}>{plainSpeciesName(item.label)}</Text>
                 <View style={{ marginTop: 3, height: 6, backgroundColor: C.bgDeep }}>
                   <View style={{ height: 6, width: `${pct}%`, backgroundColor: isFirst ? C.amber : C.textDim }} />
                 </View>
@@ -784,7 +788,7 @@ export function MushroomJournal({ finds, speciesNotes, smokeTest = false }: Prop
                       <View style={S.spotSpreadCard}>
                         {photo ? <Image src={photo} style={S.spotSpreadPhoto} /> : null}
                         <View style={S.spotSpreadBody}>
-                          <Text style={S.spotSpreadName}>{name}</Text>
+                          <Text style={S.spotSpreadName}>{plainSpeciesName(name)}</Text>
                           <Text style={S.spotSpreadMeta}>
                             {`${speciesFinds.reduce((sum, find) => sum + find.photo_count, 0)} photo${speciesFinds.reduce((sum, find) => sum + find.photo_count, 0) === 1 ? '' : 's'}`}
                             {locations.length > 0
@@ -826,7 +830,7 @@ export function MushroomJournal({ finds, speciesNotes, smokeTest = false }: Prop
                     <Text style={S.folderBadgeText}>{`${folder.count} photo${folder.count === 1 ? '' : 's'}`}</Text>
                   </View>
                 </View>
-                <Text style={S.folderName}>{folder.name}</Text>
+                <Text style={S.folderName}>{plainSpeciesName(folder.name)}</Text>
                 <Text style={S.folderLocation}>{folder.latestLocation}</Text>
               </View>
             ))}

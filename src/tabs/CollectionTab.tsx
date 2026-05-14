@@ -74,9 +74,21 @@ export default function CollectionTab() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [lightboxPhotos, setLightboxPhotos] = useState<LightboxPhoto[]>([]);
+  const [lightboxFallbackFind, setLightboxFallbackFind] = useState<Find | null>(null);
   const [lightboxSpeciesName, setLightboxSpeciesName] = useState<string | null>(null);
 
   const openLightbox = (speciesFinds: Find[], findId: number, photoIndex: number) => {
+    const fallbackFind = speciesFinds.find((f) => f.id === findId) ?? null;
+    const targetPhoto = fallbackFind?.photos[photoIndex];
+    if (!targetPhoto) {
+      setLightboxPhotos([]);
+      setLightboxIndex(0);
+      setLightboxFallbackFind(fallbackFind);
+      setLightboxSpeciesName(fallbackFind?.species_name ?? speciesFinds[0]?.species_name ?? null);
+      setLightboxOpen(true);
+      return;
+    }
+
     const seen = new Set<string>();
     const flat: LightboxPhoto[] = [];
     for (const f of speciesFinds) {
@@ -89,14 +101,14 @@ export default function CollectionTab() {
       }
     }
     // Find the global index matching the clicked find + photoIndex (in deduplicated list)
-    const targetPhoto = speciesFinds.find((f) => f.id === findId)?.photos[photoIndex];
     const foundIndex = flat.findIndex(
       (entry) => entry.find.id === findId && entry.photo === targetPhoto,
     );
     const globalIndex = foundIndex >= 0 ? foundIndex : 0;
     setLightboxPhotos(flat);
     setLightboxIndex(globalIndex);
-    setLightboxSpeciesName(speciesFinds[0]?.species_name ?? null);
+    setLightboxFallbackFind(fallbackFind);
+    setLightboxSpeciesName(fallbackFind?.species_name ?? speciesFinds[0]?.species_name ?? null);
     setLightboxOpen(true);
   };
 
@@ -201,7 +213,7 @@ export default function CollectionTab() {
   const filteredGroups = useMemo(() => {
     if (!search.trim()) return groups;
     const q = search.trim().toLowerCase();
-    return groups.filter(([name]) => name.toLowerCase().includes(q));
+    return groups.filter(([name]) => plainSpeciesName(name).toLowerCase().startsWith(q));
   }, [groups, search]);
 
   const speciesNames = useMemo(
@@ -211,7 +223,7 @@ export default function CollectionTab() {
   const filteredSpecies = useMemo(() => {
     if (!moveTarget.trim()) return speciesNames;
     const q = moveTarget.trim().toLowerCase();
-    return speciesNames.filter((n) => n.toLowerCase().includes(q));
+    return speciesNames.filter((n) => plainSpeciesName(n).toLowerCase().startsWith(q));
   }, [speciesNames, moveTarget]);
 
   const isSearching = search.trim().length > 0;
@@ -231,7 +243,7 @@ export default function CollectionTab() {
     edibility: string | null,
     threatStatus: string | null,
     distribution: string | null,
-    edibilityNote: string | null,
+    description: string | null,
     synonyms: string[],
     otherNames: string[],
   ) => {
@@ -244,9 +256,11 @@ export default function CollectionTab() {
       edibility,
       threatStatus,
       distribution,
-      edibilityNote,
+      edibilityNote: existingProfile?.edibility_note ?? null,
       synonyms,
       otherNames,
+      fruitingBodyCountOverride: existingProfile?.fruiting_body_count_override ?? null,
+      description,
     });
   };
 
@@ -287,6 +301,8 @@ export default function CollectionTab() {
       edibilityNote: existingProfile?.edibility_note ?? null,
       synonyms: existingProfile?.synonyms ?? [],
       otherNames: existingProfile?.other_names ?? [],
+      fruitingBodyCountOverride: existingProfile?.fruiting_body_count_override ?? null,
+      description: existingProfile?.description ?? existingProfile?.edibility_note ?? null,
     });
   };
 
@@ -631,8 +647,6 @@ export default function CollectionTab() {
                             onClick={() => {
                               if (selectMode) {
                                 toggleSelect(f.id);
-                              } else if (f.photos.length === 0) {
-                                setEditing(f);
                               } else {
                                 openLightbox(speciesFinds, f.id, 0);
                               }
@@ -784,9 +798,13 @@ export default function CollectionTab() {
         open={lightboxOpen}
         onOpenChange={(open) => {
           setLightboxOpen(open);
-          if (!open) setLightboxSpeciesName(null);
+          if (!open) {
+            setLightboxSpeciesName(null);
+            setLightboxFallbackFind(null);
+          }
         }}
         photos={lightboxPhotos}
+        fallbackFind={lightboxFallbackFind}
         currentIndex={lightboxIndex}
         onIndexChange={setLightboxIndex}
         storagePath={storagePath!}
@@ -808,7 +826,9 @@ export default function CollectionTab() {
             ? speciesProfilesByName.get(lightboxSpeciesName)
             : lightboxPhotos[lightboxIndex]?.find?.species_name
               ? speciesProfilesByName.get(lightboxPhotos[lightboxIndex].find.species_name)
-              : undefined
+              : lightboxFallbackFind?.species_name
+                ? speciesProfilesByName.get(lightboxFallbackFind.species_name)
+                : undefined
         }
       />
       <CreateFindDialog open={createFindOpen} onOpenChange={setCreateFindOpen} />

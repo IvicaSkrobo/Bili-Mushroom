@@ -14,8 +14,11 @@ pub fn run() {
             commands::finds::get_find_photos,
             commands::finds::get_species_notes,
             commands::finds::get_species_profiles,
+            commands::finds::get_species_recipes,
             commands::finds::upsert_species_note,
             commands::finds::upsert_species_profile,
+            commands::finds::upsert_species_recipe,
+            commands::finds::delete_species_recipe,
             commands::finds::trash_source_file,
             commands::finds::quit_app,
             commands::finds::bulk_rename_species,
@@ -88,7 +91,7 @@ mod smoke {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .expect("user_version");
-        assert_eq!(version, 18, "user_version must be 18 after all migrations");
+        assert_eq!(version, 21, "user_version must be 21 after all migrations");
 
         let edibility_exists: i64 = conn
             .query_row(
@@ -125,6 +128,24 @@ mod smoke {
             )
             .expect("query species_profiles.other_names");
         assert_eq!(other_names_exists, 1, "species_profiles.other_names must exist after open_db");
+
+        let description_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('species_profiles') WHERE name = 'description'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("query species_profiles.description");
+        assert_eq!(description_exists, 1, "species_profiles.description must exist after open_db");
+
+        let recipes_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='species_recipes'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("query species_recipes");
+        assert_eq!(recipes_exists, 1, "species_recipes table must exist after open_db");
     }
 
     #[test]

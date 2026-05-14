@@ -1,6 +1,6 @@
 {
   "productName": "Bili Mushroom",
-  "version": "0.2.12",
+  "version": "0.2.14",
   "identifier": "hr.biligrupa.bilimushroom",
   "build": {
     "frontendDist": "../dist",
@@ -16,6 +16,7 @@
         "height": 800,
         "minWidth": 900,
         "minHeight": 600,
+        "backgroundColor": "#101827",
         "resizable": true,
         "fullscreen": false
       }

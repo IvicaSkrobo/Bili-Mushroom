@@ -43,7 +43,7 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
 
   const handleClick = selectMode && onToggleSelect
     ? () => onToggleSelect(find.id)
-    : !selectMode && onPhotoClick && uniquePhotos.length > 0
+    : !selectMode && onPhotoClick
     ? () => onPhotoClick(find.id, 0)
     : undefined;
 
@@ -54,7 +54,7 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
           ? isSelected
             ? 'border-primary/60 bg-primary/8 cursor-pointer'
             : 'border-border/50 bg-card/60 cursor-pointer hover:border-primary/25 hover:bg-card'
-          : `border-border/50 bg-card/60 hover:border-primary/25 hover:bg-card${!selectMode && onPhotoClick && currentPhoto ? ' cursor-pointer' : ''}`
+          : `border-border/50 bg-card/60 hover:border-primary/25 hover:bg-card${!selectMode && onPhotoClick ? ' cursor-pointer' : ''}`
       }`}
       onClick={handleClick}
       onMouseDown={startLongPress}

@@ -43,8 +43,8 @@ const EDIBILITY_ICONS: Record<Edibility, React.ElementType> = {
   edible_raw:           Leaf,
   conditionally_edible: AlertCircle,
   inedible:             InedibleIcon,
-  poisonous:            Skull,
-  deadly_poisonous:     AlertTriangle,
+  poisonous:            AlertTriangle,
+  deadly_poisonous:     Skull,
 };
 
 const THREAT_ICONS: Record<ThreatStatus, React.ElementType> = {
@@ -105,7 +105,14 @@ export function SpeciesMetadataBadges({
     <div className="flex flex-wrap gap-1">
       {showEdibility && (
         <span className={`inline-flex items-center rounded font-semibold tracking-wide ${sizeClass} ${EDIBILITY_BADGE_CLASSES[edibility]}`}>
-          <EdibilityIcon className={`${iconClass} mr-1 shrink-0`} aria-hidden="true" />
+          {edibility === 'conditionally_edible' ? (
+            <span className="mr-1 inline-flex shrink-0 items-center gap-0.5" aria-hidden="true">
+              <Utensils className={iconClass} />
+              <AlertCircle className={size === 'sm' ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
+            </span>
+          ) : (
+            <EdibilityIcon className={`${iconClass} mr-1 shrink-0`} aria-hidden="true" />
+          )}
           {t(`edibility.${edibility}`)}
         </span>
       )}

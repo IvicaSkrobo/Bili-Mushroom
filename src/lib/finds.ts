@@ -76,8 +76,19 @@ export interface SpeciesProfile {
   threat_status?: string | null;
   distribution?: string | null;
   edibility_note?: string | null;
+  description?: string | null;
   synonyms?: string[];
   other_names?: string[];
+  fruiting_body_count_override?: string | null;
+}
+
+export interface SpeciesRecipe {
+  id: number;
+  species_name: string;
+  title: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -213,6 +224,7 @@ export async function upsertSpeciesNote(
 
 export const SPECIES_NOTES_QUERY_KEY = 'species_notes' as const;
 export const SPECIES_PROFILES_QUERY_KEY = 'species_profiles' as const;
+export const SPECIES_RECIPES_QUERY_KEY = 'species_recipes' as const;
 
 export async function getSpeciesProfiles(storagePath: string): Promise<SpeciesProfile[]> {
   return invoke<SpeciesProfile[]>('get_species_profiles', { storagePath });
@@ -229,6 +241,8 @@ export async function upsertSpeciesProfile(
   edibilityNote?: string | null,
   synonyms?: string[],
   otherNames?: string[],
+  fruitingBodyCountOverride?: string | null,
+  description?: string | null,
 ): Promise<void> {
   return invoke<void>('upsert_species_profile', {
     storagePath,
@@ -241,7 +255,33 @@ export async function upsertSpeciesProfile(
     edibilityNote: edibilityNote ?? null,
     synonyms: synonyms ?? [],
     otherNames: otherNames ?? [],
+    fruitingBodyCountOverride: fruitingBodyCountOverride ?? null,
+    description: description ?? null,
   });
+}
+
+export async function getSpeciesRecipes(storagePath: string): Promise<SpeciesRecipe[]> {
+  return invoke<SpeciesRecipe[]>('get_species_recipes', { storagePath });
+}
+
+export async function upsertSpeciesRecipe(
+  storagePath: string,
+  id: number | null,
+  speciesName: string,
+  title: string,
+  notes: string,
+): Promise<SpeciesRecipe> {
+  return invoke<SpeciesRecipe>('upsert_species_recipe', {
+    storagePath,
+    id,
+    speciesName,
+    title,
+    notes,
+  });
+}
+
+export async function deleteSpeciesRecipe(storagePath: string, id: number): Promise<void> {
+  return invoke<void>('delete_species_recipe', { storagePath, id });
 }
 
 /**

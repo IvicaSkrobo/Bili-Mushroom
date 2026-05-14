@@ -172,7 +172,7 @@ export function AppShell() {
           ))}
         </TabsList>
 
-        <TabsContent value="collection" className="flex-1 min-h-0 overflow-auto">
+        <TabsContent value="collection" forceMount className="flex-1 min-h-0 overflow-auto data-[state=inactive]:hidden">
           <Suspense fallback={<div className="h-full w-full animate-pulse bg-card/20" />}>
             <CollectionTab />
           </Suspense>

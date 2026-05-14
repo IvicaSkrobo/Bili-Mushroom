@@ -31,7 +31,7 @@ interface FolderEditDialogProps {
     edibility: string | null,
     threatStatus: string | null,
     distribution: string | null,
-    edibilityNote: string | null,
+    description: string | null,
     synonyms: string[],
     otherNames: string[],
   ) => void | Promise<void>;
@@ -57,7 +57,7 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
   const [edibility, setEdibility] = useState<string>('unknown');
   const [threatStatus, setThreatStatus] = useState<string>('unknown');
   const [distribution, setDistribution] = useState<string>('unknown');
-  const [edibilityNote, setEdibilityNote] = useState<string>('');
+  const [description, setDescription] = useState<string>('');
   const [synonyms, setSynonyms] = useState<string[]>([]);
   const [otherNames, setOtherNames] = useState<string[]>([]);
   const [synonymInput, setSynonymInput] = useState('');
@@ -76,7 +76,7 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
       setEdibility(speciesProfile?.edibility ?? 'unknown');
       setThreatStatus(speciesProfile?.threat_status ?? 'unknown');
       setDistribution(speciesProfile?.distribution ?? 'unknown');
-      setEdibilityNote(speciesProfile?.edibility_note ?? '');
+      setDescription(speciesProfile?.description ?? speciesProfile?.edibility_note ?? '');
       setSynonyms(speciesProfile?.synonyms ?? []);
       setOtherNames(speciesProfile?.other_names ?? []);
       setSynonymInput('');
@@ -136,7 +136,7 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
         edibility === 'unknown' ? null : edibility,
         threatStatus === 'unknown' ? null : threatStatus,
         distribution === 'unknown' ? null : distribution,
-        edibilityNote.trim() || null,
+        description.trim() || null,
         synonyms,
         otherNames,
       );
@@ -160,8 +160,6 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
       setOpeningFolder(false);
     }
   }
-
-  const isEdible = ['edible', 'edible_raw', 'conditionally_edible'].includes(edibility);
 
   return (
     <>
@@ -267,15 +265,15 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
             </div>
 
             <div className="space-y-1">
-              <label className="text-sm font-medium">{t('edit.edibilityNote')}</label>
+              <label className="text-sm font-medium">{t('edit.speciesDescription')}</label>
               <textarea
-                value={edibilityNote}
-                onChange={(e) => setEdibilityNote(e.target.value)}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
                 rows={3}
-                placeholder={t('edit.edibilityNotePlaceholder')}
+                placeholder={t('edit.speciesDescriptionPlaceholder')}
                 className="w-full resize-none rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
               />
-              <p className="text-[11px] text-muted-foreground/50">{t('edit.edibilityNoteHelp')}</p>
+              <p className="text-[11px] text-muted-foreground/50">{t('edit.speciesDescriptionHelp')}</p>
             </div>
 
             {/* Synonyms */}

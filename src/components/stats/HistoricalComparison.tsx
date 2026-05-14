@@ -1,4 +1,5 @@
 import type { HistoricalPeriodData, YearBucket } from '@/lib/historicalComparison';
+import { plainSpeciesName, renderSpeciesName } from '@/lib/speciesName';
 
 const MONTH_NAMES = [
   'January',
@@ -44,9 +45,10 @@ function PeriodColumn({
                   {b.species.map((s) => (
                     <span
                       key={s}
-                      className="text-xs text-muted-foreground bg-muted/50 border border-border/40 px-1.5 py-0.5 rounded-sm"
+                      title={plainSpeciesName(s)}
+                      className="font-serif text-xs font-semibold italic text-muted-foreground bg-muted/50 border border-border/40 px-1.5 py-0.5 rounded-sm"
                     >
-                      {s}
+                      {renderSpeciesName(s)}
                     </span>
                   ))}
                 </div>

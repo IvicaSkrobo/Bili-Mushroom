@@ -36,6 +36,14 @@ interface SpeciesNameEditorProps {
   label?: string;
 }
 
+function normalizedName(value: string): string {
+  return plainSpeciesName(value).trim().toLocaleLowerCase();
+}
+
+function compareSpeciesNames(a: string, b: string): number {
+  return plainSpeciesName(a).localeCompare(plainSpeciesName(b), undefined, { sensitivity: 'base' });
+}
+
 export function SpeciesNameEditor({
   value,
   onChange,
@@ -116,11 +124,11 @@ export function SpeciesNameEditor({
   }, []);
 
   // ── Autocomplete ──────────────────────────────────────────────────────────
-  const visibleSuggestions = plainText
-    ? suggestions
-        .filter((s) =>
-          plainSpeciesName(s).toLowerCase().includes(plainText.toLowerCase()),
-        )
+  const normalizedQuery = normalizedName(plainText);
+  const visibleSuggestions = normalizedQuery
+    ? [...suggestions]
+        .sort(compareSpeciesNames)
+        .filter((s) => normalizedName(s).startsWith(normalizedQuery))
         .slice(0, 8)
     : [];
 

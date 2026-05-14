@@ -140,12 +140,13 @@ function StatusDropdown({ triggerRef, options, value, onSelect, onClose }: Statu
         ...(openUp ? { bottom: window.innerHeight - pos.top } : { top: pos.top }),
       }}
       className="
-        rounded-lg border border-white/8 shadow-2xl overflow-hidden
-        bg-[oklch(0.13_0.012_135)]
+        overflow-hidden rounded-md border border-border/70
+        bg-popover/98 text-popover-foreground shadow-xl shadow-black/15 backdrop-blur-md
+        dark:border-border/60 dark:bg-card/95 dark:shadow-black/35
         animate-in fade-in-0 zoom-in-95 duration-100
       "
     >
-      <div className="py-1">
+      <div className="p-1">
         {options.map((opt) => {
           const Icon = opt.icon;
           const isSelected = opt.value === value;
@@ -158,20 +159,23 @@ function StatusDropdown({ triggerRef, options, value, onSelect, onClose }: Statu
                 onSelect(opt.value);
                 onClose();
               }}
-              className="
-                w-full flex items-center gap-2 px-2.5 py-1.5
-                text-[11px] font-semibold tracking-wide
-                transition-colors duration-75 cursor-pointer
-                hover:bg-white/6 focus:outline-none focus:bg-white/8
-              "
+              className={`
+                flex w-full cursor-pointer items-center gap-2 rounded px-2.5 py-1.5
+                text-[11px] font-semibold tracking-wide text-popover-foreground
+                transition-colors duration-75
+                hover:bg-accent/75 hover:text-accent-foreground
+                focus:bg-accent focus:text-accent-foreground focus:outline-none
+                dark:hover:bg-primary/12 dark:focus:bg-primary/16
+                ${isSelected ? 'bg-primary/12 text-foreground ring-1 ring-primary/25 dark:bg-primary/16 dark:ring-primary/30' : ''}
+              `}
             >
               {/* Mini badge swatch — shows the option's color scheme */}
-              <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${opt.badgeClasses} flex-shrink-0`}>
+              <span className={`inline-flex flex-shrink-0 items-center gap-1 rounded px-1.5 py-0.5 shadow-sm ${opt.badgeClasses}`}>
                 <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />
               </span>
-              <span className="text-foreground/85 flex-1 text-left">{opt.label}</span>
+              <span className="flex-1 text-left text-current">{opt.label}</span>
               {isSelected && (
-                <Check className="h-3 w-3 text-primary flex-shrink-0" />
+                <Check className="h-3 w-3 flex-shrink-0 text-primary" />
               )}
             </button>
           );

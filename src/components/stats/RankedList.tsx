@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { plainSpeciesName, renderSpeciesName } from '@/lib/speciesName';
 
 interface RankedListItem {
   label: string;
@@ -78,9 +79,10 @@ export function RankedList({ title, items, emptyMessage, pageSize }: RankedListP
                         {item.species.map((s) => (
                           <span
                             key={s}
-                            className="text-xs text-foreground/80 bg-muted/60 border border-border/50 px-1.5 py-0.5 rounded-sm"
+                            title={plainSpeciesName(s)}
+                            className="font-serif text-xs font-semibold italic text-foreground/80 bg-muted/60 border border-border/50 px-1.5 py-0.5 rounded-sm"
                           >
-                            {s}
+                            {renderSpeciesName(s)}
                           </span>
                         ))}
                       </div>

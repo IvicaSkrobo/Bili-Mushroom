@@ -25,6 +25,7 @@ interface PhotoLightboxProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   photos: LightboxPhoto[];
+  fallbackFind?: Find | null;
   currentIndex: number;
   onIndexChange: (index: number) => void;
   storagePath: string;
@@ -39,6 +40,7 @@ export function PhotoLightbox({
   open,
   onOpenChange,
   photos,
+  fallbackFind = null,
   currentIndex,
   onIndexChange,
   storagePath,
@@ -52,7 +54,6 @@ export function PhotoLightbox({
   const [visible, setVisible] = useState(true);
   const [locationPickerOpen, setLocationPickerOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [permanentPhotoDelete, setPermanentPhotoDelete] = useState(true);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState('');
@@ -62,15 +63,16 @@ export function PhotoLightbox({
   const dragActive = useRef(false);
   const dragStart = useRef({ mx: 0, my: 0, px: 0, py: 0 });
 
-  // Reset zoom/pan and delete confirmation when photo changes
+  // Reset zoom/pan and delete confirmation when photo/find changes
   useEffect(() => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
     setConfirmingDelete(false);
     setEditingNotes(false);
-  }, [currentIndex]);
+  }, [currentIndex, fallbackFind?.id]);
 
   const handleWheel = (e: React.WheelEvent) => {
+    if (!photos[currentIndex]?.photo) return;
     e.preventDefault();
     setZoom((prev) => {
       const next = Math.min(5, Math.max(1, prev * (e.deltaY < 0 ? 1.15 : 0.87)));
@@ -80,6 +82,7 @@ export function PhotoLightbox({
   };
 
   const handleDoubleClick = () => {
+    if (!photos[currentIndex]?.photo) return;
     if (zoom > 1) {
       setZoom(1);
       setPan({ x: 0, y: 0 });
@@ -89,7 +92,7 @@ export function PhotoLightbox({
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (zoom <= 1) return;
+    if (!photos[currentIndex]?.photo || zoom <= 1) return;
     dragActive.current = true;
     dragStart.current = { mx: e.clientX, my: e.clientY, px: pan.x, py: pan.y };
   };
@@ -148,12 +151,13 @@ export function PhotoLightbox({
     return () => window.removeEventListener('keydown', handleKey);
   }, [open, currentIndex, photos.length, onIndexChange]);
 
-  if (!current) return null;
+  if (!current && !fallbackFind) return null;
 
-  const { photo, find } = current;
-  const heic = isHeic(photo.photo_path);
-  const photoSrc = heic ? null : resolvePhotoSrc(storagePath, photo.photo_path);
-  const isSpeciesCover = isCurrentSpeciesCover?.(current) ?? false;
+  const photo = current?.photo ?? null;
+  const find = current?.find ?? fallbackFind!;
+  const heic = photo ? isHeic(photo.photo_path) : false;
+  const photoSrc = photo && !heic ? resolvePhotoSrc(storagePath, photo.photo_path) : null;
+  const isSpeciesCover = current ? (isCurrentSpeciesCover?.(current) ?? false) : false;
 
   // Observed count display for this find
   const obsMin = find.observed_count_min ?? find.observed_count;
@@ -180,7 +184,9 @@ export function PhotoLightbox({
             {find.species_name || t('findCard.unnamed')}
           </DialogPrimitive.Title>
           <DialogPrimitive.Description className="sr-only">
-            {t('lightbox.photoCount', { current: currentIndex + 1, total: photos.length })}
+            {photos.length > 0
+              ? t('lightbox.photoCount', { current: currentIndex + 1, total: photos.length })
+              : (find.species_name || t('findCard.unnamed'))}
           </DialogPrimitive.Description>
 
           {/* Photo area */}
@@ -192,7 +198,7 @@ export function PhotoLightbox({
               style={{
                 opacity: visible ? 1 : 0,
                 transition: 'opacity 0.15s ease',
-                cursor: zoom > 1 ? (dragActive.current ? 'grabbing' : 'grab') : 'zoom-in',
+                cursor: photo ? (zoom > 1 ? (dragActive.current ? 'grabbing' : 'grab') : 'zoom-in') : 'default',
               }}
               onWheel={handleWheel}
               onDoubleClick={handleDoubleClick}
@@ -201,7 +207,14 @@ export function PhotoLightbox({
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
             >
-              {heic ? (
+              {!photo ? (
+                <div className="flex flex-col items-center gap-3 text-muted-foreground/45">
+                  <Image className="h-12 w-12" />
+                  <span className="text-sm font-medium">
+                    {t('species.noCoverOptions')}
+                  </span>
+                </div>
+              ) : heic ? (
                 <div className="flex flex-col items-center gap-2 text-muted-foreground/40">
                   <span className="font-mono text-[11px]">HEIC</span>
                   <span className="text-xs">{photo.photo_path.split('/').pop()}</span>
@@ -271,7 +284,7 @@ export function PhotoLightbox({
 
               {/* Small action icons — top-right corner */}
               <div className="flex items-center gap-0.5 flex-shrink-0 mt-0.5">
-                {confirmingDelete ? (
+              {confirmingDelete && current ? (
                   /* Inline delete confirmation */
                   <div className="flex items-center gap-1 rounded border border-rose-500/30 bg-rose-500/8 px-2 py-0.5">
                     <span className="text-[11px] font-medium text-rose-400/80 pr-1">
@@ -286,7 +299,7 @@ export function PhotoLightbox({
                     </button>
                     <button
                       type="button"
-                      onClick={() => { onDeletePhoto!(current, permanentPhotoDelete); onOpenChange(false); }}
+                      onClick={() => { onDeletePhoto!(current, false); onOpenChange(false); }}
                       className="text-[11px] font-semibold text-rose-400 hover:text-rose-300 transition-colors px-1"
                     >
                       {t('common.delete') ?? 'Obriši'}
@@ -298,13 +311,13 @@ export function PhotoLightbox({
                       <button
                         type="button"
                         title={t('edit.title')}
-                        onClick={() => { onEditFind(current.find); onOpenChange(false); }}
+                        onClick={() => { onEditFind(find); onOpenChange(false); }}
                         className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground/60 hover:bg-primary/10 hover:text-primary transition-colors"
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                     )}
-                    {onSetAsSpeciesCover && (
+                    {current && onSetAsSpeciesCover && (
                       <button
                         type="button"
                         title={isSpeciesCover ? t('collection.currentRepresentativePhoto') : t('collection.setRepresentativePhoto')}
@@ -315,7 +328,7 @@ export function PhotoLightbox({
                         {isSpeciesCover ? <Check className="h-3.5 w-3.5" /> : <Image className="h-3.5 w-3.5" />}
                       </button>
                     )}
-                    {onDeletePhoto && (
+                    {current && onDeletePhoto && (
                       <button
                         type="button"
                         title={t('lightbox.deletePhoto')}
@@ -330,19 +343,7 @@ export function PhotoLightbox({
               </div>
             </div>
 
-            {onDeletePhoto && (
-              <label className="mx-5 mb-3 inline-flex items-center gap-1.5 rounded border border-destructive/30 bg-destructive/5 px-2 py-1 text-[11px] font-medium text-destructive">
-                <input
-                  type="checkbox"
-                  checked={permanentPhotoDelete}
-                  onChange={(event) => setPermanentPhotoDelete(event.target.checked)}
-                  className="h-3.5 w-3.5 accent-current"
-                />
-                Permanently delete file
-              </label>
-            )}
-
-            {/* Edibility badge */}
+            {/* Species status badges */}
             <div className="px-5 pb-4">
               <SpeciesMetadataBadges speciesProfile={speciesProfile} size="md" hideUnknown={true} />
             </div>
@@ -353,26 +354,15 @@ export function PhotoLightbox({
             <div className="flex min-h-0 flex-1 flex-col gap-5 px-5 py-4">
 
               {/* Observed count — prominent */}
-              {observedDisplay && (
-                <div>
-                  <p className="mb-1 text-[10px] font-medium uppercase tracking-widest text-muted-foreground/50">
-                    {t('species.observedCount')}
-                  </p>
-                  <p className="font-mono text-3xl font-semibold text-primary leading-none">
-                    {observedDisplay}
-                  </p>
-                </div>
-              )}
-
               {/* Location block */}
               <div>
-                <p className="mb-1.5 text-[10px] font-medium uppercase tracking-widest text-muted-foreground/50">
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/65">
                   {t('lightbox.location')}
                 </p>
                 {(find.country || find.region) && (
                   <div className="mb-1 flex flex-col gap-0.5">
-                    {find.country && <span className="text-xs text-muted-foreground/70">{find.country}</span>}
-                    {find.region && <span className="text-xs text-muted-foreground/70">{find.region}</span>}
+                    {find.country && <span className="text-xs font-medium text-foreground/75">{find.country}</span>}
+                    {find.region && <span className="text-xs font-medium text-foreground/75">{find.region}</span>}
                   </div>
                 )}
                 <button
@@ -382,7 +372,7 @@ export function PhotoLightbox({
                   title={t('lightbox.changeLocation')}
                 >
                   <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary/70 group-hover/loc:text-primary transition-colors" />
-                  <span className="text-sm text-foreground/75 leading-snug group-hover/loc:text-foreground/90 transition-colors">
+                  <span className="text-sm font-semibold text-foreground leading-snug group-hover/loc:text-primary transition-colors">
                     {find.location_note || <span className="text-muted-foreground/40 italic">{t('lightbox.addLocation')}</span>}
                   </span>
                 </button>
@@ -396,7 +386,7 @@ export function PhotoLightbox({
               {/* Notes — inline edit/add */}
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-1.5">
-                  <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
                     {t('lightbox.notes')}
                   </p>
                   {!editingNotes && (
@@ -418,7 +408,7 @@ export function PhotoLightbox({
                       value={notesValue}
                       onChange={(e) => setNotesValue(e.target.value)}
                       rows={4}
-                      className="w-full rounded border border-border/60 bg-background/40 px-2.5 py-1.5 text-sm text-foreground/90 leading-relaxed resize-none outline-none focus:border-primary/60 focus:ring-1 focus:ring-ring"
+                      className="w-full rounded border border-border/60 bg-background/40 px-2.5 py-1.5 text-sm font-medium text-foreground leading-relaxed resize-none outline-none focus:border-primary/60 focus:ring-1 focus:ring-ring"
                     />
                     <div className="flex gap-1.5 justify-end">
                       <button
@@ -454,13 +444,23 @@ export function PhotoLightbox({
                     </div>
                   </div>
                 ) : find.notes ? (
-                  <p className="text-sm text-foreground/90 leading-relaxed overflow-y-auto max-h-40">
+                  <p className="text-sm font-semibold text-foreground leading-relaxed overflow-y-auto max-h-40">
                     {find.notes}
                   </p>
                 ) : (
                   <p className="text-xs text-muted-foreground/30 italic">Nema bilješki</p>
                 )}
               </div>
+              {observedDisplay && (
+                <div className="mt-auto border-t border-border/25 pt-4">
+                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/65">
+                    {t('species.observedCount')}
+                  </p>
+                  <p className="font-mono text-3xl font-bold text-primary leading-none">
+                    {observedDisplay}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -478,25 +478,29 @@ export function PhotoLightbox({
             </button>
 
             {/* Zoom controls */}
-            <button
-              type="button"
-              aria-label="Zoom in"
-              title="Zoom in"
-              onClick={() => setZoom((z) => Math.min(5, z * 1.3))}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/60 hover:bg-black/70 hover:text-white transition-all duration-150"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              aria-label="Zoom out"
-              title="Zoom out"
-              onClick={() => setZoom((z) => { const next = Math.max(1, z / 1.3); if (next <= 1) setPan({ x: 0, y: 0 }); return next; })}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/60 hover:bg-black/70 hover:text-white transition-all duration-150"
-            >
-              <Minus className="h-4 w-4" />
-            </button>
-            {zoom > 1 && (
+            {photo && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Zoom in"
+                  title="Zoom in"
+                  onClick={() => setZoom((z) => Math.min(5, z * 1.3))}
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/60 hover:bg-black/70 hover:text-white transition-all duration-150"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Zoom out"
+                  title="Zoom out"
+                  onClick={() => setZoom((z) => { const next = Math.max(1, z / 1.3); if (next <= 1) setPan({ x: 0, y: 0 }); return next; })}
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/60 hover:bg-black/70 hover:text-white transition-all duration-150"
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
+              </>
+            )}
+            {photo && zoom > 1 && (
               <button
                 type="button"
                 aria-label="Reset zoom"

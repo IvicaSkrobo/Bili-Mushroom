@@ -157,7 +157,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   const [sharedFindNotes, setSharedFindNotes] = useState('');
   const [sharedMapOpen, setSharedMapOpen] = useState(false);
   const [sharedLocation, setSharedLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [sharedEdibilityNote, setSharedEdibilityNote] = useState<string>('');
+  const [sharedSpeciesDescription, setSharedSpeciesDescription] = useState<string>('');
   const [sharedEdibility, setSharedEdibility] = useState<string>('unknown');
   const [sharedProtectedStatus, setSharedProtectedStatus] = useState<string>('unknown');
   const [sharedDistribution, setSharedDistribution] = useState<string>('unknown');
@@ -169,6 +169,11 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     const inProfiles = speciesProfilesData?.some((p) => p.species_name.toLowerCase() === name);
     return !inFinds && !inProfiles;
   }, [sharedName, findsData, speciesProfilesData]);
+
+  const sharedSpeciesProfile = useMemo(
+    () => speciesProfilesData?.find((p) => p.species_name.toLowerCase() === sharedName.trim().toLowerCase()) ?? null,
+    [speciesProfilesData, sharedName],
+  );
 
   // When species name changes to a known folder, pre-fill notes + species metadata from DB
   useEffect(() => {
@@ -311,7 +316,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         observed_count_min: observedRange.min,
         observed_count_max: observedRange.max,
         additional_photos: photos.slice(1),
-        edibility_note: sharedEdibilityNote.trim() || null,
+        edibility_note: null,
       };
 
       const summary = await importFind(storagePath, [payload], deleteSource);
@@ -321,16 +326,27 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         qc.invalidateQueries({ queryKey: [SPECIES_NOTES_QUERY_KEY, storagePath] });
       }
 
-      if (isNewSpecies && (sharedEdibility !== 'unknown' || sharedProtectedStatus !== 'unknown' || sharedDistribution !== 'unknown')) {
+      if (
+        sharedName.trim() &&
+        (isNewSpecies ||
+          sharedSpeciesDescription.trim() ||
+          sharedEdibility !== 'unknown' ||
+          sharedProtectedStatus !== 'unknown' ||
+          sharedDistribution !== 'unknown')
+      ) {
         await upsertSpeciesProfile(
           storagePath,
           sharedName.trim(),
-          null,
-          [],
-          sharedEdibility !== 'unknown' ? sharedEdibility : null,
-          sharedProtectedStatus !== 'unknown' ? sharedProtectedStatus : null,
-          sharedDistribution !== 'unknown' ? sharedDistribution : null,
-          null,
+          sharedSpeciesProfile?.cover_photo_id ?? null,
+          sharedSpeciesProfile?.tags ?? [],
+          sharedEdibility !== 'unknown' ? sharedEdibility : (sharedSpeciesProfile?.edibility ?? null),
+          sharedProtectedStatus !== 'unknown' ? sharedProtectedStatus : (sharedSpeciesProfile?.threat_status ?? null),
+          sharedDistribution !== 'unknown' ? sharedDistribution : (sharedSpeciesProfile?.distribution ?? null),
+          sharedSpeciesProfile?.edibility_note ?? null,
+          sharedSpeciesProfile?.synonyms ?? [],
+          sharedSpeciesProfile?.other_names ?? [],
+          sharedSpeciesProfile?.fruiting_body_count_override ?? null,
+          sharedSpeciesDescription.trim() || sharedSpeciesProfile?.description || sharedSpeciesProfile?.edibility_note || null,
         );
         qc.invalidateQueries({ queryKey: [SPECIES_PROFILES_QUERY_KEY, storagePath] });
       }
@@ -364,7 +380,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     setSharedEdibility('unknown');
     setSharedProtectedStatus('unknown');
     setSharedDistribution('unknown');
-    setSharedEdibilityNote('');
+    setSharedSpeciesDescription('');
   }
 
   function handleReviewClose(open: boolean) {
@@ -378,10 +394,15 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     resetState();
   }
 
+  function handleCancel() {
+    resetState();
+    onOpenChange(false);
+  }
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="flex max-h-[84vh] max-w-2xl flex-col overflow-hidden p-0">
+        <DialogContent className="flex max-h-[84vh] !w-[min(1180px,calc(100vw-2rem))] !max-w-none flex-col overflow-hidden p-0">
           <DialogHeader className="border-b border-border/60 px-5 py-3">
             <DialogTitle>{t('import.title')}</DialogTitle>
             <DialogDescription>
@@ -526,20 +547,25 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
               onChange={(e) => setSharedFindNotes(e.target.value)}
             />
 
-            <Textarea
-              placeholder={t('edit.edibilityNotePlaceholder')}
-              rows={2}
-              value={sharedEdibilityNote}
-              onChange={(e) => setSharedEdibilityNote(e.target.value)}
-            />
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
+                {t('edit.speciesDescription')}
+              </label>
+              <Textarea
+                placeholder={sharedSpeciesProfile?.description ?? sharedSpeciesProfile?.edibility_note ?? t('edit.speciesDescriptionPlaceholder')}
+                rows={2}
+                value={sharedSpeciesDescription}
+                onChange={(e) => setSharedSpeciesDescription(e.target.value)}
+              />
+            </div>
 
           </div>
 
           {/* Photo thumbnails */}
           <div>
             {photos.length > 0 && (
-              <div className="max-h-56 overflow-y-auto rounded-md border border-border/40 p-2">
-              <div className="grid grid-cols-4 gap-2 py-1">
+              <div className="max-h-48 overflow-y-auto rounded-md border border-border/40 p-2">
+              <div className="grid grid-cols-5 gap-1.5 py-1 sm:grid-cols-7 lg:grid-cols-9 xl:grid-cols-10">
                 {photos.map((path, i) => (
                   <div key={path} className="relative group aspect-square rounded-md overflow-hidden bg-muted">
                     <img
@@ -615,9 +641,14 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                   />
                   Delete from source folder after import
                 </label>
-                <Button onClick={handleImportAll} disabled={!canImport}>
-                  {t('import.importAll')}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" onClick={handleCancel} disabled={importing}>
+                    {t('edit.cancel')}
+                  </Button>
+                  <Button onClick={handleImportAll} disabled={!canImport}>
+                    {t('import.importAll')}
+                  </Button>
+                </div>
               </div>
             </div>
           </DialogFooter>

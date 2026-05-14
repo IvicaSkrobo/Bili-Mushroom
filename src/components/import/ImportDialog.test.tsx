@@ -200,6 +200,69 @@ describe('ImportDialog', () => {
     });
   });
 
+  it('preserves draft when closed without pressing Cancel', async () => {
+    vi.mocked(mockOpen).mockResolvedValueOnce(['/photos/shroom.jpg']);
+    const onOpenChange = vi.fn();
+    const { rerender } = render(
+      <Wrapper>
+        <ImportDialog open={true} onOpenChange={onOpenChange} />
+      </Wrapper>,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
+    });
+    await waitFor(() => screen.getByRole('button', { name: /Remove photo/i }));
+    fireEvent.change(screen.getByPlaceholderText('Mushroom name'), { target: { value: 'Amanita muscaria' } });
+
+    rerender(
+      <Wrapper>
+        <ImportDialog open={false} onOpenChange={onOpenChange} />
+      </Wrapper>,
+    );
+    rerender(
+      <Wrapper>
+        <ImportDialog open={true} onOpenChange={onOpenChange} />
+      </Wrapper>,
+    );
+
+    expect(screen.getByDisplayValue('Amanita muscaria')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Remove photo/i })).toBeInTheDocument();
+  });
+
+  it('clears draft when Cancel is clicked', async () => {
+    vi.mocked(mockOpen).mockResolvedValueOnce(['/photos/shroom.jpg']);
+    const onOpenChange = vi.fn();
+    const { rerender } = render(
+      <Wrapper>
+        <ImportDialog open={true} onOpenChange={onOpenChange} />
+      </Wrapper>,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
+    });
+    await waitFor(() => screen.getByRole('button', { name: /Remove photo/i }));
+    fireEvent.change(screen.getByPlaceholderText('Mushroom name'), { target: { value: 'Amanita muscaria' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+
+    rerender(
+      <Wrapper>
+        <ImportDialog open={false} onOpenChange={onOpenChange} />
+      </Wrapper>,
+    );
+    rerender(
+      <Wrapper>
+        <ImportDialog open={true} onOpenChange={onOpenChange} />
+      </Wrapper>,
+    );
+
+    expect(screen.queryByDisplayValue('Amanita muscaria')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Remove photo/i })).not.toBeInTheDocument();
+  });
+
   it('EXIF lat/lng pre-fill shows coordinates next to the map pin button', async () => {
     vi.mocked(mockOpen).mockResolvedValueOnce(['/photos/gps.jpg']);
     invokeHandlers['parse_exif'] = () => ({ date: '2024-05-10', lat: 45.1, lng: 13.9 });

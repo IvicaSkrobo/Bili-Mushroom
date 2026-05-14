@@ -1,10 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getFinds, updateFind, deleteFind, getSpeciesNotes, upsertSpeciesNote,
-  getSpeciesProfiles, upsertSpeciesProfile,
+  getSpeciesProfiles, upsertSpeciesProfile, getSpeciesRecipes, upsertSpeciesRecipe, deleteSpeciesRecipe,
   bulkRenameSpecies, moveFindToFolder, setFindFavorite, addFindPhotos, createFind,
   deleteFindPhoto, bulkDeleteFindPhotos,
-  FINDS_QUERY_KEY, SPECIES_NOTES_QUERY_KEY, SPECIES_PROFILES_QUERY_KEY,
+  FINDS_QUERY_KEY, SPECIES_NOTES_QUERY_KEY, SPECIES_PROFILES_QUERY_KEY, SPECIES_RECIPES_QUERY_KEY,
   type Find, type UpdateFindPayload, type CreateFindPayload,
 } from '@/lib/finds';
 import { useAppStore } from '@/stores/appStore';
@@ -55,6 +55,15 @@ export function useSpeciesProfiles() {
   return useQuery({
     queryKey: [SPECIES_PROFILES_QUERY_KEY, storagePath],
     queryFn: () => getSpeciesProfiles(storagePath!),
+    enabled: !!storagePath,
+  });
+}
+
+export function useSpeciesRecipes() {
+  const storagePath = useAppStore((s) => s.storagePath);
+  return useQuery({
+    queryKey: [SPECIES_RECIPES_QUERY_KEY, storagePath],
+    queryFn: () => getSpeciesRecipes(storagePath!),
     enabled: !!storagePath,
   });
 }
@@ -135,6 +144,8 @@ export function useUpsertSpeciesProfile() {
       edibilityNote,
       synonyms,
       otherNames,
+      fruitingBodyCountOverride,
+      description,
     }: {
       speciesName: string;
       coverPhotoId: number | null;
@@ -145,9 +156,34 @@ export function useUpsertSpeciesProfile() {
       edibilityNote?: string | null;
       synonyms?: string[];
       otherNames?: string[];
-    }) => upsertSpeciesProfile(storagePath!, speciesName, coverPhotoId, tags, edibility, threatStatus, distribution, edibilityNote, synonyms, otherNames),
+      fruitingBodyCountOverride?: string | null;
+      description?: string | null;
+    }) => upsertSpeciesProfile(storagePath!, speciesName, coverPhotoId, tags, edibility, threatStatus, distribution, edibilityNote, synonyms, otherNames, fruitingBodyCountOverride, description),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [SPECIES_PROFILES_QUERY_KEY, storagePath] });
+    },
+  });
+}
+
+export function useUpsertSpeciesRecipe() {
+  const storagePath = useAppStore((s) => s.storagePath);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, speciesName, title, notes }: { id: number | null; speciesName: string; title: string; notes: string }) =>
+      upsertSpeciesRecipe(storagePath!, id, speciesName, title, notes),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [SPECIES_RECIPES_QUERY_KEY, storagePath] });
+    },
+  });
+}
+
+export function useDeleteSpeciesRecipe() {
+  const storagePath = useAppStore((s) => s.storagePath);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => deleteSpeciesRecipe(storagePath!, id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [SPECIES_RECIPES_QUERY_KEY, storagePath] });
     },
   });
 }

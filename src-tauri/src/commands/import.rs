@@ -96,6 +96,9 @@ const MIGRATION_0015: &str = include_str!("../../migrations/0015_species_profile
 const MIGRATION_0016: &str = include_str!("../../migrations/0016_species_profile_threat_distribution.sql");
 const _MIGRATION_0017: &str = include_str!("../../migrations/0017_repair_finds_edibility_note.sql");
 const MIGRATION_0018: &str = include_str!("../../migrations/0018_species_profile_synonyms.sql");
+const MIGRATION_0019: &str = include_str!("../../migrations/0019_species_profile_fruiting_body_override.sql");
+const MIGRATION_0020: &str = include_str!("../../migrations/0020_species_profile_description.sql");
+const MIGRATION_0021: &str = include_str!("../../migrations/0021_species_recipes.sql");
 
 fn normalize_observed_range(
     observed_count: Option<i64>,
@@ -363,6 +366,51 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
         }
         conn.execute_batch("PRAGMA user_version = 18")
             .map_err(|e| format!("Failed to set user_version=18: {}", e))?;
+    }
+    if version < 19 {
+        let fruiting_override_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('species_profiles') WHERE name = 'fruiting_body_count_override'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        if fruiting_override_exists == 0 {
+            conn.execute_batch(MIGRATION_0019)
+                .map_err(|e| format!("Migration 0019 failed: {}", e))?;
+        }
+        conn.execute_batch("PRAGMA user_version = 19")
+            .map_err(|e| format!("Failed to set user_version=19: {}", e))?;
+    }
+    if version < 20 {
+        let description_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('species_profiles') WHERE name = 'description'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        if description_exists == 0 {
+            conn.execute_batch(MIGRATION_0020)
+                .map_err(|e| format!("Migration 0020 failed: {}", e))?;
+        }
+        conn.execute_batch("PRAGMA user_version = 20")
+            .map_err(|e| format!("Failed to set user_version=20: {}", e))?;
+    }
+    if version < 21 {
+        let recipes_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='species_recipes'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        if recipes_exists == 0 {
+            conn.execute_batch(MIGRATION_0021)
+                .map_err(|e| format!("Migration 0021 failed: {}", e))?;
+        }
+        conn.execute_batch("PRAGMA user_version = 21")
+            .map_err(|e| format!("Failed to set user_version=21: {}", e))?;
     }
 
     Ok(())

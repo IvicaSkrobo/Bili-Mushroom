@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { SpeciesStatSummary } from '@/lib/stats';
+import { plainSpeciesName, renderSpeciesName } from '@/lib/speciesName';
 
 interface SpeciesStatRowProps {
   stat: SpeciesStatSummary;
@@ -46,8 +47,11 @@ export function SpeciesStatRow({ stat, rank, index }: SpeciesStatRowProps) {
         <span className="font-serif italic text-sm text-primary w-6 shrink-0">#{rank}</span>
 
         {/* Species name */}
-        <span className="font-serif italic text-sm text-foreground truncate flex-1">
-          {stat.species_name}
+        <span
+          className="font-serif text-sm font-semibold italic text-foreground truncate flex-1"
+          title={plainSpeciesName(stat.species_name)}
+        >
+          {renderSpeciesName(stat.species_name)}
         </span>
 
         {/* Find count badge */}
@@ -94,7 +98,7 @@ export function SpeciesStatRow({ stat, rank, index }: SpeciesStatRowProps) {
             {(stat.observed_min != null || stat.observed_max != null) && (
               <div>
                 <span className="text-xs uppercase tracking-[0.12em] text-muted-foreground">
-                  Observed
+                  Fruiting bodies
                 </span>
                 <p className="text-sm text-foreground">
                   {formatObserved(stat.observed_min, stat.observed_max)}

@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useCreateFind, useFinds, useSpeciesProfiles } from '@/hooks/useFinds';
+import { useCreateFind, useFinds, useSpeciesProfiles, useUpsertSpeciesProfile } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
 import { reverseGeocode } from '@/lib/geocoding';
@@ -32,7 +32,7 @@ interface FormState {
   lng: string;
   notes: string;
   observed_count_range: string;
-  edibility_note: string;
+  species_description: string;
 }
 
 function parseObservedRangeInput(value: string) {
@@ -64,7 +64,7 @@ const BLANK_FORM: FormState = {
   lng: '',
   notes: '',
   observed_count_range: '',
-  edibility_note: '',
+  species_description: '',
 };
 
 interface CreateFindDialogProps {
@@ -76,6 +76,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   const t = useT();
   const storagePath = useAppStore((s) => s.storagePath);
   const createMutation = useCreateFind();
+  const upsertSpeciesProfile = useUpsertSpeciesProfile();
   const { data: findsData } = useFinds();
   const { data: speciesProfilesData } = useSpeciesProfiles();
   const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
@@ -110,12 +111,10 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   }, [findsData]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [form, setForm] = useState<FormState>(BLANK_FORM);
-  // Reset form to blank when dialog opens
-  useEffect(() => {
-    if (open) {
-      setForm(BLANK_FORM);
-    }
-  }, [open]);
+  const speciesProfile = useMemo(
+    () => speciesProfilesData?.find((profile) => profile.species_name.toLowerCase() === form.species_name.trim().toLowerCase()) ?? null,
+    [speciesProfilesData, form.species_name],
+  );
 
   // Load species folder suggestions
   useEffect(() => {
@@ -150,14 +149,35 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
         observed_count: observedRange.representative,
         observed_count_min: observedRange.min,
         observed_count_max: observedRange.max,
-        edibility_note: form.edibility_note.trim() || null,
+        edibility_note: null,
       },
       {
-        onSuccess: () => {
+        onSuccess: async () => {
+          if (form.species_name.trim() && form.species_description.trim()) {
+            await upsertSpeciesProfile.mutateAsync({
+              speciesName: form.species_name.trim(),
+              coverPhotoId: speciesProfile?.cover_photo_id ?? null,
+              tags: speciesProfile?.tags ?? [],
+              edibility: speciesProfile?.edibility ?? null,
+              threatStatus: speciesProfile?.threat_status ?? null,
+              distribution: speciesProfile?.distribution ?? null,
+              edibilityNote: speciesProfile?.edibility_note ?? null,
+              synonyms: speciesProfile?.synonyms ?? [],
+              otherNames: speciesProfile?.other_names ?? [],
+              fruitingBodyCountOverride: speciesProfile?.fruiting_body_count_override ?? null,
+              description: form.species_description.trim(),
+            });
+          }
+          setForm(BLANK_FORM);
           onOpenChange(false);
         },
       },
     );
+  }
+
+  function handleCancel() {
+    setForm(BLANK_FORM);
+    onOpenChange(false);
   }
 
   const canSave = form.species_name.trim() !== '' && !createMutation.isPending;
@@ -174,7 +194,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[82vh] max-w-2xl flex-col overflow-hidden p-0">
+      <DialogContent className="flex max-h-[82vh] !w-[min(1040px,calc(100vw-2rem))] !max-w-none flex-col overflow-hidden p-0">
         <DialogHeader className="border-b border-border/60 px-5 py-2">
           <DialogTitle>{t('create.title')}</DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground/80">
@@ -282,14 +302,14 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
             />
           </div>
           <div>
-            <label className="text-sm font-medium">{t('edit.edibilityNote')}</label>
+            <label className="text-sm font-medium">{t('edit.speciesDescription')}</label>
             <Textarea
-              value={form.edibility_note}
-              onChange={(e) => handleChange('edibility_note', e.target.value)}
-              placeholder={t('edit.edibilityNotePlaceholder')}
+              value={form.species_description}
+              onChange={(e) => handleChange('species_description', e.target.value)}
+              placeholder={speciesProfile?.description ?? speciesProfile?.edibility_note ?? t('edit.speciesDescriptionPlaceholder')}
               rows={3}
             />
-            <p className="mt-1 text-xs text-muted-foreground">{t('edit.edibilityNoteHelp')}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t('edit.speciesDescriptionHelp')}</p>
           </div>
           <div>
             <div className="mb-1 flex items-center gap-1 text-sm font-medium">
@@ -325,7 +345,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
         )}
 
         <DialogFooter className="border-t border-border/60 px-5 py-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={handleCancel}>
             {t('edit.cancel')}
           </Button>
           <Button onClick={handleSave} disabled={!canSave}>
