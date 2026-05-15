@@ -486,10 +486,6 @@ const hr: Translations = {
   'zone.editLocalCircle': 'Uredi lokalnu kružnicu',
   'zone.pickFindFirst': 'Odaberi pin gljive ili nalaz, zatim će se pojaviti lokalne akcije.',
 
-  // photo unit pluralization
-  'collection.photoUnit.one': 'foto',
-  'collection.photoUnit.many': 'foto',
-
   // find card
   'findCard.countUnit': 'kom',
 };
