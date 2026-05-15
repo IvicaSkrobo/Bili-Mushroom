@@ -7,6 +7,7 @@ import type { Find } from '@/lib/finds';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import type { FindGroup } from './groupFindsByCoords';
 import { renderSpeciesName, plainSpeciesName } from '@/lib/speciesName';
+import { useT } from '@/i18n/index';
 
 interface FindPopupProps {
   group: FindGroup;
@@ -48,6 +49,7 @@ function LevelTwoCard({
   storagePath: string;
   onBack: () => void;
 }) {
+  const t = useT();
   const map = useMap();
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const setEditingFindId = useAppStore((s) => s.setEditingFindId);
@@ -60,7 +62,7 @@ function LevelTwoCard({
       <button
         type="button"
         onClick={onBack}
-        aria-label="Back to summary"
+        aria-label={t('map.backToSummary')}
         className="flex items-center text-muted-foreground hover:text-foreground"
       >
         <ChevronLeft className="h-4 w-4" />

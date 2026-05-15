@@ -47,7 +47,7 @@ export function AppShell() {
     if (checkingUpdate) return;
     setCheckingUpdate(true);
     setCheckError(null);
-    setCheckLabel('Checking…');
+    setCheckLabel(t('app.checkingUpdate'));
     const timeout = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('Timed out after 45s — if this keeps happening, open Windows Security → Virus & threat protection → allow Bili Mushroom')), 45000),
     );
@@ -61,7 +61,7 @@ export function AppShell() {
         setUpdateConfirmPending(true);
         setCheckLabel(null);
       } else {
-        setCheckLabel('Up to date');
+        setCheckLabel(t('app.upToDate'));
         setTimeout(() => setCheckLabel(null), 3000);
       }
     } catch (err) {
@@ -86,7 +86,7 @@ export function AppShell() {
             <button
               type="button"
               onClick={handleCheckVersion}
-              title={availableUpdate ? `Update available: v${availableUpdate.version} — click to install` : 'Click to check for updates'}
+              title={availableUpdate ? t('app.updateTitle', { version: availableUpdate.version }) : t('app.checkTitle')}
               className="relative rounded-full border border-primary/25 bg-primary/8 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-foreground/80 hover:border-primary/50 hover:text-primary transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
               disabled={checkingUpdate}
             >
@@ -113,7 +113,7 @@ export function AppShell() {
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Toggle theme"
+            aria-label={t('app.toggleTheme')}
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             className="rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
           >

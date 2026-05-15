@@ -149,7 +149,7 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
           }
         </div>
       ) : (
-        <div className="absolute top-2 right-2 flex items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
+        <div className="absolute top-2 right-2 flex items-center gap-0.5 opacity-40 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
           <Button
             variant="ghost"
             size="icon"
@@ -165,7 +165,7 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 text-muted-foreground hover:text-foreground"
+            className="h-6 w-6 text-muted-foreground hover:text-primary"
             aria-label={t('findCard.edit')}
             onClick={(e) => { e.stopPropagation(); onEdit(find); }}
           >
@@ -175,7 +175,7 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
             variant="ghost"
             size="icon"
             className="h-6 w-6 text-muted-foreground hover:text-destructive"
-            aria-label="Delete"
+            aria-label={t('delete.confirm')}
             onClick={(e) => { e.stopPropagation(); onDelete(find); }}
           >
             <Trash2 className="h-3 w-3" />

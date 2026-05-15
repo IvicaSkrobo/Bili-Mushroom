@@ -12,6 +12,7 @@ import { OnlineStatusBadge } from './OnlineStatusBadge';
 import { ZoneLayers } from './ZoneLayers';
 import { ZoneEditorPanel } from './ZoneEditorPanel';
 import { useAppStore, loadMapViewport, saveMapViewport } from '@/stores/appStore';
+import { useT } from '@/i18n/index';
 
 applyLeafletIconFix();
 
@@ -90,6 +91,7 @@ export function FindsMap({
   drawTargetZoneType = null,
   fitBoundsTrigger = 0,
 }: FindsMapProps) {
+  const t = useT();
   const [map, setMap] = useState<L.Map | null>(null);
   const initialViewport = useRef(loadMapViewport());
   const activeZone = activeZoneId == null
@@ -250,7 +252,7 @@ export function FindsMap({
               map.flyTo(CROATIA_CENTER, CROATIA_ZOOM, { animate: true, duration: 0.7 });
             }
           }}
-          title="Zoom to fit all pins"
+          title={t('map.zoomToFit')}
           className="absolute bottom-8 right-3 z-[1000] flex items-center justify-center w-8 h-8 rounded-md bg-card/90 border border-border/70 shadow-sm text-foreground/60 hover:text-primary hover:border-primary/40 hover:bg-card transition-colors"
         >
           <LocateFixed className="h-4 w-4" />

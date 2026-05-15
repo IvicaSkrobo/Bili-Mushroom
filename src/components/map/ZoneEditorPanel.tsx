@@ -5,6 +5,7 @@ import { formatRadius, parsePolygonJson, summarizeZone, type Zone } from '@/lib/
 import { useDeleteZone, useUpsertZone } from '@/hooks/useZones';
 import { DraggablePanel } from './DraggablePanel';
 import { plainSpeciesName } from '@/lib/speciesName';
+import { useT } from '@/i18n/index';
 
 interface ZoneEditorPanelProps {
   zone: Zone;
@@ -27,6 +28,7 @@ export function ZoneEditorPanel({
   onZoneTypeSelected,
   onZoomToZone,
 }: ZoneEditorPanelProps) {
+  const t = useT();
   const upsertZone = useUpsertZone();
   const deleteZone = useDeleteZone();
   const summary = useMemo(() => summarizeZone(zone, finds), [zone, finds]);
@@ -85,11 +87,11 @@ export function ZoneEditorPanel({
               className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em]"
               style={{ backgroundColor: translucentAccent, color: accent, border: `1px solid ${accent}` }}
             >
-              {isLocal ? 'Local' : 'Region'}
+              {isLocal ? t('zone.local') : t('zone.region')}
             </span>
             <button
               type="button"
-              aria-label="Close zone editor"
+              aria-label={t('zone.close')}
               onClick={onClose}
               className="rounded p-0.5 text-muted-foreground hover:bg-secondary/25 hover:text-foreground"
             >
@@ -104,10 +106,10 @@ export function ZoneEditorPanel({
 
           <div className="mb-1.5 min-w-0">
             <p className="font-serif text-sm font-bold italic text-foreground">
-              {name || (isLocal ? 'Local zone' : 'Region zone')}
+              {name || (isLocal ? t('zone.localZone') : t('zone.regionZone'))}
             </p>
             <p className="truncate text-xs text-muted-foreground">
-              {plainSpeciesName(zone.species_name)} / {isPolygon ? `${polygonPoints.length} points` : formatRadius(Number(radius))}
+              {plainSpeciesName(zone.species_name)} / {isPolygon ? `${polygonPoints.length} pt` : formatRadius(Number(radius))}
             </p>
           </div>
 
@@ -118,7 +120,7 @@ export function ZoneEditorPanel({
             style={{ borderColor: accent }}
           >
             <Crosshair className="h-3.5 w-3.5" />
-            Zoom to {isLocal ? 'local zone' : 'region'}
+            {isLocal ? t('zone.zoomLocal') : t('zone.zoomRegion')}
           </button>
 
           <div className="mb-1.5 rounded border border-border bg-input p-1">
@@ -137,7 +139,7 @@ export function ZoneEditorPanel({
                       color: active ? '#FFFFFF' : 'var(--muted-foreground)',
                     }}
                   >
-                    {type}
+                    {type === 'local' ? t('zone.local') : t('zone.region')}
                   </button>
                 );
               })}
@@ -145,13 +147,13 @@ export function ZoneEditorPanel({
           </div>
 
           <div className="mb-1.5 grid grid-cols-3 gap-1 text-[11px] text-muted-foreground">
-            <ZoneStat label="Finds" value={String(summary.finds.length)} />
-            <ZoneStat label="First" value={summary.firstFound ?? '-'} />
-            <ZoneStat label="Last" value={summary.lastFound ?? '-'} />
+            <ZoneStat label={t('zone.finds')} value={String(summary.finds.length)} />
+            <ZoneStat label={t('zone.first')} value={summary.firstFound ?? '-'} />
+            <ZoneStat label={t('zone.last')} value={summary.lastFound ?? '-'} />
           </div>
 
           <label className="mb-1.5 flex flex-col gap-1 text-[11px] text-muted-foreground">
-            Name
+            {t('zone.name')}
             <input
               value={name}
               onChange={(event) => setName(event.target.value)}
@@ -161,21 +163,21 @@ export function ZoneEditorPanel({
 
           {isPolygon ? (
             <div className="mb-1.5 rounded border border-border/60 bg-secondary/15 px-2 py-1.5 text-[11px] text-muted-foreground">
-              <p className="font-semibold uppercase tracking-[0.12em] text-secondary">Boundary Shape</p>
+              <p className="font-semibold uppercase tracking-[0.12em] text-secondary">{t('zone.boundaryShape')}</p>
               <p className="mt-1 leading-relaxed">
-                Polygon with {polygonPoints.length} points. Edit boundary on the map.
+                {t('zone.polygonPoints', { n: polygonPoints.length })}
               </p>
               <button
                 type="button"
                 onClick={onStartPolygonEdit}
                 className="mt-2 rounded border border-border/60 px-2 py-1 text-[11px] font-semibold text-foreground hover:bg-secondary/20"
               >
-                Adjust points on map
+                {t('zone.adjustPoints')}
               </button>
             </div>
           ) : (
             <label className="mb-1.5 flex flex-col gap-1 text-[11px] text-muted-foreground">
-              Radius meters
+              {t('zone.radius')}
               <input
                 type="text"
                 inputMode="numeric"
@@ -188,7 +190,7 @@ export function ZoneEditorPanel({
           )}
 
           <label className="mb-1.5 flex flex-col gap-1 text-[11px] text-muted-foreground">
-            Notes
+            {t('zone.notes')}
             <textarea
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
@@ -204,7 +206,7 @@ export function ZoneEditorPanel({
               disabled={saving}
               className="rounded bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground disabled:opacity-60"
             >
-              {saving ? 'Saving' : isPolygon ? 'Save details' : 'Save'}
+              {saving ? t('zone.saving') : isPolygon ? t('zone.saveDetails') : t('zone.save')}
             </button>
             <button
               type="button"
@@ -215,7 +217,7 @@ export function ZoneEditorPanel({
               className="inline-flex items-center gap-1 rounded border border-destructive/40 px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
             >
               <Trash2 className="h-3 w-3" />
-              Delete {isLocal ? 'local' : 'region'}
+              {isLocal ? t('zone.deleteLocal') : t('zone.deleteRegion')}
             </button>
           </div>
         </div>

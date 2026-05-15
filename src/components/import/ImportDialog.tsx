@@ -3,7 +3,7 @@ import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { readDir } from '@tauri-apps/plugin-fs';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useQueryClient } from '@tanstack/react-query';
-import { MapPin, Images, FolderOpen, X } from 'lucide-react';
+import { Images, FolderOpen, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -22,6 +22,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PostImportReviewDialog } from './PostImportReviewDialog';
 import { useImportProgress } from './useImportProgress';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
+import { PickLocationButton } from '@/components/map/PickLocationButton';
 import {
   parseExif,
   importFind,
@@ -471,28 +472,12 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                   placeholder={t('import.commonNamePlaceholder')}
                 />
               </div>
-              <div className="flex items-center gap-3">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSharedMapOpen(true)}
-                  className={[
-                    'gap-1.5 h-8 border',
-                    sharedLocation
-                      ? 'border-secondary/50 bg-secondary/15 text-secondary hover:bg-secondary/25 hover:border-secondary/65'
-                      : 'border-primary/40 bg-primary/12 text-primary hover:bg-primary/22 hover:border-primary/60',
-                  ].join(' ')}
-                >
-                  <MapPin className="h-3.5 w-3.5" />
-                  {t('folder.pickOnMap')}
-                </Button>
-                {sharedLocation && (
-                  <span className="text-xs text-muted-foreground font-mono">
-                    {sharedLocation.lat.toFixed(4)}, {sharedLocation.lng.toFixed(4)}
-                  </span>
-                )}
-              </div>
+              <PickLocationButton
+                hasLocation={!!sharedLocation}
+                lat={sharedLocation?.lat}
+                lng={sharedLocation?.lng}
+                onClick={() => setSharedMapOpen(true)}
+              />
             </div>
 
             {/* Status badges — only for new species */}
@@ -589,7 +574,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                       type="button"
                       onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}
                       className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-0.5 text-white"
-                      aria-label="Remove photo"
+                      aria-label={t('import.removePhoto')}
                     >
                       <X className="h-3 w-3" />
                     </button>

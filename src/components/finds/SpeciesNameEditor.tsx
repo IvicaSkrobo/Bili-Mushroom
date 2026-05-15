@@ -23,6 +23,7 @@ import { useRef, useEffect, useState } from 'react';
 import { rawToHtml, htmlToRaw } from '@/lib/speciesFormat';
 import { compareSpeciesNames, matchesSpeciesQuery, plainSpeciesName, renderSpeciesName } from '@/lib/speciesName';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n/index';
 
 type SpeciesMeta = {
   common_name?: string | null;
@@ -59,6 +60,7 @@ export function SpeciesNameEditor({
   label,
   suggestionsProfiles,
 }: SpeciesNameEditorProps) {
+  const t = useT();
   const editorRef = useRef<HTMLDivElement>(null);
   /** Last value we wrote to the DOM — used to detect external changes */
   const lastSyncedRef = useRef<string>('__uninit__');
@@ -328,7 +330,7 @@ export function SpeciesNameEditor({
                 if (domIsBold()) applyNormal(); else applyBold();
               }}
               className={cn(btnBase, isBold ? btnActive : btnInactive)}
-              title="Bold — genus (Ctrl+B)"
+              title={t('speciesName.boldGenus')}
             >
               <span className="font-sans font-bold">B</span>
             </button>
@@ -341,7 +343,7 @@ export function SpeciesNameEditor({
                 if (!domIsBold()) applyBold(); else applyNormal();
               }}
               className={cn(btnBase, !isBold ? btnActive : btnInactive)}
-              title="Normal — species epithet (Ctrl+I)"
+              title={t('speciesName.normalEpithet')}
             >
               <span className="font-sans text-[10px] font-medium tracking-tight">N</span>
             </button>

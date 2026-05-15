@@ -22,8 +22,9 @@ import { openFindFolder, SUPPORTED_EXTENSIONS, type Find } from '@/lib/finds';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { reverseGeocode } from '@/lib/geocoding';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
+import { PickLocationButton } from '@/components/map/PickLocationButton';
 import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
-import { Check, FolderOpen, ImagePlus, Info, MapPin, Trash2, X } from 'lucide-react';
+import { Check, FolderOpen, ImagePlus, Info, Trash2, X } from 'lucide-react';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 
 interface FormState {
@@ -317,26 +318,12 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
               />
             </div>
             <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
+              <PickLocationButton
+                hasLocation={form.lat !== '' && form.lng !== ''}
+                lat={form.lat !== '' ? parseFloat(form.lat) : null}
+                lng={form.lng !== '' ? parseFloat(form.lng) : null}
                 onClick={() => setPickerOpen(true)}
-                className={[
-                  'gap-1.5 h-8 border',
-                  form.lat !== '' && form.lng !== ''
-                    ? 'border-secondary/50 bg-secondary/15 text-secondary hover:bg-secondary/25 hover:border-secondary/65'
-                    : 'border-primary/40 bg-primary/12 text-primary hover:bg-primary/22 hover:border-primary/60',
-                ].join(' ')}
-              >
-                <MapPin className="h-3.5 w-3.5" />
-                {t('folder.pickOnMap')}
-              </Button>
-              {form.lat !== '' && form.lng !== '' && (
-                <span className="text-xs text-muted-foreground font-mono">
-                  {parseFloat(form.lat).toFixed(4)}, {parseFloat(form.lng).toFixed(4)}
-                </span>
-              )}
+              />
             </div>
             <div className="mt-1.5">
               <SpeciesMetadataBadges speciesProfile={speciesProfile} size="sm" hideUnknown={false} />
@@ -571,7 +558,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
                         {selectedPhotoIds.size === 0 && (
                           <button
                             type="button"
-                            aria-label="Delete photo"
+                            aria-label={t('edit.deletePhoto')}
                             onClick={(e) => {
                               e.stopPropagation();
                               deletePhotoMutation.mutate({

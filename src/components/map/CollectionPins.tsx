@@ -9,7 +9,7 @@ import { useSpeciesNotes, useSpeciesProfiles } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
 import { renderSpeciesName, plainSpeciesName, normalizeCommonName } from '@/lib/speciesName';
-import { tFindsCount } from '@/i18n/index';
+import { tFindsCount, useT } from '@/i18n/index';
 
 export const LABEL_ZOOM_THRESHOLD = 13;
 
@@ -76,6 +76,7 @@ function CollectionPopup({
   const setSelectedCollectionSpecies = useAppStore((s) => s.setSelectedCollectionSpecies);
   const setPendingSpeciesSelection = useAppStore((s) => s.setPendingSpeciesSelection);
   const lang = useAppStore((s) => s.language);
+  const t = useT();
   const popupRef = useRef<HTMLDivElement | null>(null);
   const previousButtonRef = useRef<HTMLButtonElement | null>(null);
   const nextButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -186,7 +187,7 @@ function CollectionPopup({
           <button
             ref={previousButtonRef}
             type="button"
-            aria-label="Previous species"
+            aria-label={t('map.prevSpecies')}
             onMouseDown={stopPopupButtonEvent}
             onClick={stopPopupButtonEvent}
             className="absolute -left-8 top-[74px] z-[20] flex h-11 w-7 -translate-y-1/2 items-center justify-center rounded-l-md border border-border/50 bg-background/95 text-foreground shadow-sm transition-colors hover:bg-secondary hover:text-primary"
@@ -196,7 +197,7 @@ function CollectionPopup({
           <button
             ref={nextButtonRef}
             type="button"
-            aria-label="Next species"
+            aria-label={t('map.nextSpecies')}
             onMouseDown={stopPopupButtonEvent}
             onClick={stopPopupButtonEvent}
             className="absolute -right-8 top-[74px] z-[20] flex h-11 w-7 -translate-y-1/2 items-center justify-center rounded-r-md border border-border/50 bg-background/95 text-foreground shadow-sm transition-colors hover:bg-secondary hover:text-primary"

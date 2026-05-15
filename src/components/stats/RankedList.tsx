@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { plainSpeciesName, renderSpeciesName } from '@/lib/speciesName';
+import { useT } from '@/i18n/index';
 
 interface RankedListItem {
   label: string;
@@ -17,6 +18,7 @@ interface RankedListProps {
 }
 
 export function RankedList({ title, items, emptyMessage, pageSize }: RankedListProps) {
+  const t = useT();
   const [expanded, setExpanded] = useState(false);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
 
@@ -40,13 +42,13 @@ export function RankedList({ title, items, emptyMessage, pageSize }: RankedListP
               return (
                 <div
                   key={idx}
-                  className={`group relative rounded-sm border border-border bg-card shadow-sm hover:border-primary/40 hover:shadow-md stagger-item${isClickable ? ' cursor-pointer' : ''}`}
+                  className={`group relative rounded-sm border bg-card shadow-sm stagger-item transition-all${isClickable ? ' cursor-pointer' : ''} ${isOpen ? 'border-primary/50 bg-muted shadow-md' : 'border-border hover:border-primary/40 hover:shadow-md'}`}
                   style={{ animationDelay: `${idx * 40}ms` }}
                   onClick={() => isClickable && setSelectedIdx(isOpen ? null : idx)}
                 >
                   <div className="flex items-center gap-3 px-3 py-2.5">
-                    {/* Amber left-border on hover */}
-                    <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-primary opacity-0 group-hover:opacity-100 transition-opacity rounded-l-sm" />
+                    {/* Amber left-border — persists when open */}
+                    <div className={`absolute left-0 top-0 bottom-0 w-[3px] bg-primary transition-opacity rounded-l-sm ${isOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} />
 
                     {/* Rank number */}
                     <span className="font-serif italic text-sm text-primary w-6 shrink-0">
@@ -73,7 +75,7 @@ export function RankedList({ title, items, emptyMessage, pageSize }: RankedListP
                   {isOpen && item.species && (
                     <div className="border-t border-border/40 px-3 pb-3 pt-2">
                       <p className="text-[11px] uppercase tracking-[0.1em] text-muted-foreground/60 mb-2">
-                        Species found
+                        {t('stats.speciesFound')}
                       </p>
                       <div className="flex flex-wrap gap-1.5">
                         {item.species.map((s) => (
@@ -98,7 +100,7 @@ export function RankedList({ title, items, emptyMessage, pageSize }: RankedListP
               onClick={() => setExpanded((v) => !v)}
               className="mt-3 text-xs text-primary/70 hover:text-primary transition-colors"
             >
-              {expanded ? 'Show less' : `Show all ${items.length}`}
+              {expanded ? t('stats.showLess') : t('stats.showAll', { count: items.length })}
             </button>
           )}
         </>

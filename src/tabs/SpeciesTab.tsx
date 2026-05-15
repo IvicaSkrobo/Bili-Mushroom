@@ -953,7 +953,7 @@ export default function SpeciesTab() {
                           <button
                             type="button"
                             onClick={handleSaveCommonName}
-                            className="rounded border border-border/60 bg-input px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                            className="rounded border border-border/60 bg-input px-2 py-0.5 text-xs text-muted-foreground hover:text-primary transition-colors"
                           >
                             {t('edit.save')}
                           </button>
@@ -977,7 +977,7 @@ export default function SpeciesTab() {
                               placeholder={t('species.synonymsPlaceholder')}
                               className="w-36 rounded border border-border/60 bg-input px-2 py-0.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring/40"
                             />
-                            <button type="button" onClick={() => handleAddSynonym(synonymsInput)} disabled={!synonymsInput.trim()} className="rounded border border-border/60 bg-input px-1.5 py-0.5 text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors">
+                            <button type="button" onClick={() => handleAddSynonym(synonymsInput)} disabled={!synonymsInput.trim()} className="rounded border border-border/60 bg-input px-1.5 py-0.5 text-muted-foreground hover:text-primary disabled:opacity-40 transition-colors">
                               <Plus className="h-3 w-3" />
                             </button>
                           </div>
@@ -1001,7 +1001,7 @@ export default function SpeciesTab() {
                               placeholder={t('species.otherNamesPlaceholder')}
                               className="w-36 rounded border border-border/60 bg-input px-2 py-0.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring/40"
                             />
-                            <button type="button" onClick={() => handleAddOtherName(otherNamesInput)} disabled={!otherNamesInput.trim()} className="rounded border border-border/60 bg-input px-1.5 py-0.5 text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors">
+                            <button type="button" onClick={() => handleAddOtherName(otherNamesInput)} disabled={!otherNamesInput.trim()} className="rounded border border-border/60 bg-input px-1.5 py-0.5 text-muted-foreground hover:text-primary disabled:opacity-40 transition-colors">
                               <Plus className="h-3 w-3" />
                             </button>
                           </div>
@@ -1026,7 +1026,7 @@ export default function SpeciesTab() {
                         }}
                       >
                         <MapIcon className="h-4 w-4 mr-1.5" />
-                        {lang === 'hr' ? 'Prikaži na karti' : 'View on map'}
+                        {t('map.viewOnMap')}
                       </Button>
                     </div>
                   </CardContent>
@@ -1167,7 +1167,7 @@ export default function SpeciesTab() {
                                 <button
                                   type="button"
                                   onClick={() => handleSaveFruitingBodyCountOverride('')}
-                                  className="text-muted-foreground transition-colors hover:text-foreground"
+                                  className="text-muted-foreground transition-colors hover:text-primary"
                                 >
                                   {t('species.resetAverage')}
                                 </button>
@@ -1327,7 +1327,7 @@ export default function SpeciesTab() {
                                   type="button"
                                   onClick={() => setEditingFind(find)}
                                   className="shrink-0 rounded p-1 text-muted-foreground/40 opacity-40 transition-all hover:text-primary group-hover:opacity-100 focus:opacity-100"
-                                  title={lang === 'hr' ? 'Uredi nalaz' : 'Edit find'}
+                                  title={t('collection.editFind')}
                                 >
                                   <Pencil className="h-4 w-4" />
                                 </button>
@@ -1336,7 +1336,7 @@ export default function SpeciesTab() {
                                     type="button"
                                     onClick={() => { setPendingMapCenter({ lat: find.lat!, lng: find.lng!, zoom: 16 }); setActiveTab('map'); }}
                                     className="shrink-0 rounded p-1 text-muted-foreground/40 opacity-40 transition-all hover:text-primary group-hover:opacity-100 focus:opacity-100"
-                                    title={lang === 'hr' ? 'Prikaži na karti' : 'View on map'}
+                                    title={t('map.viewOnMap')}
                                   >
                                     <MapIcon className="h-4 w-4" />
                                   </button>
@@ -1363,7 +1363,7 @@ export default function SpeciesTab() {
                             size="sm"
                             onClick={handleAddRecipe}
                             disabled={!newRecipeTitle.trim() && !newRecipeNotes.trim()}
-                            className="h-8 gap-1.5 text-muted-foreground hover:text-foreground"
+                            className="h-8 gap-1.5 text-muted-foreground hover:text-primary"
                           >
                             <Plus className="h-3.5 w-3.5" />
                             {t('species.addRecipe')}

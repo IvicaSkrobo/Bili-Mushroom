@@ -19,9 +19,11 @@ import {
 import type { Zone } from '@/lib/zones';
 import type { Find } from '@/lib/finds';
 import { compareSpeciesNames, plainSpeciesName } from '@/lib/speciesName';
+import { useT } from '@/i18n/index';
 import { X } from 'lucide-react';
 
 export default function MapTab() {
+  const t = useT();
   const storagePath = useAppStore((s) => s.storagePath);
   const lang = useAppStore((s) => s.language);
   const pendingMapSpeciesFilter = useAppStore((s) => s.pendingMapSpeciesFilter);
@@ -548,12 +550,12 @@ export default function MapTab() {
         null;
 
       if (!targetFind) {
-        window.alert('No mapped find is available to create a local zone for this species yet.');
+        window.alert(t('map.zoneNoFindLocal'));
         setActiveZoneId(zone.id);
         return;
       }
 
-      const shouldCreate = window.confirm(`No local zone exists yet for ${plainSpeciesName(zone.species_name)}. Create one now?`);
+      const shouldCreate = window.confirm(t('map.zoneCreateLocal', { name: plainSpeciesName(zone.species_name) }));
       if (!shouldCreate) {
         setActiveZoneId(zone.id);
         return;
@@ -564,7 +566,7 @@ export default function MapTab() {
       return;
     }
 
-    const shouldCreate = window.confirm(`No region zone exists yet for ${plainSpeciesName(zone.species_name)}. Create one now?`);
+    const shouldCreate = window.confirm(t('map.zoneCreateRegion', { name: plainSpeciesName(zone.species_name) }));
     if (!shouldCreate) {
       setActiveZoneId(zone.id);
       return;
@@ -575,7 +577,7 @@ export default function MapTab() {
       (finds ?? []).find((find) => find.species_name === zone.species_name && find.lat != null && find.lng != null) ??
       null;
     if (!targetFind) {
-      window.alert('No mapped finds are available to create a region zone for this species yet.');
+      window.alert(t('map.zoneNoFindRegion'));
       setActiveZoneId(zone.id);
       return;
     }
@@ -585,7 +587,7 @@ export default function MapTab() {
   if (!storagePath) {
     return (
       <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-        Select a storage folder to see your map.
+        {t('map.noStorage')}
       </div>
     );
   }
@@ -682,7 +684,7 @@ export default function MapTab() {
           <div className="pointer-events-none absolute inset-x-0 bottom-16 z-[1001] flex justify-center px-4">
             <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-primary/40 bg-card/95 px-3.5 py-1.5 shadow-lg backdrop-blur-sm">
               <span className="text-xs text-muted-foreground">
-                {lang === 'hr' ? 'Filtar:' : 'Showing:'}
+                {t('map.filterLabel')}
               </span>
               <span className="font-serif text-sm font-semibold italic text-foreground">
                 {plainSpeciesName(name)}
@@ -690,7 +692,7 @@ export default function MapTab() {
               <button
                 type="button"
                 onClick={handleSelectAll}
-                title={lang === 'hr' ? 'Ukloni filtar' : 'Clear filter'}
+                title={t('map.clearFilter')}
                 className="ml-0.5 rounded-full p-0.5 text-muted-foreground transition-colors hover:text-foreground"
               >
                 <X className="h-3.5 w-3.5" />

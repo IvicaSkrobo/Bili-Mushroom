@@ -14,8 +14,8 @@ const hr: Translations = {
   'nav.settings': 'Postavke',
 
   // collection tab
-  'collection.empty.heading': 'Vaša zbirka je prazna',
-  'collection.empty.body': 'Uvezite prvi nalaz gljive za početak.',
+  'collection.empty.heading': 'Tvoja zbirka je prazna',
+  'collection.empty.body': 'Uvezi prvi nalaz gljive za početak.',
   'collection.loading': 'Učitavanje nalaza…',
   'collection.importBtn': 'Uvezi fotografije',
   'collection.finds.one': 'nalaz',
@@ -28,6 +28,10 @@ const hr: Translations = {
   'collection.deletedToast': 'Obrisano {n}',
   'collection.movedToast': 'Premješteno {n} u {name}',
   'collection.selectFinds': 'Odaberi',
+  'collection.selectHint': 'Odaberi nalaze…',
+  'collection.openPhoto': 'Otvori foto',
+  'collection.deleteFind': 'Obriši',
+  'collection.editFind': 'Uredi',
   'collection.cancelSelect': 'Odustani',
   'collection.deleteSelected': 'Obriši ({n})',
   'collection.moveToSpecies': 'Premjesti u vrstu…',
@@ -37,6 +41,20 @@ const hr: Translations = {
   'collection.noFavorites': 'Još nema označenih favorita.',
   'collection.setRepresentativePhoto': 'Postavi kao reprezentativnu fotografiju vrste',
   'collection.currentRepresentativePhoto': 'Trenutna reprezentativna fotografija vrste',
+  'collection.noResults': 'Nema rezultata za "{search}"',
+  'collection.findsSection': 'Nalazi',
+  'collection.noDate': 'Bez datuma',
+  'collection.photoUnit': 'foto',
+  'collection.photoUnit.one': 'foto',
+  'collection.photoUnit.many': 'foto',
+  'collection.viewSpecies': 'Prikaži vrstu',
+  'collection.viewOnMap': 'Prikaži na karti',
+  'collection.editFolder': 'Uredi mapu',
+  'collection.hidePhotos': 'Sakrij fotografije',
+  'collection.showPhotos': 'Prikaži fotografije',
+  'map.filterLabel': 'Filtar:',
+  'map.clearFilter': 'Ukloni filtar',
+  'map.viewOnMap': 'Prikaži na karti',
 
   // species tab
   'species.title': 'Vrste',
@@ -46,7 +64,7 @@ const hr: Translations = {
   'species.noResults': 'Nema vrsta za taj upit.',
   'species.empty.heading': 'Još nema vrsta za pregled',
   'species.empty.body': 'Uvezi nekoliko nalaza da bi ovdje počeo rasti tvoj dnevnik vrsta.',
-  'species.coverHint': 'Za sada prikazujemo reprezentativnu fotografiju vrste.',
+  'species.coverHint': 'Prikazuje se reprezentativna fotografija vrste.',
   'species.chooseCover': 'Odaberi naslovnu fotografiju',
   'species.chooseCoverHelp': 'Odaberi fotografiju iz zbirke za vrstu {name}.',
   'species.editCover': 'Uredi naslovnu fotografiju',
@@ -58,7 +76,7 @@ const hr: Translations = {
   'species.observedCount': 'Broj plodnih tijela',
   'species.observedCountHelp': 'Gruba procjena koliko je plodnih tijela bilo prisutno kroz tvoje zapise. Opcionalno.',
   'species.fruitingBodyCount': 'Broj plodnih tijela',
-  'species.fruitingBodyCountHelp': 'Po defaultu prikazuje prosječni raspon po nalazu. Možeš ga ručno prepisati za knjigu ili prikazati ukupni raspon.',
+  'species.fruitingBodyCountHelp': 'Zadano prikazuje prosječni raspon po nalazu. Možeš ga ručno prepisati za knjigu ili prikazati ukupni raspon.',
   'species.fruitingBodyCountPlaceholder': 'npr. 12-18',
   'species.fruitingBodyCountAverage': 'prosjek po nalazu',
   'species.fruitingBodyCountCustom': 'ručno upisano',
@@ -222,7 +240,7 @@ const hr: Translations = {
   // settings dialog
   'settings.title': 'Postavke',
   'settings.description': 'Upravljaj lokacijom knjižnice, jezikom, izgledom i cache-om karata.',
-  'settings.tabGeneral': 'Opcenito',
+  'settings.tabGeneral': 'Općenito',
   'settings.tabMap': 'Mapa',
   'settings.tabAdvanced': 'Napredno',
   'settings.libraryLocation': 'Lokacija knjižnice gljiva',
@@ -237,14 +255,14 @@ const hr: Translations = {
   'settings.themeLight': 'Svijetlo',
   'settings.themeDark': 'Tamno',
   'settings.mapCache': 'Cache karata',
-  'settings.tileCacheSize': 'Velicina cache-a plocica',
-  'settings.maxCacheSize': 'Maks. velicina cache-a',
-  'settings.maxCacheHint': 'Minimum 50 MB. Veci cache znaci vise offline pokrivenosti.',
-  'settings.clearCache': 'Ocisti cache plocica',
-  'settings.clearCacheTitle': 'Ocistiti cache plocica?',
-  'settings.clearCacheWarning': 'Ovo ce obrisati sve spremljene plocice karata. Podrucja koja ste pregledavali trebat ce ponovno ucitati kad budete online.',
+  'settings.tileCacheSize': 'Veličina cache-a tileova',
+  'settings.maxCacheSize': 'Maks. veličina cache-a',
+  'settings.maxCacheHint': 'Minimum 50 MB. Veći cache znači više offline pokrivenosti.',
+  'settings.clearCache': 'Očisti cache tileova',
+  'settings.clearCacheTitle': 'Očistiti cache tileova?',
+  'settings.clearCacheWarning': 'Ovo će obrisati sve spremljene tileove karata. Područja koja si pregledavao trebat će se ponovno učitati kad budeš online.',
   'settings.clearCacheCancel': 'Odustani',
-  'settings.clearCacheConfirm': 'Ocisti cache',
+  'settings.clearCacheConfirm': 'Očisti cache',
   'settings.resetSection': 'Resetiranje aplikacije',
   'settings.resetBtn': 'Resetiraj na početak',
   'settings.resetTitle': 'Resetirati aplikaciju?',
@@ -333,6 +351,11 @@ const hr: Translations = {
   'folder.otherNames': 'Lokalna imena',
   'folder.otherNamesPlaceholder': 'npr. vrganj, pravi vrganj…',
 
+  // stats tab — ranked list
+  'stats.speciesFound': 'Pronađene vrste',
+  'stats.showLess': 'Prikaži manje',
+  'stats.showAll': 'Prikaži sve ({count})',
+
   // stats tab — species stat row
   'stats.totalFinds': 'Ukupno nalaza',
   'stats.firstFind': 'Prvi nalaz',
@@ -341,11 +364,11 @@ const hr: Translations = {
   'stats.locations': 'Lokacije',
 
   // stats tab — seasonal calendar & insights
-  'stats.yourSeason': 'Vaša sezona',
+  'stats.yourSeason': 'Tvoja sezona',
   'stats.noFindsInMonth': 'Nema nalaza u {month}.',
   'stats.insightStrong': '{month} je povijesno jak',
   'stats.insightMostActive': 'Najaktivnije vrste: {species}.',
-  'stats.insightLogged': 'Zabilježili ste {count} nalaza u {month}.',
+  'stats.insightLogged': 'Zabilježeno {count} nalaza u {month}.',
   'stats.spotHint': 'Savjet: **{species}** je najaktivnija oko {month} — pokušajte {location}.',
 
   // stats tab — historical comparison
@@ -357,9 +380,9 @@ const hr: Translations = {
   'stats.findMany': 'nalaza',
 
   // stats tab
-  'stats.pageTitle': 'Vaša priča o berbi',
-  'stats.emptyHeading': 'Vaša priča počinje prvim nalazom',
-  'stats.emptyBody': 'Uvezite prvu fotografiju gljive da vidite statistiku ovdje.',
+  'stats.pageTitle': 'Tvoja priča o berbi',
+  'stats.emptyHeading': 'Tvoja priča počinje prvim nalazom',
+  'stats.emptyBody': 'Uvezi prvu fotografiju gljive da vidiš statistiku ovdje.',
   'stats.totalPhotos': 'UKUPNO FOTOGRAFIJA',
   'stats.uniqueSpecies': 'JEDINSTVENE VRSTE',
   'stats.locationsVisited': 'POSJEĆENE LOKACIJE',
@@ -367,12 +390,12 @@ const hr: Translations = {
   'stats.noDataYet': 'Nema podataka',
   'stats.thisTimePastYears': 'U ovo doba prošlih godina',
   'stats.topSpots': 'Omiljene lokacije',
-  'stats.topSpotsEmpty': 'Počnite brati gljive da vidite omiljene lokacije.',
+  'stats.topSpotsEmpty': 'Počni brati gljive da vidiš omiljene lokacije.',
   'stats.bestMonths': 'Najaktivniji mjeseci',
   'stats.bestMonthsEmpty': 'Najaktivniji mjeseci prikazat će se ovdje uz više nalaza.',
   'stats.seasonalInsights': 'Sezonski uvidi',
-  'stats.yourSpecies': 'Vaše vrste',
-  'stats.exportHint': 'Izvezite cijelu zbirku',
+  'stats.yourSpecies': 'Tvoje vrste',
+  'stats.exportHint': 'Izvezi cijelu zbirku',
 
   // map species filter panel
   'map.filterSearch': 'Pretraži vrste…',
@@ -381,6 +404,91 @@ const hr: Translations = {
   'map.filterAllSpecies': 'Sve vrste',
   'map.filterSelected': '{count} odabrano',
   'map.filterSpaceHint': 'Space',
+
+  // species name editor
+  'speciesName.boldGenus': 'Podebljano — rod (Ctrl+B)',
+  'speciesName.normalEpithet': 'Normalno — epitet vrste (Ctrl+I)',
+
+  // map
+  'map.zoomToFit': 'Zumiraj na sve pinove',
+
+  // lightbox zoom
+  'lightbox.zoomIn': 'Povećaj',
+  'lightbox.zoomOut': 'Smanji',
+  'lightbox.resetZoom': 'Vrati zoom',
+
+  // map popup / collection pins
+  'map.backToSummary': 'Natrag na sažetak',
+  'map.prevSpecies': 'Prethodna vrsta',
+  'map.nextSpecies': 'Sljedeća vrsta',
+
+  // import / edit dialogs
+  'import.removePhoto': 'Ukloni fotografiju',
+  'edit.deletePhoto': 'Obriši fotografiju',
+
+  // app shell
+  'app.checkingUpdate': 'Provjera…',
+  'app.upToDate': 'Ažurno',
+  'app.updateTitle': 'Dostupno ažuriranje: v{version} — klikni za instalaciju',
+  'app.checkTitle': 'Provjeri ažuriranja',
+  'app.toggleTheme': 'Promijeni izgled',
+
+  // map — storage / zone alerts
+  'map.noStorage': 'Odaberi mapu pohrane da vidiš kartu.',
+  'map.zoneNoFindLocal': 'Nema nalaza s koordinatama za ovu vrstu.',
+  'map.zoneNoFindRegion': 'Nema nalaza s koordinatama za stvaranje regionalne zone.',
+  'map.zoneCreateLocal': 'Lokalna zona još ne postoji za {name}. Stvoriti je sada?',
+  'map.zoneCreateRegion': 'Regionalna zona još ne postoji za {name}. Stvoriti je sada?',
+
+  // zone editor panel
+  'zone.local': 'Lokalna',
+  'zone.region': 'Regionalna',
+  'zone.close': 'Zatvori',
+  'zone.localZone': 'Lokalna zona',
+  'zone.regionZone': 'Regionalna zona',
+  'zone.zoomLocal': 'Zumiraj na lokalnu zonu',
+  'zone.zoomRegion': 'Zumiraj na regiju',
+  'zone.finds': 'Nalazi',
+  'zone.first': 'Prvi',
+  'zone.last': 'Zadnji',
+  'zone.name': 'Naziv',
+  'zone.radius': 'Polumjer (m)',
+  'zone.notes': 'Bilješke',
+  'zone.save': 'Spremi',
+  'zone.saving': 'Spremanje…',
+  'zone.saveDetails': 'Spremi detalje',
+  'zone.deleteLocal': 'Obriši lokalnu',
+  'zone.deleteRegion': 'Obriši regionalnu',
+  'zone.boundaryShape': 'Oblik granice',
+  'zone.polygonPoints': 'Poligon s {n} točaka. Uredi granicu na karti.',
+  'zone.adjustPoints': 'Prilagodi točke na karti',
+
+  // zone mode control
+  'zone.pinsOnly': 'Samo pinovi',
+  'zone.localMode': 'Lokalne',
+  'zone.regionMode': 'Regionalne',
+  'zone.allZones': 'Sve zone',
+  'zone.dragControls': 'Povuci kontrole zone',
+  'zone.showControls': 'Prikaži kontrole zone',
+  'zone.hideControls': 'Sakrij kontrole zone',
+  'zone.pickSpecies': 'Odaberi vrstu/filtar',
+  'zone.clear': 'Očisti',
+  'zone.editRegionPolygon': 'Uredi regionalni poligon',
+  'zone.drawRegionPolygon': 'Nacrtaj regionalni poligon',
+  'zone.editRegionCircle': 'Uredi regionalnu kružnicu',
+  'zone.addQuickCircle': 'Dodaj kružnicu',
+  'zone.opening': 'Otvaranje…',
+  'zone.regionHint': 'Poligon je preferirani oblik regije. Kružnica je dostupna kao brža alternativa.',
+  'zone.pickSpeciesFirst': 'Odaberi jednu vrstu na karti, zatim će se ovdje pojaviti akcije za regiju.',
+  'zone.pickFind': 'Odaberi nalaz ili pin',
+  'zone.editLocalPolygon': 'Uredi lokalni poligon',
+  'zone.drawLocalPolygon': 'Nacrtaj lokalni poligon',
+  'zone.editLocalCircle': 'Uredi lokalnu kružnicu',
+  'zone.pickFindFirst': 'Odaberi pin gljive ili nalaz, zatim će se pojaviti lokalne akcije.',
+
+  // photo unit pluralization
+  'collection.photoUnit.one': 'foto',
+  'collection.photoUnit.many': 'foto',
 
   // find card
   'findCard.countUnit': 'kom',
@@ -410,6 +518,10 @@ const en: Translations = {
   'collection.deletedToast': 'Deleted {n}',
   'collection.movedToast': 'Moved {n} to {name}',
   'collection.selectFinds': 'Select',
+  'collection.selectHint': 'Select finds…',
+  'collection.openPhoto': 'Open photo',
+  'collection.deleteFind': 'Delete',
+  'collection.editFind': 'Edit find',
   'collection.cancelSelect': 'Cancel',
   'collection.deleteSelected': 'Delete ({n})',
   'collection.moveToSpecies': 'Move to species…',
@@ -419,6 +531,18 @@ const en: Translations = {
   'collection.noFavorites': 'No favorites marked yet.',
   'collection.setRepresentativePhoto': 'Set as species representative photo',
   'collection.currentRepresentativePhoto': 'Current species representative photo',
+  'collection.noResults': 'No results for "{search}"',
+  'collection.findsSection': 'Finds',
+  'collection.noDate': 'No date',
+  'collection.photoUnit': 'photos',
+  'collection.viewSpecies': 'View species',
+  'collection.viewOnMap': 'View on map',
+  'collection.editFolder': 'Edit folder',
+  'collection.hidePhotos': 'Hide photos',
+  'collection.showPhotos': 'Show photos',
+  'map.filterLabel': 'Showing:',
+  'map.clearFilter': 'Clear filter',
+  'map.viewOnMap': 'View on map',
 
   // species tab
   'species.title': 'Species',
@@ -715,6 +839,11 @@ const en: Translations = {
   'folder.otherNames': 'Other names',
   'folder.otherNamesPlaceholder': 'e.g. penny bun, porcini…',
 
+  // stats tab — ranked list
+  'stats.speciesFound': 'Species found',
+  'stats.showLess': 'Show less',
+  'stats.showAll': 'Show all ({count})',
+
   // stats tab — species stat row
   'stats.totalFinds': 'Total Finds',
   'stats.firstFind': 'First Find',
@@ -763,6 +892,91 @@ const en: Translations = {
   'map.filterAllSpecies': 'All species',
   'map.filterSelected': '{count} selected',
   'map.filterSpaceHint': 'Space',
+
+  // species name editor
+  'speciesName.boldGenus': 'Bold — genus (Ctrl+B)',
+  'speciesName.normalEpithet': 'Normal — species epithet (Ctrl+I)',
+
+  // map
+  'map.zoomToFit': 'Zoom to fit all pins',
+
+  // lightbox zoom
+  'lightbox.zoomIn': 'Zoom in',
+  'lightbox.zoomOut': 'Zoom out',
+  'lightbox.resetZoom': 'Reset zoom',
+
+  // map popup / collection pins
+  'map.backToSummary': 'Back to summary',
+  'map.prevSpecies': 'Previous species',
+  'map.nextSpecies': 'Next species',
+
+  // import / edit dialogs
+  'import.removePhoto': 'Remove photo',
+  'edit.deletePhoto': 'Delete photo',
+
+  // app shell
+  'app.checkingUpdate': 'Checking…',
+  'app.upToDate': 'Up to date',
+  'app.updateTitle': 'Update available: v{version} — click to install',
+  'app.checkTitle': 'Check for updates',
+  'app.toggleTheme': 'Toggle theme',
+
+  // map — storage / zone alerts
+  'map.noStorage': 'Select a storage folder to see your map.',
+  'map.zoneNoFindLocal': 'No mapped find is available to create a local zone for this species yet.',
+  'map.zoneNoFindRegion': 'No mapped finds are available to create a region zone for this species yet.',
+  'map.zoneCreateLocal': 'No local zone exists yet for {name}. Create one now?',
+  'map.zoneCreateRegion': 'No region zone exists yet for {name}. Create one now?',
+
+  // zone editor panel
+  'zone.local': 'Local',
+  'zone.region': 'Region',
+  'zone.close': 'Close',
+  'zone.localZone': 'Local zone',
+  'zone.regionZone': 'Region zone',
+  'zone.zoomLocal': 'Zoom to local zone',
+  'zone.zoomRegion': 'Zoom to region',
+  'zone.finds': 'Finds',
+  'zone.first': 'First',
+  'zone.last': 'Last',
+  'zone.name': 'Name',
+  'zone.radius': 'Radius (m)',
+  'zone.notes': 'Notes',
+  'zone.save': 'Save',
+  'zone.saving': 'Saving…',
+  'zone.saveDetails': 'Save details',
+  'zone.deleteLocal': 'Delete local',
+  'zone.deleteRegion': 'Delete region',
+  'zone.boundaryShape': 'Boundary Shape',
+  'zone.polygonPoints': 'Polygon with {n} points. Edit boundary on the map.',
+  'zone.adjustPoints': 'Adjust points on map',
+
+  // zone mode control
+  'zone.pinsOnly': 'Pins only',
+  'zone.localMode': 'Local',
+  'zone.regionMode': 'Region',
+  'zone.allZones': 'All zones',
+  'zone.dragControls': 'Drag zone controls',
+  'zone.showControls': 'Show zone controls',
+  'zone.hideControls': 'Hide zone controls',
+  'zone.pickSpecies': 'Pick a species/filter',
+  'zone.clear': 'Clear',
+  'zone.editRegionPolygon': 'Edit region polygon',
+  'zone.drawRegionPolygon': 'Draw region polygon',
+  'zone.editRegionCircle': 'Edit region circle',
+  'zone.addQuickCircle': 'Add quick circle',
+  'zone.opening': 'Opening…',
+  'zone.regionHint': 'Polygon is the preferred region shape. Circle stays available as a faster fallback.',
+  'zone.pickSpeciesFirst': 'Pick one species on the map first, then the region actions will appear here.',
+  'zone.pickFind': 'Pick a find or pin',
+  'zone.editLocalPolygon': 'Edit local polygon',
+  'zone.drawLocalPolygon': 'Draw local polygon',
+  'zone.editLocalCircle': 'Edit local circle',
+  'zone.pickFindFirst': 'Pick a mushroom pin or find popup first, then the local actions will appear here.',
+
+  // photo unit pluralization
+  'collection.photoUnit.one': 'photo',
+  'collection.photoUnit.many': 'photos',
 
   // find card
   'findCard.countUnit': 'pcs',

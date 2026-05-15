@@ -334,7 +334,7 @@ export default function CollectionTab() {
             <span className="flex-1 text-sm text-muted-foreground">
               {selectedIds.size > 0
                 ? tFindsCount(selectedIds.size, lang)
-                : (lang === 'hr' ? 'Odaberi nalaze…' : 'Select finds…')}
+                : t('collection.selectHint')}
             </span>
             <Button variant="ghost" size="sm" onClick={cancelSelectMode} className="flex-shrink-0">
               {t('collection.cancelSelect')}
@@ -349,7 +349,7 @@ export default function CollectionTab() {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder={lang === 'hr' ? 'Pretraži vrste…' : 'Search species…'}
+                placeholder={t('species.search')}
                 className="w-full h-9 rounded-md border border-border bg-input pl-9 pr-8 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40 transition-colors"
               />
               {isSearching && (
@@ -487,7 +487,7 @@ export default function CollectionTab() {
         )}
         {!isLoading && !isError && isSearching && filteredGroups.length === 0 && (
           <p className="text-sm text-muted-foreground px-1 pt-4 text-center">
-            {lang === 'hr' ? `Nema rezultata za "${search}"` : `No results for "${search}"`}
+            {t('collection.noResults', { search })}
           </p>
         )}
         {!isLoading && !isError && favoritesOnly && filteredGroups.length === 0 && !isSearching && (
@@ -543,7 +543,7 @@ export default function CollectionTab() {
                       e.stopPropagation();
                       if (repFind) openLightbox(speciesFinds, repFind.id, repPhotoIdx >= 0 ? repPhotoIdx : 0);
                     }}
-                    title={lang === 'hr' ? 'Otvori foto' : 'Open photo'}
+                    title={t('collection.openPhoto')}
                   >
                     <img
                       src={thumbSrc}
@@ -586,9 +586,7 @@ export default function CollectionTab() {
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
                       {tFindsCount(speciesFinds.length, lang)}
                       {' · '}
-                      {speciesFinds.flatMap(f => f.photos).length}
-                      {' '}
-                      {lang === 'hr' ? 'foto' : 'photos'}
+                      {(() => { const n = speciesFinds.flatMap(f => f.photos).length; return `${n} ${n === 1 ? t('collection.photoUnit.one') : t('collection.photoUnit.many')}`; })()}
                     </p>
                     <div className="mt-1">
                       <SpeciesMetadataBadges
@@ -615,7 +613,7 @@ export default function CollectionTab() {
                   type="button"
                   className="flex-shrink-0 p-1 rounded opacity-50 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary hover:bg-accent focus:opacity-100"
                   onClick={(e) => { e.stopPropagation(); setPendingSpeciesSelection(speciesName); setActiveTab('species'); }}
-                  title={lang === 'hr' ? 'Prikaži vrstu' : 'View species'}
+                  title={t('collection.viewSpecies')}
                 >
                   <BookOpen className="h-3.5 w-3.5" />
                 </button>
@@ -623,7 +621,7 @@ export default function CollectionTab() {
                   type="button"
                   className="flex-shrink-0 p-1 rounded opacity-50 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary hover:bg-accent focus:opacity-100"
                   onClick={(e) => { e.stopPropagation(); setPendingMapSpeciesFilter(speciesName); setActiveTab('map'); }}
-                  title={lang === 'hr' ? 'Prikaži na karti' : 'View on map'}
+                  title={t('collection.viewOnMap')}
                 >
                   <MapIcon className="h-3.5 w-3.5" />
                 </button>
@@ -631,7 +629,7 @@ export default function CollectionTab() {
                   type="button"
                   className="flex-shrink-0 p-1 rounded opacity-50 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary hover:bg-accent focus:opacity-100"
                   onClick={(e) => { e.stopPropagation(); setFolderEditing(speciesName); }}
-                  title={lang === 'hr' ? 'Uredi mapu' : 'Edit folder'}
+                  title={t('collection.editFolder')}
                 >
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
@@ -689,7 +687,7 @@ export default function CollectionTab() {
                   <div className="flex items-center gap-2 pt-1">
                     <div className="h-px flex-1 bg-border/40" />
                     <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/45">
-                      {lang === 'hr' ? 'Nalazi' : 'Finds'}
+                      {t('collection.findsSection')}
                     </span>
                     <div className="h-px flex-1 bg-border/40" />
                   </div>
@@ -738,13 +736,13 @@ export default function CollectionTab() {
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-medium text-foreground/90 truncate">
                                 <span className="font-mono text-[10px] text-muted-foreground/45 mr-1 select-none">{idx + 1}.</span>
-                                {f.date_found || (lang === 'hr' ? 'Bez datuma' : 'No date')}
+                                {f.date_found || t('collection.noDate')}
                                 {f.location_note && (
                                   <span className="text-muted-foreground"> · {f.location_note}</span>
                                 )}
                               </p>
                               <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                                {f.photos.length} {lang === 'hr' ? 'foto' : f.photos.length === 1 ? 'photo' : 'photos'}
+                                {f.photos.length} {f.photos.length === 1 ? t('collection.photoUnit.one') : t('collection.photoUnit.many')}
                                 {f.is_favorite && <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />}
                               </p>
                               <div className="mt-0.5">
@@ -763,16 +761,16 @@ export default function CollectionTab() {
                                   type="button"
                                   className="rounded p-1 text-muted-foreground hover:text-primary hover:bg-accent transition-colors"
                                   onClick={(e) => { e.stopPropagation(); setPendingMapCenter({ lat: f.lat!, lng: f.lng!, zoom: 16 }); setActiveTab('map'); }}
-                                  title={lang === 'hr' ? 'Prikaži na karti' : 'View on map'}
+                                  title={t('collection.viewOnMap')}
                                 >
                                   <MapIcon className="h-3.5 w-3.5" />
                                 </button>
                               )}
                               <button
                                 type="button"
-                                className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                                className="rounded p-1 text-muted-foreground hover:text-primary hover:bg-accent transition-colors"
                                 onClick={(e) => { e.stopPropagation(); setEditing(f); }}
-                                title={lang === 'hr' ? 'Uredi' : 'Edit'}
+                                title={t('findCard.edit')}
                               >
                                 <SquarePen className="h-3.5 w-3.5" />
                               </button>
@@ -780,7 +778,7 @@ export default function CollectionTab() {
                                 type="button"
                                 className="rounded p-1 text-muted-foreground hover:text-destructive hover:bg-accent transition-colors"
                                 onClick={(e) => { e.stopPropagation(); setDeleting(f); }}
-                                title={lang === 'hr' ? 'Obriši' : 'Delete'}
+                                title={t('collection.deleteFind')}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </button>
@@ -792,7 +790,7 @@ export default function CollectionTab() {
                                 type="button"
                                 className="rounded p-1 text-muted-foreground/50 hover:text-muted-foreground hover:bg-accent/50 transition-colors flex-shrink-0"
                                 onClick={(e) => { e.stopPropagation(); toggleFindExpand(f.id); }}
-                                title={isExpanded ? (lang === 'hr' ? 'Sakrij fotografije' : 'Hide photos') : (lang === 'hr' ? 'Prikaži fotografije' : 'Show photos')}
+                                title={isExpanded ? t('collection.hidePhotos') : t('collection.showPhotos')}
                               >
                                 <ChevronDown
                                   className={`h-3.5 w-3.5 transition-transform duration-150 ${isExpanded ? '' : '-rotate-90'}`}
@@ -823,7 +821,7 @@ export default function CollectionTab() {
                                     type="button"
                                     className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded p-0.5 text-white hover:bg-black/80 z-10"
                                     onClick={(e) => { e.stopPropagation(); setEditing(f); }}
-                                    title={lang === 'hr' ? 'Uredi' : 'Edit find'}
+                                    title={t('collection.editFind')}
                                   >
                                     <SquarePen className="h-3 w-3" />
                                   </button>

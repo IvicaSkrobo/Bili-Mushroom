@@ -483,8 +483,8 @@ export function PhotoLightbox({
               <>
                 <button
                   type="button"
-                  aria-label="Zoom in"
-                  title="Zoom in"
+                  aria-label={t('lightbox.zoomIn')}
+                  title={t('lightbox.zoomIn')}
                   onClick={() => setZoom((z) => Math.min(5, z * 1.3))}
                   className="flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/60 hover:bg-black/70 hover:text-white transition-all duration-150"
                 >
@@ -492,8 +492,8 @@ export function PhotoLightbox({
                 </button>
                 <button
                   type="button"
-                  aria-label="Zoom out"
-                  title="Zoom out"
+                  aria-label={t('lightbox.zoomOut')}
+                  title={t('lightbox.zoomOut')}
                   onClick={() => setZoom((z) => { const next = Math.max(1, z / 1.3); if (next <= 1) setPan({ x: 0, y: 0 }); return next; })}
                   className="flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/60 hover:bg-black/70 hover:text-white transition-all duration-150"
                 >
@@ -504,8 +504,8 @@ export function PhotoLightbox({
             {photo && zoom > 1 && (
               <button
                 type="button"
-                aria-label="Reset zoom"
-                title="Reset zoom"
+                aria-label={t('lightbox.resetZoom')}
+                title={t('lightbox.resetZoom')}
                 onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
                 className="flex h-8 items-center justify-center rounded-full bg-black/40 px-2 text-white/60 hover:bg-black/70 hover:text-white transition-all duration-150"
               >

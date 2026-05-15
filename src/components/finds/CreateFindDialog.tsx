@@ -19,7 +19,8 @@ import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
 import { reverseGeocode } from '@/lib/geocoding';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
-import { Info, MapPin } from 'lucide-react';
+import { PickLocationButton } from '@/components/map/PickLocationButton';
+import { Info } from 'lucide-react';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 
 interface FormState {
@@ -249,28 +250,12 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
                 placeholder={t('edit.commonNamePlaceholder')}
               />
             </div>
-            <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setPickerOpen(true)}
-                className={[
-                  'gap-1.5 h-8 border text-primary',
-                  form.lat !== '' && form.lng !== ''
-                    ? 'border-secondary/50 bg-secondary/15 text-secondary hover:bg-secondary/25 hover:border-secondary/65'
-                    : 'border-primary/40 bg-primary/12 hover:bg-primary/22 hover:border-primary/60',
-                ].join(' ')}
-              >
-                <MapPin className="h-3.5 w-3.5" />
-                {t('folder.pickOnMap')}
-              </Button>
-              {form.lat !== '' && form.lng !== '' && (
-                <span className="text-xs text-muted-foreground font-mono">
-                  {parseFloat(form.lat).toFixed(4)}, {parseFloat(form.lng).toFixed(4)}
-                </span>
-              )}
-            </div>
+            <PickLocationButton
+              hasLocation={form.lat !== '' && form.lng !== ''}
+              lat={form.lat !== '' ? parseFloat(form.lat) : null}
+              lng={form.lng !== '' ? parseFloat(form.lng) : null}
+              onClick={() => setPickerOpen(true)}
+            />
           </div>
           <div>
             <label className="text-sm font-medium">{t('edit.date')}</label>
