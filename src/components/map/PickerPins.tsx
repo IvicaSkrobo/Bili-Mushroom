@@ -13,7 +13,7 @@ import { useAppStore } from '@/stores/appStore';
 import { locationGroupsFromFinds, LABEL_ZOOM_THRESHOLD } from './CollectionPins';
 import { plainSpeciesName } from '@/lib/speciesName';
 
-const OVERLAP_PX = 18;
+const OVERLAP_PX = 88;
 
 function computeCrowded(
   map: L.Map,

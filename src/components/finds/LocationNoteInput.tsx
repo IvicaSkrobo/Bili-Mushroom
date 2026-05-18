@@ -96,6 +96,7 @@ export function LocationNoteInput({
             !hiddenSuggestions.has(trimmed.toLowerCase()) &&
             trimmed.toLowerCase().includes(localValue.trim().toLowerCase());
         })
+        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
         .slice(0, 8)
     : [];
 

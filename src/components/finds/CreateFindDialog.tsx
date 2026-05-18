@@ -22,6 +22,7 @@ import { LocationPickerMap } from '@/components/map/LocationPickerMap';
 import { PickLocationButton } from '@/components/map/PickLocationButton';
 import { Info } from 'lucide-react';
 import { isInternalLibraryName } from '@/lib/internalEntries';
+import { plainSpeciesName } from '@/lib/speciesName';
 
 interface FormState {
   species_name: string;
@@ -95,8 +96,16 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
     const map = new Map<string, NonNullable<typeof speciesProfilesData>[number]>();
     for (const profile of speciesProfilesData ?? []) {
       map.set(profile.species_name.toLowerCase(), profile);
+      map.set(plainSpeciesName(profile.species_name).toLowerCase(), profile);
     }
     return map;
+  }, [speciesProfilesData]);
+  const knownCommonNames = useMemo(() => {
+    const set = new Set<string>();
+    for (const profile of speciesProfilesData ?? []) {
+      if (profile.common_name) set.add(profile.common_name.trim().toLowerCase());
+    }
+    return set;
   }, [speciesProfilesData]);
   const speciesSuggestions = useMemo(() => {
     const seen = new Set<string>();
@@ -141,6 +150,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   }, [findsData]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [form, setForm] = useState<FormState>(BLANK_FORM);
+  const commonNameManuallyEditedRef = useRef(false);
 
   const speciesProfile = useMemo(
     () => speciesProfilesByLowerName.get(form.species_name.trim().toLowerCase()) ?? null,
@@ -150,8 +160,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   useEffect(() => {
     const nextCommonName = speciesProfile?.common_name ?? '';
     setForm((prev) => {
-      const userEditedCommonName = prev.common_name.trim() && prev.common_name !== lastAutoCommonNameRef.current;
-      if (userEditedCommonName) return prev;
+      if (commonNameManuallyEditedRef.current) return prev;
       lastAutoCommonNameRef.current = nextCommonName;
       return { ...prev, common_name: nextCommonName };
     });
@@ -185,6 +194,14 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   }, [open, storagePath]);
 
   function handleChange(field: keyof FormState, value: string) {
+    if (field === 'common_name') {
+      const normalized = value.trim().toLowerCase();
+      commonNameManuallyEditedRef.current = Boolean(
+        normalized &&
+        value !== lastAutoCommonNameRef.current &&
+        !knownCommonNames.has(normalized),
+      );
+    }
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
@@ -225,6 +242,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
             });
           }
           setForm(BLANK_FORM);
+          commonNameManuallyEditedRef.current = false;
           onOpenChange(false);
         },
       },
@@ -233,6 +251,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
 
   function handleCancel() {
     setForm(BLANK_FORM);
+    commonNameManuallyEditedRef.current = false;
     onOpenChange(false);
   }
 

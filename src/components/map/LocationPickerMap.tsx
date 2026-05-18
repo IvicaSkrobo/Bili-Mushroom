@@ -15,6 +15,10 @@ import { createRustProxyTileLayer } from './RustProxyTileLayer';
 import type { MapLayer } from '@/stores/appStore';
 import { useFinds } from '@/hooks/useFinds';
 import { PickerPins } from './PickerPins';
+import { SpeciesFilterPanel } from './SpeciesFilterPanel';
+import { isInternalLibraryName } from '@/lib/internalEntries';
+import { compareSpeciesNames } from '@/lib/speciesName';
+import { LocateFixed } from 'lucide-react';
 
 applyLeafletIconFix();
 
@@ -91,6 +95,8 @@ function PickerLayerSwitcher() {
 function ClickHandler({ onPick }: { onPick: (latlng: L.LatLng) => void }) {
   useMapEvents({
     click(e) {
+      const target = e.originalEvent.target as HTMLElement | null;
+      if (target?.closest('[data-picker-map-control="true"]')) return;
       onPick(e.latlng);
     },
   });
@@ -116,6 +122,56 @@ function PickerViewportSaver() {
   return null;
 }
 
+function PickerFitButton({ finds }: { finds: Array<{ lat: number | null; lng: number | null }> }) {
+  const map = useMap();
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const stopMapEvent = (event: React.SyntheticEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if ('nativeEvent' in event) {
+      L.DomEvent.stopPropagation(event.nativeEvent);
+      L.DomEvent.preventDefault(event.nativeEvent);
+    }
+  };
+
+  useEffect(() => {
+    if (!buttonRef.current) return;
+    L.DomEvent.disableClickPropagation(buttonRef.current);
+    L.DomEvent.disableScrollPropagation(buttonRef.current);
+  }, []);
+
+  return (
+    <button
+      ref={buttonRef}
+      type="button"
+      data-picker-map-control="true"
+      onPointerDown={stopMapEvent}
+      onPointerUp={stopMapEvent}
+      onMouseDown={stopMapEvent}
+      onMouseUp={stopMapEvent}
+      onDoubleClick={stopMapEvent}
+      onClick={(event) => {
+        stopMapEvent(event);
+        const withCoords = finds.filter(
+          (find): find is { lat: number; lng: number } => find.lat != null && find.lng != null,
+        );
+        if (withCoords.length > 0) {
+          map.fitBounds(
+            withCoords.map((find) => [find.lat, find.lng] as [number, number]),
+            { padding: [40, 40], maxZoom: 16 },
+          );
+        } else {
+          map.flyTo(CROATIA_CENTER, CROATIA_ZOOM, { animate: true, duration: 0.7 });
+        }
+      }}
+      title="Zoom to pins"
+      className="absolute bottom-8 right-3 z-[1000] flex h-8 w-8 items-center justify-center rounded-md border border-border/70 bg-card/90 text-foreground/60 shadow-sm transition-colors hover:border-primary/40 hover:bg-card hover:text-primary"
+    >
+      <LocateFixed className="h-4 w-4" />
+    </button>
+  );
+}
+
 export function LocationPickerMap({
   open,
   onOpenChange,
@@ -126,6 +182,8 @@ export function LocationPickerMap({
     initialLatLng ?? null,
   );
   const [pinLabel, setPinLabel] = useState<string | null>(null);
+  const [selectedSpecies, setSelectedSpecies] = useState<Set<string>>(new Set());
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const savedViewport = !initialLatLng ? loadMapViewport() : null;
   const initialCenter: [number, number] = initialLatLng
@@ -146,12 +204,28 @@ export function LocationPickerMap({
     if (open) {
       setPin(initialLatLng ?? null);
       setPinLabel(null);
+      setFilterOpen(false);
       const sv = !initialLatLng ? loadMapViewport() : null;
       currentZoomRef.current = initialLatLng ? EXISTING_PIN_ZOOM : (sv?.zoom ?? CROATIA_ZOOM);
     }
   }, [open, initialLatLng]);
 
   const { data: finds } = useFinds();
+  const visibleFinds = (finds ?? []).filter((find) => !isInternalLibraryName(find.species_name));
+  const allSpecies = Array.from(new Set(visibleFinds.map((find) => find.species_name).filter(Boolean)))
+    .sort(compareSpeciesNames);
+  const filteredFinds = selectedSpecies.size === 0
+    ? visibleFinds
+    : visibleFinds.filter((find) => selectedSpecies.has(find.species_name));
+
+  function handleToggleSpecies(name: string) {
+    setSelectedSpecies((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -164,54 +238,65 @@ export function LocationPickerMap({
         </DialogHeader>
 
         {/* Map */}
-        <div className="flex-1" style={{ minHeight: 0 }}>
+        <div className="relative flex-1" style={{ minHeight: 0 }}>
           {open && (
-            <MapContainer
-              center={initialCenter}
-              zoom={initialZoom}
-              style={{ height: '100%', width: '100%' }}
-              boxZoom={false}
-            >
-              <PickerLayerSwitcher />
-              <MapZoomTracker zoomRef={currentZoomRef} />
-              <PickerViewportSaver />
-              <ClickHandler
-                onPick={(latlng) => {
-                  setPin({ lat: latlng.lat, lng: latlng.lng });
-                  setPinLabel(null);
-                }}
-              />
+            <>
+              <MapContainer
+                center={initialCenter}
+                zoom={initialZoom}
+                style={{ height: '100%', width: '100%' }}
+                boxZoom={false}
+              >
+                <PickerLayerSwitcher />
+                <MapZoomTracker zoomRef={currentZoomRef} />
+                <PickerViewportSaver />
+                <PickerFitButton finds={filteredFinds} />
+                <ClickHandler
+                  onPick={(latlng) => {
+                    setPin({ lat: latlng.lat, lng: latlng.lng });
+                    setPinLabel(null);
+                  }}
+                />
 
               {/* Existing find pins — click to adopt that location, no popup */}
-              <PickerPins
-                finds={finds ?? []}
-                onPickLocation={(lat, lng, label) => {
-                  setPin({ lat, lng });
-                  setPinLabel(label);
-                }}
-              />
+                <PickerPins
+                  finds={filteredFinds}
+                  onPickLocation={(lat, lng, label) => {
+                    setPin({ lat, lng });
+                    setPinLabel(label);
+                  }}
+                />
 
               {/* Selected pin — draggable */}
-              {pin && (
-                <Marker
-                  position={[pin.lat, pin.lng]}
-                  draggable
-                  eventHandlers={{
-                    dragend: (e) => {
-                      const ll = (e.target as L.Marker).getLatLng();
-                      setPin({ lat: ll.lat, lng: ll.lng });
-                      setPinLabel(null);
-                    },
-                  }}
-                >
-                  {pinLabel && (
-                    <Popup autoPan={false} closeButton={false}>
-                      <span style={{ fontWeight: 600, fontSize: 13 }}>{pinLabel}</span>
-                    </Popup>
-                  )}
-                </Marker>
-              )}
-            </MapContainer>
+                {pin && (
+                  <Marker
+                    position={[pin.lat, pin.lng]}
+                    draggable
+                    eventHandlers={{
+                      dragend: (e) => {
+                        const ll = (e.target as L.Marker).getLatLng();
+                        setPin({ lat: ll.lat, lng: ll.lng });
+                        setPinLabel(null);
+                      },
+                    }}
+                  >
+                    {pinLabel && (
+                      <Popup autoPan={false} closeButton={false}>
+                        <span style={{ fontWeight: 600, fontSize: 13 }}>{pinLabel}</span>
+                      </Popup>
+                    )}
+                  </Marker>
+                )}
+              </MapContainer>
+              <SpeciesFilterPanel
+                allSpecies={allSpecies}
+                selected={selectedSpecies}
+                open={filterOpen}
+                onOpenChange={setFilterOpen}
+                onToggle={handleToggleSpecies}
+                onSelectAll={() => setSelectedSpecies(new Set())}
+              />
+            </>
           )}
         </div>
 

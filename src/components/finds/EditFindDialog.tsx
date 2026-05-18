@@ -26,6 +26,7 @@ import { PickLocationButton } from '@/components/map/PickLocationButton';
 import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
 import { Check, FolderOpen, ImagePlus, Info, Trash2, X } from 'lucide-react';
 import { isInternalLibraryName } from '@/lib/internalEntries';
+import { plainSpeciesName } from '@/lib/speciesName';
 
 interface FormState {
   species_name: string;
@@ -106,9 +107,17 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   const speciesProfilesByName = useMemo(() => {
     const map = new Map<string, NonNullable<typeof speciesProfiles>[number]>();
     for (const profile of speciesProfiles ?? []) {
-      map.set(profile.species_name, profile);
+      map.set(profile.species_name.toLowerCase(), profile);
+      map.set(plainSpeciesName(profile.species_name).toLowerCase(), profile);
     }
     return map;
+  }, [speciesProfiles]);
+  const knownCommonNames = useMemo(() => {
+    const set = new Set<string>();
+    for (const profile of speciesProfiles ?? []) {
+      if (profile.common_name) set.add(profile.common_name.trim().toLowerCase());
+    }
+    return set;
   }, [speciesProfiles]);
 
   // Always reflect the live cache — photo deletions/additions update immediately
@@ -152,6 +161,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   const [permanentPhotoDelete, setPermanentPhotoDelete] = useState(true);
   const prevFindIdRef = useRef<number | null>(null);
   const lastAutoCommonNameRef = useRef<string>('');
+  const commonNameManuallyEditedRef = useRef(false);
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [form, setForm] = useState<FormState>({
@@ -168,7 +178,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     species_description: '',
   });
   const speciesProfile = useMemo(
-    () => speciesProfilesByName.get(form.species_name) ?? null,
+    () => speciesProfilesByName.get(form.species_name.trim().toLowerCase()) ?? null,
     [speciesProfilesByName, form.species_name],
   );
 
@@ -176,6 +186,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     if (find) {
       setForm(findToFormState(find));
       lastAutoCommonNameRef.current = '';
+      commonNameManuallyEditedRef.current = false;
       if (find.id !== prevFindIdRef.current) {
         setPermanentPhotoDelete(true);
         prevFindIdRef.current = find.id;
@@ -190,8 +201,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     if (!find) return;
     const nextCommonName = speciesProfile?.common_name ?? '';
     setForm((prev) => {
-      const userEditedCommonName = prev.common_name.trim() && prev.common_name !== lastAutoCommonNameRef.current;
-      if (userEditedCommonName) {
+      if (commonNameManuallyEditedRef.current) {
         return {
           ...prev,
           species_description: speciesProfile?.description ?? speciesProfile?.edibility_note ?? '',
@@ -227,6 +237,14 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   }, [find, storagePath]);
 
   function handleChange(field: keyof FormState, value: string) {
+    if (field === 'common_name') {
+      const normalized = value.trim().toLowerCase();
+      commonNameManuallyEditedRef.current = Boolean(
+        normalized &&
+        value !== lastAutoCommonNameRef.current &&
+        !knownCommonNames.has(normalized),
+      );
+    }
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 

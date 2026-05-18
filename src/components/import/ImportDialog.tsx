@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { readDir } from '@tauri-apps/plugin-fs';
 import { convertFileSrc } from '@tauri-apps/api/core';
@@ -41,6 +41,7 @@ import { useAppStore } from '@/stores/appStore';
 import { useFinds, useSpeciesNotes, useSpeciesProfiles } from '@/hooks/useFinds';
 import { useT } from '@/i18n/index';
 import { isInternalLibraryName } from '@/lib/internalEntries';
+import { plainSpeciesName } from '@/lib/speciesName';
 
 interface ImportDialogProps {
   open: boolean;
@@ -125,8 +126,16 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     const map = new Map<string, NonNullable<typeof speciesProfilesData>[number]>();
     for (const profile of speciesProfilesData ?? []) {
       map.set(profile.species_name.toLowerCase(), profile);
+      map.set(plainSpeciesName(profile.species_name).toLowerCase(), profile);
     }
     return map;
+  }, [speciesProfilesData]);
+  const knownCommonNames = useMemo(() => {
+    const set = new Set<string>();
+    for (const profile of speciesProfilesData ?? []) {
+      if (profile.common_name) set.add(profile.common_name.trim().toLowerCase());
+    }
+    return set;
   }, [speciesProfilesData]);
 
   const speciesNotesByLowerName = useMemo(() => {
@@ -187,6 +196,8 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   const [sharedEdibility, setSharedEdibility] = useState<string>('unknown');
   const [sharedProtectedStatus, setSharedProtectedStatus] = useState<string>('unknown');
   const [sharedDistribution, setSharedDistribution] = useState<string>('unknown');
+  const lastAutoCommonNameRef = useRef<string>('');
+  const commonNameManuallyEditedRef = useRef(false);
 
   const isNewSpecies = useMemo(() => {
     const name = sharedName.trim().toLowerCase();
@@ -200,10 +211,11 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   );
 
   useEffect(() => {
-    if (sharedSpeciesProfile) {
-      setSharedCommonName(sharedSpeciesProfile.common_name ?? '');
-    }
-  }, [sharedSpeciesProfile?.species_name]);
+    if (commonNameManuallyEditedRef.current) return;
+    const nextCommonName = sharedSpeciesProfile?.common_name ?? '';
+    lastAutoCommonNameRef.current = nextCommonName;
+    setSharedCommonName(nextCommonName);
+  }, [sharedSpeciesProfile?.species_name, sharedSpeciesProfile?.common_name]);
 
   // When species name changes to a known folder, pre-fill notes + species metadata from DB
   useEffect(() => {
@@ -417,6 +429,8 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     setSharedEdibility('unknown');
     setSharedProtectedStatus('unknown');
     setSharedDistribution('unknown');
+    lastAutoCommonNameRef.current = '';
+    commonNameManuallyEditedRef.current = false;
     setSharedSpeciesDescription('');
   }
 
@@ -488,7 +502,16 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                 <label className="text-sm font-medium">{t('import.commonName')}</label>
                 <Input
                   value={sharedCommonName}
-                  onChange={(e) => setSharedCommonName(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const normalized = value.trim().toLowerCase();
+                    commonNameManuallyEditedRef.current = Boolean(
+                      normalized &&
+                      value !== lastAutoCommonNameRef.current &&
+                      !knownCommonNames.has(normalized),
+                    );
+                    setSharedCommonName(value);
+                  }}
                   placeholder={t('import.commonNamePlaceholder')}
                 />
               </div>
