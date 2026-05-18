@@ -130,11 +130,12 @@ export default function StatsTab() {
     [finds],
   );
   const mostActiveMonthSummary = useMemo(() => {
-    if (!statsCards.most_active_month) return null;
-    const monthFinds = (finds ?? []).filter((find) => find.date_found?.startsWith(statsCards.most_active_month!));
+    const activeMonth = statsCards?.most_active_month;
+    if (!activeMonth) return null;
+    const monthFinds = (finds ?? []).filter((find) => find.date_found?.startsWith(activeMonth));
     const speciesCount = new Set(monthFinds.map((find) => find.species_name).filter(Boolean)).size;
     return t('stats.findSpeciesCount', { finds: monthFinds.length, species: speciesCount });
-  }, [finds, statsCards.most_active_month, t]);
+  }, [finds, statsCards?.most_active_month, t]);
   const seasonalityInsights = useMemo(
     () => buildSeasonalityInsights(bestMonths, speciesStats, locale, t),
     [bestMonths, speciesStats, locale],

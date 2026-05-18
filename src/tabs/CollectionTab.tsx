@@ -23,6 +23,130 @@ import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { renderSpeciesName, plainSpeciesName, normalizeCommonName, compareSpeciesNames } from '@/lib/speciesName';
 import { formatDisplayDate } from '@/lib/dateFormat';
 
+function normalizeDateQuery(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, '');
+}
+
+function dateVariants(isoDate: string): string[] {
+  const [year, month, day] = isoDate.split('-');
+  if (!year || !month || !day) return [isoDate.toLowerCase()];
+  const dayNumber = String(Number(day));
+  const monthNumber = String(Number(month));
+  return [
+    isoDate,
+    `${year}${month}${day}`,
+    `${day}.${month}.${year}`,
+    `${day}${month}${year}`,
+    `${dayNumber}.${monthNumber}.${year}`,
+    `${dayNumber}${monthNumber}${year}`,
+    `${day}.${month}`,
+    `${dayNumber}.${monthNumber}`,
+    `${month}.${year}`,
+    `${monthNumber}.${year}`,
+    year,
+    month,
+    monthNumber,
+    day,
+    dayNumber,
+  ].map(normalizeDateQuery);
+}
+
+function matchesSmartDate(isoDate: string, query: string): boolean {
+  const q = normalizeDateQuery(query);
+  if (!q) return true;
+  const compactQuery = q.replace(/[./-]/g, '');
+  return dateVariants(isoDate).some((variant) => {
+    const compactVariant = variant.replace(/[./-]/g, '');
+    return variant.startsWith(q) || compactVariant.startsWith(compactQuery);
+  });
+}
+
+function parseCompleteDateQuery(query: string): string | null {
+  const q = normalizeDateQuery(query);
+  let match = q.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (match) {
+    const [, year, month, day] = match;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+  match = q.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})$/);
+  if (match) {
+    const [, day, month, year] = match;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+  match = q.match(/^(\d{1,2})(\d{1,2})(\d{4})$/);
+  if (match) {
+    const [, day, month, year] = match;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+  return null;
+}
+
+function matchesSmartMonth(isoDate: string, query: string): boolean {
+  const q = normalizeDateQuery(query);
+  if (!q) return true;
+  const [year, month] = isoDate.split('-');
+  if (!year || !month) return false;
+  const monthNumber = String(Number(month));
+  const variants = [
+    `${year}-${month}`,
+    `${year}${month}`,
+    `${month}.${year}`,
+    `${monthNumber}.${year}`,
+    month,
+    monthNumber,
+    year,
+  ].map(normalizeDateQuery);
+  const compactQuery = q.replace(/[./-]/g, '');
+  return variants.some((variant) => variant.startsWith(q) || variant.replace(/[./-]/g, '').startsWith(compactQuery));
+}
+
+interface DatePartsInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  includeDay?: boolean;
+  ariaLabel: string;
+  className?: string;
+}
+
+function splitDateParts(value: string, includeDay: boolean): string[] {
+  const parts = value.trim().split(/\D+/).filter(Boolean);
+  if (includeDay) return [parts[0] ?? '', parts[1] ?? '', parts[2] ?? ''];
+  return [parts[0] ?? '', parts[1] ?? ''];
+}
+
+function joinDateParts(parts: string[]): string {
+  return parts.filter(Boolean).join(' ');
+}
+
+function DatePartsInput({ value, onChange, includeDay = true, ariaLabel, className = '' }: DatePartsInputProps) {
+  const parts = splitDateParts(value, includeDay);
+  const placeholders = includeDay ? ['dd', 'mm', 'yyyy'] : ['mm', 'yyyy'];
+  const widths = includeDay ? ['w-7', 'w-7', 'w-11'] : ['w-7', 'w-11'];
+
+  const updatePart = (index: number, nextValue: string) => {
+    const next = [...parts];
+    next[index] = nextValue.replace(/\D/g, '').slice(0, index === parts.length - 1 ? 4 : 2);
+    onChange(joinDateParts(next));
+  };
+
+  return (
+    <div className={`flex h-7 items-center gap-0.5 rounded bg-background/35 px-1 ${className}`} aria-label={ariaLabel}>
+      {placeholders.map((placeholder, index) => (
+        <input
+          key={placeholder}
+          type="text"
+          inputMode="numeric"
+          value={parts[index] ?? ''}
+          onChange={(e) => updatePart(index, e.target.value)}
+          placeholder={placeholder}
+          aria-label={`${ariaLabel} ${placeholder}`}
+          className={`${widths[index]} bg-transparent text-center text-xs text-foreground outline-none placeholder:text-muted-foreground/45`}
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function CollectionTab() {
   const t = useT();
   const lang = useAppStore((s) => s.language);
@@ -239,14 +363,18 @@ export default function CollectionTab() {
   const filteredGroups = useMemo(() => {
     const matchesDateFilter = (find: Find) => {
       if (!find.date_found) return false;
-      if (dateFilterMode === 'exact') return dateSearch ? find.date_found === dateSearch : true;
+      if (dateFilterMode === 'exact') return matchesSmartDate(find.date_found, dateSearch);
       if (dateFilterMode === 'range') {
         if (!dateSearch && !dateSearchEnd) return true;
-        if (dateSearch && find.date_found < dateSearch) return false;
-        if (dateSearchEnd && find.date_found > dateSearchEnd) return false;
+        const start = parseCompleteDateQuery(dateSearch);
+        const end = parseCompleteDateQuery(dateSearchEnd);
+        if (start && find.date_found < start) return false;
+        if (end && find.date_found > end) return false;
+        if (!start && dateSearch && !matchesSmartDate(find.date_found, dateSearch)) return false;
+        if (!end && dateSearchEnd && !matchesSmartDate(find.date_found, dateSearchEnd)) return false;
         return true;
       }
-      if (dateFilterMode === 'month') return monthSearch ? find.date_found.startsWith(monthSearch) : true;
+      if (dateFilterMode === 'month') return matchesSmartMonth(find.date_found, monthSearch);
       return yearSearch.trim() ? find.date_found.startsWith(yearSearch.trim()) : true;
     };
     const hasDateFilter =
@@ -440,49 +568,40 @@ export default function CollectionTab() {
                 <option value="year">{t('collection.dateModeYear')}</option>
               </select>
               {dateFilterMode === 'exact' && (
-                <input
-                  type="date"
+                <DatePartsInput
                   value={dateSearch}
-                  onChange={(e) => setDateSearch(e.target.value)}
+                  onChange={setDateSearch}
                   aria-label={t('collection.dateSearch')}
-                  className="h-7 w-32 rounded bg-transparent px-1 text-xs text-foreground [color-scheme:light] outline-none"
                 />
               )}
               {dateFilterMode === 'range' && (
                 <>
-                  <input
-                    type="date"
+                  <DatePartsInput
                     value={dateSearch}
-                    onChange={(e) => setDateSearch(e.target.value)}
+                    onChange={setDateSearch}
                     aria-label={t('collection.dateSearchFrom')}
-                    className="h-7 w-32 rounded bg-transparent px-1 text-xs text-foreground [color-scheme:light] outline-none"
                   />
                   <span className="text-muted-foreground/50">-</span>
-                  <input
-                    type="date"
+                  <DatePartsInput
                     value={dateSearchEnd}
-                    onChange={(e) => setDateSearchEnd(e.target.value)}
+                    onChange={setDateSearchEnd}
                     aria-label={t('collection.dateSearchTo')}
-                    className="h-7 w-32 rounded bg-transparent px-1 text-xs text-foreground [color-scheme:light] outline-none"
                   />
                 </>
               )}
               {dateFilterMode === 'month' && (
-                <input
-                  type="month"
+                <DatePartsInput
                   value={monthSearch}
-                  onChange={(e) => setMonthSearch(e.target.value)}
+                  onChange={setMonthSearch}
+                  includeDay={false}
                   aria-label={t('collection.monthSearch')}
-                  className="h-7 w-28 rounded bg-transparent px-1 text-xs text-foreground [color-scheme:light] outline-none"
                 />
               )}
               {dateFilterMode === 'year' && (
                 <input
-                  type="number"
-                  min="1900"
-                  max="2100"
+                  type="text"
                   value={yearSearch}
-                  onChange={(e) => setYearSearch(e.target.value.slice(0, 4))}
+                  onChange={(e) => setYearSearch(e.target.value.replace(/\D/g, '').slice(0, 4))}
                   placeholder="2026"
                   aria-label={t('collection.yearSearch')}
                   className="h-7 w-16 rounded bg-transparent px-1 text-xs text-foreground outline-none"

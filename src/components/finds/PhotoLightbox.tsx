@@ -164,6 +164,12 @@ export function PhotoLightbox({
     cropDragRef.current = null;
   }
 
+  function cancelCrop() {
+    setCropMode(false);
+    setCropSelection(null);
+    setPhotoEditError(null);
+  }
+
   const current = photos[currentIndex];
 
   const prev = () => {
@@ -370,19 +376,40 @@ export function PhotoLightbox({
             </div>
 
             {/* Photo counter */}
-            {photos.length > 1 && (
+            {photos.length > 1 && !cropMode && (
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 font-mono text-[11px] text-white/50 bg-black/40 px-2 py-0.5 rounded-full pointer-events-none">
                 {currentIndex + 1} / {photos.length}
               </div>
             )}
             {photoEditError && (
-              <div className="absolute bottom-10 left-1/2 max-w-[80%] -translate-x-1/2 rounded-md border border-destructive/40 bg-background/95 px-3 py-1.5 text-xs font-medium text-destructive shadow-lg">
+              <div className={`absolute left-1/2 max-w-[80%] -translate-x-1/2 rounded-md border border-destructive/40 bg-background/95 px-3 py-1.5 text-xs font-medium text-destructive shadow-lg ${cropMode ? 'bottom-24' : 'bottom-10'}`}>
                 {photoEditError}
               </div>
             )}
             {cropMode && (
-              <div className="absolute top-3 left-1/2 z-10 -translate-x-1/2 rounded-full border border-primary/35 bg-black/55 px-3 py-1 text-xs font-medium text-white/85 backdrop-blur-sm">
-                {t('lightbox.cropHint')}
+              <div className="pointer-events-none absolute inset-x-0 bottom-5 z-20 flex justify-center px-4">
+                <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-primary/35 bg-black/70 p-1.5 text-white shadow-xl backdrop-blur-md">
+                  <span className="hidden px-2 text-xs font-medium text-white/75 sm:inline">
+                    {t('lightbox.cropHint')}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={cancelCrop}
+                    disabled={photoEditSaving}
+                    className="rounded-full px-3 py-1.5 text-xs font-semibold text-white/80 transition-colors hover:bg-white/12 hover:text-white disabled:opacity-45"
+                  >
+                    {t('common.cancel')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveCrop}
+                    disabled={photoEditSaving || !cropSelection || cropSelection.width < 8 || cropSelection.height < 8}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-45"
+                  >
+                    {photoEditSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                    {t('edit.save')}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -637,9 +664,10 @@ export function PhotoLightbox({
                 </button>
                 <button
                   type="button"
-                  aria-label={cropMode ? t('common.cancel') : t('lightbox.cropPhoto')}
-                  title={cropMode ? t('common.cancel') : t('lightbox.cropPhoto')}
+                  aria-label={t('lightbox.cropPhoto')}
+                  title={t('lightbox.cropPhoto')}
                   onClick={() => {
+                    if (cropMode) return;
                     setCropMode((v) => {
                       const next = !v;
                       if (next) {
@@ -650,23 +678,11 @@ export function PhotoLightbox({
                       return next;
                     });
                   }}
-                  disabled={photoEditSaving || !canEditRaster}
+                  disabled={photoEditSaving || cropMode || !canEditRaster}
                   className={`flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/60 transition-all duration-150 hover:bg-black/70 hover:text-white disabled:opacity-40 ${cropMode ? 'ring-1 ring-primary/70 text-white' : ''}`}
                 >
-                  {cropMode ? <X className="h-4 w-4" /> : <Crop className="h-4 w-4" />}
+                  <Crop className="h-4 w-4" />
                 </button>
-                {cropMode && (
-                  <button
-                    type="button"
-                    aria-label={t('lightbox.saveCrop')}
-                    title={t('lightbox.saveCrop')}
-                    onClick={handleSaveCrop}
-                    disabled={photoEditSaving || !cropSelection || cropSelection.width < 8 || cropSelection.height < 8}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/85 text-primary-foreground transition-all duration-150 hover:bg-primary disabled:opacity-40"
-                  >
-                    {photoEditSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  </button>
-                )}
                 <button
                   type="button"
                   aria-label={t('lightbox.zoomIn')}

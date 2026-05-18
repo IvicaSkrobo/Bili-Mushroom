@@ -6,7 +6,7 @@ export function formatDisplayDate(date: string | null | undefined, lang: Lang | 
   if (!year || !month || !day) return date;
 
   if (lang === 'hr') {
-    return `${day.padStart(2, '0')}.${month.padStart(2, '0')}.${year.slice(-2)}`;
+    return `${day.padStart(2, '0')}.${month.padStart(2, '0')}.${year}`;
   }
 
   const parsed = new Date(`${date}T00:00:00`);
