@@ -223,8 +223,8 @@ const hr: Translations = {
   'edit.region': 'Regija',
   'edit.locationMark': 'Oznaka lokacije',
   'edit.locationMarkPlaceholder': 'npr. blizu starog hrasta',
-  'edit.lat': 'Geografska širina',
-  'edit.lng': 'Geografska dužina',
+  'edit.lat': 'Širina',
+  'edit.lng': 'Dužina',
   'edit.notes': 'Bilješke',
   'edit.observedCount': 'Broj plodnih tijela',
   'edit.observedCountPlaceholder': 'npr. 12',
@@ -412,17 +412,20 @@ const hr: Translations = {
   // stats tab — species stat row
   'stats.totalFinds': 'Ukupno nalaza',
   'stats.firstFind': 'Prvi nalaz',
+  'stats.lastFind': 'Zadnji nalaz',
   'stats.bestMonth': 'Najaktivniji mjesec',
+  'stats.activeMonths': 'Aktivni mjeseci',
   'stats.fruitingBodies': 'Plodna tijela',
   'stats.locations': 'Lokacije',
+  'stats.lastSeen': 'zadnje {date}',
 
   // stats tab — seasonal calendar & insights
-  'stats.yourSeason': 'Tvoja sezona',
+  'stats.yourSeason': 'Tvoje sezone',
   'stats.noFindsInMonth': 'Nema nalaza u {month}.',
   'stats.insightStrong': '{month} je povijesno jak',
   'stats.insightMostActive': 'Najaktivnije vrste: {species}.',
   'stats.insightLogged': 'Zabilježeno {count} nalaza u {month}.',
-  'stats.spotHint': 'Savjet: **{species}** je najaktivnija oko {month} — pokušajte {location}.',
+  'stats.spotHint': 'Savjet: {species} je najaktivnija oko {month} — pokušajte {location}.',
 
   // stats tab — historical comparison
   'stats.weekHeading': 'Ovaj tjedan — Tjedan {week}',
@@ -453,8 +456,14 @@ const hr: Translations = {
   'stats.seasonalInsights': 'Sezonski uvidi',
   'stats.yourSpecies': 'Tvoje vrste',
   'stats.firstOuting': 'PRVI IZLAZAK',
+  'stats.totalOutings': 'Ukupno izlazaka: {count}',
   'stats.fieldOutings': 'Tvoji izlasci na teren',
   'stats.outingSummary': '{finds} nalaza · {species} vrsta · {locations} lokacija',
+  'stats.outingLocations': 'Lokacije',
+  'stats.outingSpecies': 'Vrste',
+  'stats.outingFinds': 'Nalazi',
+  'stats.outingLocationCount': '{finds} nalaza / {species} vrsta',
+  'stats.outingFindCount': '{finds} nalaza',
   'stats.noLocation': 'Bez lokacije',
   'stats.exportHint': 'Izvezi cijelu zbirku',
   'stats.csvSaved': 'CSV spremljen u {path}',
@@ -479,6 +488,7 @@ const hr: Translations = {
   // map
   'map.zoomToFit': 'Zumiraj na sve pinove',
   'map.zoomIn': 'Zumiraj',
+  'map.zoomShort': 'Zoom',
   'map.openSpecies': 'Vrsta',
   'map.openCollection': 'Zbirka',
 
@@ -781,8 +791,8 @@ const en: Translations = {
   'edit.region': 'Region',
   'edit.locationMark': 'Location mark',
   'edit.locationMarkPlaceholder': 'e.g. near the old oak',
-  'edit.lat': 'Latitude',
-  'edit.lng': 'Longitude',
+  'edit.lat': 'Lat',
+  'edit.lng': 'Lng',
   'edit.notes': 'Notes',
   'edit.observedCount': 'Fruiting body count',
   'edit.observedCountPlaceholder': 'e.g. 12',
@@ -970,17 +980,20 @@ const en: Translations = {
   // stats tab — species stat row
   'stats.totalFinds': 'Total Finds',
   'stats.firstFind': 'First Find',
+  'stats.lastFind': 'Last Find',
   'stats.bestMonth': 'Best Month',
+  'stats.activeMonths': 'Active Months',
   'stats.fruitingBodies': 'Fruiting Bodies',
   'stats.locations': 'Locations',
+  'stats.lastSeen': 'last {date}',
 
   // stats tab — seasonal calendar & insights
-  'stats.yourSeason': 'Your Season',
+  'stats.yourSeason': 'Your Seasons',
   'stats.noFindsInMonth': 'No finds recorded in {month}.',
   'stats.insightStrong': '{month} is historically strong',
   'stats.insightMostActive': 'Most active species: {species}.',
   'stats.insightLogged': 'You logged {count} finds in {month}.',
-  'stats.spotHint': 'Hint: **{species}** peaks around {month} — try {location}.',
+  'stats.spotHint': 'Hint: {species} peaks around {month} — try {location}.',
 
   // stats tab — historical comparison
   'stats.weekHeading': 'This Week — Week {week}',
@@ -1011,8 +1024,14 @@ const en: Translations = {
   'stats.seasonalInsights': 'Seasonal Insights',
   'stats.yourSpecies': 'Your Species',
   'stats.firstOuting': 'FIRST OUTING',
+  'stats.totalOutings': 'Total outings: {count}',
   'stats.fieldOutings': 'Your Field Outings',
   'stats.outingSummary': '{finds} finds · {species} species · {locations} locations',
+  'stats.outingLocations': 'Locations',
+  'stats.outingSpecies': 'Species',
+  'stats.outingFinds': 'Finds',
+  'stats.outingLocationCount': '{finds} finds / {species} species',
+  'stats.outingFindCount': '{finds} finds',
   'stats.noLocation': 'No location',
   'stats.exportHint': 'Export your full collection',
   'stats.csvSaved': 'CSV saved to {path}',
@@ -1037,6 +1056,7 @@ const en: Translations = {
   // map
   'map.zoomToFit': 'Zoom to fit all pins',
   'map.zoomIn': 'Zoom in',
+  'map.zoomShort': 'Zoom',
   'map.openSpecies': 'Species',
   'map.openCollection': 'Collection',
 

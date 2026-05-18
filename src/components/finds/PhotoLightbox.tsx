@@ -61,6 +61,8 @@ export function PhotoLightbox({
 }: PhotoLightboxProps) {
   const t = useT();
   const lang = useAppStore((s) => s.language);
+  const photoAssetVersion = useAppStore((s) => s.photoAssetVersion);
+  const bumpPhotoAssetVersion = useAppStore((s) => s.bumpPhotoAssetVersion);
   const queryClient = useQueryClient();
   const [visible, setVisible] = useState(true);
   const [locationPickerOpen, setLocationPickerOpen] = useState(false);
@@ -75,7 +77,6 @@ export function PhotoLightbox({
   const [cropSelection, setCropSelection] = useState<CropSelection | null>(null);
   const [photoEditSaving, setPhotoEditSaving] = useState(false);
   const [photoEditError, setPhotoEditError] = useState<string | null>(null);
-  const [photoVersion, setPhotoVersion] = useState(0);
   const dragActive = useRef(false);
   const dragStart = useRef({ mx: 0, my: 0, px: 0, py: 0 });
   const imageWrapRef = useRef<HTMLDivElement | null>(null);
@@ -221,8 +222,7 @@ export function PhotoLightbox({
   const find = current?.find ?? fallbackFind!;
   const heic = photo ? isHeic(photo.photo_path) : false;
   const canEditRaster = photo != null && !heic && isEditableRasterPhoto(photo.photo_path);
-  const photoSrc = photo && !heic ? resolvePhotoSrc(storagePath, photo.photo_path) : null;
-  const renderedPhotoSrc = photoSrc ? `${photoSrc}${photoSrc.includes('?') ? '&' : '?'}v=${photoVersion}` : null;
+  const renderedPhotoSrc = photo && !heic ? resolvePhotoSrc(storagePath, photo.photo_path, photoAssetVersion) : null;
   const isSpeciesCover = current ? (isCurrentSpeciesCover?.(current) ?? false) : false;
 
   // Observed count display for this find
@@ -238,7 +238,7 @@ export function PhotoLightbox({
     setPhotoEditError(null);
     try {
       await editFindPhotoImage(storagePath, photo.id, 90, null);
-      setPhotoVersion((v) => v + 1);
+      bumpPhotoAssetVersion();
       setZoom(1);
       setPan({ x: 0, y: 0 });
       await queryClient.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
@@ -268,7 +268,7 @@ export function PhotoLightbox({
     setPhotoEditError(null);
     try {
       await editFindPhotoImage(storagePath, photo.id, 0, crop);
-      setPhotoVersion((v) => v + 1);
+      bumpPhotoAssetVersion();
       setCropMode(false);
       setCropSelection(null);
       setZoom(1);

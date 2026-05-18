@@ -24,11 +24,11 @@ export type Distribution = typeof DISTRIBUTION_VALUES[number];
 
 export const EDIBILITY_BADGE_CLASSES: Record<Edibility, string> = {
   unknown:              'border border-border/50 bg-muted/40 text-muted-foreground',
-  edible:               'border border-emerald-600/50 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300',
-  conditionally_edible: 'border border-yellow-600/50 bg-yellow-50 text-yellow-800 dark:border-yellow-500/35 dark:bg-yellow-500/10 dark:text-yellow-300',
-  inedible:             'border border-zinc-600/55 bg-zinc-100 text-zinc-800 dark:border-zinc-400/35 dark:bg-zinc-400/14 dark:text-zinc-200',
-  poisonous:            'border border-rose-600/50 bg-rose-50 text-rose-800 dark:border-rose-500/35 dark:bg-rose-500/10 dark:text-rose-200',
-  deadly_poisonous:     'border border-red-700/60 bg-red-100 text-red-900 dark:border-red-600/40 dark:bg-red-900/20 dark:text-red-300',
+  edible:               'border border-emerald-800/55 bg-emerald-100 text-emerald-950 dark:border-emerald-400/45 dark:bg-emerald-950/50 dark:text-emerald-200',
+  conditionally_edible: 'border border-lime-600/55 bg-lime-50 text-lime-800 dark:border-lime-400/40 dark:bg-lime-500/12 dark:text-lime-200',
+  inedible:             'border border-orange-600/55 bg-orange-50 text-orange-900 dark:border-orange-400/45 dark:bg-orange-500/12 dark:text-orange-200',
+  poisonous:            'border border-rose-500/55 bg-rose-50 text-rose-800 dark:border-rose-300/40 dark:bg-rose-500/12 dark:text-rose-200',
+  deadly_poisonous:     'border border-red-800/65 bg-red-100 text-red-950 dark:border-red-500/50 dark:bg-red-950/55 dark:text-red-200',
 };
 
 export const THREAT_STATUS_BADGE_CLASSES: Record<ThreatStatus, string> = {
@@ -45,12 +45,12 @@ export const THREAT_STATUS_BADGE_CLASSES: Record<ThreatStatus, string> = {
 
 export const DISTRIBUTION_BADGE_CLASSES: Record<Distribution, string> = {
   unknown:           'border border-border/50 bg-muted/40 text-muted-foreground',
-  widespread:        'border border-sky-600/50 bg-sky-50 text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300',
-  common:            'border border-blue-600/50 bg-blue-50 text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300',
-  moderately_common: 'border border-indigo-600/50 bg-indigo-50 text-indigo-800 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300',
-  sporadic:          'border border-violet-600/50 bg-violet-50 text-violet-800 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300',
-  rare:              'border border-amber-600/50 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200',
-  extremely_rare:    'border border-rose-600/50 bg-rose-50 text-rose-800 dark:border-rose-600/35 dark:bg-rose-500/10 dark:text-rose-200',
+  widespread:        'border border-emerald-800/55 bg-emerald-100 text-emerald-950 dark:border-emerald-400/45 dark:bg-emerald-950/50 dark:text-emerald-200',
+  common:            'border border-lime-600/55 bg-lime-50 text-lime-800 dark:border-lime-400/40 dark:bg-lime-500/12 dark:text-lime-200',
+  moderately_common: 'border border-sky-500/55 bg-sky-50 text-sky-800 dark:border-sky-300/40 dark:bg-sky-500/12 dark:text-sky-200',
+  sporadic:          'border border-blue-800/60 bg-blue-100 text-blue-950 dark:border-blue-400/45 dark:bg-blue-950/50 dark:text-blue-200',
+  rare:              'border border-orange-600/55 bg-orange-50 text-orange-900 dark:border-orange-400/45 dark:bg-orange-500/12 dark:text-orange-200',
+  extremely_rare:    'border border-red-800/65 bg-red-100 text-red-950 dark:border-red-500/50 dark:bg-red-950/55 dark:text-red-200',
 };
 
 // ---------------------------------------------------------------------------

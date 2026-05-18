@@ -88,15 +88,23 @@ export function LocationNoteInput({
 
   // Filter: case-insensitive substring match on trimmed localValue;
   // skip empty/whitespace suggestions
-  const visibleSuggestions = localValue.trim()
+  const normalizedQuery = localValue.trim().toLowerCase();
+  const visibleSuggestions = normalizedQuery
     ? suggestions
         .filter((s) => {
           const trimmed = s.trim();
           return trimmed &&
             !hiddenSuggestions.has(trimmed.toLowerCase()) &&
-            trimmed.toLowerCase().includes(localValue.trim().toLowerCase());
+            trimmed.toLowerCase().includes(normalizedQuery);
         })
-        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+        .sort((a, b) => {
+          const aLower = a.trim().toLowerCase();
+          const bLower = b.trim().toLowerCase();
+          const aStarts = aLower.startsWith(normalizedQuery);
+          const bStarts = bLower.startsWith(normalizedQuery);
+          if (aStarts !== bStarts) return aStarts ? -1 : 1;
+          return a.localeCompare(b, 'hr', { sensitivity: 'base' });
+        })
         .slice(0, 8)
     : [];
 

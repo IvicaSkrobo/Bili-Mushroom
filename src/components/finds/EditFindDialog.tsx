@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+﻿import { useEffect, useRef, useState, useMemo } from 'react';
 import { SpeciesNameEditor } from './SpeciesNameEditor';
 import { LocationNoteInput } from './LocationNoteInput';
 import { readDir } from '@tauri-apps/plugin-fs';
@@ -13,8 +13,10 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/date-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { useUpdateFind, useAddFindPhotos, useDeleteFindPhoto, useBulkDeleteFindPhotos, useFinds, useSpeciesProfiles, useUpsertSpeciesProfile } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
@@ -24,7 +26,7 @@ import { reverseGeocode } from '@/lib/geocoding';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
 import { PickLocationButton } from '@/components/map/PickLocationButton';
 import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
-import { Check, FolderOpen, ImagePlus, Info, Trash2, X } from 'lucide-react';
+import { Check, FolderOpen, ImagePlus, Trash2, X } from 'lucide-react';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 import { plainSpeciesName } from '@/lib/speciesName';
 
@@ -97,6 +99,7 @@ interface EditFindDialogProps {
 export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   const t = useT();
   const storagePath = useAppStore((s) => s.storagePath);
+  const photoAssetVersion = useAppStore((s) => s.photoAssetVersion);
   const updateMutation = useUpdateFind();
   const upsertSpeciesProfile = useUpsertSpeciesProfile();
   const addPhotosMutation = useAddFindPhotos();
@@ -120,7 +123,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     return set;
   }, [speciesProfiles]);
 
-  // Always reflect the live cache — photo deletions/additions update immediately
+  // Always reflect the live cache â€” photo deletions/additions update immediately
   // without waiting for the parent's `find` prop to re-capture the new snapshot.
   const livePhotos = useMemo(() => {
     if (!find) return [];
@@ -155,6 +158,16 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<number>>(new Set());
   const [pendingPhotos, setPendingPhotos] = useState<string[]>([]);
   const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
+  const speciesSuggestions = useMemo(() => {
+    const seen = new Set<string>();
+    return speciesFolders.filter((value) => {
+      const trimmed = value.trim();
+      const key = trimmed.toLowerCase();
+      if (!trimmed || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [speciesFolders]);
   const [openingFolder, setOpeningFolder] = useState(false);
   const [folderOpenError, setFolderOpenError] = useState<string | null>(null);
   const [photosExpanded, setPhotosExpanded] = useState(false);
@@ -346,11 +359,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
                 value={form.species_name}
                 onChange={(raw) => handleChange('species_name', raw)}
                 placeholder={t('edit.latinNamePlaceholder')}
-                suggestions={[
-                  ...speciesFolders,
-                  ...(findsData?.map((f) => f.species_name).filter(Boolean) ?? []),
-                  ...(speciesProfiles?.map((p) => p.species_name) ?? []),
-                ].filter((v, i, a) => v.trim() && a.findIndex((x) => x.toLowerCase() === v.toLowerCase()) === i)}
+                suggestions={speciesSuggestions}
                 suggestionsProfiles={speciesSuggestionsProfiles}
               />
             </div>
@@ -376,11 +385,11 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
           </div>
           <div>
             <label className="text-sm font-medium">{t('edit.date')}</label>
-            <Input
-              type="date"
+            <DateInput
+              className="ml-2 align-middle"
               value={form.date_found}
-              onChange={(e) => handleChange('date_found', e.target.value)}
-              className="text-foreground [color-scheme:light]"
+              onChange={(value) => handleChange('date_found', value)}
+              aria-label={t('edit.date')}
             />
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -410,7 +419,24 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,220px)_1fr_1fr]">
+            <div>
+              <div className="mb-1 flex items-center gap-1 text-sm font-medium">
+                <label>{t('edit.observedCount')}</label>
+                <InfoTooltip text={t('edit.observedCountHelp')} />
+              </div>
+              <Input
+                inputMode="numeric"
+                value={form.observed_count_range}
+                onChange={(e) => handleChange('observed_count_range', e.target.value)}
+                placeholder="npr. 15 ili 15-20"
+              />
+              {!isObservedRangeInputValid(form.observed_count_range) && (
+                <p className="mt-1 text-xs text-amber-600">
+                  Unesi broj ili raspon poput 15-20. Ovakav unos nece se spremiti.
+                </p>
+              )}
+            </div>
             <div>
               <label className="text-sm font-medium">{t('edit.lat')}</label>
               <Input
@@ -516,29 +542,6 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
             />
             <p className="mt-1 text-xs text-muted-foreground">{t('edit.speciesDescriptionHelp')}</p>
           </div>
-          <div>
-            <div className="mb-1 flex items-center gap-1 text-sm font-medium">
-              <label>{t('edit.observedCount')}</label>
-              <span
-                className="text-muted-foreground"
-                title={t('edit.observedCountHelp')}
-                aria-label={t('edit.observedCountHelp')}
-              >
-                <Info className="h-3.5 w-3.5" />
-              </span>
-            </div>
-            <Input
-              inputMode="numeric"
-              value={form.observed_count_range}
-              onChange={(e) => handleChange('observed_count_range', e.target.value)}
-              placeholder="npr. 15 ili 15-20"
-            />
-            {!isObservedRangeInputValid(form.observed_count_range) && (
-              <p className="mt-1 text-xs text-amber-600">
-                Unesi broj ili raspon poput 15-20. Ovakav unos neće se spremiti.
-              </p>
-            )}
-          </div>
           {find && livePhotos.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
@@ -579,7 +582,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
                 <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-7 lg:grid-cols-9 xl:grid-cols-10">
                   {livePhotos.map((photo) => {
                     const selected = selectedPhotoIds.has(photo.id);
-                    const src = resolvePhotoSrc(storagePath!, photo.photo_path);
+                    const src = resolvePhotoSrc(storagePath!, photo.photo_path, photoAssetVersion);
                     return (
                       <div
                         key={photo.id}
@@ -602,7 +605,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
                         />
                         {photo.is_primary && (
                           <span className="absolute top-1 left-1 rounded bg-sky-600/75 px-1 py-0.5 text-[8px] font-semibold text-white/90 pointer-events-none">
-                            ★
+                            â˜…
                           </span>
                         )}
                         {selectedPhotoIds.size === 0 && (

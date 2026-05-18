@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { SpeciesProfile } from '@/lib/finds';
-import { AlertCircle, AlertTriangle, CircleHelp, Gem, Globe, Leaf, Minus, OctagonAlert, Skull, TrendingDown, Utensils } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CircleHelp, Gem, Globe, Leaf, Map, MapPinned, Minus, OctagonAlert, Skull, TrendingDown, Utensils } from 'lucide-react';
 import {
   normalizeEdibility,
   normalizeThreatStatus,
@@ -62,8 +62,8 @@ const THREAT_ICONS: Record<ThreatStatus, React.ElementType> = {
 const DISTRIBUTION_ICONS: Record<Distribution, React.ElementType> = {
   unknown:           CircleHelp,
   widespread:        Globe,
-  common:            Globe,
-  moderately_common: Globe,
+  common:            MapPinned,
+  moderately_common: Map,
   sporadic:          Gem,
   rare:              Gem,
   extremely_rare:    Gem,

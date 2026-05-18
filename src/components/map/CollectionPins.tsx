@@ -77,6 +77,7 @@ function CollectionPopup({
   const setSelectedCollectionSpecies = useAppStore((s) => s.setSelectedCollectionSpecies);
   const setPendingSpeciesSelection = useAppStore((s) => s.setPendingSpeciesSelection);
   const lang = useAppStore((s) => s.language);
+  const photoAssetVersion = useAppStore((s) => s.photoAssetVersion);
   const t = useT();
   const popupRef = useRef<HTMLDivElement | null>(null);
   const previousButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -114,7 +115,7 @@ function CollectionPopup({
     representativeFind?.photos[0] ??
     null;
   const photoSrc = representativePhoto && storagePath
-    ? resolvePhotoSrc(storagePath, representativePhoto.photo_path)
+    ? resolvePhotoSrc(storagePath, representativePhoto.photo_path, photoAssetVersion)
     : null;
   const hasPhoto = photoSrc != null;
 
@@ -268,10 +269,11 @@ function CollectionPopup({
               <button
                 type="button"
                 onClick={() => map.flyTo([locationGroup.lat, locationGroup.lng], Math.max(map.getZoom(), 16))}
-                className="flex items-center gap-1 text-[11px] text-primary/65 transition-colors hover:text-primary"
+                className="inline-flex h-7 items-center gap-1 rounded border border-border/60 bg-input px-2 text-[11px] font-semibold text-foreground transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
+                title={t('map.zoomIn')}
               >
                 <ZoomIn className="h-3 w-3" />
-                {t('map.zoomIn')}
+                {t('map.zoomShort')}
               </button>
               {firstFind?.lat != null && firstFind.lng != null && (
                 <div className="flex gap-1">

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { compareSpeciesNames } from '@/lib/speciesName';
-import { Loader2, BarChart3, Download, FileText, Compass, CalendarDays } from 'lucide-react';
+import { compareSpeciesNames, renderSpeciesName } from '@/lib/speciesName';
+import { Loader2, BarChart3, Download, FileText, Compass, CalendarDays, ChevronDown, ChevronUp, ListChecks, MapPin, Sprout } from 'lucide-react';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { StatCard } from '@/components/stats/StatCard';
 import { RankedList } from '@/components/stats/RankedList';
@@ -15,7 +15,7 @@ import {
   useCalendar,
   useSpeciesStats,
 } from '@/hooks/useStats';
-import { useFinds } from '@/hooks/useFinds';
+import { useFinds, useSpeciesProfiles } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { exportToCsv } from '@/lib/exportCsv';
 import { buildSeasonalityInsights, buildSpeciesSpotHint } from '@/lib/insights';
@@ -29,13 +29,17 @@ import { formatDisplayDate } from '@/lib/dateFormat';
 // ---------------------------------------------------------------------------
 
 function renderMarkedText(text: string): React.ReactNode {
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).filter(Boolean);
+  const normalized = text
+    .replace(/\*\*(\[\[species:.*?\]\])\*\*/g, '$1')
+    .replace(/\*(\[\[species:.*?\]\])\*/g, '$1');
+  const parts = normalized.split(/(\[\[species:.*?\]\])/g).filter(Boolean);
   return parts.map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={i}>{part.slice(2, -2)}</strong>;
-    }
-    if (part.startsWith('*') && part.endsWith('*')) {
-      return <strong key={i}>{part.slice(1, -1)}</strong>;
+    if (part.startsWith('[[species:') && part.endsWith(']]')) {
+      return (
+        <span key={i} className="font-serif text-[0.92rem] font-bold italic text-foreground">
+          {renderSpeciesName(part.slice(10, -2))}
+        </span>
+      );
     }
     return <span key={i}>{part}</span>;
   });
@@ -70,6 +74,21 @@ function locationLabel(find: { country?: string; region?: string; location_note?
   return [find.location_note, find.region, find.country].filter(Boolean).join(' / ');
 }
 
+function formatObservedCount(find: {
+  observed_count?: number | null;
+  observed_count_min?: number | null;
+  observed_count_max?: number | null;
+}): string | null {
+  if (find.observed_count_min != null || find.observed_count_max != null) {
+    if (find.observed_count_min != null && find.observed_count_max != null && find.observed_count_min !== find.observed_count_max) {
+      return `${find.observed_count_min}-${find.observed_count_max}`;
+    }
+    return String(find.observed_count_min ?? find.observed_count_max);
+  }
+  if (find.observed_count != null) return String(find.observed_count);
+  return null;
+}
+
 
 // ---------------------------------------------------------------------------
 // Component
@@ -84,6 +103,7 @@ export default function StatsTab() {
   const { data: calendar } = useCalendar();
   const { data: speciesStats } = useSpeciesStats();
   const { data: finds } = useFinds();
+  const { data: speciesProfiles } = useSpeciesProfiles();
   const storagePath = useAppStore((s) => s.storagePath);
   const lang = useAppStore((s) => s.language);
   const locale = lang === 'hr' ? 'hr-HR' : 'en-US';
@@ -93,6 +113,7 @@ export default function StatsTab() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [fieldOutingsExpanded, setFieldOutingsExpanded] = useState(false);
+  const [expandedOutingDates, setExpandedOutingDates] = useState<Set<string>>(() => new Set());
   const topSpotsFormatted = useMemo(() => {
     if (!topSpots) return [];
     return topSpots.map((s) => {
@@ -149,7 +170,13 @@ export default function StatsTab() {
     [calendar],
   );
   const fieldOutings = useMemo(() => {
-    const byDate = new Map<string, { date: string; count: number; locations: Set<string>; species: Set<string> }>();
+    const byDate = new Map<string, {
+      date: string;
+      count: number;
+      locations: Set<string>;
+      species: Set<string>;
+      finds: NonNullable<typeof finds>;
+    }>();
     for (const find of finds ?? []) {
       if (!find.date_found) continue;
       const bucket = byDate.get(find.date_found) ?? {
@@ -157,17 +184,53 @@ export default function StatsTab() {
         count: 0,
         locations: new Set<string>(),
         species: new Set<string>(),
+        finds: [],
       };
       bucket.count += 1;
       const loc = locationLabel(find);
       if (loc) bucket.locations.add(loc);
       if (find.species_name) bucket.species.add(find.species_name);
+      bucket.finds.push(find);
       byDate.set(find.date_found, bucket);
     }
-    return Array.from(byDate.values()).sort((a, b) => b.date.localeCompare(a.date));
-  }, [finds]);
+    return Array.from(byDate.values()).map((outing) => {
+      const locationMap = new Map<string, { label: string; count: number; species: Set<string> }>();
+      const speciesMap = new Map<string, { name: string; count: number; locations: Set<string> }>();
+
+      for (const find of outing.finds) {
+        const loc = locationLabel(find) || t('stats.noLocation');
+        const locationEntry = locationMap.get(loc) ?? { label: loc, count: 0, species: new Set<string>() };
+        locationEntry.count += 1;
+        if (find.species_name) locationEntry.species.add(find.species_name);
+        locationMap.set(loc, locationEntry);
+
+        const speciesName = find.species_name || t('findCard.unnamed');
+        const speciesEntry = speciesMap.get(speciesName) ?? { name: speciesName, count: 0, locations: new Set<string>() };
+        speciesEntry.count += 1;
+        speciesEntry.locations.add(loc);
+        speciesMap.set(speciesName, speciesEntry);
+      }
+
+      return {
+        ...outing,
+        locationDetails: Array.from(locationMap.values())
+          .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'hr', { sensitivity: 'base' })),
+        speciesDetails: Array.from(speciesMap.values())
+          .sort((a, b) => b.count - a.count || compareSpeciesNames(a.name, b.name)),
+      };
+    }).sort((a, b) => b.date.localeCompare(a.date));
+  }, [finds, t]);
   const firstOuting = fieldOutings[fieldOutings.length - 1] ?? null;
   const visibleFieldOutings = fieldOutingsExpanded ? fieldOutings : fieldOutings.slice(0, 8);
+
+  const toggleOutingDetails = (date: string) => {
+    setExpandedOutingDates((current) => {
+      const next = new Set(current);
+      if (next.has(date)) next.delete(date);
+      else next.add(date);
+      return next;
+    });
+  };
 
   const handleExportCsv = async () => {
     if (!finds || finds.length === 0) return;
@@ -280,7 +343,7 @@ export default function StatsTab() {
               label={t('stats.firstOuting')}
               value={firstOuting ? formatShortDate(firstOuting.date, locale) : '--'}
               index={4}
-              sublabel={firstOuting ? Array.from(firstOuting.locations)[0] ?? t('stats.noLocation') : t('stats.noDataYet')}
+              sublabel={firstOuting ? t('stats.totalOutings', { count: fieldOutings.length }) : t('stats.noDataYet')}
             />
           </div>
 
@@ -308,6 +371,7 @@ export default function StatsTab() {
                 items={topSpotsFormatted}
                 emptyMessage={t('stats.topSpotsEmpty')}
                 pageSize={10}
+                speciesProfiles={speciesProfiles}
               />
             </div>
             <div className="flex-1">
@@ -315,6 +379,7 @@ export default function StatsTab() {
                 title={t('stats.bestMonths')}
                 items={bestMonthsFormatted}
                 emptyMessage={t('stats.bestMonthsEmpty')}
+                speciesProfiles={speciesProfiles}
               />
             </div>
           </div>
@@ -366,6 +431,8 @@ export default function StatsTab() {
                     stat={s}
                     rank={idx + 1}
                     index={idx}
+                    finds={finds ?? []}
+                    speciesProfile={speciesProfiles?.find((profile) => profile.species_name === s.species_name) ?? null}
                   />
                 ))}
               </div>
@@ -391,13 +458,18 @@ export default function StatsTab() {
               <div className="grid gap-2">
                 {visibleFieldOutings.map((outing, idx) => {
                   const locations = Array.from(outing.locations);
+                  const isOutingOpen = expandedOutingDates.has(outing.date);
                   return (
                     <div
                       key={outing.date}
-                      className="stagger-item rounded-sm border border-border/70 bg-card px-3 py-2.5 shadow-sm"
+                      className="stagger-item overflow-hidden rounded-sm border border-border/70 bg-card shadow-sm transition-colors hover:border-primary/35"
                       style={{ animationDelay: `${Math.min(idx * 30, 240)}ms` }}
                     >
-                      <div className="flex items-start gap-3">
+                      <button
+                        type="button"
+                        onClick={() => toggleOutingDetails(outing.date)}
+                        className="flex w-full items-start gap-3 px-3 py-2.5 text-left"
+                      >
                         <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -418,7 +490,87 @@ export default function StatsTab() {
                             </p>
                           )}
                         </div>
-                      </div>
+                        {isOutingOpen ? (
+                          <ChevronUp className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                        )}
+                      </button>
+
+                      {isOutingOpen && (
+                        <div className="border-t border-border/60 bg-muted/35 px-3 py-3">
+                          <div className="grid gap-3 lg:grid-cols-3">
+                            <div className="rounded-sm border border-border/60 bg-card/70 p-2.5">
+                              <div className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                                <MapPin className="h-3.5 w-3.5 text-primary" />
+                                {t('stats.outingLocations')}
+                              </div>
+                              <div className="space-y-1.5">
+                                {outing.locationDetails.map((loc) => (
+                                  <div key={loc.label} className="flex items-start justify-between gap-2 text-xs">
+                                    <span className="min-w-0 truncate text-foreground" title={loc.label}>{loc.label}</span>
+                                    <span className="shrink-0 font-mono text-muted-foreground">
+                                      {t('stats.outingLocationCount', { finds: loc.count, species: loc.species.size })}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="rounded-sm border border-border/60 bg-card/70 p-2.5">
+                              <div className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                                <Sprout className="h-3.5 w-3.5 text-primary" />
+                                {t('stats.outingSpecies')}
+                              </div>
+                              <div className="space-y-1.5">
+                                {outing.speciesDetails.map((species) => (
+                                  <div key={species.name} className="flex items-start justify-between gap-2 text-xs">
+                                    <span className="min-w-0 truncate font-serif italic text-foreground" title={species.name}>
+                                      {renderSpeciesName(species.name)}
+                                    </span>
+                                    <span className="shrink-0 font-mono text-muted-foreground">
+                                      {t('stats.outingFindCount', { finds: species.count })}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="rounded-sm border border-border/60 bg-card/70 p-2.5">
+                              <div className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                                <ListChecks className="h-3.5 w-3.5 text-primary" />
+                                {t('stats.outingFinds')}
+                              </div>
+                              <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                                {outing.finds.map((find) => {
+                                  const observed = formatObservedCount(find);
+                                  const loc = locationLabel(find) || t('stats.noLocation');
+                                  return (
+                                    <div key={find.id} className="border-b border-border/50 pb-1.5 last:border-b-0 last:pb-0">
+                                      <div className="flex items-baseline justify-between gap-2">
+                                        <span className="min-w-0 truncate font-serif text-xs font-semibold italic text-foreground" title={find.species_name}>
+                                          {find.species_name ? renderSpeciesName(find.species_name) : t('findCard.unnamed')}
+                                        </span>
+                                        {observed && (
+                                          <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                                            {observed} {t('findCard.countUnit')}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="mt-0.5 truncate text-[11px] text-muted-foreground/80" title={loc}>{loc}</p>
+                                      {find.notes.trim() && (
+                                        <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">
+                                          {find.notes.trim()}
+                                        </p>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

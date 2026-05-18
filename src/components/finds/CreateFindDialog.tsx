@@ -12,6 +12,8 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/date-input';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useCreateFind, useFinds, useSpeciesProfiles, useUpsertSpeciesProfile } from '@/hooks/useFinds';
@@ -20,7 +22,6 @@ import { useT } from '@/i18n/index';
 import { reverseGeocode } from '@/lib/geocoding';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
 import { PickLocationButton } from '@/components/map/PickLocationButton';
-import { Info } from 'lucide-react';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 import { plainSpeciesName } from '@/lib/speciesName';
 
@@ -71,6 +72,46 @@ const BLANK_FORM: FormState = {
   species_description: '',
 };
 
+const CREATE_FIND_DRAFT_KEY = 'bili:create-find-draft';
+
+interface CreateFindDraft {
+  form: FormState;
+  commonNameManuallyEdited: boolean;
+  lastAutoCommonName: string;
+}
+
+function loadCreateFindDraft(): CreateFindDraft | null {
+  try {
+    const raw = localStorage.getItem(CREATE_FIND_DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<CreateFindDraft>;
+    if (!parsed.form || typeof parsed.form !== 'object') return null;
+    return {
+      form: { ...BLANK_FORM, ...parsed.form },
+      commonNameManuallyEdited: Boolean(parsed.commonNameManuallyEdited),
+      lastAutoCommonName: typeof parsed.lastAutoCommonName === 'string' ? parsed.lastAutoCommonName : '',
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveCreateFindDraft(draft: CreateFindDraft) {
+  try {
+    localStorage.setItem(CREATE_FIND_DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    // Draft persistence is best-effort; the in-memory form still works.
+  }
+}
+
+function clearCreateFindDraft() {
+  try {
+    localStorage.removeItem(CREATE_FIND_DRAFT_KEY);
+  } catch {
+    // Ignore unavailable localStorage.
+  }
+}
+
 interface CreateFindDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -109,20 +150,14 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   }, [speciesProfilesData]);
   const speciesSuggestions = useMemo(() => {
     const seen = new Set<string>();
-    const values = [
-      ...speciesFolders,
-      ...(findsData?.map((find) => find.species_name ?? '') ?? []),
-      ...(speciesProfilesData?.map((profile) => profile.species_name ?? '') ?? []),
-    ];
-
-    return values.filter((value) => {
+    return speciesFolders.filter((value) => {
       const trimmed = value.trim();
       const key = trimmed.toLowerCase();
       if (!trimmed || seen.has(key)) return false;
       seen.add(key);
       return true;
     });
-  }, [speciesFolders, findsData, speciesProfilesData]);
+  }, [speciesFolders]);
 
   const speciesSuggestionsProfiles = useMemo(() => {
     const map = new Map<string, { common_name?: string | null; synonyms?: string[] | null; other_names?: string[] | null }>();
@@ -149,8 +184,28 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
       });
   }, [findsData]);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [form, setForm] = useState<FormState>(BLANK_FORM);
+  const [form, setForm] = useState<FormState>(() => loadCreateFindDraft()?.form ?? BLANK_FORM);
   const commonNameManuallyEditedRef = useRef(false);
+
+  useEffect(() => {
+    const draft = loadCreateFindDraft();
+    if (!draft) return;
+    commonNameManuallyEditedRef.current = draft.commonNameManuallyEdited;
+    lastAutoCommonNameRef.current = draft.lastAutoCommonName;
+  }, []);
+
+  useEffect(() => {
+    const hasDraft = Object.values(form).some((value) => value.trim() !== '');
+    if (!hasDraft) {
+      clearCreateFindDraft();
+      return;
+    }
+    saveCreateFindDraft({
+      form,
+      commonNameManuallyEdited: commonNameManuallyEditedRef.current,
+      lastAutoCommonName: lastAutoCommonNameRef.current,
+    });
+  }, [form]);
 
   const speciesProfile = useMemo(
     () => speciesProfilesByLowerName.get(form.species_name.trim().toLowerCase()) ?? null,
@@ -243,6 +298,8 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
           }
           setForm(BLANK_FORM);
           commonNameManuallyEditedRef.current = false;
+          lastAutoCommonNameRef.current = '';
+          clearCreateFindDraft();
           onOpenChange(false);
         },
       },
@@ -252,6 +309,8 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   function handleCancel() {
     setForm(BLANK_FORM);
     commonNameManuallyEditedRef.current = false;
+    lastAutoCommonNameRef.current = '';
+    clearCreateFindDraft();
     onOpenChange(false);
   }
 
@@ -303,11 +362,11 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
           </div>
           <div>
             <label className="text-sm font-medium">{t('edit.date')}</label>
-            <Input
-              type="date"
+            <DateInput
+              className="ml-2 align-middle"
               value={form.date_found}
-              onChange={(e) => handleChange('date_found', e.target.value)}
-              className="text-foreground [color-scheme:light]"
+              onChange={(value) => handleChange('date_found', value)}
+              aria-label={t('edit.date')}
             />
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -337,7 +396,24 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,220px)_1fr_1fr]">
+          <div>
+            <div className="mb-1 flex items-center gap-1 text-sm font-medium">
+              <label>{t('edit.observedCount')}</label>
+              <InfoTooltip text={t('edit.observedCountHelp')} />
+            </div>
+            <Input
+              inputMode="numeric"
+              value={form.observed_count_range}
+              onChange={(e) => handleChange('observed_count_range', e.target.value)}
+              placeholder="npr. 15 ili 15-20"
+            />
+            {!isObservedRangeInputValid(form.observed_count_range) && (
+              <p className="mt-1 text-xs text-amber-600">
+                Unesi broj ili raspon poput 15-20. Ovakav unos nece se spremiti.
+              </p>
+            )}
+          </div>
             <div>
               <label className="text-sm font-medium">{t('edit.lat')}</label>
               <Input
@@ -375,29 +451,6 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
               rows={3}
             />
             <p className="mt-1 text-xs text-muted-foreground">{t('edit.speciesDescriptionHelp')}</p>
-          </div>
-          <div>
-            <div className="mb-1 flex items-center gap-1 text-sm font-medium">
-              <label>{t('edit.observedCount')}</label>
-              <span
-                className="text-muted-foreground"
-                title={t('edit.observedCountHelp')}
-                aria-label={t('edit.observedCountHelp')}
-              >
-                <Info className="h-3.5 w-3.5" />
-              </span>
-            </div>
-            <Input
-              inputMode="numeric"
-              value={form.observed_count_range}
-              onChange={(e) => handleChange('observed_count_range', e.target.value)}
-              placeholder="npr. 15 ili 15-20"
-            />
-            {!isObservedRangeInputValid(form.observed_count_range) && (
-              <p className="mt-1 text-xs text-amber-600">
-                Unesi broj ili raspon poput 15-20. Ovakav unos neće se spremiti.
-              </p>
-            )}
           </div>
 
         </div>

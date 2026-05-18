@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/date-input';
 
 export interface BulkFields {
   species_name?: string;
@@ -42,11 +43,11 @@ export function BulkMetadataBar({ itemCount, onApplyAll }: BulkMetadataBarProps)
         value={species}
         onChange={(e) => setSpecies(e.target.value)}
       />
-      <Input
+      <DateInput
         className="w-36"
-        type="date"
         value={date}
-        onChange={(e) => setDate(e.target.value)}
+        onChange={setDate}
+        aria-label="Date"
       />
       <Input
         className="w-32"

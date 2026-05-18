@@ -10,16 +10,26 @@ import type { ReactNode } from 'react';
  */
 export function renderSpeciesName(name: string): ReactNode {
   const parts = name.split('*');
-  if (parts.length === 1) return name;
+  if (parts.length === 1) {
+    return (
+      <span className="font-bold">
+        {name}
+      </span>
+    );
+  }
   return parts.map((part, i) => {
     if (i % 2 === 1) {
       return (
-        <span key={i} className="font-normal">
+        <span key={i} className="font-normal opacity-70">
           {part}
         </span>
       );
     }
-    return <span key={i}>{part}</span>;
+    return (
+      <span key={i} className="font-bold">
+        {part}
+      </span>
+    );
   });
 }
 

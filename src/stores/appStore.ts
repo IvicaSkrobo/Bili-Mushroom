@@ -25,6 +25,7 @@ export interface AppState {
   pendingSpeciesSelection: string | null;
   pendingMapCenter: { lat: number; lng: number; zoom: number } | null;
   pendingMapSpeciesFilter: string | null;
+  photoAssetVersion: number;
   availableUpdate: AvailableUpdate | null;
   installingUpdate: boolean;
   installStatus: string | null;
@@ -42,6 +43,7 @@ export interface AppState {
   setPendingSpeciesSelection: (species: string | null) => void;
   setPendingMapCenter: (center: { lat: number; lng: number; zoom: number } | null) => void;
   setPendingMapSpeciesFilter: (speciesName: string | null) => void;
+  bumpPhotoAssetVersion: () => void;
   setAvailableUpdate: (update: AvailableUpdate | null) => void;
   setInstallingUpdate: (installing: boolean) => void;
   setInstallStatus: (status: string | null) => void;
@@ -115,6 +117,7 @@ export const useAppStore = create<AppState>((set) => ({
   pendingSpeciesSelection: null,
   pendingMapCenter: null,
   pendingMapSpeciesFilter: null,
+  photoAssetVersion: 0,
   availableUpdate: null,
   installingUpdate: false,
   installStatus: null,
@@ -129,6 +132,7 @@ export const useAppStore = create<AppState>((set) => ({
   setPendingSpeciesSelection: (pendingSpeciesSelection) => set({ pendingSpeciesSelection }),
   setPendingMapCenter: (pendingMapCenter) => set({ pendingMapCenter }),
   setPendingMapSpeciesFilter: (pendingMapSpeciesFilter) => set({ pendingMapSpeciesFilter }),
+  bumpPhotoAssetVersion: () => set((state) => ({ photoAssetVersion: state.photoAssetVersion + 1 })),
   setAvailableUpdate: (availableUpdate) => set({ availableUpdate }),
   setInstallingUpdate: (installingUpdate) => set({ installingUpdate }),
   setInstallStatus: (installStatus) => set({ installStatus }),

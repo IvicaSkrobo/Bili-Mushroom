@@ -26,12 +26,13 @@ interface FindCardProps {
 export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSelected, onToggleSelect, onToggleFavorite, onLongPress, onPhotoClick, speciesProfile }: FindCardProps) {
   const t = useT();
   const lang = useAppStore((s) => s.language);
+  const photoAssetVersion = useAppStore((s) => s.photoAssetVersion);
   const uniquePhotos = find.photos.filter(
     (p, i, arr) => arr.findIndex((q) => q.photo_path === p.photo_path) === i,
   );
   const [photoIndex, setPhotoIndex] = useState(0);
   const currentPhoto = uniquePhotos[photoIndex] ?? null;
-  const currentPhotoSrc = currentPhoto ? resolvePhotoSrc(storagePath, currentPhoto.photo_path) : null;
+  const currentPhotoSrc = currentPhoto ? resolvePhotoSrc(storagePath, currentPhoto.photo_path, photoAssetVersion) : null;
   const extraCount = uniquePhotos.length > 1 ? uniquePhotos.length - 1 : 0;
   const heic = currentPhoto ? isHeic(currentPhoto.photo_path) : false;
   const commonName = normalizeCommonName(speciesProfile?.common_name, find.species_name);
@@ -110,7 +111,7 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
           </span>
         </p>
         {commonName && (
-          <p className="truncate text-sm font-semibold text-secondary/90 dark:text-secondary" title={commonName}>{commonName}</p>
+          <p className="truncate text-sm font-bold text-foreground/80 dark:text-secondary" title={commonName}>{commonName}</p>
         )}
         <div className="flex flex-wrap gap-x-3 gap-y-0.5">
           {find.date_found && (

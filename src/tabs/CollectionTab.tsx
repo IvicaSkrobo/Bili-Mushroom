@@ -122,11 +122,34 @@ function DatePartsInput({ value, onChange, includeDay = true, ariaLabel, classNa
   const parts = splitDateParts(value, includeDay);
   const placeholders = includeDay ? ['dd', 'mm', 'yyyy'] : ['mm', 'yyyy'];
   const widths = includeDay ? ['w-7', 'w-7', 'w-11'] : ['w-7', 'w-11'];
+  const refs = useRef<Array<HTMLInputElement | null>>([]);
 
   const updatePart = (index: number, nextValue: string) => {
     const next = [...parts];
     next[index] = nextValue.replace(/\D/g, '').slice(0, index === parts.length - 1 ? 4 : 2);
+    const monthIndex = includeDay ? 1 : 0;
+    const dayIndex = includeDay ? 0 : -1;
+    const numericValue = Number.parseInt(next[index], 10);
+
+    if (index === dayIndex && next[index].length === 2 && (!Number.isInteger(numericValue) || numericValue < 1 || numericValue > 31)) {
+      next[index] = '';
+      onChange(joinDateParts(next));
+      refs.current[index]?.focus();
+      return;
+    }
+
+    if (index === monthIndex && next[index].length === 2 && (!Number.isInteger(numericValue) || numericValue < 1 || numericValue > 12)) {
+      next[index] = '';
+      onChange(joinDateParts(next));
+      refs.current[index]?.focus();
+      return;
+    }
+
     onChange(joinDateParts(next));
+    if (index < parts.length - 1 && next[index].length === 2) {
+      refs.current[index + 1]?.focus();
+      refs.current[index + 1]?.select();
+    }
   };
 
   return (
@@ -134,10 +157,17 @@ function DatePartsInput({ value, onChange, includeDay = true, ariaLabel, classNa
       {placeholders.map((placeholder, index) => (
         <input
           key={placeholder}
+          ref={(node) => { refs.current[index] = node; }}
           type="text"
           inputMode="numeric"
           value={parts[index] ?? ''}
           onChange={(e) => updatePart(index, e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Backspace' && !(parts[index] ?? '') && index > 0) {
+              refs.current[index - 1]?.focus();
+              refs.current[index - 1]?.select();
+            }
+          }}
           placeholder={placeholder}
           aria-label={`${ariaLabel} ${placeholder}`}
           className={`${widths[index]} bg-transparent text-center text-xs text-foreground outline-none placeholder:text-muted-foreground/45`}
@@ -151,6 +181,7 @@ export default function CollectionTab() {
   const t = useT();
   const lang = useAppStore((s) => s.language);
   const storagePath = useAppStore((s) => s.storagePath);
+  const photoAssetVersion = useAppStore((s) => s.photoAssetVersion);
   const editingFindId = useAppStore((s) => s.editingFindId);
   const setEditingFindId = useAppStore((s) => s.setEditingFindId);
   const selectedCollectionSpecies = useAppStore((s) => s.selectedCollectionSpecies);
@@ -341,13 +372,18 @@ export default function CollectionTab() {
       ?? groups.find(([name]) => plainTarget.startsWith(plainSpeciesName(name).toLowerCase()))?.[0]
       ?? rawTarget;
 
-    setExpanded((prev) => {
-      if (prev.has(resolvedSpecies)) return prev;
-      const next = new Set(prev);
-      next.add(resolvedSpecies);
-      return next;
-    });
+    setExpanded(new Set([resolvedSpecies]));
+    setExpandedFinds(new Set());
     setSearch('');
+    setDateSearch('');
+    setDateSearchEnd('');
+    setMonthSearch('');
+    setYearSearch('');
+    setFavoritesOnly(false);
+    setSelectMode(false);
+    setSelectedIds(new Set());
+    setMoveTarget('');
+    setMoveDropdownOpen(false);
     setJumpTargetSpecies(resolvedSpecies);
     setSelectedCollectionSpecies(null);
 
@@ -758,7 +794,7 @@ export default function CollectionTab() {
             .find((photo) => photo.id === coverPhotoId) ?? speciesFinds[0]?.photos[0] ?? null;
           const primaryPhoto = representativePhoto;
           const thumbSrc = primaryPhoto
-            ? resolvePhotoSrc(storagePath!, primaryPhoto.photo_path)
+            ? resolvePhotoSrc(storagePath!, primaryPhoto.photo_path, photoAssetVersion)
             : null;
           const isJumpTarget = speciesName === jumpTargetSpecies;
           const speciesFavoriteCount = speciesFinds.filter((find) => find.is_favorite).length;
@@ -829,7 +865,7 @@ export default function CollectionTab() {
                       )}
                     </div>
                     {commonName && (
-                      <p className="mt-0.5 truncate text-sm font-semibold text-secondary/90 dark:text-secondary" title={commonName}>
+                      <p className="mt-0.5 truncate text-sm font-bold text-foreground/80 dark:text-secondary" title={commonName}>
                         {commonName}
                       </p>
                     )}
@@ -952,7 +988,7 @@ export default function CollectionTab() {
                     {speciesFinds.map((f, idx) => {
                       const isExpanded = expandedFinds.has(f.id);
                       const firstPhoto = f.photos[0];
-                      const rowThumbSrc = firstPhoto ? resolvePhotoSrc(storagePath!, firstPhoto.photo_path) : null;
+                      const rowThumbSrc = firstPhoto ? resolvePhotoSrc(storagePath!, firstPhoto.photo_path, photoAssetVersion) : null;
                       return (
                         <div
                           key={f.id}
@@ -1068,7 +1104,7 @@ export default function CollectionTab() {
                                     onClick={() => openLightbox(speciesFinds, f.id, photoIdx)}
                                   >
                                     <img
-                                      src={resolvePhotoSrc(storagePath!, photo.photo_path)}
+                                      src={resolvePhotoSrc(storagePath!, photo.photo_path, photoAssetVersion)}
                                       alt=""
                                       className="h-full w-full object-cover transition-transform duration-150 group-hover:scale-105"
                                       onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}

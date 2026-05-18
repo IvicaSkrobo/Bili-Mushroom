@@ -1,8 +1,13 @@
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { plainSpeciesName, renderSpeciesName } from '@/lib/speciesName';
+import { normalizeCommonName, plainSpeciesName, renderSpeciesName } from '@/lib/speciesName';
 import { useT } from '@/i18n/index';
+
+interface RankedSpeciesProfile {
+  species_name: string;
+  common_name?: string | null;
+}
 
 interface RankedListItem {
   label: string;
@@ -16,9 +21,10 @@ interface RankedListProps {
   items: RankedListItem[];
   emptyMessage: string;
   pageSize?: number;
+  speciesProfiles?: RankedSpeciesProfile[];
 }
 
-export function RankedList({ title, items, emptyMessage, pageSize }: RankedListProps) {
+export function RankedList({ title, items, emptyMessage, pageSize, speciesProfiles }: RankedListProps) {
   const t = useT();
   const [expanded, setExpanded] = useState(false);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
@@ -80,13 +86,7 @@ export function RankedList({ title, items, emptyMessage, pageSize }: RankedListP
                       </p>
                       <div className="flex flex-wrap gap-1.5">
                         {item.species.map((s) => (
-                          <span
-                            key={s}
-                            title={plainSpeciesName(s)}
-                            className="font-serif text-xs font-semibold italic text-foreground bg-card border border-border/80 shadow-sm px-2 py-0.5 rounded-sm"
-                          >
-                            {renderSpeciesName(s)}
-                          </span>
+                          <SpeciesChip key={s} speciesName={s} speciesProfiles={speciesProfiles} />
                         ))}
                       </div>
                     </div>
@@ -107,5 +107,32 @@ export function RankedList({ title, items, emptyMessage, pageSize }: RankedListP
         </>
       )}
     </div>
+  );
+}
+
+function SpeciesChip({
+  speciesName,
+  speciesProfiles,
+}: {
+  speciesName: string;
+  speciesProfiles?: RankedSpeciesProfile[];
+}) {
+  const profile = speciesProfiles?.find((item) => item.species_name === speciesName);
+  const commonName = normalizeCommonName(profile?.common_name, speciesName);
+
+  return (
+    <span
+      title={commonName ? `${plainSpeciesName(speciesName)} - ${commonName}` : plainSpeciesName(speciesName)}
+      className="inline-flex max-w-full items-baseline gap-1.5 rounded-sm border border-border/80 bg-card px-2 py-0.5 shadow-sm"
+    >
+      <span className="min-w-0 truncate font-serif text-xs font-semibold italic text-foreground">
+        {renderSpeciesName(speciesName)}
+      </span>
+      {commonName && (
+        <span className="min-w-0 truncate text-[11px] font-medium text-muted-foreground">
+          {commonName}
+        </span>
+      )}
+    </span>
   );
 }

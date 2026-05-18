@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { Toaster } from 'sonner';
 import { toast } from 'sonner';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BookOpen, Loader2, Sprout } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { loadStoragePath } from '@/lib/storage';
 import { initializeDatabase, DatabaseInitError } from '@/lib/db';
@@ -31,6 +32,52 @@ const queryClient = new QueryClient({
   },
 });
 
+function StartupScreen({ stage, children }: { stage: string; children?: ReactNode }) {
+  return (
+    <div className="relative h-screen w-screen overflow-hidden bg-background text-foreground">
+      <div className="absolute inset-0 opacity-70">
+        <div className="absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-primary/35 to-transparent" />
+        <div className="absolute bottom-0 left-0 h-px w-full bg-gradient-to-r from-transparent via-secondary/30 to-transparent" />
+        <div className="absolute inset-x-0 top-[38%] h-px bg-border/45" />
+      </div>
+
+      <div className="relative flex h-full items-center justify-center px-6">
+        <div className="w-full max-w-[24rem] animate-fade-up text-center">
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-md border border-primary/35 bg-card/90 shadow-sm">
+            <BookOpen className="h-8 w-8 text-primary" strokeWidth={1.6} />
+          </div>
+
+          <div className="space-y-2">
+            <p className="font-mono text-[0.68rem] uppercase tracking-[0.28em] text-muted-foreground">
+              Personal mycology journal
+            </p>
+            <h1 className="font-serif text-4xl font-semibold italic leading-none text-foreground">
+              Bili Mushroom
+            </h1>
+          </div>
+
+          <div className="mt-8 rounded-md border border-border/80 bg-card/75 px-4 py-3 shadow-sm backdrop-blur">
+            <div className="flex items-center justify-center gap-2 text-sm font-medium text-foreground">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              <span>{stage}</span>
+            </div>
+            <div className="mt-3 h-1 overflow-hidden rounded-full bg-muted">
+              <div className="h-full w-1/2 animate-startup-progress rounded-full bg-primary/80" />
+            </div>
+          </div>
+
+          <div className="mt-5 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <Sprout className="h-3.5 w-3.5 text-secondary" strokeWidth={1.8} />
+            <span>Lokalna zbirka, lokalne fotografije</span>
+          </div>
+        </div>
+      </div>
+
+      {children}
+    </div>
+  );
+}
+
 export default function App() {
   const storagePath = useAppStore((s) => s.storagePath);
   const dbReady = useAppStore((s) => s.dbReady);
@@ -39,6 +86,7 @@ export default function App() {
   const setDbReady = useAppStore((s) => s.setDbReady);
   const setDbError = useAppStore((s) => s.setDbError);
   const theme = useAppStore((s) => s.theme);
+  const language = useAppStore((s) => s.language);
   const pendingScan = useAppStore((s) => s.pendingScan);
   const setPendingScan = useAppStore((s) => s.setPendingScan);
   const setAvailableUpdate = useAppStore((s) => s.setAvailableUpdate);
@@ -48,6 +96,14 @@ export default function App() {
   const updateConfirmPending = useAppStore((s) => s.updateConfirmPending);
   const setUpdateConfirmPending = useAppStore((s) => s.setUpdateConfirmPending);
   const [confirmUpdate, setConfirmUpdate] = useState<{ version: string } | null>(null);
+  const [storagePathLoaded, setStoragePathLoaded] = useState(false);
+  const [startupHoldDone, setStartupHoldDone] = useState(false);
+  const isHr = language === 'hr';
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setStartupHoldDone(true), 750);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (updateConfirmPending && availableUpdate) {
@@ -149,14 +205,19 @@ export default function App() {
     let cancelled = false;
     if (!('__TAURI_INTERNALS__' in window)) {
       setDbError('Bili Mushroom must be run inside the Tauri desktop app. The localhost browser view cannot access the local database bridge.');
+      setStoragePathLoaded(true);
       return () => { cancelled = true; };
     }
 
     loadStoragePath().then((path) => {
       if (cancelled) return;
       if (path) setStoragePath(path);
+      setStoragePathLoaded(true);
     }).catch((err) => {
-      if (!cancelled) setDbError(String(err?.message ?? err));
+      if (!cancelled) {
+        setDbError(String(err?.message ?? err));
+        setStoragePathLoaded(true);
+      }
     });
     return () => { cancelled = true; };
   }, [setStoragePath, setDbError]);
@@ -192,33 +253,43 @@ export default function App() {
     );
   }
 
+  if (!storagePathLoaded) {
+    return (
+      <StartupScreen stage={isHr ? 'Otvaram lokalnu zbirku...' : 'Opening local library...'} />
+    );
+  }
+
+  if (!startupHoldDone) {
+    return (
+      <StartupScreen stage={isHr ? 'Pripremam aplikaciju...' : 'Preparing app...'} />
+    );
+  }
+
   if (!storagePath) {
     return (
-      <div className="h-screen w-screen bg-background">
+      <StartupScreen stage={isHr ? 'Odaberi mapu za svoju zbirku' : 'Choose your collection folder'}>
         <FirstRunDialog
           onFolderSelected={(path) => {
             setPendingScan(true);
             setStoragePath(path);
           }}
         />
-      </div>
+      </StartupScreen>
     );
   }
 
   if (!dbReady) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-background">
-        <div className="w-6 h-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-      </div>
+      <StartupScreen stage={isHr ? 'Provjeravam bazu i migracije...' : 'Checking database and migrations...'} />
     );
   }
 
   return (
     <QueryClientProvider client={queryClient}>
       {pendingScan ? (
-        <div className="h-screen w-screen bg-background">
+        <StartupScreen stage={isHr ? 'Tražim nove fotografije...' : 'Scanning for new photos...'}>
           <AutoImportDialog storagePath={storagePath} onDone={() => setPendingScan(false)} />
-        </div>
+        </StartupScreen>
       ) : (
         <>
           <AppShell />

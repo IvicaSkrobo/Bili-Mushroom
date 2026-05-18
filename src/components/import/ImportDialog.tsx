@@ -14,6 +14,8 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/date-input';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { SpeciesNameEditor } from '@/components/finds/SpeciesNameEditor';
 import { LocationNoteInput } from '@/components/finds/LocationNoteInput';
 import { Textarea } from '@/components/ui/textarea';
@@ -532,41 +534,56 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
               </div>
             )}
 
-            {/* Row 2: date + country + region + location note + observed range */}
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Input
-                  type="date"
+            {/* Row 2: date + country + region */}
+            <div>
+              <label className="text-sm font-medium">{t('import.date')}</label>
+              <div className="mt-1">
+                <DateInput
                   value={sharedDate}
-                  onChange={(e) => { setSharedDate(e.target.value); setDateFromExif(false); }}
-                  className="text-foreground [color-scheme:light]"
+                  onChange={(value) => { setSharedDate(value); setDateFromExif(false); }}
+                  aria-label={t('import.date')}
                 />
                 {sharedDate && !datFromExif && (
                   <p className="text-xs text-muted-foreground/60 mt-0.5">Datum nije pronađen u fotografiji — provjeri</p>
                 )}
               </div>
-              <Input
-                placeholder={t('import.country')}
-                value={sharedCountry}
-                onChange={(e) => setSharedCountry(e.target.value)}
-              />
-              <Input
-                placeholder={t('import.region')}
-                value={sharedRegion}
-                onChange={(e) => setSharedRegion(e.target.value)}
-              />
-              <LocationNoteInput
-                value={sharedLocationNote}
-                onChange={setSharedLocationNote}
-                suggestions={locationNoteSuggestions}
-                placeholder={t('import.locationMark')}
-              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-sm font-medium">{t('import.country')}</label>
+                <Input
+                  value={sharedCountry}
+                  onChange={(e) => setSharedCountry(e.target.value)}
+                  placeholder={t('import.country')}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">{t('import.region')}</label>
+                <Input
+                  value={sharedRegion}
+                  onChange={(e) => setSharedRegion(e.target.value)}
+                  placeholder={t('import.region')}
+                />
+              </div>
               <div className="col-span-2">
-                <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>{t('import.observedCount')}</span>
-                  <span>{t('import.observedCountHelp')}</span>
+                <label className="text-sm font-medium">{t('import.locationMark')}</label>
+                <LocationNoteInput
+                  value={sharedLocationNote}
+                  onChange={setSharedLocationNote}
+                  suggestions={locationNoteSuggestions}
+                  placeholder={t('import.locationMark')}
+                />
+              </div>
+            </div>
+
+            <div>
+                <div className="mb-1 flex items-center gap-1 text-sm font-medium">
+                  <label>{t('import.observedCount')}</label>
+                  <InfoTooltip text={t('import.observedCountHelp')} />
                 </div>
                 <Input
+                  className="max-w-[220px]"
                   inputMode="numeric"
                   placeholder="npr. 15 ili 15-20"
                   value={sharedObservedRange}
@@ -578,7 +595,6 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                   </p>
                 )}
               </div>
-            </div>
 
             <Textarea
               placeholder={t('import.folderNotes')}

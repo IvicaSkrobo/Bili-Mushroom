@@ -65,7 +65,7 @@ describe('LocationNoteInput', () => {
     expect(screen.getByText('Gorski kotar')).toBeInTheDocument();
 
     // No buttons with empty text content
-    const buttons = screen.queryAllByRole('button');
+    const buttons = screen.queryAllByRole('button').filter((btn) => btn.textContent?.trim());
     buttons.forEach((btn) => {
       expect(btn.textContent?.trim()).not.toBe('');
     });
@@ -133,6 +133,29 @@ describe('LocationNoteInput', () => {
     // Enter selects index 1 (Goranska šuma)
     fireEvent.keyDown(input, { key: 'Enter' });
 
-    expect(onChange).toHaveBeenCalledWith('Goranska šuma');
+    expect(onChange).toHaveBeenCalledWith('Gorski kotar');
+  });
+  it('orders prefix matches alphabetically before contained matches', () => {
+    const onChange = vi.fn();
+    render(
+      <LocationNoteInput
+        value=""
+        onChange={onChange}
+        suggestions={['Stari gaj', 'Gorski kotar', 'Gaj kod potoka', 'Gaj sjever']}
+      />,
+    );
+
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'gaj' } });
+
+    const optionButtons = screen
+      .getAllByRole('button')
+      .filter((button) => button.textContent?.trim() !== '');
+
+    expect(optionButtons.map((button) => button.textContent?.trim())).toEqual([
+      'Gaj kod potoka',
+      'Gaj sjever',
+      'Stari gaj',
+    ]);
   });
 });

@@ -30,7 +30,10 @@ describe('SpeciesNameEditor autocomplete', () => {
     expect(screen.queryByText('Cantharellus cibarius')).not.toBeInTheDocument();
     expect(screen.queryByText('Macrolepiota procera')).not.toBeInTheDocument();
 
-    const options = screen.getAllByRole('button').map((button) => button.textContent);
+    const options = screen
+      .getAllByRole('button')
+      .map((button) => button.textContent?.trim() ?? '')
+      .filter(Boolean);
     expect(options).toEqual(['Agaricus campestris', 'Amanita muscaria']);
   });
 });

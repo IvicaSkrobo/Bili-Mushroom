@@ -31,6 +31,8 @@ export function resolvePhotoAbsolutePath(storagePath: string, photoPath: string)
   return `${normalizedStoragePath}/${normalizedRelativePath}`;
 }
 
-export function resolvePhotoSrc(storagePath: string, photoPath: string): string {
-  return convertFileSrc(resolvePhotoAbsolutePath(storagePath, photoPath));
+export function resolvePhotoSrc(storagePath: string, photoPath: string, cacheVersion?: number): string {
+  const src = convertFileSrc(resolvePhotoAbsolutePath(storagePath, photoPath));
+  if (cacheVersion == null || cacheVersion <= 0) return src;
+  return `${src}${src.includes('?') ? '&' : '?'}v=${cacheVersion}`;
 }

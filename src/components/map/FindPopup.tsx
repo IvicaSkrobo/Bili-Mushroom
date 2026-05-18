@@ -54,9 +54,10 @@ function LevelTwoCard({
   const map = useMap();
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const setEditingFindId = useAppStore((s) => s.setEditingFindId);
+  const photoAssetVersion = useAppStore((s) => s.photoAssetVersion);
   const primaryPhoto = find.photos.find((p) => p.is_primary) ?? find.photos[0];
   const thumbSrc = primaryPhoto
-    ? resolvePhotoSrc(storagePath, primaryPhoto.photo_path)
+    ? resolvePhotoSrc(storagePath, primaryPhoto.photo_path, photoAssetVersion)
     : null;
   return (
     <div className="flex w-[240px] flex-col gap-2">

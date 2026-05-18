@@ -29,6 +29,7 @@ export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: 
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
   const storagePath = useAppStore((s) => s.storagePath);
   const lang = useAppStore((s) => s.language);
+  const photoAssetVersion = useAppStore((s) => s.photoAssetVersion);
 
   const open = summary !== null;
 
@@ -68,7 +69,7 @@ export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: 
                 {visibleFinds.map((find) => {
                   const primaryPhoto = find.photos?.[0];
                   const thumbSrc = primaryPhoto && storagePath
-                    ? resolvePhotoSrc(storagePath, primaryPhoto.photo_path)
+                    ? resolvePhotoSrc(storagePath, primaryPhoto.photo_path, photoAssetVersion)
                     : null;
 
                   return (

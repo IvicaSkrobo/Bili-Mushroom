@@ -20,6 +20,7 @@
  */
 
 import { useRef, useEffect, useMemo, useState } from 'react';
+import { X } from 'lucide-react';
 import { rawToHtml, htmlToRaw } from '@/lib/speciesFormat';
 import { compareSpeciesNames, matchesSpeciesQuery, plainSpeciesName, renderSpeciesName } from '@/lib/speciesName';
 import { cn } from '@/lib/utils';
@@ -30,6 +31,8 @@ type SpeciesMeta = {
   synonyms?: string[] | null;
   other_names?: string[] | null;
 };
+
+const HIDDEN_SPECIES_SUGGESTIONS_KEY = 'bili:hidden-species-suggestions';
 
 interface SpeciesNameEditorProps {
   value: string;
@@ -49,6 +52,25 @@ function normalizedName(value: string): string {
   return plainSpeciesName(value).trim().toLocaleLowerCase();
 }
 
+function hiddenSuggestionKey(value: string): string {
+  return normalizedName(value);
+}
+
+function loadHiddenSpeciesSuggestions(): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(HIDDEN_SPECIES_SUGGESTIONS_KEY) ?? '[]'));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveHiddenSpeciesSuggestions(values: Set<string>) {
+  try {
+    localStorage.setItem(HIDDEN_SPECIES_SUGGESTIONS_KEY, JSON.stringify(Array.from(values)));
+  } catch {
+    // localStorage can be unavailable in tests/private modes; hiding is best-effort.
+  }
+}
 
 export function SpeciesNameEditor({
   value,
@@ -71,6 +93,7 @@ export function SpeciesNameEditor({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [dropdownHighlight, setDropdownHighlight] = useState(0);
   const [plainText, setPlainText] = useState(() => plainSpeciesName(value));
+  const [hiddenSuggestions, setHiddenSuggestions] = useState<Set<string>>(() => loadHiddenSpeciesSuggestions());
 
   // ── DOM initialisation (mount only) ──────────────────────────────────────
   useEffect(() => {
@@ -141,13 +164,14 @@ export function SpeciesNameEditor({
     if (!normalizedQuery) return [];
     const matches: string[] = [];
     for (const suggestion of sortedSuggestions) {
+      if (hiddenSuggestions.has(hiddenSuggestionKey(suggestion))) continue;
       if (matchesSpeciesQuery(normalizedQuery, suggestion, suggestionsProfiles?.get(suggestion))) {
         matches.push(suggestion);
         if (matches.length >= 12) break;
       }
     }
     return matches;
-  }, [normalizedQuery, sortedSuggestions, suggestionsProfiles]);
+  }, [hiddenSuggestions, normalizedQuery, sortedSuggestions, suggestionsProfiles]);
 
   function selectSuggestion(raw: string) {
     if (editorRef.current) {
@@ -158,6 +182,18 @@ export function SpeciesNameEditor({
     setDropdownOpen(false);
     setDropdownHighlight(0);
     onChange(raw);
+  }
+
+  function hideSuggestion(raw: string) {
+    const key = hiddenSuggestionKey(raw);
+    if (!key) return;
+    setHiddenSuggestions((prev) => {
+      const next = new Set(prev);
+      next.add(key);
+      saveHiddenSpeciesSuggestions(next);
+      return next;
+    });
+    setDropdownHighlight(0);
   }
 
   // ── Read bold state directly from DOM (avoids stale React state) ─────────
@@ -368,7 +404,7 @@ export function SpeciesNameEditor({
           contentEditable
           suppressContentEditableWarning
           role="textbox"
-          aria-label={placeholder}
+          aria-label={label ?? placeholder}
           data-placeholder={placeholder}
           onInput={handleInput}
           onKeyDown={handleKeyDown}
@@ -392,24 +428,41 @@ export function SpeciesNameEditor({
               const meta = suggestionsProfiles?.get(s);
               const commonName = meta?.common_name?.trim() || null;
               return (
-                <button
+                <div
                   key={s}
-                  type="button"
                   className={cn(
-                    'w-full text-left px-3 py-1.5 text-sm transition-colors',
+                    'flex w-full items-center gap-1.5 text-sm transition-colors',
                     i === dropdownHighlight ? 'bg-accent' : 'hover:bg-accent',
                   )}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    selectSuggestion(s);
-                  }}
                   onMouseEnter={() => setDropdownHighlight(i)}
                 >
-                  <span className="font-serif">{renderSpeciesName(s)}</span>
-                  {commonName && (
-                    <span className="ml-1.5 text-xs text-muted-foreground">{commonName}</span>
-                  )}
-                </button>
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 px-3 py-1.5 text-left"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      selectSuggestion(s);
+                    }}
+                  >
+                    <span className="font-serif">{renderSpeciesName(s)}</span>
+                    {commonName && (
+                      <span className="ml-1.5 text-xs text-muted-foreground">{commonName}</span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className="mr-1 rounded p-1 text-muted-foreground/55 transition-colors hover:bg-background/70 hover:text-destructive"
+                    aria-label={t('suggestions.hide', { suggestion: plainSpeciesName(s) })}
+                    title={t('suggestions.hideTitle')}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      hideSuggestion(s);
+                    }}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
               );
             })}
           </div>

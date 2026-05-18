@@ -7,6 +7,10 @@ export interface SeasonalityInsight {
 
 type Translator = (key: string, vars?: Record<string, string | number>) => string;
 
+function markedSpeciesName(name: string): string {
+  return `[[species:${name}]]`;
+}
+
 function localMonthName(monthNum: number, locale: string): string {
   return new Intl.DateTimeFormat(locale, { month: 'long' }).format(new Date(2024, monthNum - 1));
 }
@@ -35,7 +39,7 @@ export function buildSeasonalityInsights(
       .filter((s) => extractMonthNum(s.best_month) === month.month_num)
       .sort((a, b) => b.find_count - a.find_count)
       .slice(0, 2)
-      .map((s) => s.species_name);
+      .map((s) => markedSpeciesName(s.species_name));
 
     insights.push({
       title: t('stats.insightStrong', { month: monthLabel }),
@@ -87,7 +91,7 @@ export function buildSpeciesSpotHint(
   const locationParts = [preferred.country, preferred.region, preferred.location_note].filter(Boolean);
 
   return t('stats.spotHint', {
-    species: candidate.species_name,
+    species: markedSpeciesName(candidate.species_name),
     month: localMonthName(month, locale),
     location: locationParts.join(' / '),
   });

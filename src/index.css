@@ -94,7 +94,7 @@
 
 html {
   min-height: 100%;
-  background: oklch(0.12 0.02 245);
+  background: var(--background);
   color-scheme: dark;
 }
 
@@ -194,6 +194,15 @@ input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: po
 }
 .stagger-item {
   animation: stagger-in 0.26s cubic-bezier(0.2, 0.7, 0.18, 1) both;
+}
+
+@keyframes startup-progress {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(220%); }
+}
+
+.animate-startup-progress {
+  animation: startup-progress 1.4s ease-in-out infinite;
 }
 
 /* Leaflet controls — Forest Codex override */
