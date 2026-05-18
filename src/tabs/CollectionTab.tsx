@@ -350,26 +350,34 @@ export default function CollectionTab() {
     setEditingFindId(null);
   }, [editingFindId, finds, setEditingFindId]);
 
-  const groups = useMemo(() => {
+  const allGroups = useMemo(() => {
     const map = new Map<string, Find[]>();
     for (const f of finds ?? []) {
       const key = f.species_name || '(unnamed)';
       if (isInternalLibraryName(key)) continue;
-      if (favoritesOnly && !f.is_favorite) continue;
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(f);
     }
     return Array.from(map.entries()).sort((a, b) => compareSpeciesNames(a[0], b[0]));
-  }, [favoritesOnly, finds]);
+  }, [finds]);
+
+  const groups = useMemo(
+    () => favoritesOnly
+      ? allGroups
+        .map(([name, speciesFinds]) => [name, speciesFinds.filter((find) => find.is_favorite)] as [string, Find[]])
+        .filter(([, speciesFinds]) => speciesFinds.length > 0)
+      : allGroups,
+    [allGroups, favoritesOnly],
+  );
 
   useEffect(() => {
-    if (!selectedCollectionSpecies || groups.length === 0) return;
+    if (!selectedCollectionSpecies || allGroups.length === 0) return;
 
     const rawTarget = selectedCollectionSpecies.trim();
     const plainTarget = plainSpeciesName(rawTarget).toLowerCase();
-    const resolvedSpecies = groups.find(([name]) => name === rawTarget)?.[0]
-      ?? groups.find(([name]) => plainSpeciesName(name).toLowerCase() === plainTarget)?.[0]
-      ?? groups.find(([name]) => plainTarget.startsWith(plainSpeciesName(name).toLowerCase()))?.[0]
+    const resolvedSpecies = allGroups.find(([name]) => name === rawTarget)?.[0]
+      ?? allGroups.find(([name]) => plainSpeciesName(name).toLowerCase() === plainTarget)?.[0]
+      ?? allGroups.find(([name]) => plainTarget.startsWith(plainSpeciesName(name).toLowerCase()))?.[0]
       ?? rawTarget;
 
     setExpanded(new Set([resolvedSpecies]));
@@ -389,7 +397,7 @@ export default function CollectionTab() {
 
     const timer = window.setTimeout(() => setJumpTargetSpecies(null), 2200);
     return () => window.clearTimeout(timer);
-  }, [groups, selectedCollectionSpecies, setSelectedCollectionSpecies]);
+  }, [allGroups, selectedCollectionSpecies, setSelectedCollectionSpecies]);
 
   const speciesFilteredGroups = useMemo(() => {
     if (!search.trim()) return groups;
@@ -883,50 +891,76 @@ export default function CollectionTab() {
                     </div>
                     {(() => {
                       const profile = speciesProfilesByName.get(speciesName);
-                      const hasNames = (profile?.other_names?.length ?? 0) > 0 || (profile?.synonyms?.length ?? 0) > 0;
+                      const otherNames = profile?.other_names ?? [];
+                      const synonyms = profile?.synonyms ?? [];
+                      const hasNames = otherNames.length > 0 || synonyms.length > 0;
                       if (!hasNames) return null;
-                      const allNames = [...(profile?.other_names ?? []), ...(profile?.synonyms ?? [])];
+                      const title = [
+                        synonyms.length ? `${t('species.synonyms')}: ${synonyms.join(' · ')}` : '',
+                        otherNames.length ? `${t('species.otherNames')}: ${otherNames.join(' · ')}` : '',
+                      ].filter(Boolean).join(' | ');
                       return (
-                        <p className="mt-0.5 text-[10px] text-muted-foreground/60 truncate" title={allNames.join(' · ')}>
-                          {allNames.join(' · ')}
-                        </p>
+                        <div className="mt-0.5 flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground/65" title={title}>
+                          {synonyms.length > 0 && (
+                            <span className="min-w-0 truncate">
+                              <span className="font-semibold text-muted-foreground/80">{t('species.synonyms')}:</span>{' '}
+                              <span className="italic">{synonyms.join(', ')}</span>
+                            </span>
+                          )}
+                          {otherNames.length > 0 && (
+                            <span className="min-w-0 truncate">
+                              <span className="font-semibold text-muted-foreground/80">{t('species.otherNames')}:</span>{' '}
+                              {otherNames.join(', ')}
+                            </span>
+                          )}
+                        </div>
                       );
                     })()}
                   </div>
                 </button>
 
-                <button
-                  type="button"
-                  className="flex-shrink-0 p-1 rounded opacity-50 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary hover:bg-accent focus:opacity-100"
-                  onClick={(e) => { e.stopPropagation(); setPendingSpeciesSelection(speciesName); setActiveTab('species'); }}
-                  title={t('collection.viewSpecies')}
-                >
-                  <BookOpen className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  className="flex-shrink-0 p-1 rounded opacity-50 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary hover:bg-accent focus:opacity-100"
-                  onClick={(e) => { e.stopPropagation(); handleOpenSpeciesFolder(speciesName); }}
-                  title={t('folder.openFolder')}
-                >
-                  <FolderOpen className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  className="flex-shrink-0 p-1 rounded opacity-50 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary hover:bg-accent focus:opacity-100"
-                  onClick={(e) => { e.stopPropagation(); setPendingMapSpeciesFilter(speciesName); setActiveTab('map'); }}
-                  title={t('collection.viewOnMap')}
-                >
-                  <MapIcon className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  className="flex-shrink-0 p-1 rounded opacity-50 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary hover:bg-accent focus:opacity-100"
-                  onClick={(e) => { e.stopPropagation(); setFolderEditing(speciesName); }}
-                  title={t('collection.editFolder')}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
+                <div className="flex shrink-0 items-end gap-1.5 opacity-75 transition-opacity group-hover:opacity-100">
+                  <button
+                    type="button"
+                    className="flex min-w-10 flex-col items-center gap-0.5 rounded px-1 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-primary focus:text-primary"
+                    onClick={(e) => { e.stopPropagation(); setPendingSpeciesSelection(speciesName); setActiveTab('species'); }}
+                    title={t('collection.viewSpecies')}
+                    aria-label={t('collection.viewSpecies')}
+                  >
+                    <span className="text-[10px] font-medium leading-none">{t('collection.actionSpecies')}</span>
+                    <BookOpen className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    className="flex min-w-10 flex-col items-center gap-0.5 rounded px-1 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-primary focus:text-primary"
+                    onClick={(e) => { e.stopPropagation(); setFolderEditing(speciesName); }}
+                    title={t('collection.editFolder')}
+                    aria-label={t('collection.editFolder')}
+                  >
+                    <span className="text-[10px] font-medium leading-none">{t('collection.actionEdit')}</span>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    className="flex min-w-10 flex-col items-center gap-0.5 rounded px-1 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-primary focus:text-primary"
+                    onClick={(e) => { e.stopPropagation(); handleOpenSpeciesFolder(speciesName); }}
+                    title={t('folder.openFolder')}
+                    aria-label={t('folder.openFolder')}
+                  >
+                    <span className="text-[10px] font-medium leading-none">{t('collection.actionFolder')}</span>
+                    <FolderOpen className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    className="flex min-w-10 flex-col items-center gap-0.5 rounded px-1 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-primary focus:text-primary"
+                    onClick={(e) => { e.stopPropagation(); setPendingMapSpeciesFilter(speciesName); setActiveTab('map'); }}
+                    title={t('collection.viewOnMap')}
+                    aria-label={t('collection.viewOnMap')}
+                  >
+                    <span className="text-[10px] font-medium leading-none">{t('collection.actionMap')}</span>
+                    <MapIcon className="h-3.5 w-3.5" />
+                  </button>
+                </div>
 
                 <button
                   type="button"
@@ -961,17 +995,31 @@ export default function CollectionTab() {
                     const synonyms = profile?.synonyms ?? [];
                     if (otherNames.length === 0 && synonyms.length === 0) return null;
                     return (
-                      <div className="flex flex-wrap gap-1">
-                        {synonyms.map((name) => (
-                          <span key={name} className="inline-flex items-center rounded border border-border/60 bg-muted/50 px-1.5 py-px text-[10px] italic text-foreground/70">
-                            {name}
-                          </span>
-                        ))}
-                        {otherNames.map((name) => (
-                          <span key={name} className="inline-flex items-center rounded border border-border/60 bg-muted/50 px-1.5 py-px text-[10px] text-foreground/70">
-                            {name}
-                          </span>
-                        ))}
+                      <div className="space-y-1">
+                        {synonyms.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="mr-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                              {t('species.synonyms')}:
+                            </span>
+                            {synonyms.map((name) => (
+                              <span key={name} className="inline-flex items-center rounded border border-border/60 bg-muted/50 px-1.5 py-px text-[10px] italic text-foreground/70">
+                                {name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {otherNames.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="mr-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                              {t('species.otherNames')}:
+                            </span>
+                            {otherNames.map((name) => (
+                              <span key={name} className="inline-flex items-center rounded border border-border/60 bg-muted/50 px-1.5 py-px text-[10px] text-foreground/70">
+                                {name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })()}

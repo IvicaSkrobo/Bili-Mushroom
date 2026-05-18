@@ -20,22 +20,6 @@ interface ZoneEditorPanelProps {
   onZoomToZone: (zone: Zone, selectedType: Zone['zone_type']) => void;
 }
 
-function stripZoneSuffix(name: string, zoneType: Zone['zone_type']): string {
-  const suffixes = zoneType === 'region' ? ['region', 'regija'] : ['local', 'lokalno', 'lokalna'];
-  let cleaned = name.trim();
-  for (const suffix of suffixes) {
-    const pattern = new RegExp(`\\s+${suffix}$`, 'i');
-    cleaned = cleaned.replace(pattern, '').trim();
-  }
-  return cleaned;
-}
-
-function isDefaultZoneName(name: string, speciesName: string, zoneType: Zone['zone_type']): boolean {
-  const cleanedName = plainSpeciesName(stripZoneSuffix(name, zoneType)).toLowerCase();
-  const cleanedSpecies = plainSpeciesName(speciesName).trim().toLowerCase();
-  return cleanedName === '' || cleanedName === cleanedSpecies;
-}
-
 export function ZoneEditorPanel({
   zone,
   finds,
@@ -57,9 +41,11 @@ export function ZoneEditorPanel({
   const [saving, setSaving] = useState(false);
   const isLocal = zone.zone_type === 'local';
   const isPolygon = zone.geometry_type === 'polygon';
-  const displayName = isDefaultZoneName(name, zone.species_name, zone.zone_type)
-    ? zone.species_name
-    : stripZoneSuffix(name, zone.zone_type);
+  const displaySpeciesName = useMemo(() => {
+    const zonePlain = plainSpeciesName(zone.species_name).trim().toLowerCase();
+    return finds.find((find) => plainSpeciesName(find.species_name).trim().toLowerCase() === zonePlain)?.species_name
+      ?? zone.species_name;
+  }, [finds, zone.species_name]);
   const polygonPoints = useMemo(() => parsePolygonJson(zone.polygon_json), [zone.polygon_json]);
   const accent = isLocal ? '#D4512A' : '#2D8C7C';
   const translucentAccent = isLocal ? 'rgba(212, 81, 42, 0.14)' : 'rgba(45, 140, 124, 0.14)';
@@ -128,7 +114,7 @@ export function ZoneEditorPanel({
 
           <div className="mb-1.5 min-w-0">
             <p className="font-serif text-sm italic text-foreground">
-              {displayName ? renderSpeciesName(displayName) : (isLocal ? t('zone.localZone') : t('zone.regionZone'))}
+              {displaySpeciesName ? renderSpeciesName(displaySpeciesName) : (isLocal ? t('zone.localZone') : t('zone.regionZone'))}
             </p>
             <p className="truncate text-xs text-muted-foreground">
               {isPolygon ? `${polygonPoints.length} pt` : formatRadius(Number(radius))}

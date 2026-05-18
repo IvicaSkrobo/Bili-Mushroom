@@ -468,7 +468,6 @@ export default function SpeciesTab() {
   const [threatStatusInput, setThreatStatusInput] = useState(selectedProfile?.threat_status ?? 'unknown');
   const [distributionInput, setDistributionInput] = useState(selectedProfile?.distribution ?? 'unknown');
   const [synonymsInput, setSynonymsInput] = useState('');
-  const [otherNamesInput, setOtherNamesInput] = useState('');
   const [fruitingBodyCountInput, setFruitingBodyCountInput] = useState(selectedProfile?.fruiting_body_count_override ?? '');
   const [isEditingFruitingBodyCount, setIsEditingFruitingBodyCount] = useState(false);
   const [showFruitingBodyTotal, setShowFruitingBodyTotal] = useState(false);
@@ -487,7 +486,6 @@ export default function SpeciesTab() {
     setIsEditingFruitingBodyCount(false);
     setShowFruitingBodyTotal(false);
     setSynonymsInput('');
-    setOtherNamesInput('');
     setNewRecipeTitle('');
     setNewRecipeNotes('');
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -676,42 +674,6 @@ export default function SpeciesTab() {
       edibilityNote: legacyEdibilityNote,
       synonyms: selectedSynonyms.filter((s) => s !== value),
       otherNames: selectedOtherNames,
-      fruitingBodyCountOverride: selectedFruitingBodyCountOverride,
-      description: profileDescription,
-    });
-  };
-
-  const handleAddOtherName = (value: string) => {
-    if (!selectedJournal || !value.trim() || selectedOtherNames.includes(value.trim())) return;
-    const updated = [...selectedOtherNames, value.trim()];
-    upsertSpeciesProfile.mutate({
-      speciesName: selectedJournal.speciesName,
-      coverPhotoId: selectedJournal.heroPhotoId,
-      tags: selectedTags,
-      edibility: edibilityInput === 'unknown' ? null : edibilityInput,
-      threatStatus: threatStatusInput === 'unknown' ? null : threatStatusInput,
-      distribution: distributionInput === 'unknown' ? null : distributionInput,
-      edibilityNote: legacyEdibilityNote,
-      synonyms: selectedSynonyms,
-      otherNames: updated,
-      fruitingBodyCountOverride: selectedFruitingBodyCountOverride,
-      description: profileDescription,
-    });
-    setOtherNamesInput('');
-  };
-
-  const handleRemoveOtherName = (value: string) => {
-    if (!selectedJournal) return;
-    upsertSpeciesProfile.mutate({
-      speciesName: selectedJournal.speciesName,
-      coverPhotoId: selectedJournal.heroPhotoId,
-      tags: selectedTags,
-      edibility: edibilityInput === 'unknown' ? null : edibilityInput,
-      threatStatus: threatStatusInput === 'unknown' ? null : threatStatusInput,
-      distribution: distributionInput === 'unknown' ? null : distributionInput,
-      edibilityNote: legacyEdibilityNote,
-      synonyms: selectedSynonyms,
-      otherNames: selectedOtherNames.filter((n) => n !== value),
       fruitingBodyCountOverride: selectedFruitingBodyCountOverride,
       description: profileDescription,
     });
@@ -932,7 +894,6 @@ export default function SpeciesTab() {
                       {selectedCommonName && (
                         <p className="mt-1 text-base font-bold text-foreground/80 dark:text-secondary">{selectedCommonName}</p>
                       )}
-                      <p className="mt-1 text-sm text-muted-foreground">{t('species.coverHint')}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button
@@ -1025,28 +986,13 @@ export default function SpeciesTab() {
                             />
                             <div className="mt-3 space-y-1.5">
                               <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground/70">{t('species.otherNames')}</p>
-                              <div className="flex gap-1">
-                                <input
-                                  value={otherNamesInput}
-                                  onChange={(e) => setOtherNamesInput(e.target.value)}
-                                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); handleAddOtherName(otherNamesInput.replace(/,$/, '')); } }}
-                                  placeholder={t('species.otherNamesPlaceholder')}
-                                  className="min-w-0 flex-1 rounded border border-border/70 bg-input px-2.5 py-1 text-sm font-medium text-foreground placeholder:text-muted-foreground/55 focus:outline-none focus:ring-1 focus:ring-ring/40"
-                                />
-                                <button type="button" onClick={() => handleAddOtherName(otherNamesInput)} disabled={!otherNamesInput.trim()} className="rounded border border-border/70 bg-input px-2 py-1 text-muted-foreground transition-colors hover:text-primary disabled:opacity-40">
-                                  <Plus className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
                               {selectedOtherNames.length > 0 && (
                                 <div className="flex flex-wrap gap-1.5 rounded-md border border-secondary/20 bg-secondary/5 p-1.5">
-                                    {selectedOtherNames.map((n) => (
-                                      <span key={n} className="inline-flex max-w-full items-center gap-1.5 rounded border border-secondary/25 bg-background/45 px-2 py-0.5 text-xs font-medium text-foreground">
-                                        <span className="min-w-0 truncate" title={n}>{n}</span>
-                                        <button type="button" onClick={() => handleRemoveOtherName(n)} className="shrink-0 text-muted-foreground transition-colors hover:text-destructive" aria-label={`Remove ${n}`}>
-                                          <X className="h-3 w-3" />
-                                        </button>
-                                      </span>
-                                    ))}
+                                  {selectedOtherNames.map((n) => (
+                                    <span key={n} className="inline-flex max-w-full items-center rounded border border-secondary/25 bg-background/45 px-2 py-0.5 text-xs font-medium text-foreground">
+                                      <span className="min-w-0 truncate" title={n}>{n}</span>
+                                    </span>
+                                  ))}
                                 </div>
                               )}
                             </div>

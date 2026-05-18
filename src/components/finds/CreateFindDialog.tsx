@@ -150,14 +150,18 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   }, [speciesProfilesData]);
   const speciesSuggestions = useMemo(() => {
     const seen = new Set<string>();
-    return speciesFolders.filter((value) => {
+    const values = [
+      ...speciesFolders,
+      ...(findsData ?? []).map((find) => find.species_name),
+    ];
+    return values.filter((value) => {
       const trimmed = value.trim();
       const key = trimmed.toLowerCase();
       if (!trimmed || seen.has(key)) return false;
       seen.add(key);
       return true;
     });
-  }, [speciesFolders]);
+  }, [findsData, speciesFolders]);
 
   const speciesSuggestionsProfiles = useMemo(() => {
     const map = new Map<string, { common_name?: string | null; synonyms?: string[] | null; other_names?: string[] | null }>();

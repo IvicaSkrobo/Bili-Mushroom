@@ -88,10 +88,20 @@ export function SpeciesStatRow({ stat, rank, index, finds = [], speciesProfile }
       >
         <span className="w-6 shrink-0 font-serif text-sm italic text-primary">#{rank}</span>
         <span
-          className="flex-1 truncate font-serif text-sm font-semibold italic text-foreground"
-          title={plainSpeciesName(stat.species_name)}
+          className="min-w-0 flex-1 truncate text-sm text-foreground"
+          title={commonName ? `${plainSpeciesName(stat.species_name)} - ${commonName}` : plainSpeciesName(stat.species_name)}
         >
-          {renderSpeciesName(stat.species_name)}
+          <span className="font-serif font-semibold italic">
+            {renderSpeciesName(stat.species_name)}
+          </span>
+          {commonName && (
+            <>
+              <span className="font-serif font-semibold italic">, </span>
+              <span className="font-sans font-bold not-italic text-foreground/85">
+                {commonName}
+              </span>
+            </>
+          )}
         </span>
         <Badge variant="outline" className="shrink-0 border-primary/40 text-xs text-primary">
           {stat.find_count}
@@ -105,13 +115,9 @@ export function SpeciesStatRow({ stat, rank, index, finds = [], speciesProfile }
 
       <div className={`overflow-hidden transition-all duration-200 ${isOpen ? 'max-h-[720px]' : 'max-h-0'}`}>
         <div className="space-y-3 border-t border-border/50 px-4 pb-4 pt-3">
-          {(commonName || speciesProfile) && (
+          {speciesProfile && (
             <div className="flex flex-wrap items-center justify-between gap-2">
-              {commonName ? (
-                <p className="text-xs font-medium text-muted-foreground">{commonName}</p>
-              ) : (
-                <span />
-              )}
+              <span />
               <SpeciesMetadataBadges speciesProfile={speciesProfile ?? undefined} size="sm" hideUnknown={true} />
             </div>
           )}

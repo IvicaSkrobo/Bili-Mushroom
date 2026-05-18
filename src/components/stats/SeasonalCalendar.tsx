@@ -1,14 +1,16 @@
 import { useState, useMemo, type ReactNode } from 'react';
 import type { CalendarEntry } from '@/lib/stats';
-import { plainSpeciesName, renderSpeciesName } from '@/lib/speciesName';
+import type { SpeciesProfile } from '@/lib/finds';
+import { normalizeCommonName, plainSpeciesName, renderSpeciesName } from '@/lib/speciesName';
 import { useT } from '@/i18n/index';
 import { useAppStore } from '@/stores/appStore';
 
 interface SeasonalCalendarProps {
   entries: CalendarEntry[];
+  speciesProfiles?: SpeciesProfile[];
 }
 
-export function SeasonalCalendar({ entries }: SeasonalCalendarProps) {
+export function SeasonalCalendar({ entries, speciesProfiles }: SeasonalCalendarProps) {
   const t = useT();
   const lang = useAppStore((s) => s.language);
   const locale = lang === 'hr' ? 'hr-HR' : 'en-US';
@@ -104,23 +106,37 @@ export function SeasonalCalendar({ entries }: SeasonalCalendarProps) {
               </p>
             ) : (
               <div className="space-y-2">
-                {uniqueSpecies.map(([sp, count], i) => (
-                  <div
-                    key={sp}
-                    className="stagger-item flex items-baseline gap-2"
-                    style={{ animationDelay: `${i * 30}ms` }}
-                  >
-                    <span
-                      className="font-serif text-sm font-semibold italic text-foreground"
-                      title={plainSpeciesName(sp)}
+                {uniqueSpecies.map(([sp, count], i) => {
+                  const profile = speciesProfiles?.find((item) => item.species_name === sp);
+                  const commonName = normalizeCommonName(profile?.common_name, sp);
+                  return (
+                    <div
+                      key={sp}
+                      className="stagger-item flex items-baseline gap-2"
+                      style={{ animationDelay: `${i * 30}ms` }}
                     >
-                      {renderSpeciesName(sp)}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {count} {count === 1 ? t('stats.findOne') : t('stats.findMany')}
-                    </span>
-                  </div>
-                ))}
+                      <span
+                        className="min-w-0 truncate text-sm text-foreground"
+                        title={commonName ? `${plainSpeciesName(sp)} - ${commonName}` : plainSpeciesName(sp)}
+                      >
+                        <span className="font-serif font-semibold italic">
+                          {renderSpeciesName(sp)}
+                        </span>
+                        {commonName && (
+                          <>
+                            <span className="font-serif font-semibold italic">, </span>
+                            <span className="font-sans font-bold not-italic text-foreground/85">
+                              {commonName}
+                            </span>
+                          </>
+                        )}
+                      </span>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {count} {count === 1 ? t('stats.findOne') : t('stats.findMany')}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>,

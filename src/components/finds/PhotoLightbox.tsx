@@ -75,6 +75,7 @@ export function PhotoLightbox({
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [cropMode, setCropMode] = useState(false);
   const [cropSelection, setCropSelection] = useState<CropSelection | null>(null);
+  const [pendingRotation, setPendingRotation] = useState(0);
   const [photoEditSaving, setPhotoEditSaving] = useState(false);
   const [photoEditError, setPhotoEditError] = useState<string | null>(null);
   const dragActive = useRef(false);
@@ -91,6 +92,7 @@ export function PhotoLightbox({
     setEditingNotes(false);
     setCropMode(false);
     setCropSelection(null);
+    setPendingRotation(0);
     setPhotoEditError(null);
   }, [currentIndex, fallbackFind?.id]);
 
@@ -171,6 +173,11 @@ export function PhotoLightbox({
     setPhotoEditError(null);
   }
 
+  function cancelRotation() {
+    setPendingRotation(0);
+    setPhotoEditError(null);
+  }
+
   const current = photos[currentIndex];
 
   const prev = () => {
@@ -232,13 +239,22 @@ export function PhotoLightbox({
     ? (obsMin === obsMax ? String(obsMin) : `${obsMin}–${obsMax}`)
     : null;
 
-  async function handleRotatePhoto() {
-    if (!photo || !canEditRaster || photoEditSaving) return;
+  function handleRotatePhoto() {
+    if (!photo || !canEditRaster || photoEditSaving || cropMode) return;
+    setPhotoEditError(null);
+    setPendingRotation((value) => (value + 90) % 360);
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }
+
+  async function handleSaveRotation() {
+    if (!photo || !canEditRaster || photoEditSaving || pendingRotation === 0) return;
     setPhotoEditSaving(true);
     setPhotoEditError(null);
     try {
-      await editFindPhotoImage(storagePath, photo.id, 90, null);
+      await editFindPhotoImage(storagePath, photo.id, pendingRotation, null);
       bumpPhotoAssetVersion();
+      setPendingRotation(0);
       setZoom(1);
       setPan({ x: 0, y: 0 });
       await queryClient.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
@@ -352,8 +368,11 @@ export function PhotoLightbox({
                     ref={imageRef}
                     src={renderedPhotoSrc!}
                     alt={find.species_name || photo.photo_path}
-                    className="max-w-full max-h-full object-contain"
-                    style={{ maxHeight: isFullscreen ? 'calc(100vh - 2rem)' : 'calc(85vh - 2rem)' }}
+                    className="max-w-full max-h-full object-contain transition-transform duration-150"
+                    style={{
+                      maxHeight: isFullscreen ? 'calc(100vh - 2rem)' : 'calc(85vh - 2rem)',
+                      transform: pendingRotation ? `rotate(${pendingRotation}deg)` : undefined,
+                    }}
                     draggable={false}
                   />
                   {cropMode && (
@@ -404,6 +423,32 @@ export function PhotoLightbox({
                     type="button"
                     onClick={handleSaveCrop}
                     disabled={photoEditSaving || !cropSelection || cropSelection.width < 8 || cropSelection.height < 8}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-45"
+                  >
+                    {photoEditSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                    {t('edit.save')}
+                  </button>
+                </div>
+              </div>
+            )}
+            {pendingRotation !== 0 && !cropMode && (
+              <div className="pointer-events-none absolute inset-x-0 bottom-5 z-20 flex justify-center px-4">
+                <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-primary/35 bg-black/70 p-1.5 text-white shadow-xl backdrop-blur-md">
+                  <span className="hidden px-2 text-xs font-medium text-white/75 sm:inline">
+                    {t('lightbox.rotatePhoto')} {pendingRotation}°
+                  </span>
+                  <button
+                    type="button"
+                    onClick={cancelRotation}
+                    disabled={photoEditSaving}
+                    className="rounded-full px-3 py-1.5 text-xs font-semibold text-white/80 transition-colors hover:bg-white/12 hover:text-white disabled:opacity-45"
+                  >
+                    {t('common.cancel')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveRotation}
+                    disabled={photoEditSaving}
                     className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-45"
                   >
                     {photoEditSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
@@ -678,7 +723,7 @@ export function PhotoLightbox({
                       return next;
                     });
                   }}
-                  disabled={photoEditSaving || cropMode || !canEditRaster}
+                  disabled={photoEditSaving || cropMode || pendingRotation !== 0 || !canEditRaster}
                   className={`flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/60 transition-all duration-150 hover:bg-black/70 hover:text-white disabled:opacity-40 ${cropMode ? 'ring-1 ring-primary/70 text-white' : ''}`}
                 >
                   <Crop className="h-4 w-4" />

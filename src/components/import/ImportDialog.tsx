@@ -95,6 +95,27 @@ function isImagePath(name: string): boolean {
 // ---------------------------------------------------------------------------
 
 const LAST_IMPORT_DIR_KEY = 'bili_last_import_dir';
+const IMPORT_DRAFT_KEY = 'bili_import_draft_v1';
+
+interface ImportDraft {
+  photos: string[];
+  deleteSource: boolean;
+  sharedName: string;
+  sharedCommonName: string;
+  sharedDate: string;
+  sharedCountry: string;
+  sharedRegion: string;
+  sharedLocationNote: string;
+  sharedObservedRange: string;
+  sharedFolderNotes: string;
+  sharedFindNotes: string;
+  sharedLocation: { lat: number; lng: number } | null;
+  sharedSpeciesDescription: string;
+  sharedEdibility: string;
+  sharedProtectedStatus: string;
+  sharedDistribution: string;
+  dateFromExif: boolean;
+}
 
 function loadLastImportDir(): string | undefined {
   try { return localStorage.getItem(LAST_IMPORT_DIR_KEY) ?? undefined; } catch { return undefined; }
@@ -105,6 +126,41 @@ function saveLastImportDir(path: string): void {
   const sep = path.includes('\\') ? '\\' : '/';
   const dir = path.slice(0, path.lastIndexOf(sep)) || path;
   try { localStorage.setItem(LAST_IMPORT_DIR_KEY, dir); } catch { /* ignore */ }
+}
+
+function loadImportDraft(): ImportDraft | null {
+  try {
+    const raw = localStorage.getItem(IMPORT_DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<ImportDraft>;
+    return {
+      photos: Array.isArray(parsed.photos) ? parsed.photos.filter((p): p is string => typeof p === 'string') : [],
+      deleteSource: parsed.deleteSource !== false,
+      sharedName: typeof parsed.sharedName === 'string' ? parsed.sharedName : '',
+      sharedCommonName: typeof parsed.sharedCommonName === 'string' ? parsed.sharedCommonName : '',
+      sharedDate: typeof parsed.sharedDate === 'string' ? parsed.sharedDate : '',
+      sharedCountry: typeof parsed.sharedCountry === 'string' ? parsed.sharedCountry : '',
+      sharedRegion: typeof parsed.sharedRegion === 'string' ? parsed.sharedRegion : '',
+      sharedLocationNote: typeof parsed.sharedLocationNote === 'string' ? parsed.sharedLocationNote : '',
+      sharedObservedRange: typeof parsed.sharedObservedRange === 'string' ? parsed.sharedObservedRange : '',
+      sharedFolderNotes: typeof parsed.sharedFolderNotes === 'string' ? parsed.sharedFolderNotes : '',
+      sharedFindNotes: typeof parsed.sharedFindNotes === 'string' ? parsed.sharedFindNotes : '',
+      sharedLocation: parsed.sharedLocation && typeof parsed.sharedLocation.lat === 'number' && typeof parsed.sharedLocation.lng === 'number'
+        ? { lat: parsed.sharedLocation.lat, lng: parsed.sharedLocation.lng }
+        : null,
+      sharedSpeciesDescription: typeof parsed.sharedSpeciesDescription === 'string' ? parsed.sharedSpeciesDescription : '',
+      sharedEdibility: typeof parsed.sharedEdibility === 'string' ? parsed.sharedEdibility : 'unknown',
+      sharedProtectedStatus: typeof parsed.sharedProtectedStatus === 'string' ? parsed.sharedProtectedStatus : 'unknown',
+      sharedDistribution: typeof parsed.sharedDistribution === 'string' ? parsed.sharedDistribution : 'unknown',
+      dateFromExif: parsed.dateFromExif === true,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function clearImportDraft(): void {
+  try { localStorage.removeItem(IMPORT_DRAFT_KEY); } catch { /* ignore */ }
 }
 
 export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDialogProps) {
@@ -200,6 +256,9 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   const [sharedDistribution, setSharedDistribution] = useState<string>('unknown');
   const lastAutoCommonNameRef = useRef<string>('');
   const commonNameManuallyEditedRef = useRef(false);
+  const folderNotesManuallyEditedRef = useRef(false);
+  const draftLoadedRef = useRef(false);
+  const persistDraftRef = useRef(true);
 
   const isNewSpecies = useMemo(() => {
     const name = sharedName.trim().toLowerCase();
@@ -222,6 +281,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   // When species name changes to a known folder, pre-fill notes + species metadata from DB
   useEffect(() => {
     if (!sharedName) return;
+    if (folderNotesManuallyEditedRef.current) return;
     const existing = speciesNotesByLowerName.get(sharedName.toLowerCase());
     setSharedFolderNotes(existing?.notes ?? '');
   }, [sharedName, speciesNotesByLowerName]);
@@ -231,6 +291,100 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   const canImport = photos.length > 0 && sharedName.trim() !== '' && sharedDate !== '' && !importing;
 
   const [datFromExif, setDateFromExif] = useState(false);
+
+  useEffect(() => {
+    if (draftLoadedRef.current) return;
+    draftLoadedRef.current = true;
+    const draft = loadImportDraft();
+    if (!draft) return;
+    setPhotos(draft.photos);
+    setDeleteSource(draft.deleteSource);
+    setSharedName(draft.sharedName);
+    setSharedCommonName(draft.sharedCommonName);
+    setSharedDate(draft.sharedDate);
+    setSharedCountry(draft.sharedCountry);
+    setSharedRegion(draft.sharedRegion);
+    setSharedLocationNote(draft.sharedLocationNote);
+    setSharedObservedRange(draft.sharedObservedRange);
+    setSharedFolderNotes(draft.sharedFolderNotes);
+    setSharedFindNotes(draft.sharedFindNotes);
+    setSharedLocation(draft.sharedLocation);
+    setSharedSpeciesDescription(draft.sharedSpeciesDescription);
+    setSharedEdibility(draft.sharedEdibility);
+    setSharedProtectedStatus(draft.sharedProtectedStatus);
+    setSharedDistribution(draft.sharedDistribution);
+    setDateFromExif(draft.dateFromExif);
+    commonNameManuallyEditedRef.current = draft.sharedCommonName.trim() !== '';
+    folderNotesManuallyEditedRef.current = draft.sharedFolderNotes.trim() !== '';
+    lastAutoCommonNameRef.current = draft.sharedCommonName;
+  }, []);
+
+  useEffect(() => {
+    if (!persistDraftRef.current) return;
+    const hasDraft =
+      photos.length > 0 ||
+      sharedName.trim() !== '' ||
+      sharedCommonName.trim() !== '' ||
+      sharedDate !== '' ||
+      sharedCountry.trim() !== '' ||
+      sharedRegion.trim() !== '' ||
+      sharedLocationNote.trim() !== '' ||
+      sharedObservedRange.trim() !== '' ||
+      sharedFolderNotes.trim() !== '' ||
+      sharedFindNotes.trim() !== '' ||
+      sharedLocation != null ||
+      sharedSpeciesDescription.trim() !== '' ||
+      sharedEdibility !== 'unknown' ||
+      sharedProtectedStatus !== 'unknown' ||
+      sharedDistribution !== 'unknown';
+
+    if (!hasDraft) {
+      clearImportDraft();
+      return;
+    }
+
+    try {
+      localStorage.setItem(IMPORT_DRAFT_KEY, JSON.stringify({
+        photos,
+        deleteSource,
+        sharedName,
+        sharedCommonName,
+        sharedDate,
+        sharedCountry,
+        sharedRegion,
+        sharedLocationNote,
+        sharedObservedRange,
+        sharedFolderNotes,
+        sharedFindNotes,
+        sharedLocation,
+        sharedSpeciesDescription,
+        sharedEdibility,
+        sharedProtectedStatus,
+        sharedDistribution,
+        dateFromExif: datFromExif,
+      } satisfies ImportDraft));
+    } catch {
+      // Draft persistence is best-effort.
+    }
+  }, [
+    photos,
+    deleteSource,
+    sharedName,
+    sharedCommonName,
+    sharedDate,
+    sharedCountry,
+    sharedRegion,
+    sharedLocationNote,
+    sharedObservedRange,
+    sharedFolderNotes,
+    sharedFindNotes,
+    sharedLocation,
+    sharedSpeciesDescription,
+    sharedEdibility,
+    sharedProtectedStatus,
+    sharedDistribution,
+    datFromExif,
+  ]);
 
   /** Auto-fill date + location from first photo's EXIF when photos are first added */
   async function prefillFromExif(paths: string[]) {
@@ -399,6 +553,8 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
       onImportComplete?.(summary.imported.length, summary.skipped.length);
       qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
 
+      persistDraftRef.current = false;
+      clearImportDraft();
       setImportSummary(summary);
       setReviewOpen(true);
     } catch (e) {
@@ -408,12 +564,9 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     }
   }
 
-  useEffect(() => {
-    if (!open) resetState();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
   function resetState() {
+    persistDraftRef.current = false;
+    clearImportDraft();
     setPhotos([]);
     setSharedName('');
     setSharedCommonName('');
@@ -433,7 +586,11 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     setSharedDistribution('unknown');
     lastAutoCommonNameRef.current = '';
     commonNameManuallyEditedRef.current = false;
+    folderNotesManuallyEditedRef.current = false;
     setSharedSpeciesDescription('');
+    window.setTimeout(() => {
+      persistDraftRef.current = true;
+    }, 0);
   }
 
   function handleReviewClose(open: boolean) {
@@ -445,6 +602,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
 
   function handleImportMore() {
     resetState();
+    persistDraftRef.current = true;
   }
 
   function handleCancel() {
@@ -600,7 +758,10 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
               placeholder={t('import.folderNotes')}
               rows={2}
               value={sharedFolderNotes}
-              onChange={(e) => setSharedFolderNotes(e.target.value)}
+              onChange={(e) => {
+                folderNotesManuallyEditedRef.current = true;
+                setSharedFolderNotes(e.target.value);
+              }}
             />
 
             <div>

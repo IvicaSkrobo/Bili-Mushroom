@@ -114,6 +114,8 @@ export default function StatsTab() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [fieldOutingsExpanded, setFieldOutingsExpanded] = useState(false);
   const [expandedOutingDates, setExpandedOutingDates] = useState<Set<string>>(() => new Set());
+  const [speciesSortMode, setSpeciesSortMode] = useState<'best' | 'alpha'>('best');
+  const [speciesListExpanded, setSpeciesListExpanded] = useState(false);
   const topSpotsFormatted = useMemo(() => {
     if (!topSpots) return [];
     return topSpots.map((s) => {
@@ -222,6 +224,14 @@ export default function StatsTab() {
   }, [finds, t]);
   const firstOuting = fieldOutings[fieldOutings.length - 1] ?? null;
   const visibleFieldOutings = fieldOutingsExpanded ? fieldOutings : fieldOutings.slice(0, 8);
+  const sortedSpeciesStats = useMemo(() => {
+    const stats = [...(speciesStats ?? [])];
+    if (speciesSortMode === 'alpha') {
+      return stats.sort((a, b) => compareSpeciesNames(a.species_name, b.species_name));
+    }
+    return stats;
+  }, [speciesStats, speciesSortMode]);
+  const visibleSpeciesStats = speciesListExpanded ? sortedSpeciesStats : sortedSpeciesStats.slice(0, 10);
 
   const toggleOutingDetails = (date: string) => {
     setExpandedOutingDates((current) => {
@@ -413,7 +423,7 @@ export default function StatsTab() {
           <div className="border-b border-border" />
 
           {/* Seasonal calendar */}
-          {calendar && <SeasonalCalendar entries={calendar} />}
+          {calendar && <SeasonalCalendar entries={calendar} speciesProfiles={speciesProfiles} />}
 
           {/* Divider */}
           <div className="border-b border-border" />
@@ -421,11 +431,48 @@ export default function StatsTab() {
           {/* Per-species section */}
           {speciesStats && speciesStats.length > 0 && (
             <div>
-              <h3 className="text-base font-bold uppercase tracking-[0.12em] text-foreground mb-4">
-                {t('stats.yourSpecies')}
-              </h3>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-base font-bold uppercase tracking-[0.12em] text-foreground">
+                  {t('stats.yourSpecies')}
+                </h3>
+                <div className="flex items-center gap-2">
+                  <div className="inline-flex rounded-sm border border-border bg-card p-0.5 shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => setSpeciesSortMode('best')}
+                      className={`rounded-sm px-2.5 py-1 text-xs font-medium transition-colors ${
+                        speciesSortMode === 'best'
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                      }`}
+                    >
+                      {t('stats.sortBest')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSpeciesSortMode('alpha')}
+                      className={`rounded-sm px-2.5 py-1 text-xs font-medium transition-colors ${
+                        speciesSortMode === 'alpha'
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                      }`}
+                    >
+                      {t('stats.sortAlphabetical')}
+                    </button>
+                  </div>
+                  {sortedSpeciesStats.length > 10 && (
+                    <button
+                      type="button"
+                      onClick={() => setSpeciesListExpanded((value) => !value)}
+                      className="text-xs text-primary/70 transition-colors hover:text-primary"
+                    >
+                      {speciesListExpanded ? t('stats.showLess') : t('stats.showAll', { count: sortedSpeciesStats.length })}
+                    </button>
+                  )}
+                </div>
+              </div>
               <div className="space-y-2">
-                {speciesStats.map((s, idx) => (
+                {visibleSpeciesStats.map((s, idx) => (
                   <SpeciesStatRow
                     key={s.species_name}
                     stat={s}
