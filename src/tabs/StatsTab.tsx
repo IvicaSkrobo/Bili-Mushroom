@@ -114,6 +114,7 @@ export default function StatsTab() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [fieldOutingsExpanded, setFieldOutingsExpanded] = useState(false);
   const [expandedOutingDates, setExpandedOutingDates] = useState<Set<string>>(() => new Set());
+  const [expandedOutingLocations, setExpandedOutingLocations] = useState<Set<string>>(() => new Set());
   const [speciesSortMode, setSpeciesSortMode] = useState<'best' | 'alpha'>('best');
   const [speciesListExpanded, setSpeciesListExpanded] = useState(false);
   const topSpotsFormatted = useMemo(() => {
@@ -196,14 +197,29 @@ export default function StatsTab() {
       byDate.set(find.date_found, bucket);
     }
     return Array.from(byDate.values()).map((outing) => {
-      const locationMap = new Map<string, { label: string; count: number; species: Set<string> }>();
+      const locationMap = new Map<string, {
+        label: string;
+        count: number;
+        species: Set<string>;
+        speciesCounts: Map<string, number>;
+      }>();
       const speciesMap = new Map<string, { name: string; count: number; locations: Set<string> }>();
 
       for (const find of outing.finds) {
         const loc = locationLabel(find) || t('stats.noLocation');
-        const locationEntry = locationMap.get(loc) ?? { label: loc, count: 0, species: new Set<string>() };
+        const locationEntry = locationMap.get(loc) ?? {
+          label: loc,
+          count: 0,
+          species: new Set<string>(),
+          speciesCounts: new Map<string, number>(),
+        };
         locationEntry.count += 1;
-        if (find.species_name) locationEntry.species.add(find.species_name);
+        const locationSpeciesName = find.species_name || t('findCard.unnamed');
+        locationEntry.species.add(locationSpeciesName);
+        locationEntry.speciesCounts.set(
+          locationSpeciesName,
+          (locationEntry.speciesCounts.get(locationSpeciesName) ?? 0) + 1,
+        );
         locationMap.set(loc, locationEntry);
 
         const speciesName = find.species_name || t('findCard.unnamed');
@@ -216,6 +232,12 @@ export default function StatsTab() {
       return {
         ...outing,
         locationDetails: Array.from(locationMap.values())
+          .map((loc) => ({
+            ...loc,
+            speciesDetails: Array.from(loc.speciesCounts.entries())
+              .map(([name, count]) => ({ name, count }))
+              .sort((a, b) => b.count - a.count || compareSpeciesNames(a.name, b.name)),
+          }))
           .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'hr', { sensitivity: 'base' })),
         speciesDetails: Array.from(speciesMap.values())
           .sort((a, b) => b.count - a.count || compareSpeciesNames(a.name, b.name)),
@@ -238,6 +260,16 @@ export default function StatsTab() {
       const next = new Set(current);
       if (next.has(date)) next.delete(date);
       else next.add(date);
+      return next;
+    });
+  };
+
+  const toggleOutingLocationDetails = (date: string, location: string) => {
+    const key = `${date}::${location}`;
+    setExpandedOutingLocations((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
@@ -483,6 +515,15 @@ export default function StatsTab() {
                   />
                 ))}
               </div>
+              {sortedSpeciesStats.length > 10 && speciesListExpanded && (
+                <button
+                  type="button"
+                  onClick={() => setSpeciesListExpanded(false)}
+                  className="mt-3 text-xs text-primary/70 transition-colors hover:text-primary"
+                >
+                  {t('stats.showLess')}
+                </button>
+              )}
             </div>
           )}
 
@@ -553,14 +594,46 @@ export default function StatsTab() {
                                 {t('stats.outingLocations')}
                               </div>
                               <div className="space-y-1.5">
-                                {outing.locationDetails.map((loc) => (
-                                  <div key={loc.label} className="flex items-start justify-between gap-2 text-xs">
-                                    <span className="min-w-0 truncate text-foreground" title={loc.label}>{loc.label}</span>
-                                    <span className="shrink-0 font-mono text-muted-foreground">
-                                      {t('stats.outingLocationCount', { finds: loc.count, species: loc.species.size })}
-                                    </span>
-                                  </div>
-                                ))}
+                                {outing.locationDetails.map((loc) => {
+                                  const locationKey = `${outing.date}::${loc.label}`;
+                                  const isLocationOpen = expandedOutingLocations.has(locationKey);
+                                  return (
+                                    <div key={loc.label} className="rounded-sm border border-transparent transition-colors hover:border-border/50 hover:bg-muted/25">
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleOutingLocationDetails(outing.date, loc.label)}
+                                        className="flex w-full items-start justify-between gap-2 px-1 py-1 text-left text-xs"
+                                      >
+                                        <span className="min-w-0 truncate text-foreground" title={loc.label}>{loc.label}</span>
+                                        <span className="flex shrink-0 items-center gap-1 font-mono text-muted-foreground">
+                                          {t('stats.outingLocationCount', { finds: loc.count, species: loc.species.size })}
+                                          {isLocationOpen ? (
+                                            <ChevronUp className="h-3 w-3" />
+                                          ) : (
+                                            <ChevronDown className="h-3 w-3" />
+                                          )}
+                                        </span>
+                                      </button>
+                                      {isLocationOpen && (
+                                        <div className="space-y-1 border-t border-border/40 px-1 py-1.5">
+                                          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/70">
+                                            {t('stats.outingLocationSpecies')}
+                                          </p>
+                                          {loc.speciesDetails.map((species) => (
+                                            <div key={species.name} className="flex items-baseline justify-between gap-2 text-[11px]">
+                                              <span className="min-w-0 truncate font-serif italic text-foreground" title={species.name}>
+                                                {renderSpeciesName(species.name)}
+                                              </span>
+                                              <span className="shrink-0 font-mono text-muted-foreground">
+                                                {t('stats.outingFindCount', { finds: species.count })}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
 
@@ -622,6 +695,15 @@ export default function StatsTab() {
                   );
                 })}
               </div>
+              {fieldOutings.length > 8 && fieldOutingsExpanded && (
+                <button
+                  type="button"
+                  onClick={() => setFieldOutingsExpanded(false)}
+                  className="mt-3 text-xs text-primary/70 transition-colors hover:text-primary"
+                >
+                  {t('stats.showLess')}
+                </button>
+              )}
             </div>
           )}
         </div>

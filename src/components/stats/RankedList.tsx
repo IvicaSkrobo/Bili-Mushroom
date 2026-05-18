@@ -34,9 +34,20 @@ export function RankedList({ title, items, emptyMessage, pageSize, speciesProfil
 
   return (
     <div>
-      <h3 className="text-base font-bold uppercase tracking-[0.12em] text-foreground mb-4">
-        {title}
-      </h3>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h3 className="text-base font-bold uppercase tracking-[0.12em] text-foreground">
+          {title}
+        </h3>
+        {hasMore && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="shrink-0 text-xs text-primary/70 transition-colors hover:text-primary"
+          >
+            {expanded ? t('stats.showLess') : t('stats.showAll', { count: items.length })}
+          </button>
+        )}
+      </div>
 
       {items.length === 0 ? (
         <p className="text-sm text-muted-foreground">{emptyMessage}</p>
@@ -96,12 +107,13 @@ export function RankedList({ title, items, emptyMessage, pageSize, speciesProfil
             })}
           </div>
 
-          {hasMore && (
+          {hasMore && expanded && (
             <button
-              onClick={() => setExpanded((v) => !v)}
+              type="button"
+              onClick={() => setExpanded(false)}
               className="mt-3 text-xs text-primary/70 hover:text-primary transition-colors"
             >
-              {expanded ? t('stats.showLess') : t('stats.showAll', { count: items.length })}
+              {t('stats.showLess')}
             </button>
           )}
         </>

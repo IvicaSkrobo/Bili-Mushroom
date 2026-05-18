@@ -207,6 +207,7 @@ export default function CollectionTab() {
   const [deleting, setDeleting] = useState<Find | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
+  const [focusedSpeciesFilter, setFocusedSpeciesFilter] = useState<string | null>(null);
   const [dateFilterMode, setDateFilterMode] = useState<'exact' | 'range' | 'month' | 'year'>('exact');
   const [dateSearch, setDateSearch] = useState('');
   const [dateSearchEnd, setDateSearchEnd] = useState('');
@@ -382,7 +383,8 @@ export default function CollectionTab() {
 
     setExpanded(new Set([resolvedSpecies]));
     setExpandedFinds(new Set());
-    setSearch('');
+    setFocusedSpeciesFilter(resolvedSpecies);
+    setSearch(plainSpeciesName(resolvedSpecies));
     setDateSearch('');
     setDateSearchEnd('');
     setMonthSearch('');
@@ -400,10 +402,17 @@ export default function CollectionTab() {
   }, [allGroups, selectedCollectionSpecies, setSelectedCollectionSpecies]);
 
   const speciesFilteredGroups = useMemo(() => {
+    if (focusedSpeciesFilter) {
+      const plainFocused = plainSpeciesName(focusedSpeciesFilter).toLowerCase();
+      return groups.filter(([name]) => (
+        name === focusedSpeciesFilter ||
+        plainSpeciesName(name).toLowerCase() === plainFocused
+      ));
+    }
     if (!search.trim()) return groups;
     const q = plainSpeciesName(search).trim().toLowerCase();
     return groups.filter(([name]) => plainSpeciesName(name).toLowerCase().startsWith(q));
-  }, [groups, search]);
+  }, [focusedSpeciesFilter, groups, search]);
   const filteredGroups = useMemo(() => {
     const matchesDateFilter = (find: Find) => {
       if (!find.date_found) return false;
@@ -576,14 +585,20 @@ export default function CollectionTab() {
               <input
                 type="text"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setFocusedSpeciesFilter(null);
+                  setSearch(e.target.value);
+                }}
                 placeholder={t('species.search')}
                 className="w-full h-9 rounded-md border border-border bg-input pl-9 pr-8 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40 transition-colors"
               />
               {isSearching && (
                 <button
                   type="button"
-                  onClick={() => setSearch('')}
+                  onClick={() => {
+                    setFocusedSpeciesFilter(null);
+                    setSearch('');
+                  }}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <X className="h-3.5 w-3.5" />
