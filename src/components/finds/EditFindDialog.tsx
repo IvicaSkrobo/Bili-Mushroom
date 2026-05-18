@@ -103,6 +103,13 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   const bulkDeletePhotosMutation = useBulkDeleteFindPhotos();
   const { data: findsData } = useFinds();
   const { data: speciesProfiles } = useSpeciesProfiles();
+  const speciesProfilesByName = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof speciesProfiles>[number]>();
+    for (const profile of speciesProfiles ?? []) {
+      map.set(profile.species_name, profile);
+    }
+    return map;
+  }, [speciesProfiles]);
 
   // Always reflect the live cache — photo deletions/additions update immediately
   // without waiting for the parent's `find` prop to re-capture the new snapshot.
@@ -144,6 +151,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   const [photosExpanded, setPhotosExpanded] = useState(false);
   const [permanentPhotoDelete, setPermanentPhotoDelete] = useState(true);
   const prevFindIdRef = useRef<number | null>(null);
+  const lastAutoCommonNameRef = useRef<string>('');
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [form, setForm] = useState<FormState>({
@@ -160,13 +168,14 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     species_description: '',
   });
   const speciesProfile = useMemo(
-    () => speciesProfiles?.find((profile) => profile.species_name === form.species_name) ?? null,
-    [speciesProfiles, form.species_name],
+    () => speciesProfilesByName.get(form.species_name) ?? null,
+    [speciesProfilesByName, form.species_name],
   );
 
   useEffect(() => {
     if (find) {
       setForm(findToFormState(find));
+      lastAutoCommonNameRef.current = '';
       if (find.id !== prevFindIdRef.current) {
         setPermanentPhotoDelete(true);
         prevFindIdRef.current = find.id;
@@ -178,23 +187,41 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   }, [find]);
 
   useEffect(() => {
-    if (!find || !speciesProfile) return;
-      setForm((prev) => ({
+    if (!find) return;
+    const nextCommonName = speciesProfile?.common_name ?? '';
+    setForm((prev) => {
+      const userEditedCommonName = prev.common_name.trim() && prev.common_name !== lastAutoCommonNameRef.current;
+      if (userEditedCommonName) {
+        return {
+          ...prev,
+          species_description: speciesProfile?.description ?? speciesProfile?.edibility_note ?? '',
+        };
+      }
+      lastAutoCommonNameRef.current = nextCommonName;
+      return {
         ...prev,
-        common_name: speciesProfile.common_name ?? prev.common_name,
-        species_description: speciesProfile.description ?? speciesProfile.edibility_note ?? '',
-      }));
-  }, [find, speciesProfile]);
+        common_name: nextCommonName,
+        species_description: speciesProfile?.description ?? speciesProfile?.edibility_note ?? '',
+      };
+    });
+  }, [find, speciesProfile?.species_name, speciesProfile?.common_name, speciesProfile?.description, speciesProfile?.edibility_note]);
 
   useEffect(() => {
     if (!find || !storagePath) return;
     readDir(storagePath)
-      .then((entries) => {
-        setSpeciesFolders(
-          entries
-            .filter((e) => e.isDirectory && e.name && !isInternalLibraryName(e.name))
-            .map((e) => e.name as string),
+      .then(async (entries) => {
+        const dirs = entries.filter((e) => e.isDirectory && e.name && !isInternalLibraryName(e.name));
+        const nonEmptyDirs = await Promise.all(
+          dirs.map(async (entry) => {
+            try {
+              const children = await readDir(`${storagePath}\\${entry.name}`);
+              return children.length > 0 ? entry.name as string : null;
+            } catch {
+              return entry.name as string;
+            }
+          }),
         );
+        setSpeciesFolders(nonEmptyDirs.filter((name): name is string => Boolean(name)));
       })
       .catch(() => setSpeciesFolders([]));
   }, [find, storagePath]);
@@ -388,10 +415,10 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
           <div className="space-y-2">
             <div className="rounded-md border border-border/60 bg-card/35 p-3 space-y-3">
               <div>
-                <p className="text-sm font-medium text-foreground">Photo and folder actions</p>
-                <p className="text-xs text-muted-foreground">
-                  Add more photos to this find, or open the relevant folder on disk.
-                </p>
+                  <p className="text-sm font-medium text-foreground">{t('edit.photoActionsTitle')}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t('edit.photoActionsDescription')}
+                  </p>
               </div>
               <div className="grid gap-2">
                 <Button
@@ -402,7 +429,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
                   className="justify-start gap-2 h-10 px-3 text-left"
                 >
                   <ImagePlus className="h-4 w-4 shrink-0" />
-                  <span className="min-w-0 truncate">Add photos to this find</span>
+                  <span className="min-w-0 truncate">{t('edit.addPhotos')}</span>
                 </Button>
                 <Button
                   type="button"
@@ -413,7 +440,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
                   className="justify-start gap-2 h-10 px-3 text-left"
                 >
                   <FolderOpen className="h-4 w-4 shrink-0" />
-                  <span className="min-w-0 truncate">Open current photo folder</span>
+                  <span className="min-w-0 truncate">{t('edit.openCurrentPhotoFolder')}</span>
                 </Button>
               </div>
             </div>
@@ -421,7 +448,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
               <div className="rounded-md border border-border/60 bg-card/50 p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">
-                    {pendingPhotos.length} photo{pendingPhotos.length > 1 ? 's' : ''} selected
+                    {t('edit.photosSelected', { count: pendingPhotos.length, suffix: pendingPhotos.length === 1 ? '' : 's' })}
                   </span>
                   <button
                     type="button"
@@ -442,7 +469,12 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
                   disabled={addPhotosMutation.isPending}
                   className="w-full"
                 >
-                  {addPhotosMutation.isPending ? 'Adding…' : `Add ${pendingPhotos.length} photo${pendingPhotos.length > 1 ? 's' : ''}`}
+                  {addPhotosMutation.isPending
+                    ? t('edit.addingPhotos')
+                    : t('edit.addSelectedPhotos', {
+                      count: pendingPhotos.length,
+                      suffix: pendingPhotos.length === 1 ? '' : 's',
+                    })}
                 </Button>
               </div>
             )}
@@ -492,7 +524,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
           {find && livePhotos.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <label className="text-sm font-medium">Photos ({livePhotos.length})</label>
+                <label className="text-sm font-medium">{t('edit.photos')} ({livePhotos.length})</label>
                 <div className="flex items-center gap-2">
                   {livePhotos.length > 5 && (
                     <Button
@@ -502,7 +534,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
                       onClick={() => setPhotosExpanded((prev) => !prev)}
                       className="h-7 px-2 text-xs"
                     >
-                      {photosExpanded ? 'Collapse' : 'Expand'}
+                      {photosExpanded ? t('edit.collapsePhotos') : t('edit.expandPhotos')}
                     </Button>
                   )}
                   {selectedPhotoIds.size > 0 && (
@@ -520,7 +552,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
                       className="h-7 gap-1 text-xs"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
-                      Delete {selectedPhotoIds.size}
+                      {t('edit.deleteSelectedPhotos', { count: selectedPhotoIds.size })}
                     </Button>
                   )}
                 </div>

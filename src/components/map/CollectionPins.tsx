@@ -10,6 +10,7 @@ import { useAppStore } from '@/stores/appStore';
 import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
 import { renderSpeciesName, plainSpeciesName, normalizeCommonName } from '@/lib/speciesName';
 import { tFindsCount, useT } from '@/i18n/index';
+import { formatDisplayDate } from '@/lib/dateFormat';
 
 export const LABEL_ZOOM_THRESHOLD = 13;
 
@@ -240,7 +241,7 @@ function CollectionPopup({
             )}
             {mostRecentFind?.date_found && (
               <p className="mt-0.5 text-[10px] leading-tight text-white/65 [text-shadow:0_1px_4px_rgba(0,0,0,1)]">
-                {mostRecentFind.date_found}
+                {formatDisplayDate(mostRecentFind.date_found, lang)}
               </p>
             )}
           </div>
@@ -270,7 +271,7 @@ function CollectionPopup({
                 className="flex items-center gap-1 text-[11px] text-primary/65 transition-colors hover:text-primary"
               >
                 <ZoomIn className="h-3 w-3" />
-                Zoom
+                {t('map.zoomIn')}
               </button>
               {firstFind?.lat != null && firstFind.lng != null && (
                 <div className="flex gap-1">
@@ -279,14 +280,14 @@ function CollectionPopup({
                     onClick={(e) => { e.stopPropagation(); L.DomEvent.stopPropagation(e.nativeEvent); map.closePopup(); onStartLocalPolygonForFind(firstFind); }}
                     className="rounded border border-[#D4512A]/45 bg-[#D4512A]/10 px-2 py-0.5 text-[10px] font-semibold text-foreground transition-colors hover:bg-[#D4512A]/22"
                   >
-                    {existingLocalPolygon ? 'Edit local' : 'Draw local'}
+                    {existingLocalPolygon ? t('zone.editLocalShort') : t('zone.drawLocalShort')}
                   </button>
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); L.DomEvent.stopPropagation(e.nativeEvent); map.closePopup(); onStartRegionPolygonForFind(firstFind); }}
                     className="rounded border border-primary/45 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-foreground transition-colors hover:bg-primary/22"
                   >
-                    {existingRegionPolygon ? 'Edit region' : 'Draw region'}
+                    {existingRegionPolygon ? t('zone.editRegionShort') : t('zone.drawRegionShort')}
                   </button>
                 </div>
               )}
@@ -298,7 +299,7 @@ function CollectionPopup({
                 className="flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-primary"
               >
                 <BookOpen className="h-3 w-3" />
-                Vrsta
+                {t('map.openSpecies')}
               </button>
               <button
                 type="button"
@@ -306,7 +307,7 @@ function CollectionPopup({
                 className="flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-primary"
               >
                 <LayoutList className="h-3 w-3" />
-                Zbirka
+                {t('map.openCollection')}
               </button>
             </div>
           </div>

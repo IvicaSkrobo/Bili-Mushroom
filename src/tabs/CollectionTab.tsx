@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { GalleryHorizontal, Plus, ChevronDown, ChevronRight, FolderOpen, Search, X, CheckSquare, Pencil, Star, SquarePen, Trash2, BookOpen, Map as MapIcon } from 'lucide-react';
+import { GalleryHorizontal, Plus, ChevronDown, ChevronRight, FolderOpen, Search, X, CheckSquare, Pencil, Star, SquarePen, Trash2, BookOpen, Map as MapIcon, CalendarDays } from 'lucide-react';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -17,10 +17,11 @@ import { useFinds, useSpeciesNotes, useSpeciesProfiles, useUpsertSpeciesNote, us
 import { useAppStore } from '@/stores/appStore';
 import { useT, tFindsCount } from '@/i18n/index';
 import type { Find, SpeciesProfile } from '@/lib/finds';
-import { SUPPORTED_EXTENSIONS } from '@/lib/finds';
+import { openSpeciesFolder, SUPPORTED_EXTENSIONS } from '@/lib/finds';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { renderSpeciesName, plainSpeciesName, normalizeCommonName, compareSpeciesNames } from '@/lib/speciesName';
+import { formatDisplayDate } from '@/lib/dateFormat';
 
 export default function CollectionTab() {
   const t = useT();
@@ -51,6 +52,11 @@ export default function CollectionTab() {
   const [deleting, setDeleting] = useState<Find | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
+  const [dateFilterMode, setDateFilterMode] = useState<'exact' | 'range' | 'month' | 'year'>('exact');
+  const [dateSearch, setDateSearch] = useState('');
+  const [dateSearchEnd, setDateSearchEnd] = useState('');
+  const [monthSearch, setMonthSearch] = useState('');
+  const [yearSearch, setYearSearch] = useState('');
   const [jumpTargetSpecies, setJumpTargetSpecies] = useState<string | null>(null);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
 
@@ -225,11 +231,34 @@ export default function CollectionTab() {
     return () => window.clearTimeout(timer);
   }, [groups, selectedCollectionSpecies, setSelectedCollectionSpecies]);
 
-  const filteredGroups = useMemo(() => {
+  const speciesFilteredGroups = useMemo(() => {
     if (!search.trim()) return groups;
     const q = plainSpeciesName(search).trim().toLowerCase();
     return groups.filter(([name]) => plainSpeciesName(name).toLowerCase().startsWith(q));
   }, [groups, search]);
+  const filteredGroups = useMemo(() => {
+    const matchesDateFilter = (find: Find) => {
+      if (!find.date_found) return false;
+      if (dateFilterMode === 'exact') return dateSearch ? find.date_found === dateSearch : true;
+      if (dateFilterMode === 'range') {
+        if (!dateSearch && !dateSearchEnd) return true;
+        if (dateSearch && find.date_found < dateSearch) return false;
+        if (dateSearchEnd && find.date_found > dateSearchEnd) return false;
+        return true;
+      }
+      if (dateFilterMode === 'month') return monthSearch ? find.date_found.startsWith(monthSearch) : true;
+      return yearSearch.trim() ? find.date_found.startsWith(yearSearch.trim()) : true;
+    };
+    const hasDateFilter =
+      (dateFilterMode === 'exact' && dateSearch) ||
+      (dateFilterMode === 'range' && (dateSearch || dateSearchEnd)) ||
+      (dateFilterMode === 'month' && monthSearch) ||
+      (dateFilterMode === 'year' && yearSearch.trim());
+    if (!hasDateFilter) return speciesFilteredGroups;
+    return speciesFilteredGroups
+      .map(([name, speciesFinds]) => [name, speciesFinds.filter(matchesDateFilter)] as [string, Find[]])
+      .filter(([, speciesFinds]) => speciesFinds.length > 0);
+  }, [dateFilterMode, dateSearch, dateSearchEnd, monthSearch, speciesFilteredGroups, yearSearch]);
 
   const speciesNames = useMemo(
     () => groups.map(([name]) => name).filter((n) => n !== '(unnamed)'),
@@ -242,6 +271,22 @@ export default function CollectionTab() {
   }, [speciesNames, moveTarget]);
 
   const isSearching = search.trim().length > 0;
+  const isDateSearching =
+    (dateFilterMode === 'exact' && dateSearch.length > 0) ||
+    (dateFilterMode === 'range' && (dateSearch.length > 0 || dateSearchEnd.length > 0)) ||
+    (dateFilterMode === 'month' && monthSearch.length > 0) ||
+    (dateFilterMode === 'year' && yearSearch.trim().length > 0);
+  const clearDateSearch = () => {
+    setDateSearch('');
+    setDateSearchEnd('');
+    setMonthSearch('');
+    setYearSearch('');
+  };
+  const dateSearchLabel =
+    dateFilterMode === 'month' ? monthSearch :
+      dateFilterMode === 'year' ? yearSearch :
+        dateFilterMode === 'range' ? [dateSearch, dateSearchEnd].filter(Boolean).join(' - ') :
+          dateSearch;
   const favoriteCount = useMemo(
     () => (finds ?? []).filter((find) => find.is_favorite && !isInternalLibraryName(find.species_name)).length,
     [finds],
@@ -325,6 +370,17 @@ export default function CollectionTab() {
     });
   };
 
+  const handleOpenSpeciesFolder = async (speciesName: string) => {
+    if (!storagePath) return;
+    try {
+      await openSpeciesFolder(storagePath, speciesName);
+    } catch (error) {
+      setImportMsg(String(error));
+      if (importMsgTimer.current) clearTimeout(importMsgTimer.current);
+      importMsgTimer.current = setTimeout(() => setImportMsg(null), 5000);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
@@ -367,6 +423,82 @@ export default function CollectionTab() {
             {importMsg && (
               <span className="text-xs font-medium text-primary whitespace-nowrap">{importMsg}</span>
             )}
+            <div className="flex flex-shrink-0 items-center gap-1 rounded-md border border-border bg-input px-1 py-1">
+              <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+              <select
+                value={dateFilterMode}
+                onChange={(e) => {
+                  setDateFilterMode(e.target.value as 'exact' | 'range' | 'month' | 'year');
+                  clearDateSearch();
+                }}
+                aria-label={t('collection.dateSearchMode')}
+                className="h-7 rounded bg-transparent px-1 text-[11px] text-muted-foreground outline-none"
+              >
+                <option value="exact">{t('collection.dateModeExact')}</option>
+                <option value="range">{t('collection.dateModeRange')}</option>
+                <option value="month">{t('collection.dateModeMonth')}</option>
+                <option value="year">{t('collection.dateModeYear')}</option>
+              </select>
+              {dateFilterMode === 'exact' && (
+                <input
+                  type="date"
+                  value={dateSearch}
+                  onChange={(e) => setDateSearch(e.target.value)}
+                  aria-label={t('collection.dateSearch')}
+                  className="h-7 w-32 rounded bg-transparent px-1 text-xs text-foreground [color-scheme:light] outline-none"
+                />
+              )}
+              {dateFilterMode === 'range' && (
+                <>
+                  <input
+                    type="date"
+                    value={dateSearch}
+                    onChange={(e) => setDateSearch(e.target.value)}
+                    aria-label={t('collection.dateSearchFrom')}
+                    className="h-7 w-32 rounded bg-transparent px-1 text-xs text-foreground [color-scheme:light] outline-none"
+                  />
+                  <span className="text-muted-foreground/50">-</span>
+                  <input
+                    type="date"
+                    value={dateSearchEnd}
+                    onChange={(e) => setDateSearchEnd(e.target.value)}
+                    aria-label={t('collection.dateSearchTo')}
+                    className="h-7 w-32 rounded bg-transparent px-1 text-xs text-foreground [color-scheme:light] outline-none"
+                  />
+                </>
+              )}
+              {dateFilterMode === 'month' && (
+                <input
+                  type="month"
+                  value={monthSearch}
+                  onChange={(e) => setMonthSearch(e.target.value)}
+                  aria-label={t('collection.monthSearch')}
+                  className="h-7 w-28 rounded bg-transparent px-1 text-xs text-foreground [color-scheme:light] outline-none"
+                />
+              )}
+              {dateFilterMode === 'year' && (
+                <input
+                  type="number"
+                  min="1900"
+                  max="2100"
+                  value={yearSearch}
+                  onChange={(e) => setYearSearch(e.target.value.slice(0, 4))}
+                  placeholder="2026"
+                  aria-label={t('collection.yearSearch')}
+                  className="h-7 w-16 rounded bg-transparent px-1 text-xs text-foreground outline-none"
+                />
+              )}
+              {isDateSearching && (
+                <button
+                  type="button"
+                  onClick={clearDateSearch}
+                  className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label={t('collection.clearDateSearch')}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
             <Button variant="ghost" size="sm" onClick={enterSelectMode} className="gap-1.5 flex-shrink-0 text-muted-foreground hover:text-foreground">
               <CheckSquare className="h-3.5 w-3.5" />
               {t('collection.selectFinds')}
@@ -485,12 +617,12 @@ export default function CollectionTab() {
             body={t('collection.empty.body')}
           />
         )}
-        {!isLoading && !isError && isSearching && filteredGroups.length === 0 && (
+        {!isLoading && !isError && (isSearching || isDateSearching) && filteredGroups.length === 0 && (
           <p className="text-sm text-muted-foreground px-1 pt-4 text-center">
-            {t('collection.noResults', { search })}
+            {t('collection.noResults', { search: dateSearchLabel || search })}
           </p>
         )}
-        {!isLoading && !isError && favoritesOnly && filteredGroups.length === 0 && !isSearching && (
+        {!isLoading && !isError && favoritesOnly && filteredGroups.length === 0 && !isSearching && !isDateSearching && (
           <p className="text-sm text-muted-foreground px-1 pt-4 text-center">
             {t('collection.noFavorites')}
           </p>
@@ -498,9 +630,8 @@ export default function CollectionTab() {
 
         {/* Species folders */}
         {filteredGroups.map(([speciesName, speciesFinds], idx) => {
-          // When searching: always show expanded. When not: use accordion.
-          const isOpen = isSearching || expanded.has(speciesName);
-          const profile = speciesProfiles?.find((entry) => entry.species_name === speciesName) ?? null;
+          const isOpen = isDateSearching || expanded.has(speciesName);
+          const profile = speciesProfilesByName.get(speciesName) ?? null;
           const commonName = normalizeCommonName(profile?.common_name, speciesName);
           const coverPhotoId = profile?.cover_photo_id ?? null;
           const representativePhoto = speciesFinds
@@ -558,10 +689,10 @@ export default function CollectionTab() {
                   </div>
                 )}
 
-                <button
-                  type="button"
-                  className="flex flex-1 min-w-0 items-center gap-3 text-left"
-                  onClick={() => !isSearching && toggleExpand(speciesName)}
+                  <button
+                    type="button"
+                    className="flex flex-1 min-w-0 items-center gap-3 text-left"
+                  onClick={() => !isDateSearching && toggleExpand(speciesName)}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -579,7 +710,7 @@ export default function CollectionTab() {
                       )}
                     </div>
                     {commonName && (
-                      <p className="mt-0.5 truncate text-xs font-medium text-secondary" title={commonName}>
+                      <p className="mt-0.5 truncate text-sm font-semibold text-secondary/90 dark:text-secondary" title={commonName}>
                         {commonName}
                       </p>
                     )}
@@ -620,6 +751,14 @@ export default function CollectionTab() {
                 <button
                   type="button"
                   className="flex-shrink-0 p-1 rounded opacity-50 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary hover:bg-accent focus:opacity-100"
+                  onClick={(e) => { e.stopPropagation(); handleOpenSpeciesFolder(speciesName); }}
+                  title={t('folder.openFolder')}
+                >
+                  <FolderOpen className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  className="flex-shrink-0 p-1 rounded opacity-50 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary hover:bg-accent focus:opacity-100"
                   onClick={(e) => { e.stopPropagation(); setPendingMapSpeciesFilter(speciesName); setActiveTab('map'); }}
                   title={t('collection.viewOnMap')}
                 >
@@ -634,18 +773,17 @@ export default function CollectionTab() {
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
 
-                {!isSearching && (
-                  <button
-                    type="button"
-                    className="flex-shrink-0"
-                    onClick={() => toggleExpand(speciesName)}
-                    tabIndex={-1}
-                  >
-                    {isOpen
-                      ? <ChevronDown className="h-4 w-4 text-muted-foreground/50" />
-                      : <ChevronRight className="h-4 w-4 text-muted-foreground/50" />}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="flex-shrink-0"
+                  onClick={() => !isDateSearching && toggleExpand(speciesName)}
+                  tabIndex={-1}
+                  disabled={isDateSearching}
+                >
+                  {isOpen
+                    ? <ChevronDown className="h-4 w-4 text-muted-foreground/50" />
+                    : <ChevronRight className="h-4 w-4 text-muted-foreground/50" />}
+                </button>
               </div>
 
               {/* Folder body */}
@@ -736,7 +874,7 @@ export default function CollectionTab() {
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-medium text-foreground/90 truncate">
                                 <span className="font-mono text-[10px] text-muted-foreground/45 mr-1 select-none">{idx + 1}.</span>
-                                {f.date_found || t('collection.noDate')}
+                                {f.date_found ? formatDisplayDate(f.date_found, lang) : t('collection.noDate')}
                                 {f.location_note && (
                                   <span className="text-muted-foreground"> · {f.location_note}</span>
                                 )}

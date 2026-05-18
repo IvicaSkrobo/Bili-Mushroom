@@ -4,8 +4,10 @@ import type { Find } from '@/lib/finds';
 import { formatRadius, parsePolygonJson, summarizeZone, type Zone } from '@/lib/zones';
 import { useDeleteZone, useUpsertZone } from '@/hooks/useZones';
 import { DraggablePanel } from './DraggablePanel';
-import { plainSpeciesName } from '@/lib/speciesName';
+import { plainSpeciesName, renderSpeciesName } from '@/lib/speciesName';
 import { useT } from '@/i18n/index';
+import { formatDisplayDate } from '@/lib/dateFormat';
+import { useAppStore } from '@/stores/appStore';
 
 interface ZoneEditorPanelProps {
   zone: Zone;
@@ -16,6 +18,16 @@ interface ZoneEditorPanelProps {
   onZoneSaved: (zone: Zone) => void;
   onZoneTypeSelected: (zone: Zone, zoneType: Zone['zone_type']) => void;
   onZoomToZone: (zone: Zone, selectedType: Zone['zone_type']) => void;
+}
+
+function stripZoneSuffix(name: string, zoneType: Zone['zone_type']): string {
+  const suffixes = zoneType === 'region' ? ['region', 'regija'] : ['local', 'lokalno'];
+  let cleaned = name.trim();
+  for (const suffix of suffixes) {
+    const pattern = new RegExp(`\\s+${suffix}$`, 'i');
+    cleaned = cleaned.replace(pattern, '').trim();
+  }
+  return cleaned;
 }
 
 export function ZoneEditorPanel({
@@ -29,6 +41,7 @@ export function ZoneEditorPanel({
   onZoomToZone,
 }: ZoneEditorPanelProps) {
   const t = useT();
+  const lang = useAppStore((s) => s.language);
   const upsertZone = useUpsertZone();
   const deleteZone = useDeleteZone();
   const summary = useMemo(() => summarizeZone(zone, finds), [zone, finds]);
@@ -38,6 +51,7 @@ export function ZoneEditorPanel({
   const [saving, setSaving] = useState(false);
   const isLocal = zone.zone_type === 'local';
   const isPolygon = zone.geometry_type === 'polygon';
+  const displayName = stripZoneSuffix(name, zone.zone_type);
   const polygonPoints = useMemo(() => parsePolygonJson(zone.polygon_json), [zone.polygon_json]);
   const accent = isLocal ? '#D4512A' : '#2D8C7C';
   const translucentAccent = isLocal ? 'rgba(212, 81, 42, 0.14)' : 'rgba(45, 140, 124, 0.14)';
@@ -106,7 +120,7 @@ export function ZoneEditorPanel({
 
           <div className="mb-1.5 min-w-0">
             <p className="font-serif text-sm font-bold italic text-foreground">
-              {name || (isLocal ? t('zone.localZone') : t('zone.regionZone'))}
+              {displayName ? renderSpeciesName(displayName) : (isLocal ? t('zone.localZone') : t('zone.regionZone'))}
             </p>
             <p className="truncate text-xs text-muted-foreground">
               {plainSpeciesName(zone.species_name)} / {isPolygon ? `${polygonPoints.length} pt` : formatRadius(Number(radius))}
@@ -148,8 +162,8 @@ export function ZoneEditorPanel({
 
           <div className="mb-1.5 grid grid-cols-3 gap-1 text-[11px] text-muted-foreground">
             <ZoneStat label={t('zone.finds')} value={String(summary.finds.length)} />
-            <ZoneStat label={t('zone.first')} value={summary.firstFound ?? '-'} />
-            <ZoneStat label={t('zone.last')} value={summary.lastFound ?? '-'} />
+            <ZoneStat label={t('zone.first')} value={summary.firstFound ? formatDisplayDate(summary.firstFound, lang) : '-'} />
+            <ZoneStat label={t('zone.last')} value={summary.lastFound ? formatDisplayDate(summary.lastFound, lang) : '-'} />
           </div>
 
           <label className="mb-1.5 flex flex-col gap-1 text-[11px] text-muted-foreground">

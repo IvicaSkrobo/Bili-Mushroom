@@ -111,7 +111,7 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
     setError(null);
     setOpeningFolder(true);
     try {
-      await openSpeciesFolder(storagePath, speciesNameInput.trim() || speciesName);
+      await openSpeciesFolder(storagePath, speciesName);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -200,7 +200,7 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
                       }
                     }}
                     placeholder={t('folder.synonymsPlaceholder')}
-                    className="flex-1 rounded-md border border-border bg-input px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
+                    className="flex-1 rounded-md border border-border bg-input px-3 py-2 text-sm font-medium text-foreground placeholder:text-muted-foreground/55 focus:outline-none focus:ring-2 focus:ring-ring/40"
                   />
                   <button
                     type="button"
@@ -210,7 +210,7 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
                       setSynonymInput('');
                     }}
                     disabled={!synonymInput.trim()}
-                    className="rounded-md border border-border bg-input px-2.5 py-1.5 text-sm text-muted-foreground hover:text-primary hover:bg-accent disabled:opacity-40 transition-colors"
+                    className="rounded-md border border-border bg-input px-2.5 py-2 text-sm text-muted-foreground hover:text-primary hover:bg-accent disabled:opacity-40 transition-colors"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
@@ -218,7 +218,7 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
                 {synonyms.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {synonyms.map((s) => (
-                      <span key={s} className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/50 px-2 py-0.5 text-xs text-foreground/70">
+                      <span key={s} className="inline-flex items-center gap-1.5 rounded-md border border-primary/25 bg-primary/8 px-2.5 py-1 text-sm font-medium text-foreground shadow-sm">
                         <span className="italic">{s}</span>
                         <button type="button" onClick={() => setSynonyms((prev) => prev.filter((x) => x !== s))} className="text-muted-foreground hover:text-destructive transition-colors">
                           <X className="h-3 w-3" />
@@ -245,7 +245,7 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
                       }
                     }}
                     placeholder={t('folder.otherNamesPlaceholder')}
-                    className="flex-1 rounded-md border border-border bg-input px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
+                    className="flex-1 rounded-md border border-border bg-input px-3 py-2 text-sm font-medium text-foreground placeholder:text-muted-foreground/55 focus:outline-none focus:ring-2 focus:ring-ring/40"
                   />
                   <button
                     type="button"
@@ -255,7 +255,7 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
                       setOtherNameInput('');
                     }}
                     disabled={!otherNameInput.trim()}
-                    className="rounded-md border border-border bg-input px-2.5 py-1.5 text-sm text-muted-foreground hover:text-primary hover:bg-accent disabled:opacity-40 transition-colors"
+                    className="rounded-md border border-border bg-input px-2.5 py-2 text-sm text-muted-foreground hover:text-primary hover:bg-accent disabled:opacity-40 transition-colors"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
@@ -263,7 +263,7 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
                 {otherNames.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {otherNames.map((n) => (
-                      <span key={n} className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/50 px-2 py-0.5 text-xs text-foreground/70">
+                      <span key={n} className="inline-flex items-center gap-1.5 rounded-md border border-secondary/30 bg-secondary/10 px-2.5 py-1 text-sm font-medium text-foreground shadow-sm">
                         {n}
                         <button type="button" onClick={() => setOtherNames((prev) => prev.filter((x) => x !== n))} className="text-muted-foreground hover:text-destructive transition-colors">
                           <X className="h-3 w-3" />

@@ -8,6 +8,7 @@ import { resolvePhotoSrc } from '@/lib/photoSrc';
 import type { FindGroup } from './groupFindsByCoords';
 import { renderSpeciesName, plainSpeciesName } from '@/lib/speciesName';
 import { useT } from '@/i18n/index';
+import { formatDisplayDate } from '@/lib/dateFormat';
 
 interface FindPopupProps {
   group: FindGroup;
@@ -16,7 +17,7 @@ interface FindPopupProps {
 
 function formatDate(iso: string): string {
   // YYYY-MM-DD — display as-is for v1
-  return iso;
+  return formatDisplayDate(iso, useAppStore.getState().language);
 }
 
 function PopupRow({
@@ -95,7 +96,7 @@ function LevelTwoCard({
             onClick={() => map.flyTo([find.lat!, find.lng!], Math.max(map.getZoom(), 16))}
           >
             <ZoomIn className="h-3.5 w-3.5" />
-            Zoom in
+            {t('map.zoomIn')}
           </Button>
         )}
         <Button
@@ -107,7 +108,7 @@ function LevelTwoCard({
             setActiveTab('collection');
           }}
         >
-          Edit find
+          {t('collection.editFind')}
         </Button>
       </div>
     </div>
@@ -116,6 +117,7 @@ function LevelTwoCard({
 
 export function FindPopup({ group, storagePath }: FindPopupProps) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const t = useT();
   const map = useMap();
 
   if (expandedId !== null) {
@@ -138,7 +140,7 @@ export function FindPopup({ group, storagePath }: FindPopupProps) {
       className="flex items-center gap-1 text-xs text-primary/70 hover:text-primary transition-colors px-1 py-0.5"
     >
       <ZoomIn className="h-3 w-3" />
-      Zoom in
+      {t('map.zoomIn')}
     </button>
   );
 

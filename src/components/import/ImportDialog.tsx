@@ -113,6 +113,30 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   const { data: findsData } = useFinds();
   const { data: speciesProfilesData } = useSpeciesProfiles();
 
+  const speciesNameSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const find of findsData ?? []) {
+      if (find.species_name) set.add(find.species_name.toLowerCase());
+    }
+    return set;
+  }, [findsData]);
+
+  const speciesProfilesByLowerName = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof speciesProfilesData>[number]>();
+    for (const profile of speciesProfilesData ?? []) {
+      map.set(profile.species_name.toLowerCase(), profile);
+    }
+    return map;
+  }, [speciesProfilesData]);
+
+  const speciesNotesByLowerName = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof speciesNotesData>[number]>();
+    for (const note of speciesNotesData ?? []) {
+      map.set(note.species_name.toLowerCase(), note);
+    }
+    return map;
+  }, [speciesNotesData]);
+
 
   const speciesFolders = useMemo(() => {
     if (!findsData) return [];
@@ -167,14 +191,12 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   const isNewSpecies = useMemo(() => {
     const name = sharedName.trim().toLowerCase();
     if (!name) return false;
-    const inFinds = findsData?.some((f) => f.species_name.toLowerCase() === name);
-    const inProfiles = speciesProfilesData?.some((p) => p.species_name.toLowerCase() === name);
-    return !inFinds && !inProfiles;
-  }, [sharedName, findsData, speciesProfilesData]);
+    return !speciesNameSet.has(name) && !speciesProfilesByLowerName.has(name);
+  }, [sharedName, speciesNameSet, speciesProfilesByLowerName]);
 
   const sharedSpeciesProfile = useMemo(
-    () => speciesProfilesData?.find((p) => p.species_name.toLowerCase() === sharedName.trim().toLowerCase()) ?? null,
-    [speciesProfilesData, sharedName],
+    () => speciesProfilesByLowerName.get(sharedName.trim().toLowerCase()) ?? null,
+    [speciesProfilesByLowerName, sharedName],
   );
 
   useEffect(() => {
@@ -185,12 +207,10 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
 
   // When species name changes to a known folder, pre-fill notes + species metadata from DB
   useEffect(() => {
-    if (!speciesNotesData || !sharedName) return;
-    const existing = speciesNotesData.find(
-      (sn) => sn.species_name.toLowerCase() === sharedName.toLowerCase(),
-    );
+    if (!sharedName) return;
+    const existing = speciesNotesByLowerName.get(sharedName.toLowerCase());
     setSharedFolderNotes(existing?.notes ?? '');
-  }, [sharedName, speciesNotesData]);
+  }, [sharedName, speciesNotesByLowerName]);
 
   const progress = useImportProgress(importing);
 

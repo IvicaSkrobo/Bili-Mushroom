@@ -30,6 +30,7 @@ pub fn run() {
             commands::finds::add_find_photos,
             commands::finds::delete_find_photo,
             commands::finds::bulk_delete_find_photos,
+            commands::finds::edit_find_photo_image,
             commands::finds::prune_missing_photos,
             commands::finds::create_find,
             commands::tile_proxy::fetch_tile,

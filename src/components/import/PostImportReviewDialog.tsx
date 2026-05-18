@@ -15,6 +15,7 @@ import { deleteFind } from '@/lib/finds';
 import type { ImportSummary, Find } from '@/lib/finds';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { useT } from '@/i18n/index';
+import { formatDisplayDate } from '@/lib/dateFormat';
 
 interface PostImportReviewDialogProps {
   summary: ImportSummary | null;
@@ -27,6 +28,7 @@ export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: 
   const [editingFind, setEditingFind] = useState<Find | null>(null);
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
   const storagePath = useAppStore((s) => s.storagePath);
+  const lang = useAppStore((s) => s.language);
 
   const open = summary !== null;
 
@@ -54,7 +56,7 @@ export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: 
               {deletedIds.size > 0 && t('import.reviewDeleted', { n: deletedIds.size })}
             </DialogTitle>
             <DialogDescription>
-              Review imported finds, make quick edits, or remove mistakes before continuing.
+              {t('import.reviewDescription')}
             </DialogDescription>
           </DialogHeader>
 
@@ -89,7 +91,7 @@ export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: 
                         <p className="truncate font-medium text-sm">
                           {find.species_name || find.original_filename}
                         </p>
-                        <p className="text-xs text-muted-foreground">{find.date_found}</p>
+                        <p className="text-xs text-muted-foreground">{formatDisplayDate(find.date_found, lang)}</p>
                       </div>
 
                       <Button
@@ -97,7 +99,7 @@ export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: 
                         size="sm"
                         onClick={() => setEditingFind(find)}
                       >
-                        Edit
+                        {t('findCard.edit')}
                       </Button>
                       <Button
                         variant="ghost"
@@ -141,7 +143,7 @@ export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: 
                 {t('import.importMore')}
               </Button>
             )}
-            <Button onClick={() => onOpenChange(false)}>Done</Button>
+            <Button onClick={() => onOpenChange(false)}>{t('autoImport.done')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

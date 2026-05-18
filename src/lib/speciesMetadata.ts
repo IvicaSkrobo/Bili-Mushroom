@@ -26,7 +26,7 @@ export const EDIBILITY_BADGE_CLASSES: Record<Edibility, string> = {
   unknown:              'border border-border/50 bg-muted/40 text-muted-foreground',
   edible:               'border border-emerald-600/50 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300',
   conditionally_edible: 'border border-yellow-600/50 bg-yellow-50 text-yellow-800 dark:border-yellow-500/35 dark:bg-yellow-500/10 dark:text-yellow-300',
-  inedible:             'border border-amber-600/50 bg-amber-50 text-amber-800 dark:border-amber-500/35 dark:bg-amber-500/10 dark:text-amber-200',
+  inedible:             'border border-zinc-600/55 bg-zinc-100 text-zinc-800 dark:border-zinc-400/35 dark:bg-zinc-400/14 dark:text-zinc-200',
   poisonous:            'border border-rose-600/50 bg-rose-50 text-rose-800 dark:border-rose-500/35 dark:bg-rose-500/10 dark:text-rose-200',
   deadly_poisonous:     'border border-red-700/60 bg-red-100 text-red-900 dark:border-red-600/40 dark:bg-red-900/20 dark:text-red-300',
 };

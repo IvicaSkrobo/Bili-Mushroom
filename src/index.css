@@ -84,6 +84,8 @@
 .species-name-editor:empty::before {
   content: attr(data-placeholder);
   color: hsl(var(--muted-foreground));
+  opacity: 0.45;
+  font-style: italic;
   font-weight: 400;
   pointer-events: none;
 }

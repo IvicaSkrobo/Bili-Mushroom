@@ -16,9 +16,38 @@
  * `localValue` is synced via the effect.
  */
 
+import { X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n/index';
+
+const HIDDEN_LOCATION_SUGGESTIONS_KEY = 'bili:hidden-location-suggestions';
+
+export function resetHiddenLocationSuggestions() {
+  try {
+    localStorage.removeItem(HIDDEN_LOCATION_SUGGESTIONS_KEY);
+    window.dispatchEvent(new Event('bili:hidden-location-suggestions-reset'));
+  } catch {
+    // localStorage can be unavailable in tests/private modes; reset is best-effort.
+  }
+}
+
+function loadHiddenSuggestions(): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(HIDDEN_LOCATION_SUGGESTIONS_KEY) ?? '[]'));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveHiddenSuggestions(values: Set<string>) {
+  try {
+    localStorage.setItem(HIDDEN_LOCATION_SUGGESTIONS_KEY, JSON.stringify(Array.from(values)));
+  } catch {
+    // localStorage can be unavailable in tests/private modes; hiding is best-effort.
+  }
+}
 
 export interface LocationNoteInputProps {
   value: string;
@@ -35,25 +64,52 @@ export function LocationNoteInput({
   placeholder,
   className,
 }: LocationNoteInputProps) {
+  const t = useT();
   // Internal value drives the input display and dropdown filter.
   // Stays in sync with `value` prop via the effect below so external
   // changes (form reset, suggestion from parent) are reflected.
   const [localValue, setLocalValue] = useState(value);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [dropdownHighlight, setDropdownHighlight] = useState(0);
+  const [hiddenSuggestions, setHiddenSuggestions] = useState<Set<string>>(() => loadHiddenSuggestions());
 
   // Sync external prop changes (reset, suggestion selection from parent)
   useEffect(() => {
     setLocalValue(value);
   }, [value]);
 
+  useEffect(() => {
+    function handleReset() {
+      setHiddenSuggestions(new Set());
+    }
+    window.addEventListener('bili:hidden-location-suggestions-reset', handleReset);
+    return () => window.removeEventListener('bili:hidden-location-suggestions-reset', handleReset);
+  }, []);
+
   // Filter: case-insensitive substring match on trimmed localValue;
   // skip empty/whitespace suggestions
   const visibleSuggestions = localValue.trim()
     ? suggestions
-        .filter((s) => s.trim() && s.toLowerCase().includes(localValue.trim().toLowerCase()))
+        .filter((s) => {
+          const trimmed = s.trim();
+          return trimmed &&
+            !hiddenSuggestions.has(trimmed.toLowerCase()) &&
+            trimmed.toLowerCase().includes(localValue.trim().toLowerCase());
+        })
         .slice(0, 8)
     : [];
+
+  function hideSuggestion(suggestion: string) {
+    const key = suggestion.trim().toLowerCase();
+    if (!key) return;
+    setHiddenSuggestions((prev) => {
+      const next = new Set(prev);
+      next.add(key);
+      saveHiddenSuggestions(next);
+      return next;
+    });
+    setDropdownHighlight(0);
+  }
 
   function selectSuggestion(suggestion: string) {
     setLocalValue(suggestion);
@@ -119,21 +175,38 @@ export function LocationNoteInput({
       {dropdownOpen && visibleSuggestions.length > 0 && (
         <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto">
           {visibleSuggestions.map((s, i) => (
-            <button
+            <div
               key={s}
-              type="button"
               className={cn(
-                'w-full text-left px-3 py-1.5 text-sm transition-colors',
+                'flex w-full items-center gap-1.5 text-sm transition-colors',
                 i === dropdownHighlight ? 'bg-accent' : 'hover:bg-accent',
               )}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                selectSuggestion(s);
-              }}
               onMouseEnter={() => setDropdownHighlight(i)}
             >
-              {s}
-            </button>
+              <button
+                type="button"
+                className="min-w-0 flex-1 px-3 py-1.5 text-left"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  selectSuggestion(s);
+                }}
+              >
+                {s}
+              </button>
+              <button
+                type="button"
+                className="mr-1 rounded p-1 text-muted-foreground/55 transition-colors hover:bg-background/70 hover:text-destructive"
+                aria-label={t('suggestions.hide', { suggestion: s })}
+                title={t('suggestions.hideTitle')}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  hideSuggestion(s);
+                }}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
           ))}
         </div>
       )}

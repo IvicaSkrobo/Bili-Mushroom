@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Calendar, Camera, Info, Map as MapIcon, MapPin, Pencil, Plus, Repeat2, Search, Star, X } from 'lucide-react';
+import { BookOpen, Calendar, Camera, FolderOpen, Info, Map as MapIcon, MapPin, Pencil, Plus, Repeat2, Search, Star, X } from 'lucide-react';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,11 +11,13 @@ import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 import type { Find, FindPhoto } from '@/lib/finds';
+import { openSpeciesFolder } from '@/lib/finds';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { EdibilitySelectBadge, ThreatStatusSelectBadge, DistributionSelectBadge } from '@/components/species/StatusSelectBadge';
 import { PhotoLightbox, type LightboxPhoto } from '@/components/finds/PhotoLightbox';
 import { EditFindDialog } from '@/components/finds/EditFindDialog';
 import { renderSpeciesName, plainSpeciesName, normalizeCommonName, compareSpeciesNames } from '@/lib/speciesName';
+import { formatDisplayDate } from '@/lib/dateFormat';
 
 interface DateSummary {
   date: string;
@@ -74,6 +76,7 @@ function normalizeTags(tags: string[]): string[] {
 
 function formatDate(date: string | null, locale: string): string {
   if (!date) return '--';
+  if (locale === 'hr-HR') return formatDisplayDate(date, 'hr');
   const parsed = new Date(`${date}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return date;
   return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric' }).format(parsed);
@@ -441,11 +444,16 @@ export default function SpeciesTab() {
   }, [filteredSpecies, selectedSpecies]);
 
   useEffect(() => {
-    if (!pendingSpeciesSelection || filteredSpecies.length === 0) return;
-    const match = filteredSpecies.find((e) => e.speciesName === pendingSpeciesSelection);
+    if (!pendingSpeciesSelection || speciesJournals.length === 0) return;
+    const target = pendingSpeciesSelection.trim();
+    const plainTarget = plainSpeciesName(target).toLowerCase();
+    const match = speciesJournals.find((entry) => entry.speciesName === target)
+      ?? speciesJournals.find((entry) => plainSpeciesName(entry.speciesName).toLowerCase() === plainTarget)
+      ?? null;
+    setSearch('');
     if (match) setSelectedSpecies(match.speciesName);
     setPendingSpeciesSelection(null);
-  }, [pendingSpeciesSelection, filteredSpecies, setPendingSpeciesSelection]);
+  }, [pendingSpeciesSelection, speciesJournals, setPendingSpeciesSelection]);
 
   const selectedJournal = filteredSpecies.find((entry) => entry.speciesName === selectedSpecies) ?? filteredSpecies[0] ?? null;
   const selectedNote = speciesNotes?.find((note) => note.species_name === selectedJournal?.speciesName)?.notes ?? '';
@@ -465,6 +473,7 @@ export default function SpeciesTab() {
   const [newRecipeTitle, setNewRecipeTitle] = useState('');
   const [newRecipeNotes, setNewRecipeNotes] = useState('');
   const [recipeDrafts, setRecipeDrafts] = useState<Record<number, { title: string; notes: string }>>({});
+  const [folderOpenError, setFolderOpenError] = useState<string | null>(null);
 
   useEffect(() => {
     setNoteInput(selectedNote);
@@ -601,6 +610,17 @@ export default function SpeciesTab() {
       fruitingBodyCountOverride: selectedFruitingBodyCountOverride,
       description: profileDescription,
     });
+  };
+
+  const handleOpenSpeciesFolder = async () => {
+    if (!storagePath || !selectedJournal) return;
+    setFolderOpenError(null);
+    try {
+      await openSpeciesFolder(storagePath, selectedJournal.speciesName);
+    } catch (error) {
+      setFolderOpenError(String(error));
+      window.setTimeout(() => setFolderOpenError(null), 5000);
+    }
   };
 
   const handleSaveMetadataStatus = (
@@ -819,9 +839,6 @@ export default function SpeciesTab() {
                     ? resolvePhotoSrc(storagePath, entry.heroPhotoPath)
                     : null;
                   const isActive = entry.speciesName === selectedJournal?.speciesName;
-                  const entryProfile = speciesProfiles?.find((profile) => profile.species_name === entry.speciesName) ?? null;
-                  const entryCommonName = normalizeCommonName(entryProfile?.common_name, entry.speciesName);
-
                   return (
                     <button
                       key={entry.speciesName}
@@ -853,11 +870,6 @@ export default function SpeciesTab() {
                             </span>
                           )}
                         </div>
-                        {entryCommonName && (
-                          <p className="truncate text-xs font-medium text-secondary" title={entryCommonName}>
-                            {entryCommonName}
-                          </p>
-                        )}
                         <p className="text-xs text-muted-foreground">
                           {t('species.recordedFindsLabel', { count: entry.recordedFinds })}
                         </p>
@@ -964,7 +976,7 @@ export default function SpeciesTab() {
                         <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground/70">{t('species.synonyms')}</p>
                         <div className="flex flex-wrap gap-1.5">
                           {selectedSynonyms.map((s) => (
-                            <span key={s} className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/50 px-2 py-0.5 text-xs text-foreground/80">
+                            <span key={s} className="inline-flex items-center gap-1.5 rounded-md border border-primary/25 bg-primary/8 px-2.5 py-1 text-sm font-medium text-foreground shadow-sm">
                               <span className="italic">{s}</span>
                               <button type="button" onClick={() => handleRemoveSynonym(s)} className="text-muted-foreground hover:text-destructive transition-colors"><X className="h-3 w-3" /></button>
                             </span>
@@ -975,9 +987,9 @@ export default function SpeciesTab() {
                               onChange={(e) => setSynonymsInput(e.target.value)}
                               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); handleAddSynonym(synonymsInput.replace(/,$/, '')); } }}
                               placeholder={t('species.synonymsPlaceholder')}
-                              className="w-36 rounded border border-border/60 bg-input px-2 py-0.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring/40"
+                              className="w-44 rounded border border-border/70 bg-input px-2.5 py-1 text-sm font-medium text-foreground placeholder:text-muted-foreground/55 focus:outline-none focus:ring-1 focus:ring-ring/40"
                             />
-                            <button type="button" onClick={() => handleAddSynonym(synonymsInput)} disabled={!synonymsInput.trim()} className="rounded border border-border/60 bg-input px-1.5 py-0.5 text-muted-foreground hover:text-primary disabled:opacity-40 transition-colors">
+                            <button type="button" onClick={() => handleAddSynonym(synonymsInput)} disabled={!synonymsInput.trim()} className="rounded border border-border/70 bg-input px-2 py-1 text-muted-foreground hover:text-primary disabled:opacity-40 transition-colors">
                               <Plus className="h-3 w-3" />
                             </button>
                           </div>
@@ -988,7 +1000,7 @@ export default function SpeciesTab() {
                         <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground/70">{t('species.otherNames')}</p>
                         <div className="flex flex-wrap gap-1.5">
                           {selectedOtherNames.map((n) => (
-                            <span key={n} className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/50 px-2 py-0.5 text-xs text-foreground/80">
+                            <span key={n} className="inline-flex items-center gap-1.5 rounded-md border border-secondary/30 bg-secondary/10 px-2.5 py-1 text-sm font-medium text-foreground shadow-sm">
                               {n}
                               <button type="button" onClick={() => handleRemoveOtherName(n)} className="text-muted-foreground hover:text-destructive transition-colors"><X className="h-3 w-3" /></button>
                             </span>
@@ -999,9 +1011,9 @@ export default function SpeciesTab() {
                               onChange={(e) => setOtherNamesInput(e.target.value)}
                               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); handleAddOtherName(otherNamesInput.replace(/,$/, '')); } }}
                               placeholder={t('species.otherNamesPlaceholder')}
-                              className="w-36 rounded border border-border/60 bg-input px-2 py-0.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring/40"
+                              className="w-44 rounded border border-border/70 bg-input px-2.5 py-1 text-sm font-medium text-foreground placeholder:text-muted-foreground/55 focus:outline-none focus:ring-1 focus:ring-ring/40"
                             />
-                            <button type="button" onClick={() => handleAddOtherName(otherNamesInput)} disabled={!otherNamesInput.trim()} className="rounded border border-border/60 bg-input px-1.5 py-0.5 text-muted-foreground hover:text-primary disabled:opacity-40 transition-colors">
+                            <button type="button" onClick={() => handleAddOtherName(otherNamesInput)} disabled={!otherNamesInput.trim()} className="rounded border border-border/70 bg-input px-2 py-1 text-muted-foreground hover:text-primary disabled:opacity-40 transition-colors">
                               <Plus className="h-3 w-3" />
                             </button>
                           </div>
@@ -1020,6 +1032,14 @@ export default function SpeciesTab() {
                       </Button>
                       <Button
                         variant="outline"
+                        onClick={handleOpenSpeciesFolder}
+                        disabled={!storagePath}
+                      >
+                        <FolderOpen className="h-4 w-4 mr-1.5" />
+                        {t('folder.openFolder')}
+                      </Button>
+                      <Button
+                        variant="outline"
                         onClick={() => {
                           setPendingMapSpeciesFilter(selectedJournal.speciesName);
                           setActiveTab('map');
@@ -1029,6 +1049,9 @@ export default function SpeciesTab() {
                         {t('map.viewOnMap')}
                       </Button>
                     </div>
+                    {folderOpenError && (
+                      <p className="mt-2 text-xs text-destructive">{folderOpenError}</p>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -1144,7 +1167,7 @@ export default function SpeciesTab() {
                               )}
                             </div>
                             {fruitingBodyCardIsTotal ? (
-                              <p className="h-9 font-mono text-2xl font-semibold text-foreground">
+                              <p className="min-h-9 break-words font-mono text-xl font-semibold leading-tight text-foreground">
                                 {selectedJournal.fruitingBodyTotalLabel}
                               </p>
                             ) : (
@@ -1158,7 +1181,7 @@ export default function SpeciesTab() {
                                   }
                                 }}
                                 placeholder={defaultFruitingBodyLabel ?? t('species.fruitingBodyCountPlaceholder')}
-                                className="h-9 w-full rounded border border-border/60 bg-input px-2 font-mono text-2xl font-semibold text-foreground placeholder:text-foreground focus:outline-none focus:ring-1 focus:ring-ring/50"
+                                className="min-h-9 w-full rounded border border-border/60 bg-input px-2 py-1 font-mono text-xl font-semibold leading-tight text-foreground placeholder:text-muted-foreground/35 focus:outline-none focus:ring-1 focus:ring-ring/50"
                               />
                             )}
                             <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground/70">

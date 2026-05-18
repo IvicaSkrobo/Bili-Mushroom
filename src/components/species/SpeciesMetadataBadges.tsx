@@ -86,6 +86,7 @@ export function SpeciesMetadataBadges({
   iconOnly = false,
 }: SpeciesMetadataBadgesProps) {
   const t = useT();
+  const [tip, setTip] = useState<{ label: string; x: number; y: number } | null>(null);
   const edibility = normalizeEdibility(speciesProfile?.edibility);
   const threatStatus = normalizeThreatStatus(speciesProfile?.threat_status);
   const distribution = normalizeDistribution(speciesProfile?.distribution);
@@ -101,8 +102,6 @@ export function SpeciesMetadataBadges({
   const DistributionIcon = DISTRIBUTION_ICONS[distribution];
 
   if (iconOnly) {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const [tip, setTip] = useState<{ label: string; x: number; y: number } | null>(null);
     const showTip = (e: React.MouseEvent, label: string) =>
       setTip({ label, x: e.clientX, y: e.clientY });
     const moveTip = (e: React.MouseEvent) =>

@@ -6,6 +6,8 @@ import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { useT } from '@/i18n/index';
 import { renderSpeciesName, plainSpeciesName, normalizeCommonName } from '@/lib/speciesName';
 import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
+import { useAppStore } from '@/stores/appStore';
+import { formatDisplayDate } from '@/lib/dateFormat';
 
 interface FindCardProps {
   find: Find;
@@ -23,6 +25,7 @@ interface FindCardProps {
 
 export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSelected, onToggleSelect, onToggleFavorite, onLongPress, onPhotoClick, speciesProfile }: FindCardProps) {
   const t = useT();
+  const lang = useAppStore((s) => s.language);
   const uniquePhotos = find.photos.filter(
     (p, i, arr) => arr.findIndex((q) => q.photo_path === p.photo_path) === i,
   );
@@ -107,11 +110,11 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
           </span>
         </p>
         {commonName && (
-          <p className="truncate text-xs font-medium text-secondary" title={commonName}>{commonName}</p>
+          <p className="truncate text-sm font-semibold text-secondary/90 dark:text-secondary" title={commonName}>{commonName}</p>
         )}
         <div className="flex flex-wrap gap-x-3 gap-y-0.5">
           {find.date_found && (
-            <span className="text-xs text-muted-foreground">{find.date_found}</span>
+            <span className="text-xs text-muted-foreground">{formatDisplayDate(find.date_found, lang)}</span>
           )}
           {(find.country || find.region) && (
             <span className="text-xs text-muted-foreground">

@@ -2,8 +2,10 @@ import { Layers3, MapPin, Minus, PencilRuler } from 'lucide-react';
 import type { Find } from '@/lib/finds';
 import type { ZoneViewMode } from '@/lib/zones';
 import { DraggablePanel } from './DraggablePanel';
-import { plainSpeciesName } from '@/lib/speciesName';
+import { renderSpeciesName } from '@/lib/speciesName';
 import { useT } from '@/i18n/index';
+import { formatDisplayDate } from '@/lib/dateFormat';
+import { useAppStore } from '@/stores/appStore';
 
 interface ZoneModeControlProps {
   mode: ZoneViewMode;
@@ -47,6 +49,7 @@ export function ZoneModeControl({
   onCollapsedChange,
 }: ZoneModeControlProps) {
   const t = useT();
+  const lang = useAppStore((s) => s.language);
   const OPTIONS: Array<{ mode: ZoneViewMode; label: string }> = [
     { mode: 'pins', label: t('zone.pinsOnly') },
     { mode: 'local', label: t('zone.localMode') },
@@ -122,7 +125,7 @@ export function ZoneModeControl({
             <div className="flex min-w-0 items-center gap-2">
               <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
               <span className="truncate">
-                {targetSpecies ? plainSpeciesName(targetSpecies) : t('zone.pickSpecies')}
+                {targetSpecies ? renderSpeciesName(targetSpecies) : t('zone.pickSpecies')}
               </span>
             </div>
             {hasRegionTarget && (
@@ -177,7 +180,7 @@ export function ZoneModeControl({
               <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
               <span className="truncate">
               {localTargetFind
-                ? `${plainSpeciesName(localTargetFind.species_name)} / ${localTargetFind.date_found}`
+                ? <>{renderSpeciesName(localTargetFind.species_name)} / {formatDisplayDate(localTargetFind.date_found, lang)}</>
                 : t('zone.pickFind')}
               </span>
             </div>

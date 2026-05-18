@@ -407,3 +407,24 @@ export async function bulkDeleteFindPhotos(
 ): Promise<Find> {
   return invoke<Find>('bulk_delete_find_photos', { storagePath, photoIds, deleteFiles, permanentDelete });
 }
+
+export interface PhotoCropRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export async function editFindPhotoImage(
+  storagePath: string,
+  photoId: number,
+  rotateDegrees = 0,
+  crop?: PhotoCropRect | null,
+): Promise<void> {
+  return invoke<void>('edit_find_photo_image', {
+    storagePath,
+    photoId,
+    rotateDegrees,
+    crop: crop ?? null,
+  });
+}

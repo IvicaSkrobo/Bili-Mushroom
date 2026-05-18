@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { compareSpeciesNames } from '@/lib/speciesName';
-import { Loader2, BarChart3, Download, FileText, Compass } from 'lucide-react';
+import { Loader2, BarChart3, Download, FileText, Compass, CalendarDays } from 'lucide-react';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { StatCard } from '@/components/stats/StatCard';
 import { RankedList } from '@/components/stats/RankedList';
@@ -22,16 +22,23 @@ import { buildSeasonalityInsights, buildSpeciesSpotHint } from '@/lib/insights';
 import { HistoricalComparison } from '@/components/stats/HistoricalComparison';
 import { buildHistoricalComparison } from '@/lib/historicalComparison';
 import { useT } from '@/i18n/index';
+import { formatDisplayDate } from '@/lib/dateFormat';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function renderBold(text: string): React.ReactNode {
-  const parts = text.split('**');
-  return parts.map((part, i) =>
-    i % 2 === 1 ? <strong key={i}>{part}</strong> : <span key={i}>{part}</span>
-  );
+function renderMarkedText(text: string): React.ReactNode {
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).filter(Boolean);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('*') && part.endsWith('*')) {
+      return <strong key={i}>{part.slice(1, -1)}</strong>;
+    }
+    return <span key={i}>{part}</span>;
+  });
 }
 
 function formatMonth(ym: string | null, locale: string): string {
@@ -43,6 +50,24 @@ function formatMonth(ym: string | null, locale: string): string {
   return new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(
     new Date(year, month - 1),
   );
+}
+
+function formatShortDate(date: string | null | undefined, locale: string): string {
+  if (!date) return '--';
+  if (locale === 'hr-HR') {
+    return formatDisplayDate(date, 'hr');
+  }
+  const parsed = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return date;
+  return new Intl.DateTimeFormat(locale, {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+  }).format(parsed);
+}
+
+function locationLabel(find: { country?: string; region?: string; location_note?: string }): string {
+  return [find.location_note, find.region, find.country].filter(Boolean).join(' / ');
 }
 
 
@@ -67,6 +92,7 @@ export default function StatsTab() {
   const [pdfStage, setPdfStage] = useState<string>('');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [fieldOutingsExpanded, setFieldOutingsExpanded] = useState(false);
   const topSpotsFormatted = useMemo(() => {
     if (!topSpots) return [];
     return topSpots.map((s) => {
@@ -76,11 +102,12 @@ export default function StatsTab() {
       const species = [...new Set(spotFinds.map((f) => f.species_name))].sort(compareSpeciesNames);
       return {
         label: `${s.country} / ${s.region}${s.location_note ? ' / ' + s.location_note : ''}`,
-        count: s.count,
+        count: species.length,
+        countLabel: t('stats.speciesCount', { species: species.length }),
         species,
       };
     });
-  }, [topSpots, finds]);
+  }, [topSpots, finds, t]);
 
   const bestMonthsFormatted = useMemo(() => {
     if (!bestMonths) return [];
@@ -92,15 +119,22 @@ export default function StatsTab() {
       const species = [...new Set(monthFinds.map((f) => f.species_name))].sort(compareSpeciesNames);
       return {
         label: new Intl.DateTimeFormat(locale, { month: 'long' }).format(new Date(2024, s.month_num - 1)),
-        count: s.count,
+        count: species.length,
+        countLabel: t('stats.speciesCount', { species: species.length }),
         species,
       };
     });
-  }, [bestMonths, finds, locale]);
+  }, [bestMonths, finds, locale, t]);
   const totalPhotos = useMemo(
     () => finds?.reduce((sum, find) => sum + find.photos.length, 0) ?? 0,
     [finds],
   );
+  const mostActiveMonthSummary = useMemo(() => {
+    if (!statsCards.most_active_month) return null;
+    const monthFinds = (finds ?? []).filter((find) => find.date_found?.startsWith(statsCards.most_active_month!));
+    const speciesCount = new Set(monthFinds.map((find) => find.species_name).filter(Boolean)).size;
+    return t('stats.findSpeciesCount', { finds: monthFinds.length, species: speciesCount });
+  }, [finds, statsCards.most_active_month, t]);
   const seasonalityInsights = useMemo(
     () => buildSeasonalityInsights(bestMonths, speciesStats, locale, t),
     [bestMonths, speciesStats, locale],
@@ -113,6 +147,26 @@ export default function StatsTab() {
     () => (calendar ? buildHistoricalComparison(calendar) : null),
     [calendar],
   );
+  const fieldOutings = useMemo(() => {
+    const byDate = new Map<string, { date: string; count: number; locations: Set<string>; species: Set<string> }>();
+    for (const find of finds ?? []) {
+      if (!find.date_found) continue;
+      const bucket = byDate.get(find.date_found) ?? {
+        date: find.date_found,
+        count: 0,
+        locations: new Set<string>(),
+        species: new Set<string>(),
+      };
+      bucket.count += 1;
+      const loc = locationLabel(find);
+      if (loc) bucket.locations.add(loc);
+      if (find.species_name) bucket.species.add(find.species_name);
+      byDate.set(find.date_found, bucket);
+    }
+    return Array.from(byDate.values()).sort((a, b) => b.date.localeCompare(a.date));
+  }, [finds]);
+  const firstOuting = fieldOutings[fieldOutings.length - 1] ?? null;
+  const visibleFieldOutings = fieldOutingsExpanded ? fieldOutings : fieldOutings.slice(0, 8);
 
   const handleExportCsv = async () => {
     if (!finds || finds.length === 0) return;
@@ -120,11 +174,11 @@ export default function StatsTab() {
     try {
       const path = await exportToCsv(finds);
       if (path) {
-        setStatusMessage(`CSV saved to ${path}`);
+        setStatusMessage(t('stats.csvSaved', { path }));
         setTimeout(() => setStatusMessage(null), 3000);
       }
     } catch {
-      setExportError('CSV export failed. Try again.');
+      setExportError(t('stats.csvExportFailed'));
       setTimeout(() => setExportError(null), 5000);
     }
   };
@@ -139,13 +193,13 @@ export default function StatsTab() {
         setPdfStage(msg);
       });
       if (path) {
-        setStatusMessage(`PDF saved to ${path}`);
+        setStatusMessage(t('stats.pdfSaved', { path }));
         setTimeout(() => setStatusMessage(null), 3000);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[PDF export error]', err);
-      setExportError(`PDF export failed: ${msg}`);
+      setExportError(t('stats.pdfExportFailed', { message: msg }));
       setTimeout(() => setExportError(null), 15000);
     } finally {
       setPdfExporting(false);
@@ -168,13 +222,13 @@ export default function StatsTab() {
         { smokeTest: true },
       );
       if (path) {
-        setStatusMessage(`Smoke-test PDF saved to ${path}`);
+        setStatusMessage(t('stats.smokePdfSaved', { path }));
         setTimeout(() => setStatusMessage(null), 3000);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[PDF smoke-test export error]', err);
-      setExportError(`Smoke-test PDF failed: ${msg}`);
+      setExportError(t('stats.smokePdfFailed', { message: msg }));
       setTimeout(() => setExportError(null), 15000);
     } finally {
       setPdfExporting(false);
@@ -211,7 +265,7 @@ export default function StatsTab() {
           <h1 className="font-serif text-5xl font-semibold italic text-primary tracking-[0.01em]">{t('stats.pageTitle')}</h1>
 
           {/* Stat cards: 4-column grid */}
-          <div className="grid grid-cols-4 gap-6">
+          <div className="grid grid-cols-5 gap-6">
             <StatCard label={t('stats.totalPhotos')} value={totalPhotos} index={0} />
             <StatCard label={t('stats.uniqueSpecies')} value={statsCards.unique_species} index={1} />
             <StatCard label={t('stats.locationsVisited')} value={statsCards.locations_visited} index={2} />
@@ -219,7 +273,13 @@ export default function StatsTab() {
               label={t('stats.mostActiveMonth')}
               value={formatMonth(statsCards.most_active_month, locale)}
               index={3}
-              sublabel={statsCards.most_active_month ? undefined : t('stats.noDataYet')}
+              sublabel={statsCards.most_active_month ? mostActiveMonthSummary ?? undefined : t('stats.noDataYet')}
+            />
+            <StatCard
+              label={t('stats.firstOuting')}
+              value={firstOuting ? formatShortDate(firstOuting.date, locale) : '--'}
+              index={4}
+              sublabel={firstOuting ? Array.from(firstOuting.locations)[0] ?? t('stats.noLocation') : t('stats.noDataYet')}
             />
           </div>
 
@@ -267,8 +327,8 @@ export default function StatsTab() {
               <div className="grid grid-cols-2 gap-4">
                 {seasonalityInsights.map((insight) => (
                   <div key={insight.title} className="rounded-lg border border-border/70 bg-card/60 p-4">
-                    <p className="text-sm font-semibold text-primary">{renderBold(insight.title)}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{renderBold(insight.body)}</p>
+                    <p className="text-sm font-semibold text-primary">{renderMarkedText(insight.title)}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{renderMarkedText(insight.body)}</p>
                   </div>
                 ))}
               </div>
@@ -279,7 +339,7 @@ export default function StatsTab() {
           {speciesSpotHint && (
             <Alert className="border-primary/35 bg-primary/8">
               <Compass className="h-4 w-4 text-primary" />
-              <AlertDescription className="text-sm">{renderBold(speciesSpotHint)}</AlertDescription>
+              <AlertDescription className="text-sm">{renderMarkedText(speciesSpotHint)}</AlertDescription>
             </Alert>
           )}
 
@@ -307,6 +367,60 @@ export default function StatsTab() {
                     index={idx}
                   />
                 ))}
+              </div>
+            </div>
+          )}
+
+          {fieldOutings.length > 0 && (
+            <div>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <h3 className="text-base font-bold uppercase tracking-[0.12em] text-foreground">
+                  {t('stats.fieldOutings')}
+                </h3>
+                {fieldOutings.length > 8 && (
+                  <button
+                    type="button"
+                    onClick={() => setFieldOutingsExpanded((value) => !value)}
+                    className="text-xs text-primary/70 transition-colors hover:text-primary"
+                  >
+                    {fieldOutingsExpanded ? t('stats.showLess') : t('stats.showAll', { count: fieldOutings.length })}
+                  </button>
+                )}
+              </div>
+              <div className="grid gap-2">
+                {visibleFieldOutings.map((outing, idx) => {
+                  const locations = Array.from(outing.locations);
+                  return (
+                    <div
+                      key={outing.date}
+                      className="stagger-item rounded-sm border border-border/70 bg-card px-3 py-2.5 shadow-sm"
+                      style={{ animationDelay: `${Math.min(idx * 30, 240)}ms` }}
+                    >
+                      <div className="flex items-start gap-3">
+                        <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                            <p className="font-mono text-sm font-semibold text-foreground">
+                              {formatShortDate(outing.date, locale)}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {t('stats.outingSummary', {
+                                finds: outing.count,
+                                species: outing.species.size,
+                                locations: locations.length,
+                              })}
+                            </p>
+                          </div>
+                          {locations.length > 0 && (
+                            <p className="mt-1 truncate text-xs text-muted-foreground/75" title={locations.join(' · ')}>
+                              {locations.join(' · ')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

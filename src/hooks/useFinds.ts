@@ -114,6 +114,8 @@ export function useBulkRenameSpecies() {
       bulkRenameSpecies(storagePath!, findIds, newSpeciesName),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
+      qc.invalidateQueries({ queryKey: [SPECIES_NOTES_QUERY_KEY, storagePath] });
+      qc.invalidateQueries({ queryKey: [SPECIES_PROFILES_QUERY_KEY, storagePath] });
     },
   });
 }

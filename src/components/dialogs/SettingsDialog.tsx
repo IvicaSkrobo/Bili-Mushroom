@@ -20,6 +20,7 @@ import { useT } from '@/i18n/index';
 import type { Lang } from '@/i18n/index';
 import { getTileCacheStats, clearTileCache, getCacheMaxBytes, setCacheMax, formatMb, type TileCacheStats } from '@/lib/tileCache';
 import { APP_VERSION } from '@/lib/appMeta';
+import { resetHiddenLocationSuggestions } from '@/components/finds/LocationNoteInput';
 
 export interface SettingsDialogProps {
   open: boolean;
@@ -43,6 +44,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const [pruneConfirmOpen, setPruneConfirmOpen] = useState(false);
   const [pruning, setPruning] = useState(false);
   const [pruneResult, setPruneResult] = useState<number | null>(null);
+  const [suggestionsReset, setSuggestionsReset] = useState(false);
   const [stats, setStats] = useState<TileCacheStats>({ sizeBytes: 0, tileCount: 0 });
   const [cacheMaxMb, setCacheMaxMb] = useState<string>('200');
 
@@ -82,6 +84,12 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     } finally {
       setPruning(false);
     }
+  }
+
+  function handleResetHiddenSuggestions() {
+    resetHiddenLocationSuggestions();
+    setSuggestionsReset(true);
+    setTimeout(() => setSuggestionsReset(false), 3000);
   }
 
   async function handleReset() {
@@ -233,9 +241,24 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
 
           <TabsContent value="advanced" className="space-y-4 pt-3">
             <div>
-              <div className="text-xs font-medium text-muted-foreground mb-1">Clean missing photo references</div>
+              <div className="text-xs font-medium text-muted-foreground mb-1">{t('settings.hiddenSuggestionsTitle')}</div>
               <p className="text-xs text-muted-foreground/60 mb-2">
-                Scans the database for photo entries whose files no longer exist on disk and removes only those database references.
+                {t('settings.hiddenSuggestionsDescription')}
+              </p>
+              <div className="flex items-center gap-3">
+                <Button type="button" variant="secondary" size="sm" onClick={handleResetHiddenSuggestions}>
+                  {t('settings.hiddenSuggestionsReset')}
+                </Button>
+                {suggestionsReset && (
+                  <span className="text-xs text-muted-foreground">{t('settings.hiddenSuggestionsResetDone')}</span>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs font-medium text-muted-foreground mb-1">{t('settings.cleanMissingTitle')}</div>
+              <p className="text-xs text-muted-foreground/60 mb-2">
+                {t('settings.cleanMissingDescription')}
               </p>
               <div className="flex items-center gap-3">
                 <AlertDialog open={pruneConfirmOpen} onOpenChange={setPruneConfirmOpen}>
@@ -245,27 +268,32 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                       size="sm"
                       disabled={pruning || !storagePath}
                     >
-                      {pruning ? 'Scanning...' : 'Clean references'}
+                      {pruning ? t('settings.cleanMissingScanning') : t('settings.cleanMissingButton')}
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Clean missing photo references?</AlertDialogTitle>
+                      <AlertDialogTitle>{t('settings.cleanMissingConfirmTitle')}</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This will not delete photo files. It only removes database entries for files the app cannot find right now. Use it only after you have checked that the selected library folder is correct.
+                        {t('settings.cleanMissingConfirmDescription')}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>{t('delete.cancel')}</AlertDialogCancel>
                       <AlertDialogAction onClick={handlePruneMissing}>
-                        {pruning ? 'Scanning...' : 'Clean references'}
+                        {pruning ? t('settings.cleanMissingScanning') : t('settings.cleanMissingButton')}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
                 {pruneResult !== null && (
                   <span className="text-xs text-muted-foreground">
-                    {pruneResult === 0 ? 'No missing references found.' : `Removed ${pruneResult} missing reference${pruneResult === 1 ? '' : 's'}.`}
+                    {pruneResult === 0
+                      ? t('settings.cleanMissingNone')
+                      : t('settings.cleanMissingRemoved', {
+                        count: pruneResult,
+                        suffix: pruneResult === 1 ? '' : 's',
+                      })}
                   </span>
                 )}
               </div>

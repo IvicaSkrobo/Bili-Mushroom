@@ -9,12 +9,16 @@ function PeriodColumn({
   emptyText,
   findOne,
   findMany,
+  speciesOne,
+  speciesMany,
 }: {
   heading: string;
   buckets: YearBucket[];
   emptyText: string;
   findOne: string;
   findMany: string;
+  speciesOne: string;
+  speciesMany: string;
 }) {
   return (
     <div>
@@ -29,6 +33,8 @@ function PeriodColumn({
                 <span className="font-serif italic text-primary w-10 shrink-0 text-sm">{b.year}</span>
                 <span className="text-sm text-foreground">
                   {b.findCount} {b.findCount === 1 ? findOne : findMany}
+                  {' · '}
+                  {b.species.length} {b.species.length === 1 ? speciesOne : speciesMany}
                 </span>
               </div>
               {b.species.length > 0 && (
@@ -68,6 +74,8 @@ export function HistoricalComparison({ data }: { data: HistoricalPeriodData }) {
         emptyText={t('stats.weekEmpty')}
         findOne={t('stats.findOne')}
         findMany={t('stats.findMany')}
+        speciesOne={t('stats.speciesOne')}
+        speciesMany={t('stats.speciesMany')}
       />
       <PeriodColumn
         heading={t('stats.monthHeading', { month: monthName })}
@@ -75,6 +83,8 @@ export function HistoricalComparison({ data }: { data: HistoricalPeriodData }) {
         emptyText={t('stats.monthEmpty')}
         findOne={t('stats.findOne')}
         findMany={t('stats.findMany')}
+        speciesOne={t('stats.speciesOne')}
+        speciesMany={t('stats.speciesMany')}
       />
     </div>
   );

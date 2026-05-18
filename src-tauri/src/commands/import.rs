@@ -431,6 +431,33 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
             .map_err(|e| format!("Failed to set user_version=22: {}", e))?;
     }
 
+    // Repair development/local databases whose user_version advanced before
+    // these metadata columns were present. This is idempotent and keeps
+    // synonyms/local names saveable without touching stored values.
+    let synonyms_exists: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('species_profiles') WHERE name = 'synonyms'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
+    if synonyms_exists == 0 {
+        conn.execute_batch("ALTER TABLE species_profiles ADD COLUMN synonyms TEXT")
+            .map_err(|e| format!("Repair species_profiles.synonyms failed: {}", e))?;
+    }
+
+    let other_names_exists: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('species_profiles') WHERE name = 'other_names'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
+    if other_names_exists == 0 {
+        conn.execute_batch("ALTER TABLE species_profiles ADD COLUMN other_names TEXT")
+            .map_err(|e| format!("Repair species_profiles.other_names failed: {}", e))?;
+    }
+
     Ok(())
 }
 

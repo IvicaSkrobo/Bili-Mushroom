@@ -19,7 +19,7 @@
  *   – Enter is prevented (single-line field)
  */
 
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useMemo, useState } from 'react';
 import { rawToHtml, htmlToRaw } from '@/lib/speciesFormat';
 import { compareSpeciesNames, matchesSpeciesQuery, plainSpeciesName, renderSpeciesName } from '@/lib/speciesName';
 import { cn } from '@/lib/utils';
@@ -133,11 +133,21 @@ export function SpeciesNameEditor({
 
   // ── Autocomplete ──────────────────────────────────────────────────────────
   const normalizedQuery = normalizedName(plainText);
-  const visibleSuggestions = normalizedQuery
-    ? [...suggestions]
-        .sort(compareSpeciesNames)
-        .filter((s) => matchesSpeciesQuery(normalizedQuery, s, suggestionsProfiles?.get(s)))
-    : [];
+  const sortedSuggestions = useMemo(
+    () => [...suggestions].sort(compareSpeciesNames),
+    [suggestions],
+  );
+  const visibleSuggestions = useMemo(() => {
+    if (!normalizedQuery) return [];
+    const matches: string[] = [];
+    for (const suggestion of sortedSuggestions) {
+      if (matchesSpeciesQuery(normalizedQuery, suggestion, suggestionsProfiles?.get(suggestion))) {
+        matches.push(suggestion);
+        if (matches.length >= 12) break;
+      }
+    }
+    return matches;
+  }, [normalizedQuery, sortedSuggestions, suggestionsProfiles]);
 
   function selectSuggestion(raw: string) {
     if (editorRef.current) {

@@ -51,6 +51,7 @@ const EDIBILITY_ICONS: Record<Edibility, React.ElementType> = {
 const THREAT_ICONS: Record<ThreatStatus, React.ElementType> = {
   unknown: CircleHelp,
   ne:      Minus,
+  ua:      CircleHelp,
   dd:      CircleHelp,
   lc:      Leaf,
   nt:      TrendingDown,
@@ -91,19 +92,30 @@ interface StatusDropdownProps {
 
 function StatusDropdown({ triggerRef, options, value, onSelect, onClose }: StatusDropdownProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ top: number; left: number; minWidth: number } | null>(null);
+  const [pos, setPos] = useState<{
+    top: number;
+    left: number;
+    minWidth: number;
+    portalRoot: HTMLElement;
+    strategy: 'absolute' | 'fixed';
+  } | null>(null);
   const [openUp, setOpenUp] = useState(false);
 
   useEffect(() => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
+    const dialogRoot = triggerRef.current.closest('[data-slot="dialog-content"]') as HTMLElement | null;
+    const portalRoot = dialogRoot ?? document.body;
+    const rootRect = dialogRoot?.getBoundingClientRect();
     const spaceBelow = window.innerHeight - rect.bottom;
     const up = spaceBelow < 220;
     setOpenUp(up);
     setPos({
-      top: up ? rect.top : rect.bottom + 4,
-      left: Math.min(rect.left, window.innerWidth - 180),
+      top: (up ? rect.top : rect.bottom + 4) - (rootRect?.top ?? 0),
+      left: Math.min(rect.left, window.innerWidth - 180) - (rootRect?.left ?? 0),
       minWidth: rect.width,
+      portalRoot,
+      strategy: dialogRoot ? 'absolute' : 'fixed',
     });
   }, [triggerRef]);
 
@@ -133,11 +145,15 @@ function StatusDropdown({ triggerRef, options, value, onSelect, onClose }: Statu
     <div
       ref={dropdownRef}
       style={{
-        position: 'fixed',
+        position: pos.strategy,
         left: pos.left,
         minWidth: Math.max(pos.minWidth, 160),
         zIndex: 99999,
-        ...(openUp ? { bottom: window.innerHeight - pos.top } : { top: pos.top }),
+        ...(openUp
+          ? pos.strategy === 'absolute'
+            ? { bottom: Math.max(8, pos.portalRoot.getBoundingClientRect().height - pos.top) }
+            : { bottom: window.innerHeight - pos.top }
+          : { top: pos.top }),
       }}
       className="
         overflow-hidden rounded-md border border-border/70
@@ -185,7 +201,7 @@ function StatusDropdown({ triggerRef, options, value, onSelect, onClose }: Statu
     </div>
   );
 
-  return ReactDOM.createPortal(panel, document.body);
+  return ReactDOM.createPortal(panel, pos.portalRoot);
 }
 
 // ---------------------------------------------------------------------------

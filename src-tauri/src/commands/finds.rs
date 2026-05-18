@@ -113,6 +113,14 @@ pub struct SpeciesProfile {
     pub fruiting_body_count_override: Option<String>,
 }
 
+#[derive(serde::Deserialize)]
+pub struct CropRect {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct SpeciesRecipe {
     pub id: i64,
@@ -375,7 +383,10 @@ pub async fn open_find_folder(
         );
 
     let preferred_scope = scope.as_deref().unwrap_or("species");
-    let species_folder = Path::new(&storage_path).join(resolve_location_component(&species_name, "unknown_species"));
+    let species_folder = Path::new(&storage_path).join(resolve_location_component(
+        &plain_species_name(&species_name),
+        "unknown_species",
+    ));
     let folder_path = if preferred_scope == "photo" {
         // If the find has no photos, fall back to the species folder instead of erroring
         if let Ok(photo_path) = photo_path_result {
@@ -436,7 +447,38 @@ pub async fn open_species_folder(
     storage_path: String,
     species_name: String,
 ) -> Result<(), String> {
-    let folder_path = Path::new(&storage_path).join(resolve_location_component(&species_name, "unknown_species"));
+    let species_folder = Path::new(&storage_path).join(resolve_location_component(
+        &plain_species_name(&species_name),
+        "unknown_species",
+    ));
+
+    let folder_path = if species_folder.exists() {
+        species_folder
+    } else {
+        let conn = open_db(&storage_path)?;
+        let photo_path_result: Result<String, _> = conn.query_row(
+            "SELECT fp.photo_path
+             FROM finds f
+             JOIN find_photos fp ON fp.find_id = f.id
+             WHERE f.species_name = ?1
+             ORDER BY fp.is_primary DESC, fp.id ASC
+             LIMIT 1",
+            params![species_name],
+            |row| row.get(0),
+        );
+
+        if let Ok(photo_path) = photo_path_result {
+            let absolute_photo_path = Path::new(&storage_path).join(&photo_path);
+            absolute_photo_path
+                .parent()
+                .map(PathBuf::from)
+                .ok_or_else(|| "Could not determine the species folder from its photos.".to_string())?
+        } else {
+            std::fs::create_dir_all(&species_folder)
+                .map_err(|e| format!("Could not create species folder: {}", e))?;
+            species_folder
+        }
+    };
 
     #[cfg(target_os = "windows")]
     let mut command = {
@@ -583,8 +625,23 @@ pub async fn bulk_rename_species(
     }
 
     let target_folder = Path::new(&storage_path).join(resolve_location_component(&plain_species_name(&new_species_name), "unknown_species"));
-    std::fs::create_dir_all(&target_folder)
-        .map_err(|e| format!("Failed to create target folder '{}': {}", target_folder.display(), e))?;
+    let mut old_folders: Vec<PathBuf> = old_species_names
+        .iter()
+        .map(|name| Path::new(&storage_path).join(resolve_location_component(&plain_species_name(name), "unknown_species")))
+        .collect();
+    old_folders.sort();
+    old_folders.dedup();
+
+    let renamed_whole_folder = if old_folders.len() == 1 && old_folders[0].exists() && !target_folder.exists() {
+        std::fs::rename(&old_folders[0], &target_folder).is_ok()
+    } else {
+        false
+    };
+
+    if !renamed_whole_folder {
+        std::fs::create_dir_all(&target_folder)
+            .map_err(|e| format!("Failed to create target folder '{}': {}", target_folder.display(), e))?;
+    }
 
     for (photo_id, photo_path) in &photo_rows {
         // Normalize DB-stored forward slashes to the OS separator so the
@@ -597,7 +654,7 @@ pub async fn bulk_rename_species(
             .ok_or_else(|| format!("Photo path has no filename: {}", source_abs.display()))?;
         let mut target_abs = target_folder.join(filename);
 
-        if source_abs != target_abs {
+        if source_abs != target_abs && !renamed_whole_folder {
             if source_abs.exists() {
                 target_abs = unique_destination_path(&target_abs);
                 std::fs::create_dir_all(
@@ -1086,6 +1143,72 @@ pub async fn bulk_delete_find_photos(
     record.photos = photos;
 
     Ok(record)
+}
+
+#[tauri::command]
+pub async fn edit_find_photo_image(
+    storage_path: String,
+    photo_id: i64,
+    rotate_degrees: Option<i32>,
+    crop: Option<CropRect>,
+) -> Result<(), String> {
+    let conn = open_db(&storage_path)?;
+    let photo_path: String = conn
+        .query_row(
+            "SELECT photo_path FROM find_photos WHERE id = ?1",
+            params![photo_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Photo not found: {}", e))?;
+
+    let absolute_path = Path::new(&storage_path)
+        .join(photo_path.replace('/', std::path::MAIN_SEPARATOR_STR));
+    if !absolute_path.exists() {
+        return Err(format!("Photo file does not exist: {}", absolute_path.display()));
+    }
+
+    let mut image = image::open(&absolute_path)
+        .map_err(|e| format!("Failed to open image for editing: {}", e))?;
+
+    match rotate_degrees.unwrap_or(0).rem_euclid(360) {
+        90 => image = image.rotate90(),
+        180 => image = image.rotate180(),
+        270 => image = image.rotate270(),
+        0 => {}
+        other => return Err(format!("Unsupported rotation angle: {}", other)),
+    }
+
+    if let Some(rect) = crop {
+        let img_w = image.width();
+        let img_h = image.height();
+        if rect.width == 0 || rect.height == 0 || rect.x >= img_w || rect.y >= img_h {
+            return Err("Invalid crop rectangle".into());
+        }
+        let width = rect.width.min(img_w.saturating_sub(rect.x));
+        let height = rect.height.min(img_h.saturating_sub(rect.y));
+        if width == 0 || height == 0 {
+            return Err("Invalid crop rectangle".into());
+        }
+        image = image.crop_imm(rect.x, rect.y, width, height);
+    }
+
+    let file_stem = absolute_path
+        .file_stem()
+        .and_then(|name| name.to_str())
+        .unwrap_or("edited-photo");
+    let extension = absolute_path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("jpg");
+    let temp_path = absolute_path.with_file_name(format!(".{}.editing.{}", file_stem, extension));
+    image
+        .save(&temp_path)
+        .map_err(|e| format!("Failed to save edited image: {}", e))?;
+    std::fs::copy(&temp_path, &absolute_path)
+        .map_err(|e| format!("Failed to overwrite original image: {}", e))?;
+    let _ = std::fs::remove_file(&temp_path);
+
+    Ok(())
 }
 
 /// Remove find_photos entries whose files no longer exist on disk.

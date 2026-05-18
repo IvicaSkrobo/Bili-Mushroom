@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Image, MapPin, Maximize2, Minimize2, Minus, Pencil, Plus, Trash2, X, ZoomIn } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Crop, Image, Loader2, MapPin, Maximize2, Minimize2, Minus, Pencil, Plus, RotateCw, Save, Trash2, X, ZoomIn } from 'lucide-react';
 import {
   Dialog,
   DialogClose,
@@ -8,17 +8,26 @@ import {
 } from '@/components/ui/dialog';
 import { Dialog as DialogPrimitive } from 'radix-ui';
 import { Button } from '@/components/ui/button';
-import { isHeic, type Find, type FindPhoto, type SpeciesProfile } from '@/lib/finds';
+import { editFindPhotoImage, FINDS_QUERY_KEY, isHeic, type Find, type FindPhoto, type SpeciesProfile } from '@/lib/finds';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { useT } from '@/i18n/index';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
 import { useUpdateFind } from '@/hooks/useFinds';
+import { useQueryClient } from '@tanstack/react-query';
 import { renderSpeciesName, plainSpeciesName } from '@/lib/speciesName';
 import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
+import { useAppStore } from '@/stores/appStore';
+import { formatDisplayDate } from '@/lib/dateFormat';
 
 export interface LightboxPhoto {
   photo: FindPhoto;
   find: Find;
+}
+
+type CropSelection = { x: number; y: number; width: number; height: number };
+
+function isEditableRasterPhoto(path: string): boolean {
+  return /\.(jpe?g|png|webp|tiff?|bmp)$/i.test(path);
 }
 
 interface PhotoLightboxProps {
@@ -51,6 +60,8 @@ export function PhotoLightbox({
   speciesProfile,
 }: PhotoLightboxProps) {
   const t = useT();
+  const lang = useAppStore((s) => s.language);
+  const queryClient = useQueryClient();
   const [visible, setVisible] = useState(true);
   const [locationPickerOpen, setLocationPickerOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -60,8 +71,16 @@ export function PhotoLightbox({
   const updateFind = useUpdateFind();
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [cropMode, setCropMode] = useState(false);
+  const [cropSelection, setCropSelection] = useState<CropSelection | null>(null);
+  const [photoEditSaving, setPhotoEditSaving] = useState(false);
+  const [photoEditError, setPhotoEditError] = useState<string | null>(null);
+  const [photoVersion, setPhotoVersion] = useState(0);
   const dragActive = useRef(false);
   const dragStart = useRef({ mx: 0, my: 0, px: 0, py: 0 });
+  const imageWrapRef = useRef<HTMLDivElement | null>(null);
+  const imageRef = useRef<HTMLImageElement | null>(null);
+  const cropDragRef = useRef<{ startX: number; startY: number } | null>(null);
 
   // Reset zoom/pan and delete confirmation when photo/find changes
   useEffect(() => {
@@ -69,10 +88,13 @@ export function PhotoLightbox({
     setPan({ x: 0, y: 0 });
     setConfirmingDelete(false);
     setEditingNotes(false);
+    setCropMode(false);
+    setCropSelection(null);
+    setPhotoEditError(null);
   }, [currentIndex, fallbackFind?.id]);
 
   const handleWheel = (e: React.WheelEvent) => {
-    if (!photos[currentIndex]?.photo) return;
+    if (!photos[currentIndex]?.photo || cropMode) return;
     e.preventDefault();
     setZoom((prev) => {
       const next = Math.min(5, Math.max(1, prev * (e.deltaY < 0 ? 1.15 : 0.87)));
@@ -82,7 +104,7 @@ export function PhotoLightbox({
   };
 
   const handleDoubleClick = () => {
-    if (!photos[currentIndex]?.photo) return;
+    if (!photos[currentIndex]?.photo || cropMode) return;
     if (zoom > 1) {
       setZoom(1);
       setPan({ x: 0, y: 0 });
@@ -92,7 +114,7 @@ export function PhotoLightbox({
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (!photos[currentIndex]?.photo || zoom <= 1) return;
+    if (!photos[currentIndex]?.photo || cropMode || zoom <= 1) return;
     dragActive.current = true;
     dragStart.current = { mx: e.clientX, my: e.clientY, px: pan.x, py: pan.y };
   };
@@ -106,6 +128,41 @@ export function PhotoLightbox({
   };
 
   const handleMouseUp = () => { dragActive.current = false; };
+
+  function cropPoint(event: React.PointerEvent<HTMLDivElement>) {
+    const bounds = imageWrapRef.current?.getBoundingClientRect();
+    if (!bounds) return null;
+    return {
+      x: Math.max(0, Math.min(event.clientX - bounds.left, bounds.width)),
+      y: Math.max(0, Math.min(event.clientY - bounds.top, bounds.height)),
+    };
+  }
+
+  function startCrop(event: React.PointerEvent<HTMLDivElement>) {
+    if (!cropMode || !photo || photoEditSaving) return;
+    const point = cropPoint(event);
+    if (!point) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    cropDragRef.current = { startX: point.x, startY: point.y };
+    setCropSelection({ x: point.x, y: point.y, width: 0, height: 0 });
+  }
+
+  function updateCrop(event: React.PointerEvent<HTMLDivElement>) {
+    if (!cropMode || !cropDragRef.current) return;
+    const point = cropPoint(event);
+    if (!point) return;
+    const start = cropDragRef.current;
+    setCropSelection({
+      x: Math.min(start.startX, point.x),
+      y: Math.min(start.startY, point.y),
+      width: Math.abs(point.x - start.startX),
+      height: Math.abs(point.y - start.startY),
+    });
+  }
+
+  function endCrop() {
+    cropDragRef.current = null;
+  }
 
   const current = photos[currentIndex];
 
@@ -157,7 +214,9 @@ export function PhotoLightbox({
   const photo = current?.photo ?? null;
   const find = current?.find ?? fallbackFind!;
   const heic = photo ? isHeic(photo.photo_path) : false;
+  const canEditRaster = photo != null && !heic && isEditableRasterPhoto(photo.photo_path);
   const photoSrc = photo && !heic ? resolvePhotoSrc(storagePath, photo.photo_path) : null;
+  const renderedPhotoSrc = photoSrc ? `${photoSrc}${photoSrc.includes('?') ? '&' : '?'}v=${photoVersion}` : null;
   const isSpeciesCover = current ? (isCurrentSpeciesCover?.(current) ?? false) : false;
 
   // Observed count display for this find
@@ -166,6 +225,55 @@ export function PhotoLightbox({
   const observedDisplay = obsMin != null
     ? (obsMin === obsMax ? String(obsMin) : `${obsMin}–${obsMax}`)
     : null;
+
+  async function handleRotatePhoto() {
+    if (!photo || !canEditRaster || photoEditSaving) return;
+    setPhotoEditSaving(true);
+    setPhotoEditError(null);
+    try {
+      await editFindPhotoImage(storagePath, photo.id, 90, null);
+      setPhotoVersion((v) => v + 1);
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+      await queryClient.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
+    } catch (error) {
+      setPhotoEditError(String(error));
+    } finally {
+      setPhotoEditSaving(false);
+    }
+  }
+
+  async function handleSaveCrop() {
+    if (!photo || !canEditRaster || !cropSelection || !imageRef.current || !imageWrapRef.current || photoEditSaving) return;
+    const bounds = imageWrapRef.current.getBoundingClientRect();
+    const naturalWidth = imageRef.current.naturalWidth;
+    const naturalHeight = imageRef.current.naturalHeight;
+    if (!bounds.width || !bounds.height || !naturalWidth || !naturalHeight || cropSelection.width < 8 || cropSelection.height < 8) {
+      setPhotoEditError(t('lightbox.cropTooSmall'));
+      return;
+    }
+    const crop = {
+      x: Math.round((cropSelection.x / bounds.width) * naturalWidth),
+      y: Math.round((cropSelection.y / bounds.height) * naturalHeight),
+      width: Math.round((cropSelection.width / bounds.width) * naturalWidth),
+      height: Math.round((cropSelection.height / bounds.height) * naturalHeight),
+    };
+    setPhotoEditSaving(true);
+    setPhotoEditError(null);
+    try {
+      await editFindPhotoImage(storagePath, photo.id, 0, crop);
+      setPhotoVersion((v) => v + 1);
+      setCropMode(false);
+      setCropSelection(null);
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+      await queryClient.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
+    } catch (error) {
+      setPhotoEditError(String(error));
+    } finally {
+      setPhotoEditSaving(false);
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -221,17 +329,43 @@ export function PhotoLightbox({
                   <span className="text-xs">{photo.photo_path.split('/').pop()}</span>
                 </div>
               ) : (
-                <img
-                  src={photoSrc!}
-                  alt={find.species_name || photo.photo_path}
-                  className="max-w-full max-h-full object-contain select-none"
+                <div
+                  ref={imageWrapRef}
+                  className={`relative max-w-full max-h-full select-none ${cropMode ? 'cursor-crosshair' : ''}`}
                   style={{
                     maxHeight: isFullscreen ? 'calc(100vh - 2rem)' : 'calc(85vh - 2rem)',
                     transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
                     transformOrigin: 'center center',
                   }}
-                  draggable={false}
-                />
+                  onPointerDown={startCrop}
+                  onPointerMove={updateCrop}
+                  onPointerUp={endCrop}
+                  onPointerCancel={endCrop}
+                >
+                  <img
+                    ref={imageRef}
+                    src={renderedPhotoSrc!}
+                    alt={find.species_name || photo.photo_path}
+                    className="max-w-full max-h-full object-contain"
+                    style={{ maxHeight: isFullscreen ? 'calc(100vh - 2rem)' : 'calc(85vh - 2rem)' }}
+                    draggable={false}
+                  />
+                  {cropMode && (
+                    <div className="absolute inset-0 bg-black/20">
+                      {cropSelection && cropSelection.width > 0 && cropSelection.height > 0 && (
+                        <div
+                          className="absolute border-2 border-primary bg-primary/10 shadow-[0_0_0_9999px_rgba(0,0,0,0.42)]"
+                          style={{
+                            left: cropSelection.x,
+                            top: cropSelection.y,
+                            width: cropSelection.width,
+                            height: cropSelection.height,
+                          }}
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 
@@ -239,6 +373,16 @@ export function PhotoLightbox({
             {photos.length > 1 && (
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 font-mono text-[11px] text-white/50 bg-black/40 px-2 py-0.5 rounded-full pointer-events-none">
                 {currentIndex + 1} / {photos.length}
+              </div>
+            )}
+            {photoEditError && (
+              <div className="absolute bottom-10 left-1/2 max-w-[80%] -translate-x-1/2 rounded-md border border-destructive/40 bg-background/95 px-3 py-1.5 text-xs font-medium text-destructive shadow-lg">
+                {photoEditError}
+              </div>
+            )}
+            {cropMode && (
+              <div className="absolute top-3 left-1/2 z-10 -translate-x-1/2 rounded-full border border-primary/35 bg-black/55 px-3 py-1 text-xs font-medium text-white/85 backdrop-blur-sm">
+                {t('lightbox.cropHint')}
               </div>
             )}
 
@@ -279,7 +423,7 @@ export function PhotoLightbox({
                   {find.species_name ? renderSpeciesName(find.species_name) : t('findCard.unnamed')}
                 </p>
                 {find.date_found && (
-                  <p className="mt-0.5 font-mono text-[11px] text-muted-foreground/80">{find.date_found}</p>
+                  <p className="mt-0.5 font-mono text-[11px] text-muted-foreground/80">{formatDisplayDate(find.date_found, lang)}</p>
                 )}
               </div>
 
@@ -395,10 +539,10 @@ export function PhotoLightbox({
                       type="button"
                       onClick={() => { setNotesValue(find.notes ?? ''); setEditingNotes(true); }}
                       className="flex items-center gap-1 text-[10px] text-muted-foreground/65 hover:text-primary transition-colors"
-                      title={find.notes ? 'Uredi bilješku' : 'Dodaj bilješku'}
+                      title={find.notes ? t('lightbox.editNote') : t('lightbox.addNote')}
                     >
                       {find.notes ? <Pencil className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
-                      {find.notes ? 'Uredi' : 'Dodaj'}
+                      {find.notes ? t('lightbox.edit') : t('lightbox.add')}
                     </button>
                   )}
                 </div>
@@ -417,7 +561,7 @@ export function PhotoLightbox({
                         onClick={() => setEditingNotes(false)}
                         className="rounded px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                       >
-                        Odustani
+                        {t('common.cancel')}
                       </button>
                       <button
                         type="button"
@@ -440,7 +584,7 @@ export function PhotoLightbox({
                         }}
                         className="rounded px-2.5 py-1 text-xs bg-primary/20 text-primary hover:bg-primary/30 transition-colors flex items-center gap-1"
                       >
-                        <Check className="h-3 w-3" /> Spremi
+                        <Check className="h-3 w-3" /> {t('edit.save')}
                       </button>
                     </div>
                   </div>
@@ -449,7 +593,7 @@ export function PhotoLightbox({
                     {find.notes}
                   </p>
                 ) : (
-                  <p className="text-xs text-muted-foreground/30 italic">Nema bilješki</p>
+                  <p className="text-xs text-muted-foreground/30 italic">{t('lightbox.noNotes')}</p>
                 )}
               </div>
               {observedDisplay && (
@@ -470,8 +614,8 @@ export function PhotoLightbox({
             {/* Fullscreen toggle */}
             <button
               type="button"
-              aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen (F11)'}
-              title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen (F11)'}
+              aria-label={isFullscreen ? t('lightbox.exitFullscreen') : t('lightbox.fullscreen')}
+              title={isFullscreen ? t('lightbox.exitFullscreenTitle') : t('lightbox.fullscreen')}
               onClick={() => setIsFullscreen((v) => !v)}
               className="flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/60 hover:bg-black/70 hover:text-white transition-all duration-150"
             >
@@ -483,10 +627,53 @@ export function PhotoLightbox({
               <>
                 <button
                   type="button"
+                  aria-label={t('lightbox.rotatePhoto')}
+                  title={t('lightbox.rotatePhoto')}
+                  onClick={handleRotatePhoto}
+                  disabled={photoEditSaving || cropMode || !canEditRaster}
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/60 hover:bg-black/70 hover:text-white transition-all duration-150 disabled:opacity-40"
+                >
+                  {photoEditSaving && !cropMode ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
+                </button>
+                <button
+                  type="button"
+                  aria-label={cropMode ? t('common.cancel') : t('lightbox.cropPhoto')}
+                  title={cropMode ? t('common.cancel') : t('lightbox.cropPhoto')}
+                  onClick={() => {
+                    setCropMode((v) => {
+                      const next = !v;
+                      if (next) {
+                        setZoom(1);
+                        setPan({ x: 0, y: 0 });
+                        setCropSelection(null);
+                      }
+                      return next;
+                    });
+                  }}
+                  disabled={photoEditSaving || !canEditRaster}
+                  className={`flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/60 transition-all duration-150 hover:bg-black/70 hover:text-white disabled:opacity-40 ${cropMode ? 'ring-1 ring-primary/70 text-white' : ''}`}
+                >
+                  {cropMode ? <X className="h-4 w-4" /> : <Crop className="h-4 w-4" />}
+                </button>
+                {cropMode && (
+                  <button
+                    type="button"
+                    aria-label={t('lightbox.saveCrop')}
+                    title={t('lightbox.saveCrop')}
+                    onClick={handleSaveCrop}
+                    disabled={photoEditSaving || !cropSelection || cropSelection.width < 8 || cropSelection.height < 8}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/85 text-primary-foreground transition-all duration-150 hover:bg-primary disabled:opacity-40"
+                  >
+                    {photoEditSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  </button>
+                )}
+                <button
+                  type="button"
                   aria-label={t('lightbox.zoomIn')}
                   title={t('lightbox.zoomIn')}
                   onClick={() => setZoom((z) => Math.min(5, z * 1.3))}
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/60 hover:bg-black/70 hover:text-white transition-all duration-150"
+                  disabled={cropMode}
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/60 hover:bg-black/70 hover:text-white transition-all duration-150 disabled:opacity-40"
                 >
                   <Plus className="h-4 w-4" />
                 </button>
@@ -495,7 +682,8 @@ export function PhotoLightbox({
                   aria-label={t('lightbox.zoomOut')}
                   title={t('lightbox.zoomOut')}
                   onClick={() => setZoom((z) => { const next = Math.max(1, z / 1.3); if (next <= 1) setPan({ x: 0, y: 0 }); return next; })}
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/60 hover:bg-black/70 hover:text-white transition-all duration-150"
+                  disabled={cropMode}
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/60 hover:bg-black/70 hover:text-white transition-all duration-150 disabled:opacity-40"
                 >
                   <Minus className="h-4 w-4" />
                 </button>

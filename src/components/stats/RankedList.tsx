@@ -7,6 +7,7 @@ import { useT } from '@/i18n/index';
 interface RankedListItem {
   label: string;
   count: number;
+  countLabel?: string;
   species?: string[];
 }
 
@@ -60,7 +61,7 @@ export function RankedList({ title, items, emptyMessage, pageSize }: RankedListP
 
                     {/* Count badge */}
                     <Badge variant="outline" className="text-xs text-primary border-primary/40 shrink-0">
-                      {item.count}
+                      {item.countLabel ?? item.count}
                     </Badge>
 
                     {/* Expand chevron */}

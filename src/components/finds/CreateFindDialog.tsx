@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { SpeciesNameEditor } from './SpeciesNameEditor';
 import { LocationNoteInput } from './LocationNoteInput';
 import { readDir } from '@tauri-apps/plugin-fs';
@@ -83,6 +83,21 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   const { data: findsData } = useFinds();
   const { data: speciesProfilesData } = useSpeciesProfiles();
   const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
+  const lastAutoCommonNameRef = useRef<string>('');
+  const speciesNameSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const find of findsData ?? []) {
+      if (find.species_name) set.add(find.species_name.toLowerCase());
+    }
+    return set;
+  }, [findsData]);
+  const speciesProfilesByLowerName = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof speciesProfilesData>[number]>();
+    for (const profile of speciesProfilesData ?? []) {
+      map.set(profile.species_name.toLowerCase(), profile);
+    }
+    return map;
+  }, [speciesProfilesData]);
   const speciesSuggestions = useMemo(() => {
     const seen = new Set<string>();
     const values = [
@@ -127,30 +142,44 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [form, setForm] = useState<FormState>(BLANK_FORM);
 
-  useEffect(() => {
-    if (!open) setForm(BLANK_FORM);
-  }, [open]);
   const speciesProfile = useMemo(
-    () => speciesProfilesData?.find((profile) => profile.species_name.toLowerCase() === form.species_name.trim().toLowerCase()) ?? null,
-    [speciesProfilesData, form.species_name],
+    () => speciesProfilesByLowerName.get(form.species_name.trim().toLowerCase()) ?? null,
+    [speciesProfilesByLowerName, form.species_name],
   );
 
   useEffect(() => {
-    if (speciesProfile?.common_name && !form.common_name.trim()) {
-      setForm((prev) => ({ ...prev, common_name: speciesProfile.common_name ?? '' }));
+    const nextCommonName = speciesProfile?.common_name ?? '';
+    setForm((prev) => {
+      const userEditedCommonName = prev.common_name.trim() && prev.common_name !== lastAutoCommonNameRef.current;
+      if (userEditedCommonName) return prev;
+      lastAutoCommonNameRef.current = nextCommonName;
+      return { ...prev, common_name: nextCommonName };
+    });
+  }, [speciesProfile?.species_name, speciesProfile?.common_name]);
+
+  useEffect(() => {
+    if (!open && !form.species_name.trim()) {
+      lastAutoCommonNameRef.current = '';
     }
-  }, [speciesProfile?.species_name]);
+  }, [open, form.species_name]);
 
   // Load species folder suggestions
   useEffect(() => {
     if (!open || !storagePath) return;
     readDir(storagePath)
-      .then((entries) => {
-        setSpeciesFolders(
-          entries
-            .filter((e) => e.isDirectory && e.name && !isInternalLibraryName(e.name))
-            .map((e) => e.name as string),
+      .then(async (entries) => {
+        const dirs = entries.filter((e) => e.isDirectory && e.name && !isInternalLibraryName(e.name));
+        const nonEmptyDirs = await Promise.all(
+          dirs.map(async (entry) => {
+            try {
+              const children = await readDir(`${storagePath}\\${entry.name}`);
+              return children.length > 0 ? entry.name as string : null;
+            } catch {
+              return entry.name as string;
+            }
+          }),
         );
+        setSpeciesFolders(nonEmptyDirs.filter((name): name is string => Boolean(name)));
       })
       .catch(() => setSpeciesFolders([]));
   }, [open, storagePath]);
@@ -212,12 +241,8 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   const isKnownSpecies = useMemo(() => {
     const name = form.species_name.trim().toLowerCase();
     if (!name) return false;
-    return (
-      findsData?.some((f) => f.species_name.toLowerCase() === name) ||
-      speciesProfilesData?.some((p) => p.species_name.toLowerCase() === name) ||
-      false
-    );
-  }, [form.species_name, findsData, speciesProfilesData]);
+    return speciesNameSet.has(name) || speciesProfilesByLowerName.has(name);
+  }, [form.species_name, speciesNameSet, speciesProfilesByLowerName]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
