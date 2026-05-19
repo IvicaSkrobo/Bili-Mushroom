@@ -27,7 +27,7 @@ interface RankedListProps {
 export function RankedList({ title, items, emptyMessage, pageSize, speciesProfiles }: RankedListProps) {
   const t = useT();
   const [expanded, setExpanded] = useState(false);
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   const hasMore = pageSize != null && items.length > pageSize;
   const visible = hasMore && !expanded ? items.slice(0, pageSize) : items;
@@ -56,13 +56,14 @@ export function RankedList({ title, items, emptyMessage, pageSize, speciesProfil
           <div className="space-y-2">
             {visible.map((item, idx) => {
               const isClickable = !!item.species?.length;
-              const isOpen = selectedIdx === idx;
+              const itemKey = `${item.label}-${item.countLabel ?? item.count}`;
+              const isOpen = selectedKey === itemKey;
               return (
                 <div
-                  key={idx}
+                  key={itemKey}
                   className={`group relative rounded-sm border bg-card shadow-sm stagger-item transition-all${isClickable ? ' cursor-pointer' : ''} ${isOpen ? 'border-primary/50 bg-muted shadow-md' : 'border-border hover:border-primary/40 hover:shadow-md'}`}
                   style={{ animationDelay: `${idx * 40}ms` }}
-                  onClick={() => isClickable && setSelectedIdx(isOpen ? null : idx)}
+                  onClick={() => isClickable && setSelectedKey(isOpen ? null : itemKey)}
                 >
                   <div className="flex items-center gap-3 px-3 py-2.5">
                     {/* Amber left-border — persists when open */}

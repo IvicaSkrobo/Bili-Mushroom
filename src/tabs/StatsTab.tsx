@@ -127,11 +127,16 @@ export default function StatsTab() {
       return {
         label: `${s.country} / ${s.region}${s.location_note ? ' / ' + s.location_note : ''}`,
         count: species.length,
+        findCount: s.count,
         countLabel: t('stats.speciesCount', { species: species.length }),
         species,
       };
-    });
-  }, [topSpots, finds, t]);
+    }).sort((a, b) => (
+      b.count - a.count ||
+      b.findCount - a.findCount ||
+      a.label.localeCompare(b.label, locale, { sensitivity: 'base' })
+    ));
+  }, [topSpots, finds, locale, t]);
 
   const bestMonthsFormatted = useMemo(() => {
     if (!bestMonths) return [];
@@ -144,10 +149,16 @@ export default function StatsTab() {
       return {
         label: new Intl.DateTimeFormat(locale, { month: 'long' }).format(new Date(2024, s.month_num - 1)),
         count: species.length,
+        findCount: s.count,
+        monthNum: s.month_num,
         countLabel: t('stats.speciesCount', { species: species.length }),
         species,
       };
-    });
+    }).sort((a, b) => (
+      b.count - a.count ||
+      b.findCount - a.findCount ||
+      a.monthNum - b.monthNum
+    ));
   }, [bestMonths, finds, locale, t]);
   const totalPhotos = useMemo(
     () => finds?.reduce((sum, find) => sum + find.photos.length, 0) ?? 0,
