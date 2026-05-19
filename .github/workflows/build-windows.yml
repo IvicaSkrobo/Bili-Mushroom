@@ -16,6 +16,7 @@ jobs:
       contents: write
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      VITE_BUG_REPORT_ENDPOINT: ${{ vars.VITE_BUG_REPORT_ENDPOINT }}
 
     steps:
       - name: Checkout repository
@@ -52,6 +53,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VITE_BUG_REPORT_ENDPOINT: ${{ vars.VITE_BUG_REPORT_ENDPOINT }}
 
       # ---------------------------------------------------------------
       # Upload installer as a downloadable artifact (manual trigger only)
@@ -78,6 +80,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VITE_BUG_REPORT_ENDPOINT: ${{ vars.VITE_BUG_REPORT_ENDPOINT }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Gljivobook ${{ github.ref_name }}'

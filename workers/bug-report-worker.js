@@ -3,6 +3,17 @@ const MAX_REPORTS_PER_WINDOW = 5;
 const MAX_BODY_BYTES = 20_000;
 const buckets = new Map();
 
+function corsOrigin(request, env) {
+  const origin = request.headers.get('origin') || '*';
+  const allowed = String(env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (!allowed.length || origin === '*') return origin;
+  return allowed.includes(origin) ? origin : allowed[0];
+}
+
 function json(data, status = 200, origin = '*') {
   return new Response(JSON.stringify(data), {
     status,
@@ -93,10 +104,14 @@ async function createGitHubIssue(env, report) {
 
 export default {
   async fetch(request, env) {
-    const origin = request.headers.get('origin') || '*';
+    const origin = corsOrigin(request, env);
 
     if (request.method === 'OPTIONS') {
       return json({ ok: true }, 200, origin);
+    }
+
+    if (request.method === 'GET') {
+      return json({ ok: true, service: 'gljivobook-bug-report' }, 200, origin);
     }
 
     if (request.method !== 'POST') {
@@ -150,7 +165,8 @@ export default {
       const issue = await createGitHubIssue(env, report);
       return json({ ok: true, issueUrl: issue.html_url }, 200, origin);
     } catch (error) {
-      return json({ error: String(error?.message || error) }, 502, origin);
+      console.error(String(error?.message || error));
+      return json({ error: 'Report could not be saved. Try again later.' }, 502, origin);
     }
   },
 };
