@@ -245,6 +245,23 @@ function pickWindowsInstaller(releaseData: RemoteRelease | null) {
   );
 }
 
+function parseVersion(version: string) {
+  const match = version.match(/v?(\d+)\.(\d+)\.(\d+)/i);
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2]), Number(match[3])] as const;
+}
+
+function isOlderVersion(candidate: string, baseline: string) {
+  const a = parseVersion(candidate);
+  const b = parseVersion(baseline);
+  if (!a || !b) return false;
+  for (let i = 0; i < 3; i += 1) {
+    if (a[i] < b[i]) return true;
+    if (a[i] > b[i]) return false;
+  }
+  return false;
+}
+
 function BrandMark() {
   return (
     <div className="brand-mark" aria-hidden="true">
@@ -376,19 +393,20 @@ export function App() {
     return () => controller.abort();
   }, []);
 
-  const releaseVersion = latestRelease?.tag_name ?? release.version;
-  const installerAsset = pickWindowsInstaller(latestRelease);
-  const releaseDetailsUrl = latestRelease?.html_url ?? release.installerUrl;
+  const effectiveRelease = latestRelease && !isOlderVersion(latestRelease.tag_name, release.version) ? latestRelease : null;
+  const releaseVersion = effectiveRelease?.tag_name ?? release.version;
+  const installerAsset = pickWindowsInstaller(effectiveRelease);
+  const releaseDetailsUrl = effectiveRelease?.html_url ?? release.installerUrl;
   const releaseUrl = installerAsset?.browser_download_url ?? releaseDetailsUrl;
-  const releaseDate = latestRelease?.published_at
+  const releaseDate = effectiveRelease?.published_at
     ? new Intl.DateTimeFormat(lang === 'hr' ? 'hr-HR' : 'en-US', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
-      }).format(new Date(latestRelease.published_at))
+      }).format(new Date(effectiveRelease.published_at))
     : release.date;
-  const releaseNotes = latestRelease?.body
-    ? latestRelease.body
+  const releaseNotes = effectiveRelease?.body
+    ? effectiveRelease.body
         .split('\n')
         .map((line) => line.replace(/^[-*#\s]+/, '').trim())
         .filter(Boolean)

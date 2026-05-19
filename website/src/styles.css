@@ -768,6 +768,7 @@ h1 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: clamp(18px, 3vw, 28px);
+  align-items: start;
 }
 
 .info-grid {
@@ -1176,7 +1177,7 @@ h1 {
 
 .feature-panel {
   display: flex;
-  min-height: 310px;
+  min-height: 0;
   flex-direction: column;
 }
 
