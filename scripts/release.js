@@ -146,7 +146,7 @@ function main() {
 
   run(`git add "${pkgPath}" "${pkgLockPath}" "${tauriConfPath}" "${cargoTomlPath}" "${cargoLockPath}"`);
   run(`git commit --no-verify -m "Release v${nextVersion}"`);
-  run(`git tag ${tagName}`);
+  run(`git tag -a ${tagName} -m "Release ${tagName}"`);
 
   if (push) {
     run('git push');
