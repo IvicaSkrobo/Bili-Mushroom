@@ -892,7 +892,7 @@ export default function SpeciesTab() {
                         )}
                       </div>
                       {selectedCommonName && (
-                        <p className="mt-1 text-base font-bold text-foreground/80 dark:text-secondary">{selectedCommonName}</p>
+                        <p className="mt-1 text-base font-bold text-foreground/80 dark:text-foreground/80">{selectedCommonName}</p>
                       )}
                     </div>
                     <div className="flex flex-wrap gap-2">

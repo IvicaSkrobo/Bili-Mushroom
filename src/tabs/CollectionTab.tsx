@@ -888,7 +888,7 @@ export default function CollectionTab() {
                       )}
                     </div>
                     {commonName && (
-                      <p className="mt-0.5 truncate text-sm font-bold text-foreground/80 dark:text-secondary" title={commonName}>
+                      <p className="mt-0.5 truncate text-sm font-bold text-foreground/80 dark:text-foreground/80" title={commonName}>
                         {commonName}
                       </p>
                     )}

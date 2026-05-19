@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { FINDS_QUERY_KEY } from '@/lib/finds';
-import { Bug, ExternalLink, Globe2, Heart, Info } from 'lucide-react';
+import { Bug, Globe2, Heart, Info } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
@@ -189,44 +189,43 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-3 pt-1">
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <span>Gljivobook</span>
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs text-muted-foreground">Gljivobook</span>
+                <span className="text-xs text-muted-foreground font-mono">v{APP_VERSION}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-[11px] font-semibold">
                 <a
                   href={WEBSITE_URL}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 rounded-full border border-secondary/30 bg-secondary/5 px-2 py-0.5 font-medium text-secondary transition-colors hover:border-secondary/60 hover:bg-secondary/10"
+                  className="flex min-h-[58px] flex-col items-center justify-center gap-1.5 rounded-sm border border-border bg-card px-2 py-2 text-muted-foreground transition-colors hover:border-secondary/50 hover:bg-secondary/10 hover:text-secondary"
                   title={t('settings.websiteTitle')}
                 >
-                  <Globe2 className="h-3 w-3" />
-                  {t('settings.website')}
-                  <ExternalLink className="h-3 w-3 opacity-60" />
+                  <Globe2 className="h-4 w-4" />
+                  <span>{t('settings.website')}</span>
                 </a>
                 <a
                   href={BUG_REPORT_URL}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 rounded-full border border-destructive/25 bg-destructive/5 px-2 py-0.5 font-medium text-destructive transition-colors hover:border-destructive/55 hover:bg-destructive/10"
+                  className="flex min-h-[58px] flex-col items-center justify-center gap-1.5 rounded-sm border border-destructive/25 bg-destructive/5 px-2 py-2 text-destructive transition-colors hover:border-destructive/55 hover:bg-destructive/10"
                   title={t('settings.reportBugTitle')}
                 >
-                  <Bug className="h-3 w-3" />
-                  {t('settings.reportBug')}
-                  <ExternalLink className="h-3 w-3 opacity-60" />
+                  <Bug className="h-4 w-4" />
+                  <span>{t('settings.reportBug')}</span>
                 </a>
                 <a
                   href={DONATE_URL}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/5 px-2 py-0.5 font-medium text-primary transition-colors hover:border-primary/55 hover:bg-primary/10"
+                  className="flex min-h-[58px] flex-col items-center justify-center gap-1.5 rounded-sm border border-primary/25 bg-primary/5 px-2 py-2 text-primary transition-colors hover:border-primary/55 hover:bg-primary/10"
                   title={t('settings.supportTitle')}
                 >
-                  <Heart className="h-3 w-3" />
-                  {t('settings.support')}
-                  <ExternalLink className="h-3 w-3 opacity-60" />
+                  <Heart className="h-4 w-4" />
+                  <span>{t('settings.support')}</span>
                 </a>
               </div>
-              <span className="text-xs text-muted-foreground font-mono">v{APP_VERSION}</span>
             </div>
           </TabsContent>
 
