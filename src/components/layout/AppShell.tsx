@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useAppStore, type Tab } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
 import { APP_VERSION } from '@/lib/appMeta';
+import { checkDevUpdateMock } from '@/lib/devUpdater';
 import { WEBSITE_URL } from '@/lib/externalLinks';
 
 const CollectionTab = lazy(() => import('@/tabs/CollectionTab'));
@@ -53,10 +54,13 @@ export function AppShell() {
       setTimeout(() => reject(new Error('UPDATE_CHECK_TIMEOUT')), 45000),
     );
     try {
-      const update = await Promise.race([
-        invoke<import('@/stores/appStore').AvailableUpdate | null>('check_app_update'),
-        timeout,
-      ]);
+      const devUpdate = await checkDevUpdateMock();
+      const update = devUpdate !== undefined
+        ? devUpdate
+        : await Promise.race([
+            invoke<import('@/stores/appStore').AvailableUpdate | null>('check_app_update'),
+            timeout,
+          ]);
       if (update) {
         setAvailableUpdate(update);
         setUpdateConfirmPending(true);

@@ -12,6 +12,8 @@ import { FirstRunDialog } from '@/components/dialogs/FirstRunDialog';
 import { MigrationErrorDialog } from '@/components/dialogs/MigrationErrorDialog';
 import { AutoImportDialog } from '@/components/dialogs/AutoImportDialog';
 import { AppShell } from '@/components/layout/AppShell';
+import { APP_VERSION } from '@/lib/appMeta';
+import { checkDevUpdateMock, installDevUpdateMock } from '@/lib/devUpdater';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -126,6 +128,20 @@ export default function App() {
     setInstallingUpdate(true);
     setInstallStatus('Checking for update…');
     try {
+      const fakeInstalled = await installDevUpdateMock(setInstallStatus);
+      if (fakeInstalled !== undefined) {
+        if (fakeInstalled) {
+          setInstallStatus('Fake update installed — restart skipped in dev mode');
+          setAvailableUpdate(null);
+          toast.success('Fake update installed. Restart is skipped in dev mode.');
+        } else {
+          setInstallStatus(null);
+          toast('No newer update found.');
+          setAvailableUpdate(null);
+        }
+        return;
+      }
+
       const { listen } = await import('@tauri-apps/api/event');
       const unlisten = await listen<{ downloaded: number; total: number | null; status: string }>(
         'update-progress',
@@ -168,12 +184,19 @@ export default function App() {
 
     getVersion().then((v) => { currentVersionRef.current = v; });
 
-    invoke<import('@/stores/appStore').AvailableUpdate | null>('check_app_update')
+    const checkUpdate = async () => {
+      const devUpdate = await checkDevUpdateMock();
+      return devUpdate !== undefined
+        ? devUpdate
+        : invoke<import('@/stores/appStore').AvailableUpdate | null>('check_app_update');
+    };
+
+    checkUpdate()
       .then((update) => {
         if (cancelled || !update) return;
         setAvailableUpdate(update);
 
-        const current = currentVersionRef.current;
+        const current = import.meta.env.DEV ? APP_VERSION : currentVersionRef.current;
         const fromLabel = current ? `v${current} → ` : '';
 
         toast('Update available', {
