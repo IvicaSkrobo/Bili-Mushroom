@@ -27,7 +27,7 @@ export function MigrationErrorDialog({ errorMessage, onReset }: MigrationErrorDi
           </div>
           <DialogTitle className="text-center text-xl font-semibold">Database Error</DialogTitle>
           <DialogDescription className="text-center text-sm">
-            Bili Mushroom encountered a problem with the database. You can try a different
+            Gljivobook encountered a problem with the database. You can try a different
             folder or quit and restart the app.
           </DialogDescription>
         </DialogHeader>

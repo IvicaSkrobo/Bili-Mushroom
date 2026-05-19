@@ -140,7 +140,7 @@ async fn fetch_tile_inner<R: Runtime>(
     }
 
     let client = reqwest::Client::builder()
-        .user_agent("BiliMushroom/0.1")
+        .user_agent("Gljivobook/0.1")
         .build()
         .map_err(|e| e.to_string())?;
     let resp = client.get(&url).send().await.map_err(|e| e.to_string())?;

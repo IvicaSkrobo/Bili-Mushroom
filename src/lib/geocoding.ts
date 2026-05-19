@@ -43,7 +43,7 @@ export async function reverseGeocode(
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=${lang},en`;
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'BiliMushroom/0.1 (hr.biligrupa.bilimushroom)' },
+      headers: { 'User-Agent': 'Gljivobook/0.1 (hr.biligrupa.bilimushroom)' },
     });
     const data = await res.json();
     const address = data?.address;

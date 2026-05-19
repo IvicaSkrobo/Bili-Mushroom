@@ -464,7 +464,7 @@ export function SmokeTestDocument({ finds }: SmokeTestProps) {
           />
         ) : (
           <View style={S.coverNoPhoto}>
-            <Text style={S.coverNoPhotoText}>Bili Mushroom</Text>
+            <Text style={S.coverNoPhotoText}>Gljivobook</Text>
           </View>
         )}
 
@@ -496,7 +496,7 @@ export function SmokeTestDocument({ finds }: SmokeTestProps) {
           </View>
         ))}
 
-        <PageFooter left="Bili Mushroom Journal" right="Smoke test" />
+        <PageFooter left="Gljivobook Journal" right="Smoke test" />
       </Page>
     </Document>
   );
@@ -620,7 +620,7 @@ export function MushroomJournal({ finds, speciesNotes, smokeTest = false }: Prop
         <View style={S.coverAmberStripe} />
         <View style={S.coverBody}>
           <View style={S.coverPanel}>
-          <Text style={S.eyebrow}>Bili Mushroom</Text>
+          <Text style={S.eyebrow}>Gljivobook</Text>
           <Text style={{ fontFamily: 'Times-Bold', fontSize: 34, color: C.text, lineHeight: 1.12, marginBottom: 12 }}>
             {'Mushroom\nField Journal'}
           </Text>
@@ -644,7 +644,7 @@ export function MushroomJournal({ finds, speciesNotes, smokeTest = false }: Prop
             </View>
           </View>
         </View>
-        <PageFooter left="Bili Mushroom Journal" />
+        <PageFooter left="Gljivobook Journal" />
       </Page>
 
       {/* ── COLLECTION STATS ──────────────────────────────────────────────── */}
@@ -682,7 +682,7 @@ export function MushroomJournal({ finds, speciesNotes, smokeTest = false }: Prop
           </View>
         ) : null}
 
-        <PageFooter left="Bili Mushroom Journal" />
+        <PageFooter left="Gljivobook Journal" />
       </Page>
 
       {!smokeTest && fieldOutings.length > 0 ? (
@@ -828,7 +828,7 @@ export function MushroomJournal({ finds, speciesNotes, smokeTest = false }: Prop
               </View>
             ) : null}
 
-            <PageFooter left="Bili Mushroom Journal" />
+        <PageFooter left="Gljivobook Journal" />
           </Page>
 
           {spotlightPages[1] ? (
@@ -922,7 +922,7 @@ export function MushroomJournal({ finds, speciesNotes, smokeTest = false }: Prop
           </View>
         ) : null}
 
-            <PageFooter left="Bili Mushroom Journal" />
+            <PageFooter left="Gljivobook Journal" />
           </Page>
 
           {spotlightPages.slice(2).map((pageNames, pageIndex) => (

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SettingsDialog } from './SettingsDialog';
 import { formatMb } from '@/lib/tileCache';
 
@@ -63,6 +64,17 @@ vi.mock('@/components/ui/tabs', () => ({
 describe('SettingsDialog', () => {
   let tileCacheMock: typeof import('@/lib/tileCache');
 
+  function renderDialog() {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <SettingsDialog open={true} onOpenChange={vi.fn()} />
+      </QueryClientProvider>,
+    );
+  }
+
   beforeEach(async () => {
     vi.clearAllMocks();
     tileCacheMock = await import('@/lib/tileCache');
@@ -71,12 +83,12 @@ describe('SettingsDialog', () => {
   });
 
   it('displays the Map Cache section heading', () => {
-    render(<SettingsDialog open={true} onOpenChange={vi.fn()} />);
+    renderDialog();
     expect(screen.getByText('settings.mapCache')).toBeTruthy();
   });
 
   it('shows formatted cache size after mount', async () => {
-    render(<SettingsDialog open={true} onOpenChange={vi.fn()} />);
+    renderDialog();
     await waitFor(() => {
       const el = screen.getByTestId('tile-cache-size');
       expect(el.textContent).toBe('42 MB');
@@ -84,7 +96,7 @@ describe('SettingsDialog', () => {
   });
 
   it('opens confirm dialog when Clear tile cache clicked', async () => {
-    render(<SettingsDialog open={true} onOpenChange={vi.fn()} />);
+    renderDialog();
     fireEvent.click(screen.getByText('settings.clearCache'));
     await waitFor(() => {
       expect(screen.getByText('settings.clearCacheTitle')).toBeTruthy();
@@ -92,7 +104,7 @@ describe('SettingsDialog', () => {
   });
 
   it('calls clearTileCache on confirm and refetches stats', async () => {
-    render(<SettingsDialog open={true} onOpenChange={vi.fn()} />);
+    renderDialog();
     fireEvent.click(screen.getByText('settings.clearCache'));
     await waitFor(() => {
       expect(screen.getByText('settings.clearCacheConfirm')).toBeTruthy();

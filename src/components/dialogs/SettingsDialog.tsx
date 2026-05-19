@@ -22,6 +22,8 @@ import { getTileCacheStats, clearTileCache, getCacheMaxBytes, setCacheMax, forma
 import { APP_VERSION } from '@/lib/appMeta';
 import { resetHiddenLocationSuggestions } from '@/components/finds/LocationNoteInput';
 
+const SUPPORT_URL = 'https://github.com/IvicaSkrobo/Bili-Mushroom';
+
 export interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -188,8 +190,19 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-1">
-              <span className="text-xs text-muted-foreground">Bili Mushroom</span>
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>Gljivobook</span>
+                <a
+                  href={SUPPORT_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-full border border-primary/25 bg-primary/5 px-2 py-0.5 font-medium text-primary transition-colors hover:border-primary/55 hover:bg-primary/10"
+                  title={t('settings.supportTitle')}
+                >
+                  {t('settings.support')}
+                </a>
+              </div>
               <span className="text-xs text-muted-foreground font-mono">v{APP_VERSION}</span>
             </div>
           </TabsContent>

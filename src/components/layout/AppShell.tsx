@@ -49,7 +49,7 @@ export function AppShell() {
     setCheckError(null);
     setCheckLabel(t('app.checkingUpdate'));
     const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Timed out after 45s — if this keeps happening, open Windows Security → Virus & threat protection → allow Bili Mushroom')), 45000),
+      setTimeout(() => reject(new Error('Timed out after 45s — if this keeps happening, open Windows Security → Virus & threat protection → allow Gljivobook')), 45000),
     );
     try {
       const update = await Promise.race([
@@ -78,8 +78,8 @@ export function AppShell() {
       {/* Header */}
       <header className="relative flex h-16 flex-shrink-0 items-center justify-between border-b border-border/70 bg-card/55 px-6 backdrop-blur-md">
         <div className="flex items-baseline gap-2">
-          <span className="font-serif text-3xl font-semibold italic text-primary tracking-[0.02em] leading-none">Bili</span>
-          <span className="text-[10px] font-semibold tracking-[0.35em] uppercase text-foreground/65">Mushroom</span>
+          <span className="font-serif text-3xl font-semibold italic text-primary tracking-[0.02em] leading-none">Gljivo</span>
+          <span className="text-[10px] font-semibold tracking-[0.35em] uppercase text-foreground/65">book</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="hidden items-center gap-2 md:flex">

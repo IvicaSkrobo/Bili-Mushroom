@@ -108,7 +108,7 @@ export async function generateAndSavePdf(
   // 1. Ask for save path first
   log('Waiting for save location...');
   const path = await save({
-    defaultPath: smokeTest ? 'bili-mushroom-smoke-test.pdf' : 'bili-mushroom-journal.pdf',
+    defaultPath: smokeTest ? 'gljivobook-smoke-test.pdf' : 'gljivobook-journal.pdf',
     filters: [{ name: 'PDF', extensions: ['pdf'] }],
   });
   if (!path) return null;

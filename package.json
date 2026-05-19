@@ -1,6 +1,6 @@
 {
-  "name": "bili-mushroom",
-  "version": "0.2.25",
+  "name": "gljivobook",
+  "version": "0.2.27",
   "private": true,
   "type": "module",
   "scripts": {

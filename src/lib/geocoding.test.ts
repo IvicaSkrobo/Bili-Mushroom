@@ -28,7 +28,7 @@ describe('reverseGeocode', () => {
     // Verify User-Agent header is set
     const init = mockFetch.mock.calls[0][1] as RequestInit;
     const headers = init?.headers as Record<string, string>;
-    expect(headers['User-Agent']).toBe('BiliMushroom/0.1 (hr.biligrupa.bilimushroom)');
+    expect(headers['User-Agent']).toBe('Gljivobook/0.1 (hr.biligrupa.bilimushroom)');
   });
 
   it('falls back to county when state is absent', async () => {

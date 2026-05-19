@@ -3,7 +3,8 @@ import { Sprout } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { pickAndSaveStoragePath } from '@/lib/storage';
-import { useT } from '@/i18n/index';
+import { useT, type Lang } from '@/i18n/index';
+import { useAppStore } from '@/stores/appStore';
 
 export interface FirstRunDialogProps {
   onFolderSelected: (path: string) => void;
@@ -11,6 +12,8 @@ export interface FirstRunDialogProps {
 
 export function FirstRunDialog({ onFolderSelected }: FirstRunDialogProps) {
   const t = useT();
+  const language = useAppStore((s) => s.language);
+  const setLanguage = useAppStore((s) => s.setLanguage);
   const [picking, setPicking] = useState(false);
 
   async function handleChoose() {
@@ -42,6 +45,27 @@ export function FirstRunDialog({ onFolderSelected }: FirstRunDialogProps) {
             {t('firstRun.description')}
           </DialogDescription>
         </DialogHeader>
+        <div className="rounded-md border border-border/70 bg-card/50 p-3">
+          <div className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            {t('firstRun.language')}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {(['hr', 'en'] as Lang[]).map((lang) => (
+              <button
+                key={lang}
+                type="button"
+                onClick={() => setLanguage(lang)}
+                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  language === lang
+                    ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                    : 'border-border bg-background/80 text-foreground hover:border-primary/60 hover:text-primary'
+                }`}
+              >
+                {lang === 'hr' ? t('settings.langHr') : t('settings.langEn')}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="rounded-md bg-muted px-3 py-2 text-center text-sm text-muted-foreground">
           {t('firstRun.noFolder')}
         </div>

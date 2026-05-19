@@ -3,6 +3,6 @@
 <plist version="1.0">
 <dict>
   <key>NSLocationWhenInUseUsageDescription</key>
-  <string>Bili Mushroom uses your location to set the find location on the map.</string>
+  <string>Gljivobook uses your location to set the find location on the map.</string>
 </dict>
 </plist>

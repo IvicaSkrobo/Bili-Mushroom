@@ -6,7 +6,7 @@ if (typeof window === 'undefined') {
 }
 if (typeof navigator === 'undefined') {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (self as any).navigator = { userAgent: 'BiliMushroomPDFWorker' };
+  (self as any).navigator = { userAgent: 'GljivobookPDFWorker' };
 }
 
 import React from 'react';

@@ -1,6 +1,6 @@
 {
-  "productName": "Bili Mushroom",
-  "version": "0.2.25",
+  "productName": "Gljivobook",
+  "version": "0.2.27",
   "identifier": "hr.biligrupa.bilimushroom",
   "build": {
     "frontendDist": "../dist",
@@ -11,7 +11,7 @@
   "app": {
     "windows": [
       {
-        "title": "Bili Mushroom",
+        "title": "Gljivobook",
         "width": 1200,
         "height": 800,
         "minWidth": 900,

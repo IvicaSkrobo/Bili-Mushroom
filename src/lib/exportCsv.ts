@@ -35,7 +35,7 @@ export async function exportToCsv(finds: Find[]): Promise<string | null> {
   const csv = [header, ...rows].join('\n');
 
   const path = await save({
-    defaultPath: 'bili-mushroom-export.csv',
+    defaultPath: 'gljivobook-export.csv',
     filters: [{ name: 'CSV', extensions: ['csv'] }],
   });
   if (!path) return null; // user cancelled

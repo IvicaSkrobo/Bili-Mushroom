@@ -552,7 +552,7 @@ fn validate_library_relative_photo_path(photo_path: &str) -> rusqlite::Result<()
 
     if trimmed.is_empty() || path.is_absolute() || has_windows_drive || has_unc_prefix || has_parent_component {
         return Err(rusqlite::Error::InvalidParameterName(format!(
-            "photo_path must be relative to the Bili Mushroom library folder: {}",
+            "photo_path must be relative to the Gljivobook library folder: {}",
             photo_path
         )));
     }

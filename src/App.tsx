@@ -52,7 +52,7 @@ function StartupScreen({ stage, children }: { stage: string; children?: ReactNod
               Personal mycology journal
             </p>
             <h1 className="font-serif text-4xl font-semibold italic leading-none text-foreground">
-              Bili Mushroom
+              Gljivobook
             </h1>
           </div>
 
@@ -204,7 +204,7 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     if (!('__TAURI_INTERNALS__' in window)) {
-      setDbError('Bili Mushroom must be run inside the Tauri desktop app. The localhost browser view cannot access the local database bridge.');
+      setDbError('Gljivobook must be run inside the Tauri desktop app. The localhost browser view cannot access the local database bridge.');
       setStoragePathLoaded(true);
       return () => { cancelled = true; };
     }

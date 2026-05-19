@@ -285,6 +285,8 @@ const hr: Translations = {
   'settings.theme': 'Izgled',
   'settings.themeLight': 'Svijetlo',
   'settings.themeDark': 'Tamno',
+  'settings.support': 'Podrži',
+  'settings.supportTitle': 'Podrži razvoj Gljivobooka',
   'settings.mapCache': 'Cache karata',
   'settings.tileCacheSize': 'Veličina cache-a tileova',
   'settings.maxCacheSize': 'Maks. veličina cache-a',
@@ -314,7 +316,8 @@ const hr: Translations = {
 
   // first run dialog
   'firstRun.title': 'Odaberite svoju knjižnicu gljiva',
-  'firstRun.description': 'Odaberite mapu gdje će Bili Mushroom pohraniti vaše nalaze, fotografije i bazu podataka. Ovo možete promijeniti kasnije u Postavkama.',
+  'firstRun.description': 'Odaberite mapu gdje će Gljivobook pohraniti vaše nalaze, fotografije i bazu podataka. Ovo možete promijeniti kasnije u Postavkama.',
+  'firstRun.language': 'Jezik aplikacije',
   'firstRun.noFolder': 'Mapa nije odabrana',
   'firstRun.chooseFolder': 'Odaberi mapu',
 
@@ -445,7 +448,7 @@ const hr: Translations = {
   'stats.speciesCount': '{species} vrsta',
 
   // stats tab
-  'stats.pageTitle': 'Tvoja priča o gljivama',
+  'stats.pageTitle': 'Tvoj Gljivobook',
   'stats.emptyHeading': 'Tvoja priča počinje prvim nalazom',
   'stats.emptyBody': 'Uvezi prvu fotografiju gljive da vidiš statistiku ovdje.',
   'stats.totalPhotos': 'UKUPNO FOTOGRAFIJA',
@@ -859,6 +862,8 @@ const en: Translations = {
   'settings.theme': 'Appearance',
   'settings.themeLight': 'Light',
   'settings.themeDark': 'Dark',
+  'settings.support': 'Support',
+  'settings.supportTitle': 'Support Gljivobook development',
   'settings.mapCache': 'Map Cache',
   'settings.tileCacheSize': 'Tile cache size',
   'settings.maxCacheSize': 'Max cache size',
@@ -888,7 +893,8 @@ const en: Translations = {
 
   // first run dialog
   'firstRun.title': 'Choose Your Mushroom Library',
-  'firstRun.description': 'Choose a folder where Bili Mushroom will store your finds, photos, and database. You can change this later in Settings.',
+  'firstRun.description': 'Choose a folder where Gljivobook will store your finds, photos, and database. You can change this later in Settings.',
+  'firstRun.language': 'App language',
   'firstRun.noFolder': 'No folder selected',
   'firstRun.chooseFolder': 'Choose Folder',
 
@@ -1019,7 +1025,7 @@ const en: Translations = {
   'stats.speciesCount': '{species} species',
 
   // stats tab
-  'stats.pageTitle': 'Your Mushroom Story',
+  'stats.pageTitle': 'Your Mushroom Book',
   'stats.emptyHeading': 'Your story starts with one find',
   'stats.emptyBody': 'Import your first mushroom photo to see your foraging stats here.',
   'stats.totalPhotos': 'TOTAL PHOTOS',
