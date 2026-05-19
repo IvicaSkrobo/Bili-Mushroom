@@ -19,7 +19,7 @@ import {
   TrendingUp,
   Vote,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { GiscusPanel } from './GiscusPanel';
 import { funding, ideas, release } from './siteData';
 
@@ -45,6 +45,7 @@ type RemoteIssue = {
   comments: number;
   updated_at?: string | null;
   state?: string;
+  labels?: Array<string | { name?: string }>;
   pull_request?: unknown;
   reactions?: {
     total_count?: number;
@@ -61,6 +62,7 @@ type VisibleIdea = {
 };
 
 const configuredBugReportUrl = import.meta.env.VITE_BUG_REPORT_URL as string | undefined;
+const configuredBugReportEndpoint = import.meta.env.VITE_BUG_REPORT_ENDPOINT as string | undefined;
 const configuredDonateUrl = import.meta.env.VITE_DONATE_URL as string | undefined;
 const defaultBugReportUrl =
   'https://github.com/IvicaSkrobo/Bili-Mushroom/issues/new?template=bug_report.yml&labels=bug';
@@ -114,10 +116,28 @@ const copy = {
     bugBody: 'Report crashes, broken buttons, wrong translations, or confusing workflows.',
     bugAction: 'Report a bug',
     bugExternal: 'Uses GitHub issue form',
+    bugFormTitle: 'Quick report',
+    bugFormDescription: 'This creates a public bug card for the board. Do not include private locations or passwords.',
+    bugFormName: 'Short title',
+    bugFormNamePlaceholder: 'e.g. Stats crash on open',
+    bugFormDetails: 'What happened?',
+    bugFormDetailsPlaceholder: 'What did you click, what did you expect, and what happened instead?',
+    bugFormSteps: 'Steps',
+    bugFormStepsPlaceholder: '1. Open...\n2. Click...\n3. See...',
+    bugFormContact: 'Contact (optional, not shown on the public board)',
+    bugFormSubmit: 'Send bug report',
+    bugFormSending: 'Sending...',
+    bugFormSent: 'Sent. It should appear on the board after GitHub updates.',
+    bugFormFallback: 'No-account form is not connected yet. Use GitHub for now.',
     bugBoardTitle: 'Public bug board',
     bugBoardBody: 'Open reports from GitHub. Personal contact details are not shown here.',
     bugBoardEmpty: 'No public bug reports yet.',
     bugBoardAction: 'View all bugs',
+    bugStatusOpen: 'Open',
+    bugStatusProgress: 'In progress',
+    bugStatusFixed: 'Fixed - verify',
+    bugStatusVerify: 'Needs verification',
+    bugStatusVerified: 'Verified',
     ideasTitle: 'Ideas users can vote on',
     ideasBody:
       'Suggest features, vote with reactions, and push strong ideas toward funding goals.',
@@ -187,10 +207,28 @@ const copy = {
     bugBody: 'Prijavi crash, pokvareni gumb, krivi prijevod ili zbunjujuci workflow.',
     bugAction: 'Prijavi bug',
     bugExternal: 'Koristi GitHub issue obrazac',
+    bugFormTitle: 'Brza prijava',
+    bugFormDescription: 'Ovo stvara javnu karticu buga na listi. Nemoj pisati privatne lokacije ili lozinke.',
+    bugFormName: 'Kratki naslov',
+    bugFormNamePlaceholder: 'npr. Statistike se sruse kad otvorim tab',
+    bugFormDetails: 'Sto se dogodilo?',
+    bugFormDetailsPlaceholder: 'Sto si kliknuo, sto si ocekivao i sto se dogodilo umjesto toga?',
+    bugFormSteps: 'Koraci',
+    bugFormStepsPlaceholder: '1. Otvorim...\n2. Kliknem...\n3. Vidim...',
+    bugFormContact: 'Kontakt (opcionalno, ne prikazuje se na javnoj listi)',
+    bugFormSubmit: 'Posalji bug',
+    bugFormSending: 'Saljem...',
+    bugFormSent: 'Poslano. Trebalo bi se pojaviti na listi kad GitHub osvjezi podatke.',
+    bugFormFallback: 'No-account forma jos nije spojena. Zasad koristi GitHub.',
     bugBoardTitle: 'Javna lista bugova',
     bugBoardBody: 'Otvorene prijave s GitHuba. Osobni kontakt podaci se ovdje ne prikazuju.',
     bugBoardEmpty: 'Jos nema javnih bug prijava.',
     bugBoardAction: 'Pogledaj sve bugove',
+    bugStatusOpen: 'Otvoreno',
+    bugStatusProgress: 'U radu',
+    bugStatusFixed: 'Rijeseno - provjeri',
+    bugStatusVerify: 'Treba provjeriti',
+    bugStatusVerified: 'Potvrdjeno',
     ideasTitle: 'Ideje za koje korisnici mogu glasati',
     ideasBody:
       'Predlozi funkciju, drugi glasaju reakcijama, a jake ideje mogu u funding ciljeve.',
@@ -266,6 +304,30 @@ function isOlderVersion(candidate: string, baseline: string) {
   return false;
 }
 
+function issueLabelNames(issue: RemoteIssue) {
+  return (issue.labels ?? [])
+    .map((label) => (typeof label === 'string' ? label : label.name ?? ''))
+    .map((label) => label.toLowerCase())
+    .filter(Boolean);
+}
+
+function bugStatus(issue: RemoteIssue, lang: Lang) {
+  const labels = issueLabelNames(issue);
+  if (labels.includes('verified')) {
+    return { key: 'verified', label: lang === 'hr' ? 'Potvrdjeno' : 'Verified' };
+  }
+  if (labels.includes('needs-verification')) {
+    return { key: 'verify', label: lang === 'hr' ? 'Treba provjeriti' : 'Needs verification' };
+  }
+  if (labels.includes('fixed')) {
+    return { key: 'fixed', label: lang === 'hr' ? 'Rijeseno - provjeri' : 'Fixed - verify' };
+  }
+  if (labels.includes('in-progress') || labels.includes('in progress')) {
+    return { key: 'progress', label: lang === 'hr' ? 'U radu' : 'In progress' };
+  }
+  return { key: 'open', label: lang === 'hr' ? 'Otvoreno' : 'Open' };
+}
+
 function BrandMark() {
   return (
     <div className="brand-mark" aria-hidden="true">
@@ -335,6 +397,8 @@ export function App() {
   const [latestRelease, setLatestRelease] = useState<RemoteRelease | null>(null);
   const [remoteIdeas, setRemoteIdeas] = useState<RemoteIssue[]>([]);
   const [remoteBugs, setRemoteBugs] = useState<RemoteIssue[]>([]);
+  const [bugForm, setBugForm] = useState({ title: '', description: '', steps: '', contact: '', trap: '' });
+  const [bugFormState, setBugFormState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const stored = window.localStorage.getItem('gljivobook-site-theme');
     if (stored === 'light' || stored === 'dark') return stored;
@@ -418,6 +482,8 @@ export function App() {
         .slice(0, 4)
     : release.notes[lang];
   const bugReportUrl = configuredBugReportUrl?.trim() || defaultBugReportUrl;
+  const bugReportEndpoint = configuredBugReportEndpoint?.trim() ?? '';
+  const canSubmitBugForm = bugForm.title.trim().length >= 4 && bugForm.description.trim().length >= 10;
   const donateUrl = configuredDonateUrl?.trim();
   const visibleIdeas: VisibleIdea[] = remoteIdeas.length
     ? remoteIdeas.map((idea) => ({
@@ -457,6 +523,39 @@ export function App() {
         species: 'Species',
         outings: 'Outings',
       };
+
+  async function handleWebsiteBugSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!bugReportEndpoint || !canSubmitBugForm || bugFormState === 'sending') return;
+
+    setBugFormState('sending');
+    try {
+      const response = await fetch(bugReportEndpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          title: bugForm.title,
+          description: bugForm.description,
+          steps: bugForm.steps,
+          contact: bugForm.contact,
+          trap: bugForm.trap,
+          language: lang,
+          theme,
+          source: 'website',
+          appVersion: releaseVersion,
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+          reportedAt: new Date().toISOString(),
+        }),
+      });
+
+      if (!response.ok) throw new Error(`Bug report failed: ${response.status}`);
+      setBugForm({ title: '', description: '', steps: '', contact: '', trap: '' });
+      setBugFormState('sent');
+    } catch {
+      setBugFormState('error');
+    }
+  }
 
   return (
     <div className="site-shell">
@@ -698,6 +797,64 @@ export function App() {
             <Bug size={24} />
             <h2>{t.bugTitle as string}</h2>
             <p>{t.bugBody as string}</p>
+            <form className="bug-form" onSubmit={handleWebsiteBugSubmit}>
+              <h3>{t.bugFormTitle as string}</h3>
+              <p>{t.bugFormDescription as string}</p>
+              <label>
+                <span>{t.bugFormName as string}</span>
+                <input
+                  value={bugForm.title}
+                  onChange={(event) => setBugForm((prev) => ({ ...prev, title: event.target.value }))}
+                  placeholder={t.bugFormNamePlaceholder as string}
+                  maxLength={120}
+                />
+              </label>
+              <label>
+                <span>{t.bugFormDetails as string}</span>
+                <textarea
+                  value={bugForm.description}
+                  onChange={(event) => setBugForm((prev) => ({ ...prev, description: event.target.value }))}
+                  placeholder={t.bugFormDetailsPlaceholder as string}
+                  maxLength={3000}
+                  rows={4}
+                />
+              </label>
+              <label>
+                <span>{t.bugFormSteps as string}</span>
+                <textarea
+                  value={bugForm.steps}
+                  onChange={(event) => setBugForm((prev) => ({ ...prev, steps: event.target.value }))}
+                  placeholder={t.bugFormStepsPlaceholder as string}
+                  maxLength={2000}
+                  rows={3}
+                />
+              </label>
+              <label>
+                <span>{t.bugFormContact as string}</span>
+                <input
+                  value={bugForm.contact}
+                  onChange={(event) => setBugForm((prev) => ({ ...prev, contact: event.target.value }))}
+                  maxLength={160}
+                />
+              </label>
+              <input
+                className="trap-field"
+                tabIndex={-1}
+                autoComplete="off"
+                value={bugForm.trap}
+                onChange={(event) => setBugForm((prev) => ({ ...prev, trap: event.target.value }))}
+                aria-hidden="true"
+              />
+              {bugReportEndpoint ? (
+                <button type="submit" className="button primary" disabled={!canSubmitBugForm || bugFormState === 'sending'}>
+                  {bugFormState === 'sending' ? (t.bugFormSending as string) : (t.bugFormSubmit as string)}
+                </button>
+              ) : (
+                <p className="form-note">{t.bugFormFallback as string}</p>
+              )}
+              {bugFormState === 'sent' ? <p className="form-note success">{t.bugFormSent as string}</p> : null}
+              {bugFormState === 'error' ? <p className="form-note error">{lang === 'hr' ? 'Slanje nije uspjelo. Pokusaj kasnije.' : 'Could not send. Try again later.'}</p> : null}
+            </form>
             <div className="link-row">
               <a href={bugReportUrl}>
                 <Bug size={14} />
@@ -752,13 +909,17 @@ export function App() {
             <p>{t.bugBoardBody as string}</p>
           </div>
           <div className="bug-board">
-            {remoteBugs.length ? remoteBugs.map((bug) => (
-              <a className="bug-row" href={bug.html_url} key={bug.html_url}>
-                <span className="bug-number">{bug.number ? `#${bug.number}` : 'Bug'}</span>
-                <strong>{bug.title}</strong>
-                <span>{bug.comments} {lang === 'hr' ? 'komentara' : 'comments'}</span>
-              </a>
-            )) : (
+            {remoteBugs.length ? remoteBugs.map((bug) => {
+              const status = bugStatus(bug, lang);
+              return (
+                <a className="bug-row" href={bug.html_url} key={bug.html_url}>
+                  <span className="bug-number">{bug.number ? `#${bug.number}` : 'Bug'}</span>
+                  <strong>{bug.title}</strong>
+                  <span className={`bug-status status-${status.key}`}>{status.label}</span>
+                  <span>{bug.comments} {lang === 'hr' ? 'komentara' : 'comments'}</span>
+                </a>
+              );
+            }) : (
               <div className="bug-empty">{t.bugBoardEmpty as string}</div>
             )}
           </div>

@@ -1331,6 +1331,104 @@ h1 {
   padding-top: 22px;
 }
 
+.feature-panel .bug-form + .link-row {
+  margin-top: 18px;
+  padding-top: 0;
+}
+
+.bug-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid rgba(121, 101, 67, 0.24);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(184, 109, 34, 0.08), transparent 46%),
+    var(--panel-bg);
+}
+
+.bug-form h3 {
+  margin: 0;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 28px;
+  font-style: italic;
+}
+
+.bug-form p {
+  margin: -4px 0 2px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.bug-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--fg);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.bug-form input,
+.bug-form textarea {
+  width: 100%;
+  border: 1px solid rgba(121, 101, 67, 0.34);
+  border-radius: 8px;
+  padding: 11px 12px;
+  color: var(--fg);
+  background: var(--control-bg);
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.bug-form textarea {
+  resize: vertical;
+}
+
+.bug-form input::placeholder,
+.bug-form textarea::placeholder {
+  color: var(--muted);
+  opacity: 0.75;
+}
+
+.bug-form .button {
+  width: 100%;
+  min-height: 42px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.bug-form .button:disabled {
+  cursor: default;
+  opacity: 0.55;
+  transform: none;
+}
+
+.trap-field {
+  display: none;
+}
+
+.form-note {
+  display: block;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.form-note.success {
+  color: var(--green-dark);
+}
+
+.form-note.error {
+  color: var(--amber-dark);
+}
+
 .feature-panel .idea-flow + .idea-list {
   margin-top: 18px;
   padding-top: 0;
@@ -1418,7 +1516,7 @@ h1 {
 .bug-row,
 .bug-empty {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   gap: 12px;
   align-items: center;
   min-height: 58px;
@@ -1461,6 +1559,40 @@ h1 {
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
+}
+
+.bug-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(121, 101, 67, 0.26);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--control-bg);
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.status-progress {
+  color: var(--amber-dark);
+  border-color: rgba(184, 109, 34, 0.42);
+  background: rgba(184, 109, 34, 0.1);
+}
+
+.status-fixed,
+.status-verify {
+  color: var(--green-dark);
+  border-color: rgba(47, 111, 87, 0.36);
+  background: rgba(47, 111, 87, 0.11);
+}
+
+.status-verified {
+  color: var(--green-dark);
+  border-color: rgba(47, 111, 87, 0.52);
+  background: rgba(47, 111, 87, 0.18);
 }
 
 .bug-empty {
