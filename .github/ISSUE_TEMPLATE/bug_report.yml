@@ -12,7 +12,7 @@ body:
     attributes:
       label: App version
       description: You can find this in Settings.
-      placeholder: v0.2.27
+      placeholder: v0.2.28
   - type: dropdown
     id: language
     attributes:

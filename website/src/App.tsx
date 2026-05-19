@@ -58,6 +58,8 @@ type VisibleIdea = {
 
 const configuredBugReportUrl = import.meta.env.VITE_BUG_REPORT_URL as string | undefined;
 const configuredDonateUrl = import.meta.env.VITE_DONATE_URL as string | undefined;
+const defaultBugReportUrl =
+  'https://github.com/IvicaSkrobo/Bili-Mushroom/issues/new?template=bug_report.yml&labels=bug';
 const ideaSubmitUrl =
   'https://github.com/IvicaSkrobo/Bili-Mushroom/issues/new?template=feature_idea.yml&labels=idea';
 const ideasListUrl = 'https://github.com/IvicaSkrobo/Bili-Mushroom/issues?q=is%3Aissue%20label%3Aidea';
@@ -104,12 +106,12 @@ const copy = {
       'Finds, notes, folders, and photos stay on your computer. Core cataloging works without an account or cloud service.',
     communityTitle: 'Community without a custom backend',
     communityBody:
-      'GitHub Discussions and Giscus will power release comments, questions, showcase posts, and feature ideas. Private bug reports can use a separate form.',
+      'GitHub Discussions and Giscus power release comments, questions, showcase posts, and feature ideas. Bug reports use a structured form.',
     bugTitle: 'Report bugs',
     bugBody:
-      'Bug reports should be private by default, because screenshots, paths, logs, and locations can contain personal data.',
-    bugAction: 'Open private bug form',
-    bugPending: 'Private bug form is coming soon.',
+      'Use the bug form for crashes, broken buttons, wrong translations, or confusing workflows. Check screenshots and logs before attaching them because file paths and locations can be personal.',
+    bugAction: 'Report a bug',
+    bugExternal: 'Uses GitHub issue form',
     ideasTitle: 'Ideas users can vote on',
     ideasBody:
       'Feature requests will live in GitHub Discussions. Users vote with reactions, and popular ideas can move into funding goals.',
@@ -178,12 +180,12 @@ const copy = {
       'Nalazi, biljeske, mape i fotografije ostaju na tvom racunalu. Osnovno katalogiziranje radi bez racuna i clouda.',
     communityTitle: 'Zajednica bez vlastitog backend-a',
     communityBody:
-      'GitHub Discussions i Giscus ce nositi komentare na release, pitanja, prikaze nalaza i ideje. Privatni bugovi mogu ici kroz zaseban obrazac.',
+      'GitHub Discussions i Giscus nose komentare na release, pitanja, prikaze nalaza i ideje. Bugovi idu kroz strukturirani obrazac.',
     bugTitle: 'Prijavi bug',
     bugBody:
-      'Bugovi trebaju biti privatni po defaultu jer screenshotovi, putanje, logovi i lokacije mogu sadrzavati osobne podatke.',
-    bugAction: 'Otvori privatni obrazac',
-    bugPending: 'Privatni obrazac za bugove dolazi uskoro.',
+      'Koristi bug obrazac za crash, pokvarene gumbe, krive prijevode ili zbunjujuce workflowe. Prije slanja provjeri screenshotove i logove jer putanje i lokacije mogu biti osobne.',
+    bugAction: 'Prijavi bug',
+    bugExternal: 'Koristi GitHub issue obrazac',
     ideasTitle: 'Ideje za koje korisnici mogu glasati',
     ideasBody:
       'Prijedlozi funkcija zivjet ce u GitHub Discussions. Korisnici glasaju reakcijama, a popularne ideje mogu ici u funding ciljeve.',
@@ -392,7 +394,7 @@ export function App() {
         .filter(Boolean)
         .slice(0, 4)
     : release.notes[lang];
-  const bugReportUrl = configuredBugReportUrl?.trim();
+  const bugReportUrl = configuredBugReportUrl?.trim() || defaultBugReportUrl;
   const donateUrl = configuredDonateUrl?.trim();
   const visibleIdeas: VisibleIdea[] = remoteIdeas.length
     ? remoteIdeas.map((idea) => ({
@@ -649,17 +651,11 @@ export function App() {
             <h2>{t.bugTitle as string}</h2>
             <p>{t.bugBody as string}</p>
             <div className="link-row">
-              {bugReportUrl ? (
-                <a href={bugReportUrl}>
-                  <Bug size={14} />
-                  {t.bugAction as string}
-                </a>
-              ) : (
-                <span className="pending-link">
-                  <Bug size={14} />
-                  {t.bugPending as string}
-                </span>
-              )}
+              <a href={bugReportUrl}>
+                <Bug size={14} />
+                {t.bugAction as string}
+              </a>
+              <span className="micro-note">{t.bugExternal as string}</span>
             </div>
           </div>
           <div id="ideas" className="feature-panel">

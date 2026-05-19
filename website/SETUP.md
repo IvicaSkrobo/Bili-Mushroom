@@ -21,7 +21,7 @@ Open `Settings` -> `Secrets and variables` -> `Actions` -> `Variables`, then add
 | `VITE_GISCUS_REPO_ID` | Repository ID from the Giscus setup page. |
 | `VITE_GISCUS_CATEGORY` | Discussion category name, for example `General` or `Announcements`. |
 | `VITE_GISCUS_CATEGORY_ID` | Category ID from the Giscus setup page. |
-| `VITE_BUG_REPORT_URL` | Private bug form URL. Use Tally, Google Forms, Formspree, or another private inbox. |
+| `VITE_BUG_REPORT_URL` | Optional bug form URL. If empty, the website uses the public GitHub bug issue template. Use Tally, Google Forms, Formspree, or another private inbox later if needed. |
 | `VITE_DONATE_URL` | Donate page URL, for example Ko-fi, Buy Me a Coffee, PayPal, or Stripe Payment Link. |
 
 These are public website values, not secrets. Do not put private API keys here because Vite embeds them into the generated static files.
@@ -46,11 +46,16 @@ Feature ideas use GitHub issues with the `idea` label.
 4. The website reads open issues with `label:idea` and shows the first 10.
 5. Popular ideas can later be copied into the donation/funding goals.
 
-## Private Bug Reports
+## Bug Reports
 
-Bug reports should be private by default because screenshots and logs can expose file paths or locations.
+The website works immediately with the public GitHub bug issue template:
 
-Good first options:
+`https://github.com/IvicaSkrobo/Bili-Mushroom/issues/new?template=bug_report.yml&labels=bug`
+
+Screenshots and logs can expose file paths or locations, so the website copy reminds users to check attachments before posting.
+
+If a private inbox is needed later, good first options are:
+
 
 - Tally form
 - Google Form
