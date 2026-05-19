@@ -1,0 +1,550 @@
+import {
+  BookOpen,
+  Bug,
+  Download,
+  ExternalLink,
+  Heart,
+  Languages,
+  Map,
+  MessageCircle,
+  Moon,
+  Sparkles,
+  Sprout,
+  Star,
+  Sun,
+  Timer,
+  TrendingUp,
+  Vote,
+} from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { GiscusPanel } from './GiscusPanel';
+import { funding, ideas, release, roadmap } from './siteData';
+
+type Lang = 'en' | 'hr';
+
+type RemoteRelease = {
+  html_url: string;
+  tag_name: string;
+  name: string | null;
+  published_at: string | null;
+  body: string | null;
+};
+
+type RemoteIssue = {
+  html_url: string;
+  title: string;
+  comments: number;
+  pull_request?: unknown;
+  reactions?: {
+    total_count?: number;
+  };
+};
+
+type VisibleIdea = {
+  title: string;
+  titleHr: string;
+  votes: number;
+  status: string;
+  statusHr: string;
+  url: string;
+};
+
+const configuredBugReportUrl = import.meta.env.VITE_BUG_REPORT_URL as string | undefined;
+const configuredDonateUrl = import.meta.env.VITE_DONATE_URL as string | undefined;
+const ideaSubmitUrl =
+  'https://github.com/IvicaSkrobo/Bili-Mushroom/issues/new?template=feature_idea.yml&labels=idea';
+const ideasListUrl = 'https://github.com/IvicaSkrobo/Bili-Mushroom/issues?q=is%3Aissue%20label%3Aidea';
+
+const copy = {
+  en: {
+    eyebrow: 'Local-first field journal for Windows',
+    title: 'Mushroom Book',
+    subtitle: 'Your foraging journal',
+    intro:
+      'A quiet desktop app for foragers who want every find stored, mapped, searchable, and remembered on their own machine.',
+    download: 'Download for Windows',
+    support: 'Donate',
+    supportHero: 'Donate if you like the app',
+    latest: 'Latest release',
+    changelog: 'Small changelog',
+    language: 'Hrvatski',
+    nav: ['Download', 'Changelog', 'Community', 'Ideas', 'Donate'],
+    theme: 'Theme',
+    fundingTop: 'Donate if you like it',
+    pillars: [
+      ['Collect', 'Import photos, notes, locations, dates, and species details into one local library.'],
+      ['Map', 'See field history by place, species, and season without losing context.'],
+      ['Understand', 'Stats, seasons, field outings, and PDF export turn your archive into a useful journal.'],
+    ],
+    downloadBody:
+      'The website reads the latest GitHub Release and falls back to bundled release notes if GitHub is unavailable.',
+    communityTitle: 'Community without a custom backend',
+    communityBody:
+      'GitHub Discussions and Giscus will power release comments, questions, showcase posts, and feature ideas. Private bug reports can use a separate form.',
+    bugTitle: 'Report bugs',
+    bugBody:
+      'Bug reports should be private by default, because screenshots, paths, logs, and locations can contain personal data.',
+    bugAction: 'Open private bug form',
+    bugPending: 'Private form link is not connected yet. Add VITE_BUG_REPORT_URL when the form is ready.',
+    ideasTitle: 'Ideas users can vote on',
+    ideasBody:
+      'Feature requests will live in GitHub Discussions. Users vote with reactions, and popular ideas can move into funding goals.',
+    ideasAction: 'Add an idea',
+    ideasList: 'View ideas',
+    fundingTitle: 'Voluntary support',
+    fundingBody:
+      'If the app helps you, you can support it from goodwill. Larger ideas can still become visible goals later.',
+    screenshotsTitle: 'App surfaces to show',
+    screenshots: ['Collection', 'Species detail', 'Map', 'Stats and PDF'],
+    roadmapTitle: 'Build roadmap',
+    roadmapBody:
+      'The site is built in practical layers so releases, comments, voting, donations, and updates can become real without adding a custom backend too early.',
+    footer: 'Built for mushroom notes, maps, seasons, and patient local archives.',
+  },
+  hr: {
+    eyebrow: 'Lokalni gljivarski dnevnik za Windows',
+    title: 'Gljivobook',
+    subtitle: 'Tvoj gljivarski dnevnik',
+    intro:
+      'Mirna desktop aplikacija za gljivare koji zele svaki nalaz spremiti, mapirati, pretraziti i sacuvati na svom racunalu.',
+    download: 'Preuzmi za Windows',
+    support: 'Doniraj',
+    supportHero: 'Doniraj za Gljivobook',
+    latest: 'Zadnja verzija',
+    changelog: 'Kratki changelog',
+    language: 'English',
+    nav: ['Preuzimanje', 'Promjene', 'Zajednica', 'Ideje', 'Doniraj'],
+    theme: 'Tema',
+    fundingTop: 'Doniraj iz dobre volje',
+    pillars: [
+      ['Zbirka', 'Uvezi fotografije, biljeske, lokacije, datume i podatke o vrsti u lokalnu knjiznicu.'],
+      ['Mapa', 'Vidi povijest terena po mjestu, vrsti i sezoni bez gubljenja konteksta.'],
+      ['Uvidi', 'Statistike, sezone, izlasci na teren i PDF export pretvaraju arhivu u koristan dnevnik.'],
+    ],
+    downloadBody:
+      'Website cita zadnji GitHub Release i koristi lokalni fallback ako GitHub trenutno nije dostupan.',
+    communityTitle: 'Zajednica bez vlastitog backend-a',
+    communityBody:
+      'GitHub Discussions i Giscus ce nositi komentare na release, pitanja, prikaze nalaza i ideje. Privatni bugovi mogu ici kroz zaseban obrazac.',
+    bugTitle: 'Prijavi bug',
+    bugBody:
+      'Bugovi trebaju biti privatni po defaultu jer screenshotovi, putanje, logovi i lokacije mogu sadrzavati osobne podatke.',
+    bugAction: 'Otvori privatni obrazac',
+    bugPending: 'Privatni form link jos nije spojen. Dodaj VITE_BUG_REPORT_URL kad obrazac bude spreman.',
+    ideasTitle: 'Ideje za koje korisnici mogu glasati',
+    ideasBody:
+      'Prijedlozi funkcija zivjet ce u GitHub Discussions. Korisnici glasaju reakcijama, a popularne ideje mogu ici u funding ciljeve.',
+    ideasAction: 'Dodaj ideju',
+    ideasList: 'Pogledaj ideje',
+    fundingTitle: 'Dobrovoljna podrska',
+    fundingBody:
+      'Ako ti aplikacija pomaze, mozes je podrzati iz dobre volje. Vece ideje kasnije mogu dobiti zaseban cilj.',
+    screenshotsTitle: 'Dijelovi aplikacije za prikaz',
+    screenshots: ['Zbirka', 'Detalj vrste', 'Mapa', 'Statistike i PDF'],
+    roadmapTitle: 'Roadmap izrade',
+    roadmapBody:
+      'Website gradimo u prakticnim slojevima da releaseovi, komentari, glasanje, donacije i updater postanu stvarni bez prerano dodanog vlastitog backend-a.',
+    footer: 'Gradeno za gljivarske biljeske, karte, sezone i strpljive lokalne arhive.',
+  },
+} satisfies Record<Lang, Record<string, unknown>>;
+
+function getLang(): Lang {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('lang') === 'hr') return 'hr';
+  if (params.get('lang') === 'en') return 'en';
+  return window.location.pathname.toLowerCase().startsWith('/hr') ? 'hr' : 'en';
+}
+
+function switchPath(lang: Lang) {
+  return lang === 'hr' ? './?lang=en' : './?lang=hr';
+}
+
+function BrandMark() {
+  return (
+    <div className="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 140 140" role="img">
+        <path className="book left" d="M15 58c16-8 34-8 53 2v50c-18-10-36-12-53-4V58Z" />
+        <path className="book right" d="M73 60c19-10 37-10 53-2v48c-17-8-35-6-53 4V60Z" />
+        <path className="spine" d="M68 60c2 8 2 42 0 50" />
+        <path className="spine right" d="M73 60c-2 8-2 42 0 50" />
+        <path className="stem main" d="M70 94c-3-22 0-41 9-58" />
+        <path className="stem side left" d="M61 96c-7-12-9-23-6-33" />
+        <path className="stem side right" d="M84 96c8-12 10-23 6-33" />
+        <path className="cap main" d="M40 34c13-31 55-35 76-9 6 8 9 17 9 25 0 10-8 17-18 17H48c-13 0-19-13-8-33Z" />
+        <path className="cap left" d="M31 80c6-17 25-18 34-4 4 6 0 14-7 15l-18 3c-7 1-12-7-9-14Z" />
+        <path className="cap right" d="M86 79c7-18 27-19 35-3 3 6-1 13-8 13H94c-6 0-10-5-8-10Z" />
+        <path className="moss left" d="M36 99c14 5 33 4 47-1" />
+        <path className="moss right" d="M75 100c15 4 34 3 48-2" />
+        <circle className="spot" cx="58" cy="38" r="3.4" />
+        <circle className="spot" cx="74" cy="31" r="2.4" />
+        <circle className="spot" cx="94" cy="41" r="3" />
+      </svg>
+    </div>
+  );
+}
+
+function AppScreenshot({ label, index }: { label: string; index: number }) {
+  return (
+    <div className="shot">
+      <div className="shot-top">
+        <span />
+        <span />
+        <span />
+      </div>
+      <div className="shot-grid">
+        <div className="shot-side" />
+        <div className={`shot-main shot-main-${index}`}>
+          <div className="shot-title" />
+          <div className="shot-line long" />
+          <div className="shot-line" />
+          <div className="shot-pills">
+            <span />
+            <span />
+            <span />
+          </div>
+        </div>
+      </div>
+      <p>{label}</p>
+    </div>
+  );
+}
+
+export function App() {
+  const lang = getLang();
+  const t = copy[lang];
+  const otherLang = lang === 'hr' ? 'en' : 'hr';
+  const [latestRelease, setLatestRelease] = useState<RemoteRelease | null>(null);
+  const [remoteIdeas, setRemoteIdeas] = useState<RemoteIssue[]>([]);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const stored = window.localStorage.getItem('gljivobook-site-theme');
+    if (stored === 'light' || stored === 'dark') return stored;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
+  const themeLabel = useMemo(
+    () => (theme === 'dark' ? (lang === 'hr' ? 'Svijetlo' : 'Light') : (lang === 'hr' ? 'Tamno' : 'Dark')),
+    [lang, theme],
+  );
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem('gljivobook-site-theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('https://api.github.com/repos/IvicaSkrobo/Bili-Mushroom/releases/latest', {
+      signal: controller.signal,
+      headers: { Accept: 'application/vnd.github+json' },
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: RemoteRelease | null) => {
+        if (data?.tag_name) setLatestRelease(data);
+      })
+      .catch(() => {
+        // Keep the static fallback when GitHub is unavailable or rate-limited.
+      });
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('https://api.github.com/repos/IvicaSkrobo/Bili-Mushroom/issues?state=open&labels=idea&per_page=10', {
+      signal: controller.signal,
+      headers: { Accept: 'application/vnd.github+json' },
+    })
+      .then((response) => (response.ok ? response.json() : []))
+      .then((data: RemoteIssue[]) => {
+        setRemoteIdeas(data.filter((issue) => !issue.pull_request));
+      })
+      .catch(() => {
+        // Local idea fallback keeps the page useful before GitHub labels are set up.
+      });
+    return () => controller.abort();
+  }, []);
+
+  const releaseVersion = latestRelease?.tag_name ?? release.version;
+  const releaseUrl = latestRelease?.html_url ?? release.installerUrl;
+  const releaseDate = latestRelease?.published_at
+    ? new Intl.DateTimeFormat(lang === 'hr' ? 'hr-HR' : 'en-US', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }).format(new Date(latestRelease.published_at))
+    : release.date;
+  const releaseNotes = latestRelease?.body
+    ? latestRelease.body
+        .split('\n')
+        .map((line) => line.replace(/^[-*#\s]+/, '').trim())
+        .filter(Boolean)
+        .slice(0, 4)
+    : release.notes[lang];
+  const bugReportUrl = configuredBugReportUrl?.trim();
+  const donateUrl = configuredDonateUrl?.trim() || 'https://github.com/IvicaSkrobo/Bili-Mushroom';
+  const visibleIdeas: VisibleIdea[] = remoteIdeas.length
+    ? remoteIdeas.map((idea) => ({
+        title: idea.title,
+        titleHr: idea.title,
+        votes: idea.reactions?.total_count ?? idea.comments,
+        status: 'GitHub',
+        statusHr: 'GitHub',
+        url: idea.html_url,
+      }))
+    : ideas.map((idea) => ({
+        ...idea,
+        url: 'https://github.com/IvicaSkrobo/Bili-Mushroom/issues',
+      }));
+
+  return (
+    <div className="site-shell">
+      <header className="site-header">
+        <a className="brand" href={lang === 'hr' ? './?lang=hr' : './'} aria-label={`${t.title as string} home`}>
+          <BrandMark />
+          <span>
+            <strong>{t.title as string}</strong>
+            <small>{lang === 'hr' ? 'Hrvatski' : 'English'}</small>
+          </span>
+        </a>
+        <nav aria-label="Primary navigation">
+          {(t.nav as string[]).map((item, index) => (
+            <a key={item} href={`#${['download', 'changelog', 'community', 'ideas', 'support'][index]}`}>
+              {item}
+            </a>
+          ))}
+        </nav>
+        <a className="funding-strip" href="#support" aria-label={t.fundingTop as string}>
+          <span>
+            <Heart size={14} />
+            {t.fundingTop as string}
+          </span>
+        </a>
+        <div className="header-actions">
+          <button
+            className="theme-switch"
+            type="button"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            aria-label={`${t.theme as string}: ${themeLabel}`}
+          >
+            {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+            {themeLabel}
+          </button>
+          <a className="lang-switch" href={switchPath(lang)} aria-label={`Switch to ${otherLang}`}>
+            <Languages size={15} />
+            {t.language as string}
+          </a>
+        </div>
+      </header>
+
+      <main>
+        <section className="hero">
+          <div className="hero-copy">
+            <p className="eyebrow"><Sprout size={15} />{t.eyebrow as string}</p>
+            <h1>
+              <span className="hero-title-word">{t.title as string}</span>
+              <span className="hero-subtitle">{t.subtitle as string}</span>
+            </h1>
+            <p className="intro">{t.intro as string}</p>
+            <div className="hero-actions">
+              <a className="button primary" href={releaseUrl}>
+                <Download size={18} />
+                {t.download as string}
+              </a>
+              <a className="button secondary" href="#support">
+                <Heart size={18} />
+                {t.supportHero as string}
+              </a>
+            </div>
+          </div>
+          <div className="hero-visual" aria-label={`${t.title as string} app preview`}>
+            <div className="window-shell">
+              <div className="window-bar">
+                <span />
+                <span />
+                <span />
+                <strong>{t.title as string}</strong>
+              </div>
+              <div className="window-content">
+                <div className="window-list">
+                  <div>
+                    <span>Cantharellus cibarius</span>
+                    <small>12.05.2026</small>
+                  </div>
+                  <div>
+                    <span>Boletus edulis</span>
+                    <small>4 nalaza</small>
+                  </div>
+                  <div className="active">
+                    <span>Morchella esculenta</span>
+                    <small>Zadnji zapis danas</small>
+                  </div>
+                </div>
+                <div className="window-map">
+                  <div className="window-tabs">
+                    <span className="selected">Mapa</span>
+                    <span>Vrste</span>
+                    <span>Statistike</span>
+                  </div>
+                  <Map size={44} />
+                  <span className="pin one" />
+                  <span className="pin two" />
+                  <span className="pin three" />
+                  <div className="map-callout">
+                    <strong>Morchella esculenta</strong>
+                    <small>3 nalaza - travanj</small>
+                    <em>Jestiva</em>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="pillars" aria-label="Product highlights">
+          {(t.pillars as [string, string][]).map(([title, body], index) => {
+            const Icon = [BookOpen, Map, TrendingUp][index];
+            return (
+              <article key={title}>
+                <Icon size={22} />
+                <h2>{title}</h2>
+                <p>{body}</p>
+              </article>
+            );
+          })}
+        </section>
+
+        <section id="download" className="section split">
+          <div>
+            <p className="eyebrow"><Download size={15} />{t.latest as string}</p>
+            <h2>{releaseVersion}</h2>
+            <p>{t.downloadBody as string}</p>
+            <a className="button primary" href={releaseUrl}>
+              {t.download as string}
+              <ExternalLink size={16} />
+            </a>
+          </div>
+          <div id="changelog" className="release-card">
+            <p className="mono">{releaseDate}</p>
+            <h3>{t.changelog as string}</h3>
+            <ul>
+              {releaseNotes.map((note) => <li key={note}>{note}</li>)}
+            </ul>
+          </div>
+        </section>
+
+        <section className="section">
+          <p className="eyebrow"><Sparkles size={15} />{t.screenshotsTitle as string}</p>
+          <div className="screenshots">
+            {(t.screenshots as string[]).map((label, index) => (
+              <AppScreenshot key={label} label={label} index={index} />
+            ))}
+          </div>
+        </section>
+
+        <section className="section roadmap-section">
+          <p className="eyebrow"><Timer size={15} />{t.roadmapTitle as string}</p>
+          <h2>{t.roadmapTitle as string}</h2>
+          <p className="section-lead">{t.roadmapBody as string}</p>
+          <div className="roadmap-list">
+            {roadmap.map((item) => (
+              <article className="roadmap-card" key={item.phase}>
+                <div>
+                  <span className="mono">{lang === 'hr' ? item.phaseHr : item.phase}</span>
+                  <strong>{lang === 'hr' ? item.statusHr : item.status}</strong>
+                </div>
+                <h3>{lang === 'hr' ? item.titleHr : item.title}</h3>
+                <p>{lang === 'hr' ? item.bodyHr : item.body}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section id="community" className="section community-grid">
+          <div className="feature-panel">
+            <MessageCircle size={24} />
+            <h2>{t.communityTitle as string}</h2>
+            <p>{t.communityBody as string}</p>
+            <div className="link-row">
+              <a href="https://github.com/IvicaSkrobo/Bili-Mushroom/discussions">GitHub Discussions</a>
+              <a href="#bug-report"><Bug size={14} /> Bugs</a>
+            </div>
+          </div>
+          <div className="feature-panel" id="bug-report">
+            <Bug size={24} />
+            <h2>{t.bugTitle as string}</h2>
+            <p>{t.bugBody as string}</p>
+            <div className="link-row">
+              {bugReportUrl ? (
+                <a href={bugReportUrl}>
+                  <Bug size={14} />
+                  {t.bugAction as string}
+                </a>
+              ) : (
+                <span className="pending-link">
+                  <Bug size={14} />
+                  {t.bugPending as string}
+                </span>
+              )}
+            </div>
+          </div>
+          <div id="ideas" className="feature-panel">
+            <Vote size={24} />
+            <h2>{t.ideasTitle as string}</h2>
+            <p>{t.ideasBody as string}</p>
+            <div className="idea-list">
+              {visibleIdeas.map((idea) => (
+                <a className="idea" href={idea.url} key={idea.title}>
+                  <span>{lang === 'hr' ? idea.titleHr : idea.title}</span>
+                  <strong><Star size={14} /> {idea.votes}</strong>
+                  <em>{lang === 'hr' ? idea.statusHr : idea.status}</em>
+                </a>
+              ))}
+            </div>
+            <div className="link-row compact-links">
+              <a href={ideaSubmitUrl}>
+                <Vote size={14} />
+                {t.ideasAction as string}
+              </a>
+              <a href={ideasListUrl}>
+                <ExternalLink size={14} />
+                {t.ideasList as string}
+              </a>
+            </div>
+          </div>
+        </section>
+
+        <GiscusPanel lang={lang} theme={theme} />
+
+        <section id="support" className="section split">
+          <div>
+            <p className="eyebrow"><Heart size={15} />{t.support as string}</p>
+            <h2>{t.fundingTitle as string}</h2>
+            <p>{t.fundingBody as string}</p>
+            <a className="button secondary" href={donateUrl}>
+              {t.supportHero as string}
+              <ExternalLink size={16} />
+            </a>
+          </div>
+          <div className="funding-card">
+            {funding.map((item) => {
+              const pct = Math.round((item.current / item.goal) * 100);
+              return (
+                <article key={item.title}>
+                  <span className="mono">{pct}%</span>
+                  <h3>{lang === 'hr' ? item.titleHr : item.title}</h3>
+                  <div className="progress" aria-label={`${pct}% funded`}>
+                    <span style={{ width: `${pct}%` }} />
+                  </div>
+                  <p>{`EUR ${item.current} / EUR ${item.goal}`}</p>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <BrandMark />
+        <p>{t.footer as string}</p>
+      </footer>
+    </div>
+  );
+}

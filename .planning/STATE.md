@@ -4,14 +4,14 @@ milestone: v1.0
 milestone_name: milestone
 status: planning
 stopped_at: "Released v0.1.22: stats drill-down, Windows compat, species editor UX overhaul, edibility note migrations, import/create dialog UX polish"
-last_updated: "2026-05-12T00:00:00.000Z"
-last_activity: 2026-05-12 -- v0.1.22 shipped: Windows compat fixes, species name editor B/N toolbar + double-click/shortcuts, stats species drill-down, fit-to-pins, import new-species badges, edibility note DB migrations 0014-0016
+last_updated: "2026-05-19T12:30:00.000Z"
+last_activity: 2026-05-19 -- Planned Phase 06 Large Library Management & Scalability after folder/copy/move, tooltip clarity, and 100k-photo concerns
 progress:
-  total_phases: 9
+  total_phases: 10
   completed_phases: 6
-  total_plans: 19
+  total_plans: 24
   completed_plans: 19
-  percent: 100
+  percent: 79
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-09)
 
 **Core value:** A forager's personal mushroom journal — every find stored, organized, searchable, and mapped so that nothing collected is ever forgotten.
-**Current focus:** Post-Phase 04 maintenance, updater/release hardening, and map/folder workflow polish
+**Current focus:** Website/release work plus newly planned large-library management/scalability for users with existing photo folders or multi-thousand-photo libraries
 
 ## Current Position
 
 Phase: 04.2 complete — MAINTENANCE
 Plan: Post-phase maintenance
 Status: Completed planned phase work; maintenance fixes and planning artifacts are synced to the current shipped behavior
-Last activity: 2026-05-07 -- Release/update infrastructure and maintenance UX fixes landed; next verification focus is production updater behavior plus remaining map regressions
+Last activity: 2026-05-19 -- Added Phase 06 Large Library Management & Scalability to cover clear folder semantics/tooltips, copy/move/register flows, batch-safe imports, paginated reads, collection virtualization, and map viewport/clustering work
 
-Progress: [██████████] 100%
+Progress: [████████░░] 79%
 
 ## Performance Metrics
 
@@ -103,7 +103,7 @@ Recent decisions affecting current work:
 - [ ] Do a post-grouped-import UX safety pass for mixed batches and future split/ungroup affordances
 - [ ] Review bulk operations for consistent confirmation, refresh, and cache-update behavior
 - [ ] Review map tile cache policy (limit, eviction, settings exposure, offline UX copy)
-- [ ] Rework query/list strategy for large libraries (5k+ photos): lighter query shapes, targeted cache updates, and/or virtualization where needed
+- [ ] Execute Phase 06 Large Library Management & Scalability: clear folder semantics/tooltips, copy/move/register flows, batch import/relocation, paginated query shapes, virtualized collection browsing, and viewport-aware map rendering for 5k+ and stretch 100k-photo libraries
 - [ ] Implement species-specific map zones: local circle zones first, polygon-ready region zones next, with map view modes for pins/local/region/all
 - [ ] Add manual "Check for updates" action plus low-noise background update re-check every few hours
 - [ ] Add non-mutating photo library health check: report missing files/references before any cleanup action

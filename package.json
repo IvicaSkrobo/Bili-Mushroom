@@ -1,12 +1,15 @@
 {
   "name": "gljivobook",
-  "version": "0.2.27",
+  "version": "0.2.28",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "website:dev": "vite --config website/vite.config.ts",
+    "website:build": "vite build --config website/vite.config.ts",
+    "website:preview": "vite preview --config website/vite.config.ts",
     "tauri": "tauri",
     "release": "node scripts/release.js",
     "release:patch": "node scripts/release.js patch",

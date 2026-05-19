@@ -2,7 +2,7 @@
 
 ## Overview
 
-Gljivobook is built in phases, each delivering a coherent and verifiable capability. Phase 1 establishes the technical foundation - Tauri 2 app shell, SQLite with WAL mode, and migration runner - before any feature code touches the database. Phases 2 and 3 deliver the two core pillars: getting finds into the app (import + file organization) and seeing them on a map. Phase 4 delivers the stats dashboard and export so foragers can understand their patterns and share their collection. Phase 5 extends the product beyond the desktop app with a public website, automated releases/downloads, a working in-app updater, community feedback, feature voting, and support/donation flows. Species database, search, wishlist, and browse features remain in the backlog pending client demand.
+Gljivobook is built in phases, each delivering a coherent and verifiable capability. Phase 1 establishes the technical foundation - Tauri 2 app shell, SQLite with WAL mode, and migration runner - before any feature code touches the database. Phases 2 and 3 deliver the two core pillars: getting finds into the app (import + file organization) and seeing them on a map. Phase 4 delivers the stats dashboard and export so foragers can understand their patterns and share their collection. Phase 5 extends the product beyond the desktop app with a public website, automated releases/downloads, a working in-app updater, community feedback, feature voting, and support/donation flows. Phase 6 hardens the app for large personal libraries so users with thousands or tens of thousands of photos can import, browse, and map their finds without the UI trying to render everything at once. Species database, search, wishlist, and browse features remain in the backlog pending client demand.
 
 ## Phases
 
@@ -19,6 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 04.1: UX Governance & Performance Hardening (INSERTED)** - Design system governance, bundle/code-splitting, E2E critical path coverage
 - [ ] **Phase 04.2: Seasonal Insights & Field Hints (INSERTED)** - Seasonality insights and lightweight "go-to-spot" species reminders
 - [ ] **Phase 05: Website, Releases, Community & Support (INSERTED)** - GitHub Pages website, real release/updater pipeline, support/donate entry points, GitHub Discussions/Giscus community, voted feature ideas, and funding-goal board
+- [ ] **Phase 06: Large Library Management & Scalability (INSERTED)** - Clear library-folder choices, copy/move/register flows, batch-safe import, paginated database reads, virtualized collection browsing, and viewport-aware map rendering for multi-thousand-photo libraries
 
 ## Phase Details
 
@@ -176,10 +177,47 @@ Plans:
 - Whether screenshots should be captured from local demo data or provided manually from real usage.
 - Whether release notes are authored directly in GitHub Releases or generated from `CHANGELOG.md`.
 
+### Phase 06: Large Library Management & Scalability (INSERTED)
+
+**Goal:** Make Gljivobook comfortable and clear for users with existing photo folders, existing Gljivobook libraries, or very large personal photo libraries (multi-thousand photos, with a stretch target around 100k source photos) without imposing an artificial app limit.
+**Depends on:** Phase 05
+**Requirements**: LIB-01, LIB-02, PERF-01, IMP-06, MAP-07, COL-06
+**Non-goal:** Do not redesign the entire data model or add server/cloud sync. Keep the app local-first and conservative.
+
+**Success Criteria** (what must be TRUE):
+  1. First-run and Settings folder flows clearly distinguish: open an existing Gljivobook library, create/switch to an empty library folder, register an existing photo folder in place, copy photos into Gljivobook, and move photos into Gljivobook.
+  2. Choosing a folder that is not already a Gljivobook database does not silently pretend it is one; the app asks what the user wants to do.
+  3. Each folder action has a concise tooltip/help text explaining what happens to the original files, where the database will live, and whether anything will be copied or deleted.
+  4. Large folder/library import runs in bounded batches with progress, cancellation-safe checkpoints, duplicate skipping, and no thumbnail grid that tries to render every selected photo.
+  5. Users can choose whether a large existing folder should be registered in place, copied into a new Gljivobook library folder, or moved into it, with clear safety copy-before-delete behavior.
+  6. Reads from `finds`/`find_photos` have lightweight paginated/list-summary shapes, while full photo/detail records are loaded on demand.
+  7. Collection browsing remains responsive with thousands of finds through virtualization and/or paginated species/find sections.
+  8. Map rendering remains responsive by querying/grouping visible finds for the viewport/zoom and using clustering or capped marker rendering instead of placing every pin at once.
+  9. Stats/export paths keep existing behavior but avoid accidentally forcing huge photo blobs or all thumbnails into memory for ordinary browsing.
+  10. A synthetic large-library test fixture or benchmark covers at least 10k finds/photos, with notes for the 100k-photo stretch scenario.
+
+**Plans**: 5 plans
+Plans:
+- [ ] 06-01-PLAN.md - Library folder chooser semantics: existing Gljivobook DB vs empty folder vs photo folder, with explicit user choices
+- [ ] 06-02-PLAN.md - Large import/relocation pipeline: batch scanning, register-in-place/copy/move modes, bounded queues, progress/checkpoints, no all-photo thumbnail render
+- [ ] 06-03-PLAN.md - Database/query shapes: paginated find summaries, on-demand photo/detail queries, index audit
+- [ ] 06-04-PLAN.md - Collection scalability: virtualized species/find rows, paginated expanded sections, targeted cache updates
+- [ ] 06-05-PLAN.md - Map scalability: viewport/zoom query path, clustering/group summaries, fit-to-pins without rendering every marker
+**UI hint**: yes
+
+**Implementation Notes:**
+- Current risk areas confirmed in code: `get_finds` loads all finds and all photos at once; `ImportDialog` can render `photos.map(...)` for every selected image; `CollectionTab` maps every visible group/find; `CollectionPins` builds all location groups and markers client-side.
+- Current library-folder risk confirmed in code: Settings "Change Folder" currently saves the new path and triggers a scan; it does not yet offer a real copy/move/register/open-existing decision flow.
+- Prefer incremental replacement over a rewrite: add new list/query commands beside existing commands, migrate callers one surface at a time, and keep exports/detail dialogs able to request full records when needed.
+- For import UX, show counts and a small representative preview only. Never render 10k+ thumbnails in the picker.
+- For folder relocation UX, separate the choices clearly: "use this folder as the library" (no file move), "copy into my library" (preserve original), and "move into my library" (copy first, then delete source only after success).
+- Add tooltips/help affordances beside each destructive or ambiguous folder action. Tooltip copy should be concrete, for example: "Original folder stays where it is", "Photos will be copied; originals remain", or "Photos are copied first, then originals are removed only after success."
+- For map UX, prioritize "what is visible now" and aggregate counts. Users should still be able to fit bounds and drill into a species/location, but not at the cost of thousands of mounted Leaflet markers.
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 â†’ 2 â†’ 3 â†’ 4
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -191,6 +229,7 @@ Phases execute in numeric order: 1 â†’ 2 â†’ 3 â†’ 4
 | 04.1 UX Governance & Performance Hardening | 3/3 | Complete | 2026-04-16 |
 | 04.2 Seasonal Insights & Field Hints | 2/2 | Complete | 2026-04-16 |
 | 05 Website, Releases, Community & Support | 0/6 | Planned | - |
+| 06 Large Library Management & Scalability | 0/5 | Planned | - |
 
 ## Backlog
 

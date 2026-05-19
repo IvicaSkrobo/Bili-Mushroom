@@ -1,5 +1,5 @@
 import { Suspense, lazy, useState } from 'react';
-import { Settings as SettingsIcon, Sun, Moon, X } from 'lucide-react';
+import { ExternalLink, Globe2, Settings as SettingsIcon, Sun, Moon, X } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useAppStore, type Tab } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
 import { APP_VERSION } from '@/lib/appMeta';
+import { WEBSITE_URL } from '@/lib/externalLinks';
 
 const CollectionTab = lazy(() => import('@/tabs/CollectionTab'));
 const SpeciesTab = lazy(() => import('@/tabs/SpeciesTab'));
@@ -110,6 +111,17 @@ export function AppShell() {
             )}
           </div>
           <div className="flex items-center gap-1.5 rounded-full border border-border/70 bg-background/35 px-1.5 py-1">
+          <a
+            href={WEBSITE_URL}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={t('app.openWebsite')}
+            title={t('app.openWebsite')}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary/10 hover:text-secondary"
+          >
+            <Globe2 className="h-4 w-4" />
+            <ExternalLink className="-ml-1 mt-3 h-2.5 w-2.5 opacity-60" />
+          </a>
           <Button
             variant="ghost"
             size="icon"

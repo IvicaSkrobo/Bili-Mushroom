@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { FINDS_QUERY_KEY } from '@/lib/finds';
-import { Info } from 'lucide-react';
+import { Bug, ExternalLink, Globe2, Heart, Info } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
@@ -21,8 +21,7 @@ import type { Lang } from '@/i18n/index';
 import { getTileCacheStats, clearTileCache, getCacheMaxBytes, setCacheMax, formatMb, type TileCacheStats } from '@/lib/tileCache';
 import { APP_VERSION } from '@/lib/appMeta';
 import { resetHiddenLocationSuggestions } from '@/components/finds/LocationNoteInput';
-
-const SUPPORT_URL = 'https://github.com/IvicaSkrobo/Bili-Mushroom';
+import { BUG_REPORT_URL, DONATE_URL, WEBSITE_URL } from '@/lib/externalLinks';
 
 export interface SettingsDialogProps {
   open: boolean;
@@ -191,16 +190,40 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
             </div>
 
             <div className="flex items-center justify-between gap-3 pt-1">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <span>Gljivobook</span>
                 <a
-                  href={SUPPORT_URL}
+                  href={WEBSITE_URL}
                   target="_blank"
                   rel="noreferrer"
-                  className="rounded-full border border-primary/25 bg-primary/5 px-2 py-0.5 font-medium text-primary transition-colors hover:border-primary/55 hover:bg-primary/10"
+                  className="inline-flex items-center gap-1 rounded-full border border-secondary/30 bg-secondary/5 px-2 py-0.5 font-medium text-secondary transition-colors hover:border-secondary/60 hover:bg-secondary/10"
+                  title={t('settings.websiteTitle')}
+                >
+                  <Globe2 className="h-3 w-3" />
+                  {t('settings.website')}
+                  <ExternalLink className="h-3 w-3 opacity-60" />
+                </a>
+                <a
+                  href={BUG_REPORT_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 rounded-full border border-destructive/25 bg-destructive/5 px-2 py-0.5 font-medium text-destructive transition-colors hover:border-destructive/55 hover:bg-destructive/10"
+                  title={t('settings.reportBugTitle')}
+                >
+                  <Bug className="h-3 w-3" />
+                  {t('settings.reportBug')}
+                  <ExternalLink className="h-3 w-3 opacity-60" />
+                </a>
+                <a
+                  href={DONATE_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/5 px-2 py-0.5 font-medium text-primary transition-colors hover:border-primary/55 hover:bg-primary/10"
                   title={t('settings.supportTitle')}
                 >
+                  <Heart className="h-3 w-3" />
                   {t('settings.support')}
+                  <ExternalLink className="h-3 w-3 opacity-60" />
                 </a>
               </div>
               <span className="text-xs text-muted-foreground font-mono">v{APP_VERSION}</span>
