@@ -52,6 +52,12 @@ The website works immediately with the public GitHub bug issue template:
 
 `https://github.com/IvicaSkrobo/Bili-Mushroom/issues/new?template=bug_report.yml&labels=bug`
 
+The public bug board lives at:
+
+`https://ivicaskrobo.github.io/Bili-Mushroom/?lang=hr#bugs`
+
+It reads open GitHub issues with the `bug` label and shows title, issue number, comments, and link. Do not put private contact details in public issue bodies.
+
 Screenshots and logs can expose file paths or locations, so the website copy reminds users to check attachments before posting.
 
 If a private inbox is needed later, good first options are:

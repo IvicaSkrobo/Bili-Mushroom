@@ -14,6 +14,7 @@ import {
   Sparkles,
   Sprout,
   Star,
+  AlertCircle,
   Sun,
   TrendingUp,
   Vote,
@@ -38,9 +39,12 @@ type RemoteRelease = {
 };
 
 type RemoteIssue = {
+  number?: number;
   html_url: string;
   title: string;
   comments: number;
+  updated_at?: string | null;
+  state?: string;
   pull_request?: unknown;
   reactions?: {
     total_count?: number;
@@ -63,6 +67,7 @@ const defaultBugReportUrl =
 const ideaSubmitUrl =
   'https://github.com/IvicaSkrobo/Bili-Mushroom/issues/new?template=feature_idea.yml&labels=idea';
 const ideasListUrl = 'https://github.com/IvicaSkrobo/Bili-Mushroom/issues?q=is%3Aissue%20label%3Aidea';
+const bugsListUrl = 'https://github.com/IvicaSkrobo/Bili-Mushroom/issues?q=is%3Aissue%20label%3Abug';
 
 const copy = {
   en: {
@@ -109,6 +114,10 @@ const copy = {
     bugBody: 'Report crashes, broken buttons, wrong translations, or confusing workflows.',
     bugAction: 'Report a bug',
     bugExternal: 'Uses GitHub issue form',
+    bugBoardTitle: 'Public bug board',
+    bugBoardBody: 'Open reports from GitHub. Personal contact details are not shown here.',
+    bugBoardEmpty: 'No public bug reports yet.',
+    bugBoardAction: 'View all bugs',
     ideasTitle: 'Ideas users can vote on',
     ideasBody:
       'Suggest features, vote with reactions, and push strong ideas toward funding goals.',
@@ -178,6 +187,10 @@ const copy = {
     bugBody: 'Prijavi crash, pokvareni gumb, krivi prijevod ili zbunjujuci workflow.',
     bugAction: 'Prijavi bug',
     bugExternal: 'Koristi GitHub issue obrazac',
+    bugBoardTitle: 'Javna lista bugova',
+    bugBoardBody: 'Otvorene prijave s GitHuba. Osobni kontakt podaci se ovdje ne prikazuju.',
+    bugBoardEmpty: 'Jos nema javnih bug prijava.',
+    bugBoardAction: 'Pogledaj sve bugove',
     ideasTitle: 'Ideje za koje korisnici mogu glasati',
     ideasBody:
       'Predlozi funkciju, drugi glasaju reakcijama, a jake ideje mogu u funding ciljeve.',
@@ -321,6 +334,7 @@ export function App() {
   const t = copy[lang];
   const [latestRelease, setLatestRelease] = useState<RemoteRelease | null>(null);
   const [remoteIdeas, setRemoteIdeas] = useState<RemoteIssue[]>([]);
+  const [remoteBugs, setRemoteBugs] = useState<RemoteIssue[]>([]);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const stored = window.localStorage.getItem('gljivobook-site-theme');
     if (stored === 'light' || stored === 'dark') return stored;
@@ -364,6 +378,22 @@ export function App() {
       })
       .catch(() => {
         // Local idea fallback keeps the page useful before GitHub labels are set up.
+      });
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('https://api.github.com/repos/IvicaSkrobo/Bili-Mushroom/issues?state=open&labels=bug&per_page=8', {
+      signal: controller.signal,
+      headers: { Accept: 'application/vnd.github+json' },
+    })
+      .then((response) => (response.ok ? response.json() : []))
+      .then((data: RemoteIssue[]) => {
+        setRemoteBugs(data.filter((issue) => !issue.pull_request));
+      })
+      .catch(() => {
+        // Keep the bug board quiet if GitHub is unavailable or rate-limited.
       });
     return () => controller.abort();
   }, []);
@@ -673,6 +703,10 @@ export function App() {
                 <Bug size={14} />
                 {t.bugAction as string}
               </a>
+              <a href="#bugs">
+                <AlertCircle size={14} />
+                {t.bugBoardTitle as string}
+              </a>
               <span className="micro-note">{t.bugExternal as string}</span>
             </div>
           </div>
@@ -709,6 +743,29 @@ export function App() {
               </a>
             </div>
           </div>
+        </section>
+
+        <section id="bugs" className="section bug-board-section">
+          <div className="bug-board-heading">
+            <p className="eyebrow"><AlertCircle size={15} />{t.bugBoardTitle as string}</p>
+            <h2>{t.bugBoardTitle as string}</h2>
+            <p>{t.bugBoardBody as string}</p>
+          </div>
+          <div className="bug-board">
+            {remoteBugs.length ? remoteBugs.map((bug) => (
+              <a className="bug-row" href={bug.html_url} key={bug.html_url}>
+                <span className="bug-number">{bug.number ? `#${bug.number}` : 'Bug'}</span>
+                <strong>{bug.title}</strong>
+                <span>{bug.comments} {lang === 'hr' ? 'komentara' : 'comments'}</span>
+              </a>
+            )) : (
+              <div className="bug-empty">{t.bugBoardEmpty as string}</div>
+            )}
+          </div>
+          <a className="text-link bug-board-link" href={bugsListUrl}>
+            {t.bugBoardAction as string}
+            <ExternalLink size={14} />
+          </a>
         </section>
 
         <GiscusPanel lang={lang} theme={theme} />

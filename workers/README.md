@@ -32,6 +32,9 @@ Variables:
 - `GITHUB_REPO`: `Bili-Mushroom`
 - `GITHUB_LABELS`: `bug,app-report`
 - `ALLOWED_ORIGINS`: optional comma-separated list. Leave empty for the first app-only version.
+- `INCLUDE_CONTACT_IN_PUBLIC_ISSUES`: `false`
+
+Leave `INCLUDE_CONTACT_IN_PUBLIC_ISSUES=false` while the GitHub repository is public. Otherwise optional contact emails would become visible in public GitHub issues.
 
 ## Deploy
 

@@ -47,7 +47,8 @@ function isRateLimited(ip) {
 }
 
 function makeIssueBody(report) {
-  const contact = report.contact ? report.contact : 'Not provided';
+  const includeContact = report.includeContact === true;
+  const contact = includeContact && report.contact ? report.contact : 'Hidden from public issue';
   const steps = report.steps ? report.steps : 'Not provided';
   return [
     '## Description',
@@ -77,6 +78,7 @@ async function createGitHubIssue(env, report) {
     .split(',')
     .map((label) => label.trim())
     .filter(Boolean);
+  report.includeContact = String(env.INCLUDE_CONTACT_IN_PUBLIC_ISSUES || '').toLowerCase() === 'true';
 
   const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues`, {
     method: 'POST',
