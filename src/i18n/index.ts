@@ -318,6 +318,25 @@ const hr: Translations = {
   'settings.hiddenSuggestionsReset': 'Vrati skrivene prijedloge',
   'settings.hiddenSuggestionsResetDone': 'Prijedlozi su vraćeni.',
 
+  // bug report dialog
+  'bugReport.title': 'Report bug',
+  'bugReport.description': 'Posalji kratku prijavu bez GitHub racuna. Screenshot cemo dodati kasnije ako bude trebalo.',
+  'bugReport.problemTitle': 'Naslov problema',
+  'bugReport.problemTitlePlaceholder': 'npr. Statistike se sruse kad otvorim tab',
+  'bugReport.whatHappened': 'Sto se dogodilo?',
+  'bugReport.whatHappenedPlaceholder': 'Opisi sto si vidio i sto nije radilo.',
+  'bugReport.steps': 'Koraci za ponoviti',
+  'bugReport.stepsPlaceholder': '1. Otvorim...\n2. Kliknem...\n3. Dogodi se...',
+  'bugReport.contact': 'Kontakt email (opcionalno)',
+  'bugReport.contactPlaceholder': 'Ako zelis da te mozemo pitati za detalje',
+  'bugReport.technicalInfo': 'Salje se i: v{version}, jezik {language}, tema {theme}.',
+  'bugReport.cancel': 'Odustani',
+  'bugReport.send': 'Posalji prijavu',
+  'bugReport.sending': 'Slanje...',
+  'bugReport.success': 'Prijava je poslana. Hvala!',
+  'bugReport.error': 'Prijava nije poslana. Pokusaj ponovno kasnije.',
+  'bugReport.notConfigured': 'Bug report endpoint jos nije podesen. Vodit cu te kroz Cloudflare setup prije releasea.',
+
   // first run dialog
   'firstRun.title': 'Odaberite svoju knjižnicu gljiva',
   'firstRun.description': 'Odaberite mapu gdje će Gljivobook pohraniti vaše nalaze, fotografije i bazu podataka. Ovo možete promijeniti kasnije u Postavkama.',
@@ -899,6 +918,25 @@ const en: Translations = {
   'settings.hiddenSuggestionsDescription': 'Restore location suggestions you previously hid from autocomplete.',
   'settings.hiddenSuggestionsReset': 'Restore hidden suggestions',
   'settings.hiddenSuggestionsResetDone': 'Suggestions restored.',
+
+  // bug report dialog
+  'bugReport.title': 'Report bug',
+  'bugReport.description': 'Send a short report without a GitHub account. Screenshots can come later if we need them.',
+  'bugReport.problemTitle': 'Problem title',
+  'bugReport.problemTitlePlaceholder': 'e.g. Stats crash when I open the tab',
+  'bugReport.whatHappened': 'What happened?',
+  'bugReport.whatHappenedPlaceholder': 'Describe what you saw and what did not work.',
+  'bugReport.steps': 'Steps to reproduce',
+  'bugReport.stepsPlaceholder': '1. I open...\n2. I click...\n3. Then...',
+  'bugReport.contact': 'Contact email (optional)',
+  'bugReport.contactPlaceholder': 'If you want us to ask for more details',
+  'bugReport.technicalInfo': 'Also sends: v{version}, language {language}, theme {theme}.',
+  'bugReport.cancel': 'Cancel',
+  'bugReport.send': 'Send report',
+  'bugReport.sending': 'Sending...',
+  'bugReport.success': 'Report sent. Thank you!',
+  'bugReport.error': 'Report was not sent. Try again later.',
+  'bugReport.notConfigured': 'Bug report endpoint is not configured yet. I will guide you through the Cloudflare setup before release.',
 
   // first run dialog
   'firstRun.title': 'Choose Your Mushroom Library',

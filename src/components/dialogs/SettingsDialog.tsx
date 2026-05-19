@@ -21,7 +21,8 @@ import type { Lang } from '@/i18n/index';
 import { getTileCacheStats, clearTileCache, getCacheMaxBytes, setCacheMax, formatMb, type TileCacheStats } from '@/lib/tileCache';
 import { APP_VERSION } from '@/lib/appMeta';
 import { resetHiddenLocationSuggestions } from '@/components/finds/LocationNoteInput';
-import { BUG_REPORT_URL, DONATE_URL, WEBSITE_URL } from '@/lib/externalLinks';
+import { DONATE_URL, WEBSITE_URL } from '@/lib/externalLinks';
+import { ReportBugDialog } from '@/components/dialogs/ReportBugDialog';
 
 export interface SettingsDialogProps {
   open: boolean;
@@ -46,6 +47,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const [pruning, setPruning] = useState(false);
   const [pruneResult, setPruneResult] = useState<number | null>(null);
   const [suggestionsReset, setSuggestionsReset] = useState(false);
+  const [reportBugOpen, setReportBugOpen] = useState(false);
   const [stats, setStats] = useState<TileCacheStats>({ sizeBytes: 0, tileCount: 0 });
   const [cacheMaxMb, setCacheMaxMb] = useState<string>('200');
 
@@ -205,16 +207,15 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                   <Globe2 className="h-4 w-4" />
                   <span>{t('settings.website')}</span>
                 </a>
-                <a
-                  href={BUG_REPORT_URL}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  type="button"
+                  onClick={() => setReportBugOpen(true)}
                   className="flex min-h-[58px] flex-col items-center justify-center gap-1.5 rounded-sm border border-destructive/25 bg-destructive/5 px-2 py-2 text-destructive transition-colors hover:border-destructive/55 hover:bg-destructive/10"
                   title={t('settings.reportBugTitle')}
                 >
                   <Bug className="h-4 w-4" />
                   <span>{t('settings.reportBug')}</span>
-                </a>
+                </button>
                 <a
                   href={DONATE_URL}
                   target="_blank"
@@ -360,6 +361,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <ReportBugDialog open={reportBugOpen} onOpenChange={setReportBugOpen} />
     </Dialog>
   );
 }

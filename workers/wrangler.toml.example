@@ -1,0 +1,8 @@
+name = "gljivobook-bug-report"
+main = "bug-report-worker.js"
+compatibility_date = "2026-05-19"
+
+[vars]
+GITHUB_OWNER = "IvicaSkrobo"
+GITHUB_REPO = "Bili-Mushroom"
+GITHUB_LABELS = "bug,app-report"

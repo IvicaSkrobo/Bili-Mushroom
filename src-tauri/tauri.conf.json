@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost blob: data: https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://server.arcgisonline.com https://tile.opentopomap.org https://*.tile.opentopomap.org; connect-src 'self' ipc: http://ipc.localhost https://nominatim.openstreetmap.org https://github.com https://objects.githubusercontent.com",
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost blob: data: https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://server.arcgisonline.com https://tile.opentopomap.org https://*.tile.opentopomap.org; connect-src 'self' ipc: http://ipc.localhost https://nominatim.openstreetmap.org https://github.com https://objects.githubusercontent.com https://*.workers.dev",
       "assetProtocol": {
         "enable": true,
         "scope": [
