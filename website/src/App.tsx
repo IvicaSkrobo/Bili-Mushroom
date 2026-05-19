@@ -3,10 +3,12 @@ import {
   Bug,
   Download,
   ExternalLink,
+  HardDrive,
   Heart,
   Map,
   MessageCircle,
   Moon,
+  ShieldCheck,
   Sparkles,
   Sprout,
   Star,
@@ -85,6 +87,12 @@ const copy = {
     ],
     downloadBody:
       'The website reads the latest GitHub Release and falls back to bundled release notes if GitHub is unavailable.',
+    installTitle: 'Install notes',
+    installBody:
+      'Download the Windows setup file, run it, and if Windows SmartScreen appears choose More info, then Run anyway.',
+    privacyTitle: 'Local by default',
+    privacyBody:
+      'Finds, notes, folders, and photos stay on your computer. Core cataloging works without an account or cloud service.',
     communityTitle: 'Community without a custom backend',
     communityBody:
       'GitHub Discussions and Giscus will power release comments, questions, showcase posts, and feature ideas. Private bug reports can use a separate form.',
@@ -134,6 +142,12 @@ const copy = {
     ],
     downloadBody:
       'Website cita zadnji GitHub Release i koristi lokalni fallback ako GitHub trenutno nije dostupan.',
+    installTitle: 'Napomena za instalaciju',
+    installBody:
+      'Preuzmi Windows setup, pokreni ga, a ako se pojavi Windows SmartScreen odaberi More info pa Run anyway.',
+    privacyTitle: 'Lokalno po defaultu',
+    privacyBody:
+      'Nalazi, biljeske, mape i fotografije ostaju na tvom racunalu. Osnovno katalogiziranje radi bez racuna i clouda.',
     communityTitle: 'Zajednica bez vlastitog backend-a',
     communityBody:
       'GitHub Discussions i Giscus ce nositi komentare na release, pitanja, prikaze nalaza i ideje. Privatni bugovi mogu ici kroz zaseban obrazac.',
@@ -369,7 +383,7 @@ export function App() {
                 aria-label={target === 'hr' ? 'Hrvatski' : 'English'}
                 title={target === 'hr' ? 'Hrvatski' : 'English'}
               >
-                <span aria-hidden="true">{target === 'hr' ? '🇭🇷' : '🇬🇧'}</span>
+                <span className={`flag-icon flag-${target}`} aria-hidden="true" />
               </a>
             ))}
           </div>
@@ -491,6 +505,19 @@ export function App() {
               {releaseNotes.map((note) => <li key={note}>{note}</li>)}
             </ul>
           </div>
+        </section>
+
+        <section className="section info-grid" aria-label={lang === 'hr' ? 'Instalacija i privatnost' : 'Install and privacy'}>
+          <article>
+            <ShieldCheck size={24} />
+            <h2>{t.installTitle as string}</h2>
+            <p>{t.installBody as string}</p>
+          </article>
+          <article>
+            <HardDrive size={24} />
+            <h2>{t.privacyTitle as string}</h2>
+            <p>{t.privacyBody as string}</p>
+          </article>
         </section>
 
         <section className="section">
