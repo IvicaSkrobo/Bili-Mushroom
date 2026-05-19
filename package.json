@@ -17,6 +17,7 @@
     "tauri:dev:fake-no-update": "node scripts/dev-fake-updater.js none",
     "tauri:dev:fake-install": "node scripts/dev-fake-updater.js install-success",
     "tauri:dev:fake-install-error": "node scripts/dev-fake-updater.js install-error",
+    "tauri:dev:real-update": "node scripts/dev-real-updater.js 0.2.7",
     "release": "node scripts/release.js",
     "release:patch": "node scripts/release.js patch",
     "release:minor": "node scripts/release.js minor",
