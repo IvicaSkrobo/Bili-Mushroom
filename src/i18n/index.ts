@@ -551,6 +551,7 @@ const hr: Translations = {
   'app.updateConfirmAction': 'Zatvori i ažuriraj',
   'app.openWebsite': 'Otvori website',
   'app.openWebsiteFailed': 'Website se nije mogao otvoriti.',
+  'app.reportBugShort': 'bug report',
   'app.toggleTheme': 'Promijeni izgled',
 
   // map — storage / zone alerts
@@ -1159,6 +1160,7 @@ const en: Translations = {
   'app.updateConfirmAction': 'Close and update',
   'app.openWebsite': 'Open website',
   'app.openWebsiteFailed': 'Could not open the website.',
+  'app.reportBugShort': 'bug report',
   'app.toggleTheme': 'Toggle theme',
 
   // map — storage / zone alerts

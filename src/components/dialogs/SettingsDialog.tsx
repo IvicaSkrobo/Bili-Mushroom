@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { FINDS_QUERY_KEY } from '@/lib/finds';
-import { Bug, Globe2, Heart, Info } from 'lucide-react';
+import { Globe2, Heart, Info } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
@@ -23,7 +23,6 @@ import { APP_VERSION } from '@/lib/appMeta';
 import { resetHiddenLocationSuggestions } from '@/components/finds/LocationNoteInput';
 import { DONATE_URL, WEBSITE_URL } from '@/lib/externalLinks';
 import { openExternalUrl } from '@/lib/openExternal';
-import { ReportBugDialog } from '@/components/dialogs/ReportBugDialog';
 
 export interface SettingsDialogProps {
   open: boolean;
@@ -48,7 +47,6 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const [pruning, setPruning] = useState(false);
   const [pruneResult, setPruneResult] = useState<number | null>(null);
   const [suggestionsReset, setSuggestionsReset] = useState(false);
-  const [reportBugOpen, setReportBugOpen] = useState(false);
   const [stats, setStats] = useState<TileCacheStats>({ sizeBytes: 0, tileCount: 0 });
   const [cacheMaxMb, setCacheMaxMb] = useState<string>('200');
 
@@ -203,7 +201,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                 <span className="text-xs text-muted-foreground">Gljivobook</span>
                 <span className="text-xs text-muted-foreground font-mono">v{APP_VERSION}</span>
               </div>
-              <div className="grid grid-cols-3 gap-2 text-[11px] font-semibold">
+              <div className="grid grid-cols-2 gap-2 text-[11px] font-semibold">
                 <button
                   type="button"
                   onClick={() => handleOpenExternal(WEBSITE_URL)}
@@ -212,15 +210,6 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                 >
                   <Globe2 className="h-4 w-4" />
                   <span>{t('settings.website')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setReportBugOpen(true)}
-                  className="flex min-h-[58px] flex-col items-center justify-center gap-1.5 rounded-sm border border-destructive/25 bg-destructive/5 px-2 py-2 text-destructive transition-colors hover:border-destructive/55 hover:bg-destructive/10"
-                  title={t('settings.reportBugTitle')}
-                >
-                  <Bug className="h-4 w-4" />
-                  <span>{t('settings.reportBug')}</span>
                 </button>
                 <button
                   type="button"
@@ -366,7 +355,6 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <ReportBugDialog open={reportBugOpen} onOpenChange={setReportBugOpen} />
     </Dialog>
   );
 }

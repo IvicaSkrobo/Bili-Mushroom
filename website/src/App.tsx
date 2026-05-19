@@ -380,6 +380,11 @@ export function App() {
   }, [theme]);
 
   useEffect(() => {
+    document.documentElement.lang = lang;
+    document.title = t.title as string;
+  }, [lang, t.title]);
+
+  useEffect(() => {
     const syncHiddenBugBoard = () => setShowHiddenBugs(window.location.hash === '#bugs');
     syncHiddenBugBoard();
     window.addEventListener('hashchange', syncHiddenBugBoard);

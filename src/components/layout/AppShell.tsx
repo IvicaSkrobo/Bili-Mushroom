@@ -1,5 +1,5 @@
 import { Suspense, lazy, useState } from 'react';
-import { Globe2, Settings as SettingsIcon, Sun, Moon, X } from 'lucide-react';
+import { Bug, Globe2, Settings as SettingsIcon, Sun, Moon, X } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -17,6 +17,9 @@ const MapTab = lazy(() => import('@/tabs/MapTab'));
 const StatsTab = lazy(() => import('@/tabs/StatsTab'));
 const SettingsDialog = lazy(() =>
   import('@/components/dialogs/SettingsDialog').then((m) => ({ default: m.SettingsDialog })),
+);
+const ReportBugDialog = lazy(() =>
+  import('@/components/dialogs/ReportBugDialog').then((m) => ({ default: m.ReportBugDialog })),
 );
 
 const TAB_VALUES: Tab[] = ['collection', 'species', 'map', 'stats'];
@@ -40,6 +43,7 @@ export function AppShell() {
   const installStatus = useAppStore((s) => s.installStatus);
   const setInstallStatus = useAppStore((s) => s.setInstallStatus);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [reportBugOpen, setReportBugOpen] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [checkLabel, setCheckLabel] = useState<string | null>(null);
   const [checkError, setCheckError] = useState<string | null>(null);
@@ -126,33 +130,43 @@ export function AppShell() {
             )}
           </div>
           <div className="flex items-center gap-1.5 rounded-full border border-border/70 bg-background/35 px-1.5 py-1">
-          <button
-            type="button"
-            onClick={handleOpenWebsite}
-            aria-label={t('app.openWebsite')}
-            title={t('app.openWebsite')}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary/10 hover:text-secondary"
-          >
-            <Globe2 className="h-4 w-4" />
-          </button>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={t('app.toggleTheme')}
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-          >
-            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={t('nav.settings')}
-            onClick={() => setSettingsOpen(true)}
-            className="rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          >
-            <SettingsIcon className="h-4 w-4" />
-          </Button>
+            <button
+              type="button"
+              onClick={handleOpenWebsite}
+              aria-label={t('app.openWebsite')}
+              title={t('app.openWebsite')}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary/10 hover:text-secondary"
+            >
+              <Globe2 className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setReportBugOpen(true)}
+              aria-label={t('settings.reportBugTitle')}
+              title={t('settings.reportBugTitle')}
+              className="inline-flex h-11 min-w-[54px] flex-col items-center justify-center gap-0.5 rounded-full px-2 text-destructive/85 transition-colors hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Bug className="h-4 w-4" />
+              <span className="text-[8px] font-bold uppercase leading-none tracking-[0.12em]">{t('app.reportBugShort')}</span>
+            </button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t('app.toggleTheme')}
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+            >
+              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t('nav.settings')}
+              onClick={() => setSettingsOpen(true)}
+              className="rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            >
+              <SettingsIcon className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </header>
@@ -222,6 +236,11 @@ export function AppShell() {
       {settingsOpen && (
         <Suspense fallback={null}>
           <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+        </Suspense>
+      )}
+      {reportBugOpen && (
+        <Suspense fallback={null}>
+          <ReportBugDialog open={reportBugOpen} onOpenChange={setReportBugOpen} />
         </Suspense>
       )}
     </div>
