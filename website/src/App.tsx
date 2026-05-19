@@ -472,6 +472,7 @@ export function App() {
                 title={target === 'hr' ? 'Hrvatski' : 'English'}
               >
                 <span className={`flag-icon flag-${target}`} aria-hidden="true" />
+                <span className="flag-label">{target.toUpperCase()}</span>
               </a>
             ))}
           </div>
