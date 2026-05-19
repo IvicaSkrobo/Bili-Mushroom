@@ -1177,6 +1177,11 @@ h1 {
   padding-top: 22px;
 }
 
+.feature-panel .idea-flow + .idea-list {
+  margin-top: 18px;
+  padding-top: 0;
+}
+
 .giscus-panel {
   width: min(1180px, calc(100% - 40px));
   margin: 0 auto;
@@ -1236,6 +1241,49 @@ h1 {
   margin-top: 22px;
 }
 
+.idea-flow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.idea-flow article {
+  min-height: 118px;
+  padding: 14px;
+  border: 1px solid rgba(121, 101, 67, 0.24);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(184, 109, 34, 0.08), transparent 48%),
+    var(--panel-bg);
+}
+
+.idea-flow strong {
+  display: inline-grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  color: #fff7e2;
+  background: var(--amber-dark);
+  border-radius: 999px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+}
+
+.idea-flow span {
+  display: block;
+  margin-top: 10px;
+  color: var(--fg);
+  font-weight: 900;
+}
+
+.idea-flow p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .idea {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
@@ -1270,6 +1318,11 @@ h1 {
   font-size: 12px;
   font-style: normal;
   font-weight: 800;
+}
+
+.funding-note {
+  margin: -4px 0 18px;
+  font-size: 14px;
 }
 
 .funding-card article {
@@ -1424,6 +1477,10 @@ footer p {
   }
 
   .idea {
+    grid-template-columns: 1fr;
+  }
+
+  .idea-flow {
     grid-template-columns: 1fr;
   }
 }

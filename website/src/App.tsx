@@ -113,6 +113,11 @@ const copy = {
     ideasTitle: 'Ideas users can vote on',
     ideasBody:
       'Feature requests will live in GitHub Discussions. Users vote with reactions, and popular ideas can move into funding goals.',
+    ideaFlow: [
+      ['1', 'Suggest', 'A user writes a feature idea.'],
+      ['2', 'Vote', 'Others add reactions and comments.'],
+      ['3', 'Fund', 'Strong ideas can become support goals.'],
+    ],
     ideasAction: 'Add an idea',
     ideasList: 'View ideas',
     fundingTitle: 'Voluntary support',
@@ -128,6 +133,8 @@ const copy = {
       'Import, manual add, edit details, crop/rotate photos, open folder, and export.',
     ],
     fundingGoalsTitle: 'App ideas that could come next',
+    fundingGoalsBody:
+      'These are app features, not website tasks. Amounts are rough goals that make larger work easier to prioritize.',
     footer: 'Built for mushroom notes, maps, seasons, and patient local archives.',
   },
   hr: {
@@ -180,6 +187,11 @@ const copy = {
     ideasTitle: 'Ideje za koje korisnici mogu glasati',
     ideasBody:
       'Prijedlozi funkcija zivjet ce u GitHub Discussions. Korisnici glasaju reakcijama, a popularne ideje mogu ici u funding ciljeve.',
+    ideaFlow: [
+      ['1', 'Predlozi', 'Korisnik napise ideju za funkciju.'],
+      ['2', 'Glasaj', 'Drugi dodaju reakcije i komentare.'],
+      ['3', 'Financiraj', 'Jake ideje mogu postati ciljevi podrske.'],
+    ],
     ideasAction: 'Dodaj ideju',
     ideasList: 'Pogledaj ideje',
     fundingTitle: 'Dobrovoljna podrska',
@@ -195,6 +207,8 @@ const copy = {
       'Uvoz, rucni unos, uredjivanje detalja, crop/rotate fotografija, folder i export.',
     ],
     fundingGoalsTitle: 'Ideje za aplikaciju koje mogu doci sljedece',
+    fundingGoalsBody:
+      'Ovo su funkcije aplikacije, ne zadaci za website. Iznosi su okvirni ciljevi koji pomazu odrediti prioritet veceg posla.',
     footer: 'Gradeno za gljivarske biljeske, karte, sezone i strpljive lokalne arhive.',
   },
 } satisfies Record<Lang, Record<string, unknown>>;
@@ -652,6 +666,15 @@ export function App() {
             <Vote size={24} />
             <h2>{t.ideasTitle as string}</h2>
             <p>{t.ideasBody as string}</p>
+            <div className="idea-flow" aria-label={lang === 'hr' ? 'Put ideje do funding cilja' : 'Idea to funding flow'}>
+              {(t.ideaFlow as [string, string, string][]).map(([step, title, body]) => (
+                <article key={step}>
+                  <strong>{step}</strong>
+                  <span>{title}</span>
+                  <p>{body}</p>
+                </article>
+              ))}
+            </div>
             <div className="idea-list">
               {visibleIdeas.map((idea) => (
                 <a className="idea" href={idea.url} key={idea.title}>
@@ -695,6 +718,7 @@ export function App() {
           </div>
           <div className="funding-card">
             <h3>{t.fundingGoalsTitle as string}</h3>
+            <p className="funding-note">{t.fundingGoalsBody as string}</p>
             {funding.map((item) => {
               const pct = Math.round((item.current / item.goal) * 100);
               return (
