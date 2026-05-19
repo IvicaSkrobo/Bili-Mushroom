@@ -324,13 +324,14 @@ export default function App() {
           <AlertDialogHeader>
             <AlertDialogTitle>Update to v{confirmUpdate?.version}?</AlertDialogTitle>
             <AlertDialogDescription>
-              The app will download and install the update, then restart automatically.
+              Save anything you are editing first. Gljivobook will download the update, close while the
+              Windows installer runs, and then reopen on the new version.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Not now</AlertDialogCancel>
             <AlertDialogAction onClick={() => { setConfirmUpdate(null); runInstallUpdate(); }}>
-              Update now
+              Close and update
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
