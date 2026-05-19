@@ -1,5 +1,5 @@
 export const release = {
-  version: 'v0.2.34',
+  version: 'v0.2.35',
   date: 'May 19, 2026',
   installerUrl: 'https://github.com/IvicaSkrobo/Bili-Mushroom/releases/latest',
   notes: {
