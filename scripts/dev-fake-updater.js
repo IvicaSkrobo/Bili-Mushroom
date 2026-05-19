@@ -18,15 +18,20 @@ if (!allowedModes.has(mode)) {
 }
 
 const command = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const child = spawn(command, ['run', 'tauri', 'dev'], {
-  cwd: root,
-  stdio: 'inherit',
-  env: {
+const env = Object.fromEntries(
+  Object.entries({
     ...process.env,
     VITE_FAKE_APP_VERSION: process.env.VITE_FAKE_APP_VERSION || '0.2.7',
     VITE_FAKE_UPDATE_MODE: mode,
     VITE_FAKE_UPDATE_VERSION: process.env.VITE_FAKE_UPDATE_VERSION || pkg.version,
-  },
+  }).filter((entry) => typeof entry[1] === 'string'),
+);
+
+const child = spawn(command, ['run', 'tauri', 'dev'], {
+  cwd: root,
+  stdio: 'inherit',
+  shell: process.platform === 'win32',
+  env,
 });
 
 child.on('exit', (code, signal) => {
