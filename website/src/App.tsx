@@ -4,7 +4,6 @@ import {
   Download,
   ExternalLink,
   Heart,
-  Languages,
   Map,
   MessageCircle,
   Moon,
@@ -168,8 +167,8 @@ function getLang(): Lang {
   return window.location.pathname.toLowerCase().startsWith('/hr') ? 'hr' : 'en';
 }
 
-function switchPath(lang: Lang) {
-  return lang === 'hr' ? './?lang=en' : './?lang=hr';
+function langPath(target: Lang) {
+  return target === 'hr' ? './?lang=hr' : './?lang=en';
 }
 
 function formatBytes(bytes: number, lang: Lang) {
@@ -244,7 +243,6 @@ function AppScreenshot({ label, index }: { label: string; index: number }) {
 export function App() {
   const lang = getLang();
   const t = copy[lang];
-  const otherLang = lang === 'hr' ? 'en' : 'hr';
   const [latestRelease, setLatestRelease] = useState<RemoteRelease | null>(null);
   const [remoteIdeas, setRemoteIdeas] = useState<RemoteIssue[]>([]);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -361,10 +359,20 @@ export function App() {
             {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
             {themeLabel}
           </button>
-          <a className="lang-switch" href={switchPath(lang)} aria-label={`Switch to ${otherLang}`}>
-            <Languages size={15} />
-            {t.language as string}
-          </a>
+          <div className="language-flags" aria-label="Language">
+            {(['hr', 'en'] as const).map((target) => (
+              <a
+                key={target}
+                className="flag-switch"
+                href={langPath(target)}
+                aria-current={target === lang ? 'true' : undefined}
+                aria-label={target === 'hr' ? 'Hrvatski' : 'English'}
+                title={target === 'hr' ? 'Hrvatski' : 'English'}
+              >
+                <span aria-hidden="true">{target === 'hr' ? '🇭🇷' : '🇬🇧'}</span>
+              </a>
+            ))}
+          </div>
         </div>
       </header>
 

@@ -179,7 +179,7 @@ nav a {
 }
 
 nav a:hover,
-.lang-switch:hover {
+.flag-switch:hover {
   color: var(--amber-dark);
 }
 
@@ -189,7 +189,6 @@ nav a:hover,
   gap: 10px;
 }
 
-.lang-switch,
 .theme-switch {
   display: inline-flex;
   align-items: center;
@@ -202,6 +201,47 @@ nav a:hover,
   background: var(--control-bg);
   font-size: 13px;
   font-weight: 800;
+}
+
+.language-flags {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 3px;
+  border: 1px solid rgba(121, 101, 67, 0.32);
+  border-radius: 999px;
+  background: var(--control-bg);
+}
+
+.flag-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 36px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  opacity: 0.48;
+  text-decoration: none;
+  transition: opacity 160ms ease, transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.flag-switch span {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.flag-switch:hover {
+  opacity: 0.82;
+  transform: translateY(-1px);
+}
+
+.flag-switch[aria-current="true"] {
+  opacity: 1;
+  background: var(--panel-strong);
+  border-color: rgba(184, 109, 34, 0.48);
+  box-shadow: 0 8px 18px rgba(54, 42, 23, 0.1);
 }
 
 .theme-switch {
@@ -1114,7 +1154,6 @@ footer p {
 
   .button,
   .link-row a,
-  .lang-switch,
   .theme-switch,
   .funding-strip {
     width: 100%;
@@ -1122,6 +1161,11 @@ footer p {
 
   .header-actions {
     width: 100%;
+  }
+
+  .language-flags {
+    flex: 1;
+    justify-content: center;
   }
 
   .pillars,
