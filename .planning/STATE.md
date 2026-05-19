@@ -4,12 +4,12 @@ milestone: v1.0
 milestone_name: milestone
 status: planning
 stopped_at: "Released v0.1.22: stats drill-down, Windows compat, species editor UX overhaul, edibility note migrations, import/create dialog UX polish"
-last_updated: "2026-05-19T12:30:00.000Z"
-last_activity: 2026-05-19 -- Planned Phase 06 Large Library Management & Scalability after folder/copy/move, tooltip clarity, and 100k-photo concerns
+last_updated: "2026-05-19T14:30:00.000Z"
+last_activity: 2026-05-19 -- Added Phase 05-07 Real App Alignment Pass so the public website is checked against real collection, species, map, and find workflows before sharing
 progress:
   total_phases: 10
   completed_phases: 6
-  total_plans: 24
+  total_plans: 25
   completed_plans: 19
   percent: 79
 ---
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-04-09)
 Phase: 04.2 complete — MAINTENANCE
 Plan: Post-phase maintenance
 Status: Completed planned phase work; maintenance fixes and planning artifacts are synced to the current shipped behavior
-Last activity: 2026-05-19 -- Added Phase 06 Large Library Management & Scalability to cover clear folder semantics/tooltips, copy/move/register flows, batch-safe imports, paginated reads, collection virtualization, and map viewport/clustering work
+Last activity: 2026-05-19 -- Added Phase 05-07 Real App Alignment Pass so the website stays accurate to collection, species, map, and find handling before public sharing
 
 Progress: [████████░░] 79%
 

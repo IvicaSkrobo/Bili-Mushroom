@@ -149,8 +149,9 @@ Plans:
   8. Users can submit feature ideas, vote via GitHub Discussion reactions, and see popular ideas sorted by votes on the website.
   9. High-vote ideas can be promoted to Funding Goals with status, vote count, manual funding progress, and a support button.
   10. The first implementation requires no custom backend and no paid service.
+  11. The public website is checked against the real app before sharing: collection, species, map, and the full find workflow are represented accurately.
 
-**Plans**: 6 plans
+**Plans**: 7 plans
 Plans:
 - [ ] 05-01-PLAN.md - Website foundation: `/website`, bilingual routing, Forest Codex visual direction, screenshot slots, Home/Download/Support/Changelog shell
 - [ ] 05-02-PLAN.md - Release automation: GitHub Actions release workflow, version sync checks, installer/updater artifact upload, `latest.json` validation
@@ -158,13 +159,14 @@ Plans:
 - [ ] 05-04-PLAN.md - Community layer: GitHub Discussions setup, Giscus configuration, release/changelog comments, bug/question/idea entry links
 - [ ] 05-05-PLAN.md - Ideas and voting board: GitHub Discussion idea template, reaction vote import, popular/planned/released status model, website Ideas page
 - [ ] 05-06-PLAN.md - Funding goals: manual funding JSON, funding progress bars, donation provider URL wiring, promote popular ideas into "Funding" cards
+- [ ] 05-07-PLAN.md - Real app alignment pass: audit website copy/visuals against collection, species, map, and complete find handling
 **UI hint**: yes
 
 **Design Direction:**
 - Use the existing Forest Codex identity: warm paper/light mode, nocturne dark mode, amber/green accents, Cormorant Garamond for display headings, Manrope for UI copy.
 - Website should feel like a product home and field journal, not generic software landing-page styling.
 - Prioritize accessibility: keyboard navigation, visible focus, 4.5:1 contrast for body text, real text labels on CTAs, responsive layout without horizontal scroll.
-- Screenshots should show actual app surfaces: collection, species detail, map, stats, PDF/export if available.
+- Screenshots should show actual app surfaces: collection, species detail, map, stats, PDF/export if available. Website copy must also explain actual find handling: import/add, edit, open folder, map pins, and export.
 
 **Community/Voting Notes:**
 - Giscus is free and uses GitHub Discussions as storage.
@@ -228,7 +230,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 4. Stats & Export | 3/3 | Complete | 2026-04-16 |
 | 04.1 UX Governance & Performance Hardening | 3/3 | Complete | 2026-04-16 |
 | 04.2 Seasonal Insights & Field Hints | 2/2 | Complete | 2026-04-16 |
-| 05 Website, Releases, Community & Support | 0/6 | Planned | - |
+| 05 Website, Releases, Community & Support | 0/7 | Planned | - |
 | 06 Large Library Management & Scalability | 0/5 | Planned | - |
 
 ## Backlog

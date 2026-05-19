@@ -1,8 +1,10 @@
 import {
   BookOpen,
   Bug,
+  ClipboardList,
   Download,
   ExternalLink,
+  FolderOpen,
   HardDrive,
   Heart,
   Map,
@@ -85,6 +87,14 @@ const copy = {
       ['Map', 'See field history by place, species, and season without losing context.'],
       ['Understand', 'Stats, seasons, field outings, and PDF export turn your archive into a useful journal.'],
     ],
+    workflowTitle: 'How finds are handled',
+    workflowBody:
+      'The website should stay honest to the real app: every find belongs to a collection species, can be opened on the map, edited later, and traced back to its local folder.',
+    workflow: [
+      ['Import or add a find', 'Photos, date, location, Croatian/common name, notes, status badges, and fruiting body count stay editable.'],
+      ['Browse by collection and species', 'The collection groups finds by species, while the species view keeps notes, other names, synonyms, recipes, and per-species history.'],
+      ['Map and export the archive', 'Pins, location filtering, stats, field outings, and PDF export turn stored finds into usable history.'],
+    ],
     downloadBody:
       'The website reads the latest GitHub Release and falls back to bundled release notes if GitHub is unavailable.',
     installTitle: 'Install notes',
@@ -110,8 +120,8 @@ const copy = {
     fundingBody:
       'If the app helps you, you can support it from goodwill. Larger ideas can still become visible goals later.',
     donatePending: 'Donate link is coming soon.',
-    screenshotsTitle: 'App surfaces to show',
-    screenshots: ['Collection', 'Species detail', 'Map', 'Stats and PDF'],
+    screenshotsTitle: 'Real app surfaces to verify',
+    screenshots: ['Collection', 'Species', 'Map', 'Find workflow'],
     roadmapTitle: 'Build roadmap',
     roadmapBody:
       'The site is built in practical layers so releases, comments, voting, donations, and updates can become real without adding a custom backend too early.',
@@ -140,6 +150,14 @@ const copy = {
       ['Mapa', 'Vidi povijest terena po mjestu, vrsti i sezoni bez gubljenja konteksta.'],
       ['Uvidi', 'Statistike, sezone, izlasci na teren i PDF export pretvaraju arhivu u koristan dnevnik.'],
     ],
+    workflowTitle: 'Kako se vode nalazi',
+    workflowBody:
+      'Website treba ostati vjeran stvarnoj aplikaciji: svaki nalaz pripada vrsti u zbirci, moze se otvoriti na mapi, kasnije urediti i povezati s lokalnim folderom.',
+    workflow: [
+      ['Uvezi ili dodaj nalaz', 'Fotografije, datum, lokacija, hrvatski naziv, biljeske, status badgevi i broj plodnih tijela ostaju uredjivi.'],
+      ['Pregledaj kroz zbirku i vrste', 'Zbirka grupira nalaze po vrsti, a Vrste cuvaju biljeske, druge nazive, sinonime, recepte i povijest pojedine vrste.'],
+      ['Mapiraj i izvezi arhivu', 'Pinovi, filteri lokacije, statistike, izlasci na teren i PDF export pretvaraju spremljene nalaze u korisnu povijest.'],
+    ],
     downloadBody:
       'Website cita zadnji GitHub Release i koristi lokalni fallback ako GitHub trenutno nije dostupan.',
     installTitle: 'Napomena za instalaciju',
@@ -165,8 +183,8 @@ const copy = {
     fundingBody:
       'Ako ti aplikacija pomaze, mozes je podrzati iz dobre volje. Vece ideje kasnije mogu dobiti zaseban cilj.',
     donatePending: 'Link za donacije dolazi uskoro.',
-    screenshotsTitle: 'Dijelovi aplikacije za prikaz',
-    screenshots: ['Zbirka', 'Detalj vrste', 'Mapa', 'Statistike i PDF'],
+    screenshotsTitle: 'Stvarni dijelovi appa za provjeru',
+    screenshots: ['Zbirka', 'Vrste', 'Mapa', 'Workflow nalaza'],
     roadmapTitle: 'Roadmap izrade',
     roadmapBody:
       'Website gradimo u prakticnim slojevima da releaseovi, komentari, glasanje, donacije i updater postanu stvarni bez prerano dodanog vlastitog backend-a.',
@@ -339,6 +357,13 @@ export function App() {
         ...idea,
         url: 'https://github.com/IvicaSkrobo/Bili-Mushroom/issues',
       }));
+  const appTabs =
+    lang === 'hr'
+      ? { collection: 'Zbirka', species: 'Vrste', map: 'Mapa', stats: 'Statistike' }
+      : { collection: 'Collection', species: 'Species', map: 'Map', stats: 'Stats' };
+  const activeFind = lang === 'hr'
+    ? { count: '3 nalaza - travanj', badge: 'Jestiva', edit: 'Uredi nalaz', folder: 'Otvori folder' }
+    : { count: '3 finds - April', badge: 'Edible', edit: 'Edit find', folder: 'Open folder' };
 
   return (
     <div className="site-shell">
@@ -428,22 +453,23 @@ export function App() {
                 <div className="window-list">
                   <div>
                     <span>Cantharellus cibarius</span>
-                    <small>12.05.2026</small>
+                    <small>{lang === 'hr' ? '2 nalaza' : '2 finds'}</small>
                   </div>
                   <div>
                     <span>Boletus edulis</span>
-                    <small>4 nalaza</small>
+                    <small>{lang === 'hr' ? '4 nalaza' : '4 finds'}</small>
                   </div>
                   <div className="active">
                     <span>Morchella esculenta</span>
-                    <small>Zadnji zapis danas</small>
+                    <small>{lang === 'hr' ? 'Zadnji zapis danas' : 'Last entry today'}</small>
                   </div>
                 </div>
                 <div className="window-map">
                   <div className="window-tabs">
-                    <span className="selected">Mapa</span>
-                    <span>Vrste</span>
-                    <span>Statistike</span>
+                    <span className="selected">{appTabs.collection}</span>
+                    <span>{appTabs.species}</span>
+                    <span>{appTabs.map}</span>
+                    <span>{appTabs.stats}</span>
                   </div>
                   <Map size={44} />
                   <span className="pin one" />
@@ -451,8 +477,12 @@ export function App() {
                   <span className="pin three" />
                   <div className="map-callout">
                     <strong>Morchella esculenta</strong>
-                    <small>3 nalaza - travanj</small>
-                    <em>Jestiva</em>
+                    <small>{activeFind.count}</small>
+                    <em>{activeFind.badge}</em>
+                    <div className="callout-actions">
+                      <span>{activeFind.edit}</span>
+                      <span>{activeFind.folder}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -471,6 +501,26 @@ export function App() {
               </article>
             );
           })}
+        </section>
+
+        <section className="section workflow-section">
+          <div className="workflow-heading">
+            <p className="eyebrow"><ClipboardList size={15} />{t.workflowTitle as string}</p>
+            <h2>{t.workflowTitle as string}</h2>
+            <p>{t.workflowBody as string}</p>
+          </div>
+          <div className="workflow-grid">
+            {(t.workflow as [string, string][]).map(([title, body], index) => {
+              const Icon = [Download, FolderOpen, Map][index];
+              return (
+                <article key={title}>
+                  <Icon size={22} />
+                  <h3>{title}</h3>
+                  <p>{body}</p>
+                </article>
+              );
+            })}
+          </div>
         </section>
 
         <section id="download" className="section split">
