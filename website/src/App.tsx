@@ -265,23 +265,7 @@ function isOlderVersion(candidate: string, baseline: string) {
 function BrandMark() {
   return (
     <div className="brand-mark" aria-hidden="true">
-      <svg viewBox="0 0 140 140" role="img">
-        <path className="book left" d="M15 58c16-8 34-8 53 2v50c-18-10-36-12-53-4V58Z" />
-        <path className="book right" d="M73 60c19-10 37-10 53-2v48c-17-8-35-6-53 4V60Z" />
-        <path className="spine" d="M68 60c2 8 2 42 0 50" />
-        <path className="spine right" d="M73 60c-2 8-2 42 0 50" />
-        <path className="stem main" d="M70 94c-3-22 0-41 9-58" />
-        <path className="stem side left" d="M61 96c-7-12-9-23-6-33" />
-        <path className="stem side right" d="M84 96c8-12 10-23 6-33" />
-        <path className="cap main" d="M40 34c13-31 55-35 76-9 6 8 9 17 9 25 0 10-8 17-18 17H48c-13 0-19-13-8-33Z" />
-        <path className="cap left" d="M31 80c6-17 25-18 34-4 4 6 0 14-7 15l-18 3c-7 1-12-7-9-14Z" />
-        <path className="cap right" d="M86 79c7-18 27-19 35-3 3 6-1 13-8 13H94c-6 0-10-5-8-10Z" />
-        <path className="moss left" d="M36 99c14 5 33 4 47-1" />
-        <path className="moss right" d="M75 100c15 4 34 3 48-2" />
-        <circle className="spot" cx="58" cy="38" r="3.4" />
-        <circle className="spot" cx="74" cy="31" r="2.4" />
-        <circle className="spot" cx="94" cy="41" r="3" />
-      </svg>
+      <img src="./gljivobook-icon.png" alt="" />
     </div>
   );
 }

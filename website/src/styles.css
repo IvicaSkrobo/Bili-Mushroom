@@ -138,29 +138,18 @@ button:focus-visible {
   flex: 0 0 46px;
   border: 1px solid rgba(184, 109, 34, 0.32);
   border-radius: 8px;
-  background: linear-gradient(145deg, var(--green-dark), #284936);
+  overflow: hidden;
+  background: #374230;
   box-shadow: 0 10px 24px rgba(20, 51, 38, 0.18);
 }
 
-.brand-mark svg {
-  width: 38px;
-  height: 38px;
+.brand-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.35);
 }
-
-.book { fill: #f8edcf; stroke: #fff8e5; stroke-width: 2; }
-.book.right { fill: #fdf5df; }
-.spine { fill: none; stroke: #b79b66; stroke-width: 4; stroke-linecap: round; }
-.spine.right { stroke: #c4aa76; stroke-width: 3.6; }
-.stem { fill: none; stroke-linecap: round; }
-.stem.main { stroke: #d9ac73; stroke-width: 9; }
-.stem.side { stroke-width: 6; }
-.stem.side.left { stroke: #bd8351; }
-.stem.side.right { stroke: #c9925f; }
-.cap.main { fill: #b95c35; }
-.cap.left { fill: #e7c987; }
-.cap.right { fill: #c65f39; }
-.moss { fill: none; stroke: #6a7c42; stroke-width: 5; stroke-linecap: round; }
-.spot { fill: #fff1c7; opacity: 0.72; }
 
 nav {
   display: flex;
