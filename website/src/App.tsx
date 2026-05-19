@@ -28,6 +28,11 @@ type RemoteRelease = {
   name: string | null;
   published_at: string | null;
   body: string | null;
+  assets?: Array<{
+    name: string;
+    browser_download_url: string;
+    size: number;
+  }>;
 };
 
 type RemoteIssue = {
@@ -63,6 +68,9 @@ const copy = {
     intro:
       'A quiet desktop app for foragers who want every find stored, mapped, searchable, and remembered on their own machine.',
     download: 'Download for Windows',
+    releaseDetails: 'Release details',
+    installerReady: 'Direct installer',
+    installerFallback: 'Release page',
     support: 'Donate',
     supportHero: 'Donate if you like the app',
     latest: 'Latest release',
@@ -108,6 +116,9 @@ const copy = {
     intro:
       'Mirna desktop aplikacija za gljivare koji zele svaki nalaz spremiti, mapirati, pretraziti i sacuvati na svom racunalu.',
     download: 'Preuzmi za Windows',
+    releaseDetails: 'Detalji verzije',
+    installerReady: 'Direktni installer',
+    installerFallback: 'Release stranica',
     support: 'Doniraj',
     supportHero: 'Doniraj za Gljivobook',
     latest: 'Zadnja verzija',
@@ -157,6 +168,25 @@ function getLang(): Lang {
 
 function switchPath(lang: Lang) {
   return lang === 'hr' ? './?lang=en' : './?lang=hr';
+}
+
+function formatBytes(bytes: number, lang: Lang) {
+  const formatter = new Intl.NumberFormat(lang === 'hr' ? 'hr-HR' : 'en-US', {
+    maximumFractionDigits: 1,
+  });
+  if (bytes >= 1024 * 1024) return `${formatter.format(bytes / 1024 / 1024)} MB`;
+  if (bytes >= 1024) return `${formatter.format(bytes / 1024)} KB`;
+  return `${formatter.format(bytes)} B`;
+}
+
+function pickWindowsInstaller(releaseData: RemoteRelease | null) {
+  const assets = releaseData?.assets ?? [];
+  return (
+    assets.find((asset) => /setup.*\.exe$/i.test(asset.name)) ??
+    assets.find((asset) => /\.exe$/i.test(asset.name)) ??
+    assets.find((asset) => /\.msi$/i.test(asset.name)) ??
+    null
+  );
 }
 
 function BrandMark() {
@@ -263,7 +293,9 @@ export function App() {
   }, []);
 
   const releaseVersion = latestRelease?.tag_name ?? release.version;
-  const releaseUrl = latestRelease?.html_url ?? release.installerUrl;
+  const installerAsset = pickWindowsInstaller(latestRelease);
+  const releaseDetailsUrl = latestRelease?.html_url ?? release.installerUrl;
+  const releaseUrl = installerAsset?.browser_download_url ?? releaseDetailsUrl;
   const releaseDate = latestRelease?.published_at
     ? new Intl.DateTimeFormat(lang === 'hr' ? 'hr-HR' : 'en-US', {
         day: '2-digit',
@@ -348,6 +380,12 @@ export function App() {
                 <Download size={18} />
                 {t.download as string}
               </a>
+              {installerAsset ? (
+                <a className="button ghost" href={releaseDetailsUrl}>
+                  {t.releaseDetails as string}
+                  <ExternalLink size={16} />
+                </a>
+              ) : null}
               <a className="button secondary" href="#support">
                 <Heart size={18} />
                 {t.supportHero as string}
@@ -416,10 +454,25 @@ export function App() {
             <p className="eyebrow"><Download size={15} />{t.latest as string}</p>
             <h2>{releaseVersion}</h2>
             <p>{t.downloadBody as string}</p>
+            <p className="download-meta">
+              <span>{installerAsset ? (t.installerReady as string) : (t.installerFallback as string)}</span>
+              {installerAsset ? (
+                <>
+                  <strong>{installerAsset.name}</strong>
+                  <em>{formatBytes(installerAsset.size, lang)}</em>
+                </>
+              ) : null}
+            </p>
             <a className="button primary" href={releaseUrl}>
               {t.download as string}
               <ExternalLink size={16} />
             </a>
+            {installerAsset ? (
+              <a className="text-link" href={releaseDetailsUrl}>
+                {t.releaseDetails as string}
+                <ExternalLink size={14} />
+              </a>
+            ) : null}
           </div>
           <div id="changelog" className="release-card">
             <p className="mono">{releaseDate}</p>
