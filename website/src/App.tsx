@@ -15,13 +15,12 @@ import {
   Sprout,
   Star,
   Sun,
-  Timer,
   TrendingUp,
   Vote,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { GiscusPanel } from './GiscusPanel';
-import { funding, ideas, release, roadmap } from './siteData';
+import { funding, ideas, release } from './siteData';
 
 type Lang = 'en' | 'hr';
 
@@ -118,7 +117,7 @@ const copy = {
     ideasList: 'View ideas',
     fundingTitle: 'Voluntary support',
     fundingBody:
-      'If the app helps you, you can support it from goodwill. Larger ideas can still become visible goals later.',
+      'If the app helps you, you can support it from goodwill. Popular app ideas can become visible funding goals when enough users ask for them.',
     donatePending: 'Donate link is coming soon.',
     screenshotsTitle: 'Real app surfaces to verify',
     screenshots: ['Collection', 'Species', 'Map', 'Find workflow'],
@@ -128,9 +127,7 @@ const copy = {
       'Pins, species filtering, location picker, region/local zones, and popups.',
       'Import, manual add, edit details, crop/rotate photos, open folder, and export.',
     ],
-    roadmapTitle: 'Build roadmap',
-    roadmapBody:
-      'The site is built in practical layers so releases, comments, voting, donations, and updates can become real without adding a custom backend too early.',
+    fundingGoalsTitle: 'App ideas that could come next',
     footer: 'Built for mushroom notes, maps, seasons, and patient local archives.',
   },
   hr: {
@@ -187,7 +184,7 @@ const copy = {
     ideasList: 'Pogledaj ideje',
     fundingTitle: 'Dobrovoljna podrska',
     fundingBody:
-      'Ako ti aplikacija pomaze, mozes je podrzati iz dobre volje. Vece ideje kasnije mogu dobiti zaseban cilj.',
+      'Ako ti aplikacija pomaze, mozes je podrzati iz dobre volje. Popularne ideje za aplikaciju mogu postati vidljivi funding ciljevi kad ih dovoljno korisnika zatrazi.',
     donatePending: 'Link za donacije dolazi uskoro.',
     screenshotsTitle: 'Stvarni dijelovi appa za provjeru',
     screenshots: ['Zbirka', 'Vrste', 'Mapa', 'Workflow nalaza'],
@@ -197,9 +194,7 @@ const copy = {
       'Pinovi, filter po vrsti, odabir lokacije, regije/lokalne zone i popupovi.',
       'Uvoz, rucni unos, uredjivanje detalja, crop/rotate fotografija, folder i export.',
     ],
-    roadmapTitle: 'Roadmap izrade',
-    roadmapBody:
-      'Website gradimo u prakticnim slojevima da releaseovi, komentari, glasanje, donacije i updater postanu stvarni bez prerano dodanog vlastitog backend-a.',
+    fundingGoalsTitle: 'Ideje za aplikaciju koje mogu doci sljedece',
     footer: 'Gradeno za gljivarske biljeske, karte, sezone i strpljive lokalne arhive.',
   },
 } satisfies Record<Lang, Record<string, unknown>>;
@@ -625,24 +620,6 @@ export function App() {
           </div>
         </section>
 
-        <section className="section roadmap-section">
-          <p className="eyebrow"><Timer size={15} />{t.roadmapTitle as string}</p>
-          <h2>{t.roadmapTitle as string}</h2>
-          <p className="section-lead">{t.roadmapBody as string}</p>
-          <div className="roadmap-list">
-            {roadmap.map((item) => (
-              <article className="roadmap-card" key={item.phase}>
-                <div>
-                  <span className="mono">{lang === 'hr' ? item.phaseHr : item.phase}</span>
-                  <strong>{lang === 'hr' ? item.statusHr : item.status}</strong>
-                </div>
-                <h3>{lang === 'hr' ? item.titleHr : item.title}</h3>
-                <p>{lang === 'hr' ? item.bodyHr : item.body}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-
         <section id="community" className="section community-grid">
           <div className="feature-panel">
             <MessageCircle size={24} />
@@ -717,6 +694,7 @@ export function App() {
             )}
           </div>
           <div className="funding-card">
+            <h3>{t.fundingGoalsTitle as string}</h3>
             {funding.map((item) => {
               const pct = Math.round((item.current / item.goal) * 100);
               return (
