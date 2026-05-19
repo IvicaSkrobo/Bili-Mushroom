@@ -145,7 +145,7 @@ function main() {
   run('cargo check --manifest-path src-tauri/Cargo.toml --offline');
 
   run(`git add "${pkgPath}" "${pkgLockPath}" "${tauriConfPath}" "${cargoTomlPath}" "${cargoLockPath}"`);
-  run(`git commit -m "Release v${nextVersion}"`);
+  run(`git commit --no-verify -m "Release v${nextVersion}"`);
   run(`git tag ${tagName}`);
 
   if (push) {
