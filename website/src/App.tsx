@@ -87,7 +87,7 @@ const copy = {
       ['Map', 'See where each species appears through your own field history.'],
       ['Understand', 'Stats, seasons, outings, and PDF export for your archive.'],
     ],
-    workflowTitle: 'How finds are handled',
+    workflowTitle: 'From find to archive',
     workflowBody: 'Add a find once. Keep it editable, mapped, searchable, and tied to its folder.',
     workflow: [
       ['Add', 'Import photos or create a find manually.'],
@@ -123,13 +123,13 @@ const copy = {
     fundingBody:
       'Support the app from goodwill, or help push popular feature ideas forward.',
     donatePending: 'Donate link is coming soon.',
-    screenshotsTitle: 'Real app surfaces to verify',
+    screenshotsTitle: 'What the app actually covers',
     screenshots: ['Collection', 'Species', 'Map', 'Find workflow'],
     screenshotDetails: [
-      'Grouped finds, folders, badges, search, and open-in-species/map actions.',
-      'Species notes, other names, synonyms, status badges, recipes, and find history.',
-      'Pins, species filtering, location picker, region/local zones, and popups.',
-      'Import, manual add, edit details, crop/rotate photos, open folder, and export.',
+      'Grouped finds, folders, badges, search, and quick actions.',
+      'Notes, other names, synonyms, recipes, and species history.',
+      'Pins, filters, location picker, region zones, and popups.',
+      'Import, manual add, edit details, crop, rotate, and export.',
     ],
     fundingGoalsTitle: 'App ideas that could come next',
     fundingGoalsBody: 'App features, not website tasks. Amounts are rough priority goals.',
@@ -157,7 +157,7 @@ const copy = {
       ['Mapa', 'Vidi gdje se koja vrsta pojavljuje kroz tvoju povijest terena.'],
       ['Uvidi', 'Statistike, sezone, izlasci i PDF export za tvoju arhivu.'],
     ],
-    workflowTitle: 'Kako se vode nalazi',
+    workflowTitle: 'Od nalaza do arhive',
     workflowBody: 'Unesi nalaz jednom. Ostaje uredjiv, mapiran, pretraziv i vezan uz folder.',
     workflow: [
       ['Dodaj', 'Uvezi fotografije ili rucno napravi nalaz.'],
@@ -192,13 +192,13 @@ const copy = {
     fundingBody:
       'Podrzi aplikaciju iz dobre volje ili poguraj popularne ideje naprijed.',
     donatePending: 'Link za donacije dolazi uskoro.',
-    screenshotsTitle: 'Stvarni dijelovi appa za provjeru',
+    screenshotsTitle: 'Sto app stvarno pokriva',
     screenshots: ['Zbirka', 'Vrste', 'Mapa', 'Workflow nalaza'],
     screenshotDetails: [
-      'Grupirani nalazi, folderi, badgevi, pretraga i akcije za vrste/mapu.',
-      'Biljeske vrste, drugi nazivi, sinonimi, status badgevi, recepti i povijest nalaza.',
-      'Pinovi, filter po vrsti, odabir lokacije, regije/lokalne zone i popupovi.',
-      'Uvoz, rucni unos, uredjivanje detalja, crop/rotate fotografija, folder i export.',
+      'Grupirani nalazi, folderi, badgevi, pretraga i brze akcije.',
+      'Biljeske, drugi nazivi, sinonimi, recepti i povijest vrste.',
+      'Pinovi, filteri, odabir lokacije, zone i popupovi.',
+      'Uvoz, rucni unos, uredjivanje, crop, rotate i export.',
     ],
     fundingGoalsTitle: 'Ideje za aplikaciju koje mogu doci sljedece',
     fundingGoalsBody: 'Funkcije aplikacije, ne website taskovi. Iznosi su okvirni ciljevi.',
@@ -407,8 +407,26 @@ export function App() {
       ? { collection: 'Zbirka', species: 'Vrste', map: 'Mapa', stats: 'Statistike' }
       : { collection: 'Collection', species: 'Species', map: 'Map', stats: 'Stats' };
   const activeFind = lang === 'hr'
-    ? { count: '3 nalaza - travanj', badge: 'Jestiva', edit: 'Uredi nalaz', folder: 'Otvori folder' }
-    : { count: '3 finds - April', badge: 'Edible', edit: 'Edit find', folder: 'Open folder' };
+    ? {
+        count: '3 nalaza - travanj',
+        badge: 'Jestiva',
+        edit: 'Uredi',
+        folder: 'Folder',
+        latest: 'Zadnji zapis danas',
+        finds: 'Nalazi',
+        species: 'Vrste',
+        outings: 'Izlasci',
+      }
+    : {
+        count: '3 finds - April',
+        badge: 'Edible',
+        edit: 'Edit',
+        folder: 'Folder',
+        latest: 'Last entry today',
+        finds: 'Finds',
+        species: 'Species',
+        outings: 'Outings',
+      };
 
   return (
     <div className="site-shell">
@@ -506,14 +524,15 @@ export function App() {
                   </div>
                   <div className="active">
                     <span>Morchella esculenta</span>
-                    <small>{lang === 'hr' ? 'Zadnji zapis danas' : 'Last entry today'}</small>
+                    <small>{activeFind.latest}</small>
+                    <em>{activeFind.badge}</em>
                   </div>
                 </div>
                 <div className="window-map">
                   <div className="window-tabs">
-                    <span className="selected">{appTabs.collection}</span>
+                    <span>{appTabs.collection}</span>
                     <span>{appTabs.species}</span>
-                    <span>{appTabs.map}</span>
+                    <span className="selected">{appTabs.map}</span>
                     <span>{appTabs.stats}</span>
                   </div>
                   <Map size={44} />
@@ -528,6 +547,11 @@ export function App() {
                       <span>{activeFind.edit}</span>
                       <span>{activeFind.folder}</span>
                     </div>
+                  </div>
+                  <div className="window-stats">
+                    <span><strong>128</strong>{activeFind.finds}</span>
+                    <span><strong>46</strong>{activeFind.species}</span>
+                    <span><strong>19</strong>{activeFind.outings}</span>
                   </div>
                 </div>
               </div>

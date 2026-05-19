@@ -606,6 +606,7 @@ h1 {
 }
 
 .window-list div {
+  position: relative;
   display: grid;
   align-content: center;
   height: 74px;
@@ -633,6 +634,20 @@ h1 {
   font-weight: 700;
 }
 
+.window-list em {
+  position: absolute;
+  right: 10px;
+  bottom: 9px;
+  padding: 3px 7px;
+  color: #dff0df;
+  background: rgba(47, 111, 87, 0.52);
+  border: 1px solid rgba(137, 202, 128, 0.38);
+  border-radius: 999px;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 900;
+}
+
 .window-list .active {
   border-color: rgba(214, 151, 52, 0.52);
   background: #1c2b36;
@@ -653,6 +668,16 @@ h1 {
   background-size: 54px 54px, 54px 54px, auto, auto, auto;
 }
 
+.window-map::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background:
+    linear-gradient(90deg, rgba(13, 21, 32, 0.28), transparent 26%, transparent 72%, rgba(13, 21, 32, 0.18)),
+    linear-gradient(180deg, rgba(13, 21, 32, 0.22), transparent 34%, rgba(13, 21, 32, 0.18));
+}
+
 .window-tabs {
   position: absolute;
   top: 18px;
@@ -666,6 +691,7 @@ h1 {
   font-weight: 900;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+  z-index: 1;
 }
 
 .window-tabs .selected {
@@ -682,10 +708,16 @@ h1 {
   border-radius: 999px;
 }
 
+.window-map > svg {
+  position: relative;
+  z-index: 1;
+}
+
 .map-callout {
   position: absolute;
   right: 26px;
   bottom: 28px;
+  z-index: 1;
   min-width: 206px;
   padding: 14px;
   background: rgba(13, 21, 32, 0.86);
@@ -744,8 +776,43 @@ h1 {
   font-weight: 900;
 }
 
+.window-stats {
+  position: absolute;
+  left: 24px;
+  bottom: 24px;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(70px, 1fr));
+  gap: 8px;
+  width: min(330px, calc(100% - 280px));
+}
+
+.window-stats span {
+  display: grid;
+  gap: 2px;
+  min-height: 54px;
+  padding: 9px 10px;
+  border: 1px solid rgba(237, 233, 220, 0.14);
+  border-radius: 8px;
+  background: rgba(13, 21, 32, 0.72);
+  color: rgba(237, 233, 220, 0.58);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.window-stats strong {
+  color: #fff4cf;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
 .pin {
   position: absolute;
+  z-index: 1;
   width: 17px;
   height: 17px;
   border: 3px solid #fff4cf;
@@ -1554,6 +1621,10 @@ footer p {
     bottom: 14px;
     left: 14px;
     min-width: 0;
+  }
+
+  .window-stats {
+    display: none;
   }
 
   .idea {
