@@ -995,66 +995,227 @@ h1 {
   background: #d69b35;
 }
 
-.shot-grid {
+.shot-surface {
+  position: relative;
+  min-height: 170px;
+  padding: 16px;
+  overflow: hidden;
+  background:
+    linear-gradient(rgba(237, 233, 220, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(237, 233, 220, 0.07) 1px, transparent 1px),
+    linear-gradient(140deg, #182638, #101827);
+  background-size: 38px 38px, 38px 38px, auto;
+}
+
+.shot-species .shot-surface { background: linear-gradient(140deg, #18342a, #101827); }
+.shot-map .shot-surface { background:
+  linear-gradient(rgba(237, 233, 220, 0.07) 1px, transparent 1px),
+  linear-gradient(90deg, rgba(237, 233, 220, 0.07) 1px, transparent 1px),
+  radial-gradient(circle at 42% 46%, rgba(47, 111, 87, 0.36), transparent 22%),
+  #132033;
+  background-size: 38px 38px, 38px 38px, auto, auto;
+}
+.shot-find .shot-surface { background: linear-gradient(140deg, #2f271b, #101827); }
+
+.shot-search,
+.shot-folder,
+.shot-photo,
+.shot-species-copy,
+.shot-popup,
+.shot-form-line,
+.shot-form-row span,
+.shot-form-box {
+  border: 1px solid rgba(237, 233, 220, 0.14);
+  border-radius: 8px;
+  background: rgba(13, 21, 32, 0.62);
+}
+
+.shot-search {
+  width: 78%;
+  height: 26px;
+}
+
+.shot-folder {
   display: grid;
-  grid-template-columns: 28% 1fr;
-  min-height: 150px;
+  grid-template-columns: 34px 1fr;
+  gap: 10px;
+  align-items: center;
+  height: 42px;
+  margin-top: 12px;
+  padding: 0 10px;
 }
 
-.shot-side {
-  background: #0c141e;
+.shot-folder.active {
+  border-color: rgba(214, 151, 52, 0.62);
 }
 
-.shot-main {
-  padding: 18px;
-  background: linear-gradient(140deg, #182638, #101827);
-}
-
-.shot-main-1 { background: linear-gradient(140deg, #18342a, #101827); }
-.shot-main-2 { background: linear-gradient(140deg, #1c3142, #101827); }
-.shot-main-3 { background: linear-gradient(140deg, #2f271b, #101827); }
-
-.shot-title,
-.shot-line,
-.shot-pills span {
+.shot-folder span,
+.shot-folder strong,
+.shot-species-copy strong,
+.shot-species-copy span,
+.shot-popup strong,
+.shot-popup span,
+.shot-popup i,
+.shot-form-line,
+.shot-action-row i {
+  display: block;
   border-radius: 999px;
-  background: rgba(237, 233, 220, 0.72);
+  background: rgba(237, 233, 220, 0.68);
 }
 
-.shot-title {
-  width: 58%;
-  height: 16px;
+.shot-folder span {
+  height: 26px;
+  border-radius: 6px;
+  background: rgba(214, 151, 52, 0.35);
 }
 
-.shot-line {
-  width: 48%;
-  height: 8px;
-  margin-top: 14px;
-  opacity: 0.45;
+.shot-folder strong {
+  width: 70%;
+  height: 10px;
 }
 
-.shot-line.long {
-  width: 84%;
-}
-
-.shot-pills {
+.shot-action-row {
   display: flex;
   gap: 7px;
-  margin-top: 22px;
+  margin-top: 12px;
 }
 
-.shot-pills span {
-  width: 38px;
+.shot-action-row i {
+  width: 46px;
   height: 18px;
-  background: rgba(214, 151, 52, 0.8);
+  background: rgba(214, 151, 52, 0.82);
 }
 
-.shot p {
+.shot-photo {
+  position: absolute;
+  top: 18px;
+  left: 16px;
+  width: 35%;
+  height: 126px;
+  background:
+    radial-gradient(circle at 52% 45%, rgba(247, 237, 207, 0.82), transparent 24%),
+    rgba(13, 21, 32, 0.68);
+}
+
+.shot-species-copy {
+  margin-left: 41%;
+  min-height: 126px;
+  padding: 16px;
+}
+
+.shot-species-copy strong {
+  width: 74%;
+  height: 15px;
+}
+
+.shot-species-copy span {
+  width: 88%;
+  height: 8px;
+  margin-top: 13px;
+  opacity: 0.48;
+}
+
+.shot-species-copy .short {
+  width: 54%;
+}
+
+.shot-species-copy div {
+  display: flex;
+  gap: 7px;
+  margin-top: 20px;
+}
+
+.shot-species-copy i {
+  width: 38px;
+  height: 17px;
+  border-radius: 999px;
+  background: rgba(47, 111, 87, 0.76);
+}
+
+.shot-pin {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 3px solid #fff4cf;
+  border-radius: 999px;
+  background: #c36b2d;
+  box-shadow: 0 0 0 7px rgba(195, 107, 45, 0.18);
+}
+
+.shot-pin.a { top: 38px; left: 30%; }
+.shot-pin.b { top: 74px; right: 25%; }
+.shot-pin.c { bottom: 36px; left: 48%; }
+
+.shot-popup {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  width: 138px;
+  padding: 12px;
+}
+
+.shot-popup strong {
+  width: 86%;
+  height: 13px;
+}
+
+.shot-popup span {
+  width: 62%;
+  height: 8px;
+  margin-top: 10px;
+  opacity: 0.52;
+}
+
+.shot-popup i {
+  width: 44px;
+  height: 17px;
+  margin-top: 12px;
+  background: rgba(47, 111, 87, 0.76);
+}
+
+.shot-form-line {
+  height: 30px;
+  background: rgba(13, 21, 32, 0.62);
+}
+
+.shot-form-line.long {
+  width: 92%;
+}
+
+.shot-form-row {
+  display: grid;
+  grid-template-columns: 0.8fr 1fr 1fr;
+  gap: 8px;
+  margin-top: 11px;
+}
+
+.shot-form-row span {
+  height: 28px;
+}
+
+.shot-form-box {
+  height: 48px;
+  margin-top: 11px;
+}
+
+.shot-caption {
+  min-height: 118px;
+  padding: 13px 14px 15px;
+}
+
+.shot-caption p {
   margin: 0;
-  padding: 12px 14px;
   color: #ede9dc;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 900;
+}
+
+.shot-caption span {
+  display: block;
+  margin-top: 7px;
+  color: rgba(237, 233, 220, 0.68);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .feature-panel {

@@ -122,6 +122,12 @@ const copy = {
     donatePending: 'Donate link is coming soon.',
     screenshotsTitle: 'Real app surfaces to verify',
     screenshots: ['Collection', 'Species', 'Map', 'Find workflow'],
+    screenshotDetails: [
+      'Grouped finds, folders, badges, search, and open-in-species/map actions.',
+      'Species notes, other names, synonyms, status badges, recipes, and find history.',
+      'Pins, species filtering, location picker, region/local zones, and popups.',
+      'Import, manual add, edit details, crop/rotate photos, open folder, and export.',
+    ],
     roadmapTitle: 'Build roadmap',
     roadmapBody:
       'The site is built in practical layers so releases, comments, voting, donations, and updates can become real without adding a custom backend too early.',
@@ -185,6 +191,12 @@ const copy = {
     donatePending: 'Link za donacije dolazi uskoro.',
     screenshotsTitle: 'Stvarni dijelovi appa za provjeru',
     screenshots: ['Zbirka', 'Vrste', 'Mapa', 'Workflow nalaza'],
+    screenshotDetails: [
+      'Grupirani nalazi, folderi, badgevi, pretraga i akcije za vrste/mapu.',
+      'Biljeske vrste, drugi nazivi, sinonimi, status badgevi, recepti i povijest nalaza.',
+      'Pinovi, filter po vrsti, odabir lokacije, regije/lokalne zone i popupovi.',
+      'Uvoz, rucni unos, uredjivanje detalja, crop/rotate fotografija, folder i export.',
+    ],
     roadmapTitle: 'Roadmap izrade',
     roadmapBody:
       'Website gradimo u prakticnim slojevima da releaseovi, komentari, glasanje, donacije i updater postanu stvarni bez prerano dodanog vlastitog backend-a.',
@@ -246,28 +258,57 @@ function BrandMark() {
   );
 }
 
-function AppScreenshot({ label, index }: { label: string; index: number }) {
+function AppScreenshot({ label, detail, index }: { label: string; detail: string; index: number }) {
+  const kind = ['collection', 'species', 'map', 'find'][index] ?? 'collection';
   return (
-    <div className="shot">
+    <div className={`shot shot-${kind}`}>
       <div className="shot-top">
         <span />
         <span />
         <span />
       </div>
-      <div className="shot-grid">
-        <div className="shot-side" />
-        <div className={`shot-main shot-main-${index}`}>
-          <div className="shot-title" />
-          <div className="shot-line long" />
-          <div className="shot-line" />
-          <div className="shot-pills">
-            <span />
-            <span />
-            <span />
-          </div>
-        </div>
+      <div className="shot-surface" aria-hidden="true">
+        {kind === 'collection' ? (
+          <>
+            <div className="shot-search" />
+            <div className="shot-folder active"><span /><strong /></div>
+            <div className="shot-folder"><span /><strong /></div>
+            <div className="shot-action-row"><i /><i /><i /></div>
+          </>
+        ) : null}
+        {kind === 'species' ? (
+          <>
+            <div className="shot-photo" />
+            <div className="shot-species-copy">
+              <strong />
+              <span />
+              <span className="short" />
+              <div><i /><i /><i /></div>
+            </div>
+          </>
+        ) : null}
+        {kind === 'map' ? (
+          <>
+            <div className="shot-map-grid" />
+            <span className="shot-pin a" />
+            <span className="shot-pin b" />
+            <span className="shot-pin c" />
+            <div className="shot-popup"><strong /><span /><i /></div>
+          </>
+        ) : null}
+        {kind === 'find' ? (
+          <>
+            <div className="shot-form-line long" />
+            <div className="shot-form-row"><span /><span /><span /></div>
+            <div className="shot-form-box" />
+            <div className="shot-action-row"><i /><i /><i /></div>
+          </>
+        ) : null}
       </div>
-      <p>{label}</p>
+      <div className="shot-caption">
+        <p>{label}</p>
+        <span>{detail}</span>
+      </div>
     </div>
   );
 }
@@ -574,7 +615,12 @@ export function App() {
           <p className="eyebrow"><Sparkles size={15} />{t.screenshotsTitle as string}</p>
           <div className="screenshots">
             {(t.screenshots as string[]).map((label, index) => (
-              <AppScreenshot key={label} label={label} index={index} />
+              <AppScreenshot
+                key={label}
+                label={label}
+                detail={(t.screenshotDetails as string[])[index]}
+                index={index}
+              />
             ))}
           </div>
         </section>
