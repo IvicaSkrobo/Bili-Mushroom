@@ -49,11 +49,9 @@ export function GiscusPanel({ lang, theme }: GiscusPanelProps) {
         <div className="giscus-placeholder">
           <p>
             {lang === 'hr'
-              ? 'Giscus slot je spreman. Treba jos ukljuciti GitHub Discussions i dodati repo/category ID-eve u website env.'
-              : 'The Giscus slot is ready. Enable GitHub Discussions and add repo/category IDs to the website env to turn comments on.'}
+              ? 'Komentari uz release dolaze uskoro. Dotad pitanja i prijedlozi mogu ici kroz GitHub Discussions.'
+              : 'Release comments are coming soon. Until then, questions and ideas can live in GitHub Discussions.'}
           </p>
-          <code>VITE_GISCUS_REPO_ID</code>
-          <code>VITE_GISCUS_CATEGORY_ID</code>
         </div>
       )}
     </section>

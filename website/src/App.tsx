@@ -93,7 +93,7 @@ const copy = {
     bugBody:
       'Bug reports should be private by default, because screenshots, paths, logs, and locations can contain personal data.',
     bugAction: 'Open private bug form',
-    bugPending: 'Private form link is not connected yet. Add VITE_BUG_REPORT_URL when the form is ready.',
+    bugPending: 'Private bug form is coming soon.',
     ideasTitle: 'Ideas users can vote on',
     ideasBody:
       'Feature requests will live in GitHub Discussions. Users vote with reactions, and popular ideas can move into funding goals.',
@@ -102,6 +102,7 @@ const copy = {
     fundingTitle: 'Voluntary support',
     fundingBody:
       'If the app helps you, you can support it from goodwill. Larger ideas can still become visible goals later.',
+    donatePending: 'Donate link is coming soon.',
     screenshotsTitle: 'App surfaces to show',
     screenshots: ['Collection', 'Species detail', 'Map', 'Stats and PDF'],
     roadmapTitle: 'Build roadmap',
@@ -141,7 +142,7 @@ const copy = {
     bugBody:
       'Bugovi trebaju biti privatni po defaultu jer screenshotovi, putanje, logovi i lokacije mogu sadrzavati osobne podatke.',
     bugAction: 'Otvori privatni obrazac',
-    bugPending: 'Privatni form link jos nije spojen. Dodaj VITE_BUG_REPORT_URL kad obrazac bude spreman.',
+    bugPending: 'Privatni obrazac za bugove dolazi uskoro.',
     ideasTitle: 'Ideje za koje korisnici mogu glasati',
     ideasBody:
       'Prijedlozi funkcija zivjet ce u GitHub Discussions. Korisnici glasaju reakcijama, a popularne ideje mogu ici u funding ciljeve.',
@@ -150,6 +151,7 @@ const copy = {
     fundingTitle: 'Dobrovoljna podrska',
     fundingBody:
       'Ako ti aplikacija pomaze, mozes je podrzati iz dobre volje. Vece ideje kasnije mogu dobiti zaseban cilj.',
+    donatePending: 'Link za donacije dolazi uskoro.',
     screenshotsTitle: 'Dijelovi aplikacije za prikaz',
     screenshots: ['Zbirka', 'Detalj vrste', 'Mapa', 'Statistike i PDF'],
     roadmapTitle: 'Roadmap izrade',
@@ -311,7 +313,7 @@ export function App() {
         .slice(0, 4)
     : release.notes[lang];
   const bugReportUrl = configuredBugReportUrl?.trim();
-  const donateUrl = configuredDonateUrl?.trim() || 'https://github.com/IvicaSkrobo/Bili-Mushroom';
+  const donateUrl = configuredDonateUrl?.trim();
   const visibleIdeas: VisibleIdea[] = remoteIdeas.length
     ? remoteIdeas.map((idea) => ({
         title: idea.title,
@@ -571,10 +573,17 @@ export function App() {
             <p className="eyebrow"><Heart size={15} />{t.support as string}</p>
             <h2>{t.fundingTitle as string}</h2>
             <p>{t.fundingBody as string}</p>
-            <a className="button secondary" href={donateUrl}>
-              {t.supportHero as string}
-              <ExternalLink size={16} />
-            </a>
+            {donateUrl ? (
+              <a className="button secondary" href={donateUrl}>
+                {t.supportHero as string}
+                <ExternalLink size={16} />
+              </a>
+            ) : (
+              <span className="pending-link">
+                <Heart size={14} />
+                {t.donatePending as string}
+              </span>
+            )}
           </div>
           <div className="funding-card">
             {funding.map((item) => {
