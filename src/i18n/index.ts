@@ -545,6 +545,10 @@ const hr: Translations = {
   'app.updateCheckFailed': 'Provjera ažuriranja nije uspjela. Provjeri internet vezu ili pokušaj ponovno kasnije.',
   'app.updateTitle': 'Dostupno ažuriranje: v{version} — klikni za instalaciju',
   'app.checkTitle': 'Provjeri ažuriranja',
+  'app.updateConfirmTitle': 'Ažurirati na v{version}?',
+  'app.updateConfirmDescription': 'Prvo spremi sve što uređuješ. Gljivobook će preuzeti ažuriranje, zatvoriti se dok Windows installer radi, i zatim se ponovno otvoriti na novoj verziji.',
+  'app.updateConfirmCancel': 'Ne sada',
+  'app.updateConfirmAction': 'Zatvori i ažuriraj',
   'app.openWebsite': 'Otvori website',
   'app.toggleTheme': 'Promijeni izgled',
 
@@ -1148,6 +1152,10 @@ const en: Translations = {
   'app.updateCheckFailed': 'Could not check for updates. Check your internet connection or try again later.',
   'app.updateTitle': 'Update available: v{version} — click to install',
   'app.checkTitle': 'Check for updates',
+  'app.updateConfirmTitle': 'Update to v{version}?',
+  'app.updateConfirmDescription': 'Save anything you are editing first. Gljivobook will download the update, close while the Windows installer runs, and then reopen on the new version.',
+  'app.updateConfirmCancel': 'Not now',
+  'app.updateConfirmAction': 'Close and update',
   'app.openWebsite': 'Open website',
   'app.toggleTheme': 'Toggle theme',
 

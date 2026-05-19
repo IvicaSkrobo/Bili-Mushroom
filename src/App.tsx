@@ -14,6 +14,7 @@ import { AutoImportDialog } from '@/components/dialogs/AutoImportDialog';
 import { AppShell } from '@/components/layout/AppShell';
 import { APP_VERSION } from '@/lib/appMeta';
 import { checkDevUpdateMock, installDevUpdateMock } from '@/lib/devUpdater';
+import { useT } from '@/i18n/index';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -81,6 +82,7 @@ function StartupScreen({ stage, children }: { stage: string; children?: ReactNod
 }
 
 export default function App() {
+  const t = useT();
   const storagePath = useAppStore((s) => s.storagePath);
   const dbReady = useAppStore((s) => s.dbReady);
   const dbError = useAppStore((s) => s.dbError);
@@ -322,16 +324,15 @@ export default function App() {
       <AlertDialog open={!!confirmUpdate} onOpenChange={(o) => { if (!o) setConfirmUpdate(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Update to v{confirmUpdate?.version}?</AlertDialogTitle>
+            <AlertDialogTitle>{t('app.updateConfirmTitle', { version: confirmUpdate?.version ?? '' })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Save anything you are editing first. Gljivobook will download the update, close while the
-              Windows installer runs, and then reopen on the new version.
+              {t('app.updateConfirmDescription')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Not now</AlertDialogCancel>
+            <AlertDialogCancel>{t('app.updateConfirmCancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={() => { setConfirmUpdate(null); runInstallUpdate(); }}>
-              Close and update
+              {t('app.updateConfirmAction')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
