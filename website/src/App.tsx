@@ -69,8 +69,7 @@ const copy = {
     eyebrow: 'Local-first field journal for Windows',
     title: 'Mushroom Book',
     subtitle: 'Your foraging journal',
-    intro:
-      'A quiet desktop app for foragers who want every find stored, mapped, searchable, and remembered on their own machine.',
+    intro: 'A local Windows journal for mushroom finds, maps, notes, seasons, and photos.',
     download: 'Download for Windows',
     releaseDetails: 'Release details',
     installerReady: 'Direct installer',
@@ -84,20 +83,19 @@ const copy = {
     theme: 'Theme',
     fundingTop: 'Donate if you like it',
     pillars: [
-      ['Collect', 'Import photos, notes, locations, dates, and species details into one local library.'],
-      ['Map', 'See field history by place, species, and season without losing context.'],
-      ['Understand', 'Stats, seasons, field outings, and PDF export turn your archive into a useful journal.'],
+      ['Collect', 'Photos, notes, species, dates, and folders in one local library.'],
+      ['Map', 'See where each species appears through your own field history.'],
+      ['Understand', 'Stats, seasons, outings, and PDF export for your archive.'],
     ],
     workflowTitle: 'How finds are handled',
-    workflowBody:
-      'The website should stay honest to the real app: every find belongs to a collection species, can be opened on the map, edited later, and traced back to its local folder.',
+    workflowBody: 'Add a find once. Keep it editable, mapped, searchable, and tied to its folder.',
     workflow: [
-      ['Import or add a find', 'Photos, date, location, Croatian/common name, notes, status badges, and fruiting body count stay editable.'],
-      ['Browse by collection and species', 'The collection groups finds by species, while the species view keeps notes, other names, synonyms, recipes, and per-species history.'],
-      ['Map and export the archive', 'Pins, location filtering, stats, field outings, and PDF export turn stored finds into usable history.'],
+      ['Add', 'Import photos or create a find manually.'],
+      ['Edit', 'Adjust species, date, location, notes, badges, and photos later.'],
+      ['Use', 'Open folders, filter maps, read stats, and export a PDF.'],
     ],
     downloadBody:
-      'The website reads the latest GitHub Release and falls back to bundled release notes if GitHub is unavailable.',
+      'Latest Windows download. Local fallback protects the page if GitHub returns old release data.',
     installTitle: 'Install notes',
     installBody:
       'Download the Windows setup file, run it, and if Windows SmartScreen appears choose More info, then Run anyway.',
@@ -106,15 +104,14 @@ const copy = {
       'Finds, notes, folders, and photos stay on your computer. Core cataloging works without an account or cloud service.',
     communityTitle: 'Community without a custom backend',
     communityBody:
-      'GitHub Discussions and Giscus power release comments, questions, showcase posts, and feature ideas. Bug reports use a structured form.',
+      'Questions, release comments, showcase posts, bugs, and ideas live through GitHub.',
     bugTitle: 'Report bugs',
-    bugBody:
-      'Use the bug form for crashes, broken buttons, wrong translations, or confusing workflows. Check screenshots and logs before attaching them because file paths and locations can be personal.',
+    bugBody: 'Report crashes, broken buttons, wrong translations, or confusing workflows.',
     bugAction: 'Report a bug',
     bugExternal: 'Uses GitHub issue form',
     ideasTitle: 'Ideas users can vote on',
     ideasBody:
-      'Feature requests will live in GitHub Discussions. Users vote with reactions, and popular ideas can move into funding goals.',
+      'Suggest features, vote with reactions, and push strong ideas toward funding goals.',
     ideaFlow: [
       ['1', 'Suggest', 'A user writes a feature idea.'],
       ['2', 'Vote', 'Others add reactions and comments.'],
@@ -124,7 +121,7 @@ const copy = {
     ideasList: 'View ideas',
     fundingTitle: 'Voluntary support',
     fundingBody:
-      'If the app helps you, you can support it from goodwill. Popular app ideas can become visible funding goals when enough users ask for them.',
+      'Support the app from goodwill, or help push popular feature ideas forward.',
     donatePending: 'Donate link is coming soon.',
     screenshotsTitle: 'Real app surfaces to verify',
     screenshots: ['Collection', 'Species', 'Map', 'Find workflow'],
@@ -135,16 +132,14 @@ const copy = {
       'Import, manual add, edit details, crop/rotate photos, open folder, and export.',
     ],
     fundingGoalsTitle: 'App ideas that could come next',
-    fundingGoalsBody:
-      'These are app features, not website tasks. Amounts are rough goals that make larger work easier to prioritize.',
-    footer: 'Built for mushroom notes, maps, seasons, and patient local archives.',
+    fundingGoalsBody: 'App features, not website tasks. Amounts are rough priority goals.',
+    footer: 'Built for mushroom notes, maps, seasons, and local archives.',
   },
   hr: {
     eyebrow: 'Lokalni gljivarski dnevnik za Windows',
     title: 'Gljivobook',
     subtitle: 'Tvoj gljivarski dnevnik',
-    intro:
-      'Mirna desktop aplikacija za gljivare koji zele svaki nalaz spremiti, mapirati, pretraziti i sacuvati na svom racunalu.',
+    intro: 'Lokalni Windows dnevnik za nalaze, mape, biljeske, sezone i fotografije.',
     download: 'Preuzmi za Windows',
     releaseDetails: 'Detalji verzije',
     installerReady: 'Direktni installer',
@@ -158,20 +153,19 @@ const copy = {
     theme: 'Tema',
     fundingTop: 'Doniraj iz dobre volje',
     pillars: [
-      ['Zbirka', 'Uvezi fotografije, biljeske, lokacije, datume i podatke o vrsti u lokalnu knjiznicu.'],
-      ['Mapa', 'Vidi povijest terena po mjestu, vrsti i sezoni bez gubljenja konteksta.'],
-      ['Uvidi', 'Statistike, sezone, izlasci na teren i PDF export pretvaraju arhivu u koristan dnevnik.'],
+      ['Zbirka', 'Fotografije, biljeske, vrste, datumi i folderi u jednoj lokalnoj zbirci.'],
+      ['Mapa', 'Vidi gdje se koja vrsta pojavljuje kroz tvoju povijest terena.'],
+      ['Uvidi', 'Statistike, sezone, izlasci i PDF export za tvoju arhivu.'],
     ],
     workflowTitle: 'Kako se vode nalazi',
-    workflowBody:
-      'Website treba ostati vjeran stvarnoj aplikaciji: svaki nalaz pripada vrsti u zbirci, moze se otvoriti na mapi, kasnije urediti i povezati s lokalnim folderom.',
+    workflowBody: 'Unesi nalaz jednom. Ostaje uredjiv, mapiran, pretraziv i vezan uz folder.',
     workflow: [
-      ['Uvezi ili dodaj nalaz', 'Fotografije, datum, lokacija, hrvatski naziv, biljeske, status badgevi i broj plodnih tijela ostaju uredjivi.'],
-      ['Pregledaj kroz zbirku i vrste', 'Zbirka grupira nalaze po vrsti, a Vrste cuvaju biljeske, druge nazive, sinonime, recepte i povijest pojedine vrste.'],
-      ['Mapiraj i izvezi arhivu', 'Pinovi, filteri lokacije, statistike, izlasci na teren i PDF export pretvaraju spremljene nalaze u korisnu povijest.'],
+      ['Dodaj', 'Uvezi fotografije ili rucno napravi nalaz.'],
+      ['Uredi', 'Promijeni vrstu, datum, lokaciju, biljeske, badgeve i fotografije.'],
+      ['Koristi', 'Otvori foldere, filtriraj mapu, citaj statistike i izvezi PDF.'],
     ],
     downloadBody:
-      'Website cita zadnji GitHub Release i koristi lokalni fallback ako GitHub trenutno nije dostupan.',
+      'Zadnji Windows download. Lokalni fallback cuva stranicu ako GitHub vrati stariji release.',
     installTitle: 'Napomena za instalaciju',
     installBody:
       'Preuzmi Windows setup, pokreni ga, a ako se pojavi Windows SmartScreen odaberi More info pa Run anyway.',
@@ -179,16 +173,14 @@ const copy = {
     privacyBody:
       'Nalazi, biljeske, mape i fotografije ostaju na tvom racunalu. Osnovno katalogiziranje radi bez racuna i clouda.',
     communityTitle: 'Zajednica bez vlastitog backend-a',
-    communityBody:
-      'GitHub Discussions i Giscus nose komentare na release, pitanja, prikaze nalaza i ideje. Bugovi idu kroz strukturirani obrazac.',
+    communityBody: 'Pitanja, komentari, prikazi nalaza, bugovi i ideje idu kroz GitHub.',
     bugTitle: 'Prijavi bug',
-    bugBody:
-      'Koristi bug obrazac za crash, pokvarene gumbe, krive prijevode ili zbunjujuce workflowe. Prije slanja provjeri screenshotove i logove jer putanje i lokacije mogu biti osobne.',
+    bugBody: 'Prijavi crash, pokvareni gumb, krivi prijevod ili zbunjujuci workflow.',
     bugAction: 'Prijavi bug',
     bugExternal: 'Koristi GitHub issue obrazac',
     ideasTitle: 'Ideje za koje korisnici mogu glasati',
     ideasBody:
-      'Prijedlozi funkcija zivjet ce u GitHub Discussions. Korisnici glasaju reakcijama, a popularne ideje mogu ici u funding ciljeve.',
+      'Predlozi funkciju, drugi glasaju reakcijama, a jake ideje mogu u funding ciljeve.',
     ideaFlow: [
       ['1', 'Predlozi', 'Korisnik napise ideju za funkciju.'],
       ['2', 'Glasaj', 'Drugi dodaju reakcije i komentare.'],
@@ -198,7 +190,7 @@ const copy = {
     ideasList: 'Pogledaj ideje',
     fundingTitle: 'Dobrovoljna podrska',
     fundingBody:
-      'Ako ti aplikacija pomaze, mozes je podrzati iz dobre volje. Popularne ideje za aplikaciju mogu postati vidljivi funding ciljevi kad ih dovoljno korisnika zatrazi.',
+      'Podrzi aplikaciju iz dobre volje ili poguraj popularne ideje naprijed.',
     donatePending: 'Link za donacije dolazi uskoro.',
     screenshotsTitle: 'Stvarni dijelovi appa za provjeru',
     screenshots: ['Zbirka', 'Vrste', 'Mapa', 'Workflow nalaza'],
@@ -209,9 +201,8 @@ const copy = {
       'Uvoz, rucni unos, uredjivanje detalja, crop/rotate fotografija, folder i export.',
     ],
     fundingGoalsTitle: 'Ideje za aplikaciju koje mogu doci sljedece',
-    fundingGoalsBody:
-      'Ovo su funkcije aplikacije, ne zadaci za website. Iznosi su okvirni ciljevi koji pomazu odrediti prioritet veceg posla.',
-    footer: 'Gradeno za gljivarske biljeske, karte, sezone i strpljive lokalne arhive.',
+    fundingGoalsBody: 'Funkcije aplikacije, ne website taskovi. Iznosi su okvirni ciljevi.',
+    footer: 'Gradeno za gljivarske biljeske, karte, sezone i lokalne arhive.',
   },
 } satisfies Record<Lang, Record<string, unknown>>;
 

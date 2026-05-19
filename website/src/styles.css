@@ -68,6 +68,36 @@ body {
   color: var(--fg);
 }
 
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes previewFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+
+@keyframes progressReveal {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -81,6 +111,41 @@ button:focus-visible {
 
 .site-shell {
   min-height: 100vh;
+}
+
+.hero-copy,
+.hero-visual,
+.pillars article,
+.workflow-grid article,
+.shot,
+.feature-panel,
+.funding-card,
+.release-card,
+.info-grid article {
+  animation: fadeUp 620ms ease both;
+}
+
+.hero-copy {
+  animation-duration: 700ms;
+}
+
+.hero-visual {
+  animation-delay: 90ms;
+  animation-duration: 760ms;
+}
+
+.pillars article:nth-child(2),
+.workflow-grid article:nth-child(2),
+.shot:nth-child(2),
+.info-grid article:nth-child(2) {
+  animation-delay: 80ms;
+}
+
+.pillars article:nth-child(3),
+.workflow-grid article:nth-child(3),
+.shot:nth-child(3),
+.info-grid article:nth-child(3) {
+  animation-delay: 140ms;
 }
 
 .site-header {
@@ -498,6 +563,7 @@ h1 {
   background: var(--night);
   color: #ede9dc;
   box-shadow: var(--shadow);
+  animation: previewFloat 7s ease-in-out 1.2s infinite;
 }
 
 .window-bar {
@@ -709,6 +775,18 @@ h1 {
   border-radius: 8px;
   background: var(--panel-bg);
   box-shadow: 0 18px 48px rgba(54, 42, 23, 0.08);
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.pillars article:hover,
+.release-card:hover,
+.feature-panel:hover,
+.funding-card:hover,
+.shot:hover,
+.workflow-grid article:hover {
+  border-color: rgba(184, 109, 34, 0.44);
+  box-shadow: 0 24px 58px rgba(54, 42, 23, 0.12);
+  transform: translateY(-2px);
 }
 
 .pillars article {
@@ -1344,6 +1422,8 @@ h1 {
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--green), var(--amber));
+  transform-origin: left center;
+  animation: progressReveal 900ms ease both;
 }
 
 footer {
@@ -1363,6 +1443,7 @@ footer p {
   *,
   *::before,
   *::after {
+    animation: none !important;
     scroll-behavior: auto !important;
     transition: none !important;
   }
