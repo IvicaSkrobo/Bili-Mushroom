@@ -541,6 +541,8 @@ const hr: Translations = {
   // app shell
   'app.checkingUpdate': 'Provjera…',
   'app.upToDate': 'Ažurno',
+  'app.updateTimeout': 'Provjera ažuriranja je istekla. Provjeri internet vezu i pokušaj ponovno.',
+  'app.updateCheckFailed': 'Provjera ažuriranja nije uspjela. Provjeri internet vezu ili pokušaj ponovno kasnije.',
   'app.updateTitle': 'Dostupno ažuriranje: v{version} — klikni za instalaciju',
   'app.checkTitle': 'Provjeri ažuriranja',
   'app.openWebsite': 'Otvori website',
@@ -1142,6 +1144,8 @@ const en: Translations = {
   // app shell
   'app.checkingUpdate': 'Checking…',
   'app.upToDate': 'Up to date',
+  'app.updateTimeout': 'Update check timed out. Check your internet connection and try again.',
+  'app.updateCheckFailed': 'Could not check for updates. Check your internet connection or try again later.',
   'app.updateTitle': 'Update available: v{version} — click to install',
   'app.checkTitle': 'Check for updates',
   'app.openWebsite': 'Open website',

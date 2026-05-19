@@ -50,7 +50,7 @@ export function AppShell() {
     setCheckError(null);
     setCheckLabel(t('app.checkingUpdate'));
     const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Timed out after 45s — if this keeps happening, open Windows Security → Virus & threat protection → allow Gljivobook')), 45000),
+      setTimeout(() => reject(new Error('UPDATE_CHECK_TIMEOUT')), 45000),
     );
     try {
       const update = await Promise.race([
@@ -67,8 +67,9 @@ export function AppShell() {
       }
     } catch (err) {
       const msg = String((err as Error)?.message ?? err);
+      console.error('[updater] manual check failed:', msg);
       setCheckLabel(null);
-      setCheckError(msg);
+      setCheckError(msg === 'UPDATE_CHECK_TIMEOUT' ? t('app.updateTimeout') : t('app.updateCheckFailed'));
     } finally {
       setCheckingUpdate(false);
     }
