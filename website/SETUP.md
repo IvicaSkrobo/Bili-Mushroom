@@ -21,8 +21,6 @@ Open `Settings` -> `Secrets and variables` -> `Actions` -> `Variables`, then add
 | `VITE_GISCUS_REPO_ID` | Repository ID from the Giscus setup page. |
 | `VITE_GISCUS_CATEGORY` | Discussion category name, for example `General` or `Announcements`. |
 | `VITE_GISCUS_CATEGORY_ID` | Category ID from the Giscus setup page. |
-| `VITE_BUG_REPORT_URL` | Optional bug form URL. If empty, the website uses the public GitHub bug issue template. Use Tally, Google Forms, Formspree, or another private inbox later if needed. |
-| `VITE_BUG_REPORT_ENDPOINT` | Optional Cloudflare Worker endpoint for the no-account website bug form. Use the same Worker URL as the app. |
 | `VITE_DONATE_URL` | Donate page URL, for example Ko-fi, Buy Me a Coffee, PayPal, or Stripe Payment Link. |
 
 These are public website values, not secrets. Do not put private API keys here because Vite embeds them into the generated static files.
@@ -49,15 +47,13 @@ Feature ideas use GitHub issues with the `idea` label.
 
 ## Bug Reports
 
-The website works immediately with the public GitHub bug issue template:
+Bug reporting is app-only so the public website does not invite bot submissions.
 
-`https://github.com/IvicaSkrobo/Bili-Mushroom/issues/new?template=bug_report.yml&labels=bug`
-
-The public bug board lives at:
+The unlisted bug board lives at:
 
 `https://ivicaskrobo.github.io/Bili-Mushroom/?lang=hr#bugs`
 
-It reads open GitHub issues with the `bug` label and shows title, issue number, comments, and link. Do not put private contact details in public issue bodies.
+It is not linked from the main website. It reads open GitHub issues with the `bug` label and shows title, issue number, status, comments, and link. Do not put private contact details in public issue bodies.
 
 Bug status is label-based:
 
@@ -67,19 +63,7 @@ Bug status is label-based:
 - `needs-verification` -> explicitly waiting for verification
 - `verified` -> user confirmed the fix
 
-The website no-account form appears when `VITE_BUG_REPORT_ENDPOINT` is set. It sends reports to the same Cloudflare Worker used by the app.
-
-Screenshots and logs can expose file paths or locations, so the website copy reminds users to check attachments before posting.
-
-If a private inbox is needed later, good first options are:
-
-
-- Tally form
-- Google Form
-- Formspree form
-- GitHub private repository issue form
-
-After choosing one, set `VITE_BUG_REPORT_URL` to that form URL and redeploy the website.
+The app sends reports to the Cloudflare Worker endpoint configured through `VITE_BUG_REPORT_ENDPOINT` in the Windows build workflow.
 
 ## Donate
 

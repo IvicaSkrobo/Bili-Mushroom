@@ -1,6 +1,5 @@
 import {
   BookOpen,
-  Bug,
   ClipboardList,
   Download,
   ExternalLink,
@@ -19,7 +18,7 @@ import {
   TrendingUp,
   Vote,
 } from 'lucide-react';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { GiscusPanel } from './GiscusPanel';
 import { funding, ideas, release } from './siteData';
 
@@ -61,11 +60,7 @@ type VisibleIdea = {
   url: string;
 };
 
-const configuredBugReportUrl = import.meta.env.VITE_BUG_REPORT_URL as string | undefined;
-const configuredBugReportEndpoint = import.meta.env.VITE_BUG_REPORT_ENDPOINT as string | undefined;
 const configuredDonateUrl = import.meta.env.VITE_DONATE_URL as string | undefined;
-const defaultBugReportUrl =
-  'https://github.com/IvicaSkrobo/Bili-Mushroom/issues/new?template=bug_report.yml&labels=bug';
 const ideaSubmitUrl =
   'https://github.com/IvicaSkrobo/Bili-Mushroom/issues/new?template=feature_idea.yml&labels=idea';
 const ideasListUrl = 'https://github.com/IvicaSkrobo/Bili-Mushroom/issues?q=is%3Aissue%20label%3Aidea';
@@ -111,28 +106,13 @@ const copy = {
       'Finds, notes, folders, and photos stay on your computer. Core cataloging works without an account or cloud service.',
     communityTitle: 'Community without a custom backend',
     communityBody:
-      'Questions, release comments, showcase posts, bugs, and ideas live through GitHub.',
-    bugTitle: 'Report bugs',
-    bugBody: 'Report crashes, broken buttons, wrong translations, or confusing workflows.',
-    bugAction: 'Report a bug',
-    bugExternal: 'Uses GitHub issue form',
-    bugFormTitle: 'Quick report',
-    bugFormDescription: 'This creates a public bug card for the board. Do not include private locations or passwords.',
-    bugFormName: 'Short title',
-    bugFormNamePlaceholder: 'e.g. Stats crash on open',
-    bugFormDetails: 'What happened?',
-    bugFormDetailsPlaceholder: 'What did you click, what did you expect, and what happened instead?',
-    bugFormSteps: 'Steps',
-    bugFormStepsPlaceholder: '1. Open...\n2. Click...\n3. See...',
-    bugFormContact: 'Contact (optional, not shown on the public board)',
-    bugFormSubmit: 'Send bug report',
-    bugFormSending: 'Sending...',
-    bugFormSent: 'Sent. It should appear on the board after GitHub updates.',
-    bugFormFallback: 'No-account form is not connected yet. Use GitHub for now.',
-    bugBoardTitle: 'Public bug board',
-    bugBoardBody: 'Open reports from GitHub. Personal contact details are not shown here.',
+      'Questions, release comments, showcase posts, and feature ideas live through GitHub. Bug reports are sent from the app.',
+    bugBoardTitle: 'Bug board',
+    bugBoardBody: 'Unlisted overview of open GitHub bug reports. Bug reporting itself stays inside the app.',
+    bugBoardLoading: 'Loading bug reports...',
     bugBoardEmpty: 'No public bug reports yet.',
     bugBoardAction: 'View all bugs',
+    bugBoardBack: 'Back to website',
     bugStatusOpen: 'Open',
     bugStatusProgress: 'In progress',
     bugStatusFixed: 'Fixed - verify',
@@ -202,28 +182,13 @@ const copy = {
     privacyBody:
       'Nalazi, biljeske, mape i fotografije ostaju na tvom racunalu. Osnovno katalogiziranje radi bez racuna i clouda.',
     communityTitle: 'Zajednica bez vlastitog backend-a',
-    communityBody: 'Pitanja, komentari, prikazi nalaza, bugovi i ideje idu kroz GitHub.',
-    bugTitle: 'Prijavi bug',
-    bugBody: 'Prijavi crash, pokvareni gumb, krivi prijevod ili zbunjujuci workflow.',
-    bugAction: 'Prijavi bug',
-    bugExternal: 'Koristi GitHub issue obrazac',
-    bugFormTitle: 'Brza prijava',
-    bugFormDescription: 'Ovo stvara javnu karticu buga na listi. Nemoj pisati privatne lokacije ili lozinke.',
-    bugFormName: 'Kratki naslov',
-    bugFormNamePlaceholder: 'npr. Statistike se sruse kad otvorim tab',
-    bugFormDetails: 'Sto se dogodilo?',
-    bugFormDetailsPlaceholder: 'Sto si kliknuo, sto si ocekivao i sto se dogodilo umjesto toga?',
-    bugFormSteps: 'Koraci',
-    bugFormStepsPlaceholder: '1. Otvorim...\n2. Kliknem...\n3. Vidim...',
-    bugFormContact: 'Kontakt (opcionalno, ne prikazuje se na javnoj listi)',
-    bugFormSubmit: 'Posalji bug',
-    bugFormSending: 'Saljem...',
-    bugFormSent: 'Poslano. Trebalo bi se pojaviti na listi kad GitHub osvjezi podatke.',
-    bugFormFallback: 'No-account forma jos nije spojena. Zasad koristi GitHub.',
-    bugBoardTitle: 'Javna lista bugova',
-    bugBoardBody: 'Otvorene prijave s GitHuba. Osobni kontakt podaci se ovdje ne prikazuju.',
+    communityBody: 'Pitanja, komentari, prikazi nalaza i ideje idu kroz GitHub. Bugovi se prijavljuju iz aplikacije.',
+    bugBoardTitle: 'Lista bugova',
+    bugBoardBody: 'Skriveni pregled otvorenih GitHub bug prijava. Sama prijava buga ostaje samo u aplikaciji.',
+    bugBoardLoading: 'Ucitavam bug prijave...',
     bugBoardEmpty: 'Jos nema javnih bug prijava.',
     bugBoardAction: 'Pogledaj sve bugove',
+    bugBoardBack: 'Natrag na website',
     bugStatusOpen: 'Otvoreno',
     bugStatusProgress: 'U radu',
     bugStatusFixed: 'Rijeseno - provjeri',
@@ -397,8 +362,8 @@ export function App() {
   const [latestRelease, setLatestRelease] = useState<RemoteRelease | null>(null);
   const [remoteIdeas, setRemoteIdeas] = useState<RemoteIssue[]>([]);
   const [remoteBugs, setRemoteBugs] = useState<RemoteIssue[]>([]);
-  const [bugForm, setBugForm] = useState({ title: '', description: '', steps: '', contact: '', trap: '' });
-  const [bugFormState, setBugFormState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [remoteBugsLoading, setRemoteBugsLoading] = useState(false);
+  const [showHiddenBugs, setShowHiddenBugs] = useState(() => window.location.hash === '#bugs');
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const stored = window.localStorage.getItem('gljivobook-site-theme');
     if (stored === 'light' || stored === 'dark') return stored;
@@ -413,6 +378,13 @@ export function App() {
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem('gljivobook-site-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    const syncHiddenBugBoard = () => setShowHiddenBugs(window.location.hash === '#bugs');
+    syncHiddenBugBoard();
+    window.addEventListener('hashchange', syncHiddenBugBoard);
+    return () => window.removeEventListener('hashchange', syncHiddenBugBoard);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -447,7 +419,14 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (!showHiddenBugs) {
+      setRemoteBugs([]);
+      setRemoteBugsLoading(false);
+      return;
+    }
+
     const controller = new AbortController();
+    setRemoteBugsLoading(true);
     fetch('https://api.github.com/repos/IvicaSkrobo/Bili-Mushroom/issues?state=open&labels=bug&per_page=8', {
       signal: controller.signal,
       headers: { Accept: 'application/vnd.github+json' },
@@ -458,9 +437,12 @@ export function App() {
       })
       .catch(() => {
         // Keep the bug board quiet if GitHub is unavailable or rate-limited.
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setRemoteBugsLoading(false);
       });
     return () => controller.abort();
-  }, []);
+  }, [showHiddenBugs]);
 
   const effectiveRelease = latestRelease && !isOlderVersion(latestRelease.tag_name, release.version) ? latestRelease : null;
   const releaseVersion = effectiveRelease?.tag_name ?? release.version;
@@ -481,9 +463,6 @@ export function App() {
         .filter(Boolean)
         .slice(0, 4)
     : release.notes[lang];
-  const bugReportUrl = configuredBugReportUrl?.trim() || defaultBugReportUrl;
-  const bugReportEndpoint = configuredBugReportEndpoint?.trim() ?? '';
-  const canSubmitBugForm = bugForm.title.trim().length >= 4 && bugForm.description.trim().length >= 10;
   const donateUrl = configuredDonateUrl?.trim();
   const visibleIdeas: VisibleIdea[] = remoteIdeas.length
     ? remoteIdeas.map((idea) => ({
@@ -524,37 +503,57 @@ export function App() {
         outings: 'Outings',
       };
 
-  async function handleWebsiteBugSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!bugReportEndpoint || !canSubmitBugForm || bugFormState === 'sending') return;
+  const bugBoardContent = (
+    <section id="bugs" className="section bug-board-section">
+      <div className="bug-board-heading">
+        <p className="eyebrow"><AlertCircle size={15} />{t.bugBoardTitle as string}</p>
+        <h2>{t.bugBoardTitle as string}</h2>
+        <p>{t.bugBoardBody as string}</p>
+      </div>
+      <div className="bug-board">
+        {remoteBugsLoading ? (
+          <div className="bug-empty">{t.bugBoardLoading as string}</div>
+        ) : remoteBugs.length ? remoteBugs.map((bug) => {
+          const status = bugStatus(bug, lang);
+          return (
+            <a className="bug-row" href={bug.html_url} key={bug.html_url}>
+              <span className="bug-number">{bug.number ? `#${bug.number}` : 'Bug'}</span>
+              <strong>{bug.title}</strong>
+              <span className={`bug-status status-${status.key}`}>{status.label}</span>
+              <span>{bug.comments} {lang === 'hr' ? 'komentara' : 'comments'}</span>
+            </a>
+          );
+        }) : (
+          <div className="bug-empty">{t.bugBoardEmpty as string}</div>
+        )}
+      </div>
+      <a className="text-link bug-board-link" href={bugsListUrl}>
+        {t.bugBoardAction as string}
+        <ExternalLink size={14} />
+      </a>
+    </section>
+  );
 
-    setBugFormState('sending');
-    try {
-      const response = await fetch(bugReportEndpoint, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          title: bugForm.title,
-          description: bugForm.description,
-          steps: bugForm.steps,
-          contact: bugForm.contact,
-          trap: bugForm.trap,
-          language: lang,
-          theme,
-          source: 'website',
-          appVersion: releaseVersion,
-          userAgent: navigator.userAgent,
-          platform: navigator.platform,
-          reportedAt: new Date().toISOString(),
-        }),
-      });
-
-      if (!response.ok) throw new Error(`Bug report failed: ${response.status}`);
-      setBugForm({ title: '', description: '', steps: '', contact: '', trap: '' });
-      setBugFormState('sent');
-    } catch {
-      setBugFormState('error');
-    }
+  if (showHiddenBugs) {
+    return (
+      <div className="site-shell hidden-bugs-shell">
+        <main className="hidden-bugs-page">
+          <div className="hidden-bugs-topbar">
+            <a className="brand" href={lang === 'hr' ? './?lang=hr' : './'} aria-label={`${t.title as string} home`}>
+              <BrandMark />
+              <span>
+                <strong>{t.title as string}</strong>
+                <small>{lang === 'hr' ? 'Hrvatski' : 'English'}</small>
+              </span>
+            </a>
+            <a className="button ghost" href={lang === 'hr' ? './?lang=hr' : './'}>
+              {t.bugBoardBack as string}
+            </a>
+          </div>
+          {bugBoardContent}
+        </main>
+      </div>
+    );
   }
 
   return (
@@ -790,81 +789,6 @@ export function App() {
             <p>{t.communityBody as string}</p>
             <div className="link-row">
               <a href="https://github.com/IvicaSkrobo/Bili-Mushroom/discussions">GitHub Discussions</a>
-              <a href="#bug-report"><Bug size={14} /> Bugs</a>
-            </div>
-          </div>
-          <div className="feature-panel" id="bug-report">
-            <Bug size={24} />
-            <h2>{t.bugTitle as string}</h2>
-            <p>{t.bugBody as string}</p>
-            <form className="bug-form" onSubmit={handleWebsiteBugSubmit}>
-              <h3>{t.bugFormTitle as string}</h3>
-              <p>{t.bugFormDescription as string}</p>
-              <label>
-                <span>{t.bugFormName as string}</span>
-                <input
-                  value={bugForm.title}
-                  onChange={(event) => setBugForm((prev) => ({ ...prev, title: event.target.value }))}
-                  placeholder={t.bugFormNamePlaceholder as string}
-                  maxLength={120}
-                />
-              </label>
-              <label>
-                <span>{t.bugFormDetails as string}</span>
-                <textarea
-                  value={bugForm.description}
-                  onChange={(event) => setBugForm((prev) => ({ ...prev, description: event.target.value }))}
-                  placeholder={t.bugFormDetailsPlaceholder as string}
-                  maxLength={3000}
-                  rows={4}
-                />
-              </label>
-              <label>
-                <span>{t.bugFormSteps as string}</span>
-                <textarea
-                  value={bugForm.steps}
-                  onChange={(event) => setBugForm((prev) => ({ ...prev, steps: event.target.value }))}
-                  placeholder={t.bugFormStepsPlaceholder as string}
-                  maxLength={2000}
-                  rows={3}
-                />
-              </label>
-              <label>
-                <span>{t.bugFormContact as string}</span>
-                <input
-                  value={bugForm.contact}
-                  onChange={(event) => setBugForm((prev) => ({ ...prev, contact: event.target.value }))}
-                  maxLength={160}
-                />
-              </label>
-              <input
-                className="trap-field"
-                tabIndex={-1}
-                autoComplete="off"
-                value={bugForm.trap}
-                onChange={(event) => setBugForm((prev) => ({ ...prev, trap: event.target.value }))}
-                aria-hidden="true"
-              />
-              {bugReportEndpoint ? (
-                <button type="submit" className="button primary" disabled={!canSubmitBugForm || bugFormState === 'sending'}>
-                  {bugFormState === 'sending' ? (t.bugFormSending as string) : (t.bugFormSubmit as string)}
-                </button>
-              ) : (
-                <p className="form-note">{t.bugFormFallback as string}</p>
-              )}
-              {bugFormState === 'sent' ? <p className="form-note success">{t.bugFormSent as string}</p> : null}
-              {bugFormState === 'error' ? <p className="form-note error">{lang === 'hr' ? 'Slanje nije uspjelo. Pokusaj kasnije.' : 'Could not send. Try again later.'}</p> : null}
-            </form>
-            <div className="link-row">
-              <a href={bugReportUrl}>
-                <Bug size={14} />
-                {t.bugAction as string}
-              </a>
-              <a href="#bugs">
-                <AlertCircle size={14} />
-                {t.bugBoardTitle as string}
-              </a>
-              <span className="micro-note">{t.bugExternal as string}</span>
             </div>
           </div>
           <div id="ideas" className="feature-panel">
@@ -900,33 +824,6 @@ export function App() {
               </a>
             </div>
           </div>
-        </section>
-
-        <section id="bugs" className="section bug-board-section">
-          <div className="bug-board-heading">
-            <p className="eyebrow"><AlertCircle size={15} />{t.bugBoardTitle as string}</p>
-            <h2>{t.bugBoardTitle as string}</h2>
-            <p>{t.bugBoardBody as string}</p>
-          </div>
-          <div className="bug-board">
-            {remoteBugs.length ? remoteBugs.map((bug) => {
-              const status = bugStatus(bug, lang);
-              return (
-                <a className="bug-row" href={bug.html_url} key={bug.html_url}>
-                  <span className="bug-number">{bug.number ? `#${bug.number}` : 'Bug'}</span>
-                  <strong>{bug.title}</strong>
-                  <span className={`bug-status status-${status.key}`}>{status.label}</span>
-                  <span>{bug.comments} {lang === 'hr' ? 'komentara' : 'comments'}</span>
-                </a>
-              );
-            }) : (
-              <div className="bug-empty">{t.bugBoardEmpty as string}</div>
-            )}
-          </div>
-          <a className="text-link bug-board-link" href={bugsListUrl}>
-            {t.bugBoardAction as string}
-            <ExternalLink size={14} />
-          </a>
         </section>
 
         <GiscusPanel lang={lang} theme={theme} />

@@ -1,8 +1,5 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Sensitive bug guidance
-    url: https://ivicaskrobo.github.io/Bili-Mushroom/#bug-report
-    about: Read this first when screenshots, logs, file paths, or locations may contain private data.
   - name: Questions and release discussion
     url: https://github.com/IvicaSkrobo/Bili-Mushroom/discussions
     about: Ask questions, comment on releases, or share general feedback.
