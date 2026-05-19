@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * Bumps the patch version in package.json, package-lock.json,
- * src-tauri/tauri.conf.json, src-tauri/Cargo.toml, and src-tauri/Cargo.lock,
- * then stages the changed files so the bump is included in the current commit.
+ * src-tauri/tauri.conf.json, src-tauri/Cargo.toml, src-tauri/Cargo.lock, and
+ * the website release fallback, then stages the changed files so the bump is
+ * included in the current commit.
  * Invoked automatically by the git pre-commit hook.
  */
 'use strict';
@@ -51,13 +52,28 @@ const cargoLockPath = path.join(root, 'src-tauri', 'Cargo.lock');
 if (fs.existsSync(cargoLockPath)) {
   let cargoLock = fs.readFileSync(cargoLockPath, 'utf8');
   cargoLock = cargoLock.replace(
-    /(name = "bili-mushroom"\r?\nversion = )"[^"]+"/,
+    /(name = "gljivobook"\r?\nversion = )"[^"]+"/,
     `$1"${newVersion}"`,
   );
   fs.writeFileSync(cargoLockPath, cargoLock);
 }
 
+// --- Website fallback release version ---
+const websiteReleasePath = path.join(root, 'website', 'src', 'siteData.ts');
+if (fs.existsSync(websiteReleasePath)) {
+  let websiteRelease = fs.readFileSync(websiteReleasePath, 'utf8');
+  websiteRelease = websiteRelease.replace(
+    /(version:\s*')v[^']+(')/,
+    `$1v${newVersion}$2`,
+  );
+  fs.writeFileSync(websiteReleasePath, websiteRelease);
+}
+
 // Stage version files so the bump is part of the commit
-execSync(`git add "${pkgPath}" "${packageLockPath}" "${tauriConfPath}" "${cargoPath}" "${cargoLockPath}"`);
+const pathsToStage = [pkgPath, packageLockPath, tauriConfPath, cargoPath, cargoLockPath, websiteReleasePath]
+  .filter((filePath) => fs.existsSync(filePath))
+  .map((filePath) => `"${filePath}"`)
+  .join(' ');
+execSync(`git add ${pathsToStage}`);
 
 console.log(`[bump-version] bumped to v${newVersion}`);

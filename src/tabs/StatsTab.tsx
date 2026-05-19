@@ -158,7 +158,12 @@ export default function StatsTab() {
     if (!activeMonth) return null;
     const monthFinds = (finds ?? []).filter((find) => find.date_found?.startsWith(activeMonth));
     const speciesCount = new Set(monthFinds.map((find) => find.species_name).filter(Boolean)).size;
-    return t('stats.findSpeciesCount', { finds: monthFinds.length, species: speciesCount });
+    const outingCount = new Set(monthFinds.map((find) => find.date_found).filter(Boolean)).size;
+    return t('stats.findSpeciesOutingCount', {
+      finds: monthFinds.length,
+      species: speciesCount,
+      outings: outingCount,
+    });
   }, [finds, statsCards?.most_active_month, t]);
   const seasonalityInsights = useMemo(
     () => buildSeasonalityInsights(bestMonths, speciesStats, locale, t),
@@ -496,7 +501,7 @@ export default function StatsTab() {
                     <button
                       type="button"
                       onClick={() => setSpeciesListExpanded((value) => !value)}
-                      className="text-xs text-primary/70 transition-colors hover:text-primary"
+                      className="text-xs font-semibold text-foreground/80 transition-colors hover:text-foreground dark:text-primary/70 dark:hover:text-primary"
                     >
                       {speciesListExpanded ? t('stats.showLess') : t('stats.showAll', { count: sortedSpeciesStats.length })}
                     </button>
@@ -519,7 +524,7 @@ export default function StatsTab() {
                 <button
                   type="button"
                   onClick={() => setSpeciesListExpanded(false)}
-                  className="mt-3 text-xs text-primary/70 transition-colors hover:text-primary"
+                  className="mt-3 text-xs font-semibold text-foreground/80 transition-colors hover:text-foreground dark:text-primary/70 dark:hover:text-primary"
                 >
                   {t('stats.showLess')}
                 </button>
@@ -537,7 +542,7 @@ export default function StatsTab() {
                   <button
                     type="button"
                     onClick={() => setFieldOutingsExpanded((value) => !value)}
-                    className="text-xs text-primary/70 transition-colors hover:text-primary"
+                    className="text-xs font-semibold text-foreground/80 transition-colors hover:text-foreground dark:text-primary/70 dark:hover:text-primary"
                   >
                     {fieldOutingsExpanded ? t('stats.showLess') : t('stats.showAll', { count: fieldOutings.length })}
                   </button>
@@ -673,7 +678,7 @@ export default function StatsTab() {
                                         </span>
                                         {observed && (
                                           <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                                            {observed} {t('findCard.countUnit')}
+                                            {t('stats.outingObservedCount', { count: observed })}
                                           </span>
                                         )}
                                       </div>
@@ -699,7 +704,7 @@ export default function StatsTab() {
                 <button
                   type="button"
                   onClick={() => setFieldOutingsExpanded(false)}
-                  className="mt-3 text-xs text-primary/70 transition-colors hover:text-primary"
+                  className="mt-3 text-xs font-semibold text-foreground/80 transition-colors hover:text-foreground dark:text-primary/70 dark:hover:text-primary"
                 >
                   {t('stats.showLess')}
                 </button>

@@ -468,6 +468,7 @@ const hr: Translations = {
   'stats.speciesOne': 'vrsta',
   'stats.speciesMany': 'vrsta',
   'stats.findSpeciesCount': '{finds} nalaza · {species} vrsta',
+  'stats.findSpeciesOutingCount': '{finds} nalaza · {species} vrsta · {outings} izlazaka',
   'stats.speciesCount': '{species} vrsta',
 
   // stats tab
@@ -496,6 +497,7 @@ const hr: Translations = {
   'stats.outingLocationCount': '{finds} nalaza / {species} vrsta',
   'stats.outingLocationSpecies': 'Vrste na lokaciji',
   'stats.outingFindCount': '{finds} nalaza',
+  'stats.outingObservedCount': '{count} plodnih tijela',
   'stats.noLocation': 'Bez lokacije',
   'stats.exportHint': 'Izvezi cijelu zbirku',
   'stats.csvSaved': 'CSV spremljen u {path}',
@@ -1077,6 +1079,7 @@ const en: Translations = {
   'stats.speciesOne': 'species',
   'stats.speciesMany': 'species',
   'stats.findSpeciesCount': '{finds} finds · {species} species',
+  'stats.findSpeciesOutingCount': '{finds} finds · {species} species · {outings} outings',
   'stats.speciesCount': '{species} species',
 
   // stats tab
@@ -1105,6 +1108,7 @@ const en: Translations = {
   'stats.outingLocationCount': '{finds} finds / {species} species',
   'stats.outingLocationSpecies': 'Species at this location',
   'stats.outingFindCount': '{finds} finds',
+  'stats.outingObservedCount': '{count} fruiting bodies',
   'stats.noLocation': 'No location',
   'stats.exportHint': 'Export your full collection',
   'stats.csvSaved': 'CSV saved to {path}',

@@ -1,6 +1,6 @@
 import { type ReactNode, useMemo } from 'react';
 import L from 'leaflet';
-import { Circle, Polygon } from 'react-leaflet';
+import { Circle, Polygon, useMap } from 'react-leaflet';
 import type { Find } from '@/lib/finds';
 import {
   parsePolygonJson,
@@ -86,6 +86,7 @@ export function ZoneLayers({
   onEditZone,
 }: ZoneLayersProps) {
   const isSatellite = useAppStore((s) => s.mapLayer === 'Satellite');
+  const map = useMap();
   const visibleZones = useMemo(
     () => {
       const filtered = visibleZonesForMode(zones, mode).filter(
@@ -134,7 +135,11 @@ export function ZoneLayers({
                 radius={zone.radius_meters}
                 pathOptions={style.main}
                 eventHandlers={{
-                  click: (e) => { L.DomEvent.stopPropagation(e.originalEvent); onEditZone?.(zone); },
+                  click: (e) => {
+                    L.DomEvent.stopPropagation(e.originalEvent);
+                    map.closePopup();
+                    onEditZone?.(zone);
+                  },
                 }}
               />
             </PolygonZoneGroup>
@@ -159,7 +164,11 @@ export function ZoneLayers({
                 positions={polygon}
                 pathOptions={style.main}
                 eventHandlers={{
-                  click: (e) => { L.DomEvent.stopPropagation(e.originalEvent); onEditZone?.(zone); },
+                  click: (e) => {
+                    L.DomEvent.stopPropagation(e.originalEvent);
+                    map.closePopup();
+                    onEditZone?.(zone);
+                  },
                 }}
               />
             </PolygonZoneGroup>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { FINDS_QUERY_KEY } from '@/lib/finds';
-import { Globe2, Heart, Info } from 'lucide-react';
+import { Globe2, Info } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
@@ -21,7 +21,7 @@ import type { Lang } from '@/i18n/index';
 import { getTileCacheStats, clearTileCache, getCacheMaxBytes, setCacheMax, formatMb, type TileCacheStats } from '@/lib/tileCache';
 import { APP_VERSION } from '@/lib/appMeta';
 import { resetHiddenLocationSuggestions } from '@/components/finds/LocationNoteInput';
-import { DONATE_URL, WEBSITE_URL } from '@/lib/externalLinks';
+import { WEBSITE_URL } from '@/lib/externalLinks';
 import { openExternalUrl } from '@/lib/openExternal';
 
 export interface SettingsDialogProps {
@@ -201,7 +201,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                 <span className="text-xs text-muted-foreground">Gljivobook</span>
                 <span className="text-xs text-muted-foreground font-mono">v{APP_VERSION}</span>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-[11px] font-semibold">
+              <div className="grid grid-cols-1 gap-2 text-[11px] font-semibold">
                 <button
                   type="button"
                   onClick={() => handleOpenExternal(WEBSITE_URL)}
@@ -210,15 +210,6 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                 >
                   <Globe2 className="h-4 w-4" />
                   <span>{t('settings.website')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleOpenExternal(DONATE_URL)}
-                  className="flex min-h-[58px] flex-col items-center justify-center gap-1.5 rounded-sm border border-primary/25 bg-primary/5 px-2 py-2 text-primary transition-colors hover:border-primary/55 hover:bg-primary/10"
-                  title={t('settings.supportTitle')}
-                >
-                  <Heart className="h-4 w-4" />
-                  <span>{t('settings.support')}</span>
                 </button>
               </div>
             </div>

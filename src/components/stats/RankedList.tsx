@@ -42,7 +42,7 @@ export function RankedList({ title, items, emptyMessage, pageSize, speciesProfil
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
-            className="shrink-0 text-xs text-primary/70 transition-colors hover:text-primary"
+            className="shrink-0 text-xs font-semibold text-foreground/80 transition-colors hover:text-foreground dark:text-primary/70 dark:hover:text-primary"
           >
             {expanded ? t('stats.showLess') : t('stats.showAll', { count: items.length })}
           </button>
@@ -111,7 +111,7 @@ export function RankedList({ title, items, emptyMessage, pageSize, speciesProfil
             <button
               type="button"
               onClick={() => setExpanded(false)}
-              className="mt-3 text-xs text-primary/70 hover:text-primary transition-colors"
+              className="mt-3 text-xs font-semibold text-foreground/80 transition-colors hover:text-foreground dark:text-primary/70 dark:hover:text-primary"
             >
               {t('stats.showLess')}
             </button>

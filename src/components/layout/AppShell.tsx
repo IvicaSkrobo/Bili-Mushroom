@@ -1,5 +1,5 @@
 import { Suspense, lazy, useState } from 'react';
-import { Bug, Globe2, Settings as SettingsIcon, Sun, Moon, X } from 'lucide-react';
+import { Bug, Heart, Settings as SettingsIcon, Sun, Moon, X } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -8,7 +8,7 @@ import { useAppStore, type Tab } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
 import { APP_VERSION } from '@/lib/appMeta';
 import { checkDevUpdateMock } from '@/lib/devUpdater';
-import { WEBSITE_URL } from '@/lib/externalLinks';
+import { DONATE_URL } from '@/lib/externalLinks';
 import { openExternalUrl } from '@/lib/openExternal';
 
 const CollectionTab = lazy(() => import('@/tabs/CollectionTab'));
@@ -84,11 +84,11 @@ export function AppShell() {
     }
   }
 
-  async function handleOpenWebsite() {
+  async function handleOpenDonate() {
     try {
-      await openExternalUrl(WEBSITE_URL);
+      await openExternalUrl(DONATE_URL);
     } catch (err) {
-      console.error('[external-link] failed to open website:', err);
+      console.error('[external-link] failed to open donate page:', err);
       toast.error(t('app.openWebsiteFailed'));
     }
   }
@@ -129,25 +129,30 @@ export function AppShell() {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1.5 rounded-full border border-border/70 bg-background/35 px-1.5 py-1">
+          <div className="flex items-center gap-1.5 rounded-full border border-border/70 bg-background/45 px-1.5 py-1 shadow-sm shadow-black/5 backdrop-blur-sm">
             <button
               type="button"
-              onClick={handleOpenWebsite}
-              aria-label={t('app.openWebsite')}
-              title={t('app.openWebsite')}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary/10 hover:text-secondary"
+              onClick={handleOpenDonate}
+              aria-label={t('settings.supportTitle')}
+              title={t('settings.supportTitle')}
+              className="group relative inline-flex h-9 w-9 items-center justify-center rounded-full text-primary/80 transition-colors hover:bg-primary/10 hover:text-primary"
             >
-              <Globe2 className="h-4 w-4" />
+              <Heart className="h-4 w-4" />
+              <span className="pointer-events-none absolute left-1/2 top-[calc(100%+0.55rem)] z-50 -translate-x-1/2 whitespace-nowrap rounded-sm border border-border bg-popover px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-popover-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100">
+                {t('settings.support')}
+              </span>
             </button>
             <button
               type="button"
               onClick={() => setReportBugOpen(true)}
               aria-label={t('settings.reportBugTitle')}
               title={t('settings.reportBugTitle')}
-              className="inline-flex h-11 min-w-[54px] flex-col items-center justify-center gap-0.5 rounded-full px-2 text-destructive/85 transition-colors hover:bg-destructive/10 hover:text-destructive"
+              className="group relative inline-flex h-9 w-9 items-center justify-center rounded-full text-destructive/80 transition-colors hover:bg-destructive/10 hover:text-destructive"
             >
               <Bug className="h-4 w-4" />
-              <span className="text-[8px] font-bold uppercase leading-none tracking-[0.12em]">{t('app.reportBugShort')}</span>
+              <span className="pointer-events-none absolute left-1/2 top-[calc(100%+0.55rem)] z-50 -translate-x-1/2 whitespace-nowrap rounded-sm border border-border bg-popover px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-popover-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100">
+                {t('app.reportBugShort')}
+              </span>
             </button>
             <Button
               variant="ghost"
