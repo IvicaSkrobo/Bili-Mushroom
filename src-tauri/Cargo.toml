@@ -1,6 +1,6 @@
 [package]
 name = "gljivobook"
-version = "0.2.32"
+version = "0.2.33"
 edition = "2021"
 
 [lib]
@@ -29,6 +29,7 @@ sha2 = "0.10"
 tokio = { version = "1", features = ["rt", "macros"] }
 time = "0.3"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "tiff", "bmp"] }
+tauri-plugin-opener = "2"
 
 [dev-dependencies]
 tempfile = "3"

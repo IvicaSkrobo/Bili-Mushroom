@@ -550,6 +550,7 @@ const hr: Translations = {
   'app.updateConfirmCancel': 'Ne sada',
   'app.updateConfirmAction': 'Zatvori i ažuriraj',
   'app.openWebsite': 'Otvori website',
+  'app.openWebsiteFailed': 'Website se nije mogao otvoriti.',
   'app.toggleTheme': 'Promijeni izgled',
 
   // map — storage / zone alerts
@@ -1157,6 +1158,7 @@ const en: Translations = {
   'app.updateConfirmCancel': 'Not now',
   'app.updateConfirmAction': 'Close and update',
   'app.openWebsite': 'Open website',
+  'app.openWebsiteFailed': 'Could not open the website.',
   'app.toggleTheme': 'Toggle theme',
 
   // map — storage / zone alerts

@@ -21,6 +21,7 @@
     "fs:allow-read-dir",
     "dialog:allow-save",
     "fs:allow-write-text-file",
-    "fs:allow-write-file"
+    "fs:allow-write-file",
+    "opener:default"
   ]
 }

@@ -22,6 +22,7 @@ import { getTileCacheStats, clearTileCache, getCacheMaxBytes, setCacheMax, forma
 import { APP_VERSION } from '@/lib/appMeta';
 import { resetHiddenLocationSuggestions } from '@/components/finds/LocationNoteInput';
 import { DONATE_URL, WEBSITE_URL } from '@/lib/externalLinks';
+import { openExternalUrl } from '@/lib/openExternal';
 import { ReportBugDialog } from '@/components/dialogs/ReportBugDialog';
 
 export interface SettingsDialogProps {
@@ -121,6 +122,12 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     }
   }
 
+  function handleOpenExternal(url: string) {
+    openExternalUrl(url).catch((err) => {
+      console.error('[external-link] failed to open:', err);
+    });
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[480px]">
@@ -197,16 +204,15 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                 <span className="text-xs text-muted-foreground font-mono">v{APP_VERSION}</span>
               </div>
               <div className="grid grid-cols-3 gap-2 text-[11px] font-semibold">
-                <a
-                  href={WEBSITE_URL}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  type="button"
+                  onClick={() => handleOpenExternal(WEBSITE_URL)}
                   className="flex min-h-[58px] flex-col items-center justify-center gap-1.5 rounded-sm border border-border bg-card px-2 py-2 text-muted-foreground transition-colors hover:border-secondary/50 hover:bg-secondary/10 hover:text-secondary"
                   title={t('settings.websiteTitle')}
                 >
                   <Globe2 className="h-4 w-4" />
                   <span>{t('settings.website')}</span>
-                </a>
+                </button>
                 <button
                   type="button"
                   onClick={() => setReportBugOpen(true)}
@@ -216,16 +222,15 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                   <Bug className="h-4 w-4" />
                   <span>{t('settings.reportBug')}</span>
                 </button>
-                <a
-                  href={DONATE_URL}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  type="button"
+                  onClick={() => handleOpenExternal(DONATE_URL)}
                   className="flex min-h-[58px] flex-col items-center justify-center gap-1.5 rounded-sm border border-primary/25 bg-primary/5 px-2 py-2 text-primary transition-colors hover:border-primary/55 hover:bg-primary/10"
                   title={t('settings.supportTitle')}
                 >
                   <Heart className="h-4 w-4" />
                   <span>{t('settings.support')}</span>
-                </a>
+                </button>
               </div>
             </div>
           </TabsContent>

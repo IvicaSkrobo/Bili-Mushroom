@@ -13,6 +13,10 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
   save: vi.fn().mockResolvedValue('/tmp/bili-export.csv'),
 }));
 
+vi.mock('@tauri-apps/plugin-opener', () => ({
+  openUrl: vi.fn().mockResolvedValue(undefined),
+}));
+
 // ---------------------------------------------------------------------------
 // @tauri-apps/api/core mock — invoke dispatch table
 // Tests can override individual handlers by mutating invokeHandlers.
