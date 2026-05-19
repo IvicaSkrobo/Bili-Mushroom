@@ -38,6 +38,10 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Validate release version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: npm run version:check
+
       # ---------------------------------------------------------------
       # Build the app — always runs (manual trigger or tag push)
       # ---------------------------------------------------------------
@@ -48,7 +52,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
 
       # ---------------------------------------------------------------
       # Upload installer as a downloadable artifact (manual trigger only)
@@ -75,7 +78,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Gljivobook ${{ github.ref_name }}'

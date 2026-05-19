@@ -1,10 +1,13 @@
 mod commands;
 
+const UPDATER_PUBLIC_KEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc4MENGQkI5QUJFODUxNTUKUldSVlVlaXJ1ZnNNZVBkeXZNa3hIV2EwbWoxSXozYWhDejdqYmRUL0EwMmJibS9ETmZ1VXZ3R3YK";
+
 pub fn run() {
-    let mut builder = tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_updater::Builder::new().pubkey(UPDATER_PUBLIC_KEY).build())
         .invoke_handler(tauri::generate_handler![
             commands::exif::parse_exif,
             commands::import::import_find,
@@ -50,10 +53,6 @@ pub fn run() {
             commands::updater::check_app_update,
             commands::updater::install_app_update,
         ]);
-
-    if let Some(pubkey) = option_env!("TAURI_UPDATER_PUBLIC_KEY") {
-        builder = builder.plugin(tauri_plugin_updater::Builder::new().pubkey(pubkey).build());
-    }
 
     builder
         .setup(|_app| Ok(()))

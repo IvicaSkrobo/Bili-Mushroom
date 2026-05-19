@@ -140,6 +140,7 @@ function main() {
   console.log(`[release] ${currentVersion} -> ${nextVersion}`);
   syncVersions(nextVersion);
 
+  run('npm run version:check');
   run('npm run build');
   run('cargo check --manifest-path src-tauri/Cargo.toml --offline');
 
