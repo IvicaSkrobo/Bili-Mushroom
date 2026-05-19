@@ -8,7 +8,7 @@ import { useAppStore, type Tab } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
 import { APP_VERSION } from '@/lib/appMeta';
 import { checkDevUpdateMock } from '@/lib/devUpdater';
-import { DONATE_URL } from '@/lib/externalLinks';
+import { DONATE_URL, HAS_DONATE_URL } from '@/lib/externalLinks';
 import { openExternalUrl } from '@/lib/openExternal';
 
 const CollectionTab = lazy(() => import('@/tabs/CollectionTab'));
@@ -130,45 +130,55 @@ export function AppShell() {
             )}
           </div>
           <div className="flex items-center gap-1.5 rounded-full border border-border/70 bg-background/45 px-1.5 py-1 shadow-sm shadow-black/5 backdrop-blur-sm">
-            <button
-              type="button"
-              onClick={handleOpenDonate}
-              aria-label={t('settings.supportTitle')}
-              title={t('settings.supportTitle')}
-              className="group relative inline-flex h-9 w-9 items-center justify-center rounded-full text-primary/80 transition-colors hover:bg-primary/10 hover:text-primary"
-            >
-              <Heart className="h-4 w-4" />
-              <span className="pointer-events-none absolute left-1/2 top-[calc(100%+0.55rem)] z-50 -translate-x-1/2 whitespace-nowrap rounded-sm border border-border bg-popover px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-popover-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100">
-                {t('settings.support')}
-              </span>
-            </button>
+            {HAS_DONATE_URL && (
+              <button
+                type="button"
+                onClick={handleOpenDonate}
+                aria-label={t('settings.supportTitle')}
+                title={t('settings.supportTitle')}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-primary/80 transition-colors hover:bg-primary/10 hover:text-primary"
+              >
+                <Heart className="h-4 w-4" />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setReportBugOpen(true)}
               aria-label={t('settings.reportBugTitle')}
               title={t('settings.reportBugTitle')}
-              className="group relative inline-flex h-9 w-9 items-center justify-center rounded-full text-destructive/80 transition-colors hover:bg-destructive/10 hover:text-destructive"
+              className="inline-flex h-9 w-9 items-center justify-center text-destructive/80 transition-colors hover:text-destructive"
             >
               <Bug className="h-4 w-4" />
-              <span className="pointer-events-none absolute left-1/2 top-[calc(100%+0.55rem)] z-50 -translate-x-1/2 whitespace-nowrap rounded-sm border border-border bg-popover px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-popover-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100">
-                {t('app.reportBugShort')}
+            </button>
+            <button
+              type="button"
+              aria-label={t('app.toggleTheme')}
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="group relative inline-flex h-9 w-[4.75rem] items-center rounded-full border border-border/70 bg-background/55 p-1 text-[10px] font-semibold uppercase tracking-[0.12em] shadow-inner shadow-black/5 transition-colors hover:border-primary/35"
+            >
+              <span
+                aria-hidden="true"
+                className={`absolute left-1 top-1 h-7 w-8 rounded-full border border-primary/25 bg-primary/15 shadow-sm transition-transform duration-200 ease-out ${
+                  theme === 'dark' ? 'translate-x-[2.05rem]' : 'translate-x-0'
+                }`}
+              />
+              <span className={`relative z-10 flex h-7 w-8 items-center justify-center rounded-full transition-colors ${
+                theme === 'light' ? 'text-primary' : 'text-muted-foreground'
+              }`}>
+                <Sun className="h-3.5 w-3.5" />
+              </span>
+              <span className={`relative z-10 flex h-7 w-8 items-center justify-center rounded-full transition-colors ${
+                theme === 'dark' ? 'text-primary' : 'text-muted-foreground'
+              }`}>
+                <Moon className="h-3.5 w-3.5" />
               </span>
             </button>
             <Button
               variant="ghost"
               size="icon"
-              aria-label={t('app.toggleTheme')}
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-            >
-              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
               aria-label={t('nav.settings')}
               onClick={() => setSettingsOpen(true)}
-              className="rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              className="text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
             >
               <SettingsIcon className="h-4 w-4" />
             </Button>

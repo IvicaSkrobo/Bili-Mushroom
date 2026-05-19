@@ -17,6 +17,7 @@ import {
   Sun,
   TrendingUp,
   Vote,
+  Github,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { GiscusPanel } from './GiscusPanel';
@@ -65,17 +66,22 @@ const ideaSubmitUrl =
   'https://github.com/IvicaSkrobo/Bili-Mushroom/issues/new?template=feature_idea.yml&labels=idea';
 const ideasListUrl = 'https://github.com/IvicaSkrobo/Bili-Mushroom/issues?q=is%3Aissue%20label%3Aidea';
 const bugsListUrl = 'https://github.com/IvicaSkrobo/Bili-Mushroom/issues?q=is%3Aissue%20label%3Abug';
+const repoUrl = 'https://github.com/IvicaSkrobo/Bili-Mushroom';
 
 const copy = {
   en: {
     eyebrow: 'Local-first field journal for Windows',
     title: 'Mushroom Book',
     subtitle: 'Your foraging journal',
-    intro: 'A local Windows journal for mushroom finds, maps, notes, seasons, and photos.',
+    intro: 'A quiet Windows app for saving mushroom finds, photos, notes, folders, maps, and seasons on your own computer.',
     download: 'Download for Windows',
     releaseDetails: 'Release details',
     installerReady: 'Direct installer',
     installerFallback: 'Release page',
+    installerHint: 'Windows installer',
+    releaseSource: 'GitHub release',
+    releaseUpdated: 'Updated',
+    appFacts: ['Windows app', 'Local data', 'No account'],
     support: 'Donate',
     supportHero: 'Donate if you like the app',
     latest: 'Latest release',
@@ -85,16 +91,16 @@ const copy = {
     theme: 'Theme',
     fundingTop: 'Donate if you like it',
     pillars: [
-      ['Collect', 'Photos, notes, species, dates, and folders in one local library.'],
-      ['Map', 'See where each species appears through your own field history.'],
-      ['Understand', 'Stats, seasons, outings, and PDF export for your archive.'],
+      ['Collect', 'Photos, notes, species, dates, and folders stay together.'],
+      ['Map', 'Filter your own finds by species, region, date, and zones.'],
+      ['Understand', 'See seasons, outings, locations, and personal species history.'],
     ],
     workflowTitle: 'From find to archive',
-    workflowBody: 'Add a find once. Keep it editable, mapped, searchable, and tied to its folder.',
+    workflowBody: 'Add a find once, then keep it editable, searchable, mapped, and tied to its folder.',
     workflow: [
-      ['Add', 'Import photos or create a find manually.'],
-      ['Edit', 'Adjust species, date, location, notes, badges, and photos later.'],
-      ['Use', 'Open folders, filter maps, read stats, and export a PDF.'],
+      ['Add', 'Import photos or create a manual find.'],
+      ['Edit', 'Correct species, date, location, notes, badges, and photos later.'],
+      ['Use', 'Open folders, filter maps, read stats, and export your archive.'],
     ],
     downloadBody:
       'Latest Windows download. Local fallback protects the page if GitHub returns old release data.',
@@ -104,6 +110,9 @@ const copy = {
     privacyTitle: 'Local by default',
     privacyBody:
       'Finds, notes, folders, and photos stay on your computer. Core cataloging works without an account or cloud service.',
+    responsibilityTitle: 'Shared in good faith',
+    responsibilityBody:
+      'Mushroom Book was first made to help a fellow forager keep a personal archive, then shared with anyone who may find it useful. I hope you like it. Please keep your own backups: your data stays local and remains yours, and I cannot take responsibility for data loss, damaged files, or decisions made from your records.',
     communityTitle: 'Community without a custom backend',
     communityBody:
       'Questions, release comments, showcase posts, and feature ideas live through GitHub. Bug reports are sent from the app.',
@@ -132,7 +141,7 @@ const copy = {
     fundingBody:
       'Support the app from goodwill, or help push popular feature ideas forward.',
     donatePending: 'Donate link is coming soon.',
-    screenshotsTitle: 'What the app actually covers',
+    screenshotsTitle: 'What the app covers',
     screenshots: ['Collection', 'Species', 'Map', 'Find workflow'],
     screenshotDetails: [
       'Grouped finds, folders, badges, search, and quick actions.',
@@ -143,16 +152,21 @@ const copy = {
     fundingGoalsTitle: 'App ideas that could come next',
     fundingGoalsBody: 'App features, not website tasks. Amounts are rough priority goals.',
     footer: 'Built for mushroom notes, maps, seasons, and local archives.',
+    footerRepo: 'Source and releases',
   },
   hr: {
     eyebrow: 'Lokalni gljivarski dnevnik za Windows',
     title: 'Gljivobook',
     subtitle: 'Tvoj gljivarski dnevnik',
-    intro: 'Lokalni Windows dnevnik za nalaze, mape, biljeske, sezone i fotografije.',
+    intro: 'Mirna Windows aplikacija za nalaze, fotografije, biljeske, foldere, karte i sezone na tvom racunalu.',
     download: 'Preuzmi za Windows',
     releaseDetails: 'Detalji verzije',
     installerReady: 'Direktni installer',
     installerFallback: 'Release stranica',
+    installerHint: 'Windows installer',
+    releaseSource: 'GitHub release',
+    releaseUpdated: 'Azurirano',
+    appFacts: ['Windows aplikacija', 'Lokalni podaci', 'Bez racuna'],
     support: 'Doniraj',
     supportHero: 'Doniraj za Gljivobook',
     latest: 'Zadnja verzija',
@@ -162,16 +176,16 @@ const copy = {
     theme: 'Tema',
     fundingTop: 'Doniraj iz dobre volje',
     pillars: [
-      ['Zbirka', 'Fotografije, biljeske, vrste, datumi i folderi u jednoj lokalnoj zbirci.'],
-      ['Mapa', 'Vidi gdje se koja vrsta pojavljuje kroz tvoju povijest terena.'],
-      ['Uvidi', 'Statistike, sezone, izlasci i PDF export za tvoju arhivu.'],
+      ['Zbirka', 'Fotografije, biljeske, vrste, datumi i folderi ostaju zajedno.'],
+      ['Mapa', 'Filtriraj svoje nalaze po vrsti, regiji, datumu i zonama.'],
+      ['Uvidi', 'Vidi sezone, izlaske, lokacije i povijest svake vrste.'],
     ],
     workflowTitle: 'Od nalaza do arhive',
-    workflowBody: 'Unesi nalaz jednom. Ostaje uredjiv, mapiran, pretraziv i vezan uz folder.',
+    workflowBody: 'Unesi nalaz jednom, a kasnije ga mozes urediti, pretraziti, mapirati i otvoriti u folderu.',
     workflow: [
       ['Dodaj', 'Uvezi fotografije ili rucno napravi nalaz.'],
-      ['Uredi', 'Promijeni vrstu, datum, lokaciju, biljeske, badgeve i fotografije.'],
-      ['Koristi', 'Otvori foldere, filtriraj mapu, citaj statistike i izvezi PDF.'],
+      ['Uredi', 'Popravi vrstu, datum, lokaciju, biljeske, badgeve i fotografije.'],
+      ['Koristi', 'Otvori foldere, filtriraj mapu, citaj statistiku i izvezi arhivu.'],
     ],
     downloadBody:
       'Zadnji Windows download. Lokalni fallback cuva stranicu ako GitHub vrati stariji release.',
@@ -181,6 +195,9 @@ const copy = {
     privacyTitle: 'Lokalno po defaultu',
     privacyBody:
       'Nalazi, biljeske, mape i fotografije ostaju na tvom racunalu. Osnovno katalogiziranje radi bez racuna i clouda.',
+    responsibilityTitle: 'Podijeljeno u dobroj namjeri',
+    responsibilityBody:
+      'Gljivobook je prvo napravljen da kolegi olaksa cuvanje osobne gljivarske arhive, a onda smo ga odlucili podijeliti svima koji ga zele koristiti za sebe. Nadam se da ce vam se svidjeti. Svi podaci su lokalni i samo vasi, zato molim cuvajte vlastite backup kopije: ne mogu preuzeti odgovornost za gubitak podataka, ostecene datoteke ili odluke donesene prema vasim zapisima.',
     communityTitle: 'Zajednica bez vlastitog backend-a',
     communityBody: 'Pitanja, komentari, prikazi nalaza i ideje idu kroz GitHub. Bugovi se prijavljuju iz aplikacije.',
     bugBoardTitle: 'Lista bugova',
@@ -208,7 +225,7 @@ const copy = {
     fundingBody:
       'Podrzi aplikaciju iz dobre volje ili poguraj popularne ideje naprijed.',
     donatePending: 'Link za donacije dolazi uskoro.',
-    screenshotsTitle: 'Sto app stvarno pokriva',
+    screenshotsTitle: 'Sto app pokriva',
     screenshots: ['Zbirka', 'Vrste', 'Mapa', 'Workflow nalaza'],
     screenshotDetails: [
       'Grupirani nalazi, folderi, badgevi, pretraga i brze akcije.',
@@ -219,6 +236,7 @@ const copy = {
     fundingGoalsTitle: 'Ideje za aplikaciju koje mogu doci sljedece',
     fundingGoalsBody: 'Funkcije aplikacije, ne website taskovi. Iznosi su okvirni ciljevi.',
     footer: 'Gradeno za gljivarske biljeske, karte, sezone i lokalne arhive.',
+    footerRepo: 'Kod i releaseovi',
   },
 } satisfies Record<Lang, Record<string, unknown>>;
 
@@ -301,32 +319,82 @@ function BrandMark() {
   );
 }
 
-function AppScreenshot({ label, detail, index }: { label: string; detail: string; index: number }) {
+function AppScreenshot({ label, detail, index, lang }: { label: string; detail: string; index: number; lang: Lang }) {
   const kind = ['collection', 'species', 'map', 'find'][index] ?? 'collection';
+  const preview = lang === 'hr'
+    ? {
+        search: 'Pretrazi vrste...',
+        collectionFirst: '3 nalaza - 18 foto',
+        collectionSecond: '2 nalaza - Zagreb',
+        speciesCommon: 'lisicarka',
+        speciesFirst: 'Prvi nalaz 18.06.2025.',
+        edible: 'Jestiva',
+        common: 'Cesta',
+        season: 'Sezona',
+        mapCount: '3 nalaza - travanj',
+        open: 'Otvori',
+        latinName: 'Latinski naziv',
+        date: 'dd mm yyyy',
+        country: 'Drzava',
+        region: 'Regija',
+        note: 'Biljeska o vrsti...',
+        save: 'Spremi',
+        editPhoto: 'Uredi foto',
+        map: 'Karta',
+      }
+    : {
+        search: 'Search species...',
+        collectionFirst: '3 finds - 18 photos',
+        collectionSecond: '2 finds - Zagreb',
+        speciesCommon: 'chanterelle',
+        speciesFirst: 'First find 18.06.2025',
+        edible: 'Edible',
+        common: 'Common',
+        season: 'Season',
+        mapCount: '3 finds - April',
+        open: 'Open',
+        latinName: 'Latin name',
+        date: 'dd mm yyyy',
+        country: 'Country',
+        region: 'Region',
+        note: 'Species note...',
+        save: 'Save',
+        editPhoto: 'Edit photo',
+        map: 'Map',
+      };
   return (
     <div className={`shot shot-${kind}`}>
       <div className="shot-top">
         <span />
         <span />
         <span />
+        <strong>{label}</strong>
       </div>
       <div className="shot-surface" aria-hidden="true">
         {kind === 'collection' ? (
           <>
-            <div className="shot-search" />
-            <div className="shot-folder active"><span /><strong /></div>
-            <div className="shot-folder"><span /><strong /></div>
-            <div className="shot-action-row"><i /><i /><i /></div>
+            <div className="shot-search">{preview.search}</div>
+            <div className="shot-folder active">
+              <span>12.05.</span>
+              <strong>Morchella esculenta</strong>
+              <em>{preview.collectionFirst}</em>
+            </div>
+            <div className="shot-folder">
+              <span>04.04.</span>
+              <strong>Boletus edulis</strong>
+              <em>{preview.collectionSecond}</em>
+            </div>
+            <div className="shot-action-row"><i>{label}</i><i>Folder</i><i>{preview.map}</i></div>
           </>
         ) : null}
         {kind === 'species' ? (
           <>
-            <div className="shot-photo" />
+            <div className="shot-photo">foto</div>
             <div className="shot-species-copy">
-              <strong />
-              <span />
-              <span className="short" />
-              <div><i /><i /><i /></div>
+              <strong>Cantharellus cibarius</strong>
+              <span>{preview.speciesCommon}</span>
+              <span className="short">{preview.speciesFirst}</span>
+              <div><i>{preview.edible}</i><i>{preview.common}</i><i>{preview.season}</i></div>
             </div>
           </>
         ) : null}
@@ -336,15 +404,15 @@ function AppScreenshot({ label, detail, index }: { label: string; detail: string
             <span className="shot-pin a" />
             <span className="shot-pin b" />
             <span className="shot-pin c" />
-            <div className="shot-popup"><strong /><span /><i /></div>
+            <div className="shot-popup"><strong>Morchella esculenta</strong><span>{preview.mapCount}</span><i>{preview.open}</i></div>
           </>
         ) : null}
         {kind === 'find' ? (
           <>
-            <div className="shot-form-line long" />
-            <div className="shot-form-row"><span /><span /><span /></div>
-            <div className="shot-form-box" />
-            <div className="shot-action-row"><i /><i /><i /></div>
+            <div className="shot-form-line long">{preview.latinName}</div>
+            <div className="shot-form-row"><span>{preview.date}</span><span>{preview.country}</span><span>{preview.region}</span></div>
+            <div className="shot-form-box">{preview.note}</div>
+            <div className="shot-action-row"><i>{preview.save}</i><i>{preview.editPhoto}</i><i>{preview.map}</i></div>
           </>
         ) : null}
       </div>
@@ -468,7 +536,14 @@ export function App() {
         .filter(Boolean)
         .slice(0, 4)
     : release.notes[lang];
-  const donateUrl = configuredDonateUrl?.trim();
+  const donateUrl = configuredDonateUrl?.trim() ?? '';
+  const hasDonateUrl = /^https:\/\//i.test(donateUrl);
+  const navTargets = ['download', 'changelog', 'community', 'ideas', 'support'] as const;
+  const navLabels = t.nav as string[];
+  const navItems = navTargets
+    .map((target, index) => ({ item: navLabels[index], target }))
+    .filter(({ item }) => Boolean(item))
+    .filter(({ target }) => target !== 'support' || hasDonateUrl);
   const visibleIdeas: VisibleIdea[] = remoteIdeas.length
     ? remoteIdeas.map((idea) => ({
         title: idea.title,
@@ -572,27 +647,36 @@ export function App() {
           </span>
         </a>
         <nav aria-label="Primary navigation">
-          {(t.nav as string[]).map((item, index) => (
-            <a key={item} href={`#${['download', 'changelog', 'community', 'ideas', 'support'][index]}`}>
+          {navItems.map(({ item, target }) => (
+            <a key={item} href={`#${target}`}>
               {item}
             </a>
           ))}
         </nav>
-        <a className="funding-strip" href="#support" aria-label={t.fundingTop as string}>
-          <span>
-            <Heart size={14} />
-            {t.fundingTop as string}
-          </span>
-        </a>
+        {hasDonateUrl ? (
+          <a className="funding-strip" href="#support" aria-label={t.fundingTop as string}>
+            <span>
+              <Heart size={14} />
+              {t.fundingTop as string}
+            </span>
+          </a>
+        ) : null}
         <div className="header-actions">
           <button
             className="theme-switch"
+            data-theme-state={theme}
             type="button"
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             aria-label={`${t.theme as string}: ${themeLabel}`}
+            title={`${t.theme as string}: ${themeLabel}`}
           >
-            {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-            {themeLabel}
+            <span className="theme-switch-thumb" aria-hidden="true" />
+            <span className="theme-switch-option" aria-hidden="true">
+              <Sun size={14} />
+            </span>
+            <span className="theme-switch-option" aria-hidden="true">
+              <Moon size={14} />
+            </span>
           </button>
           <div className="language-flags" aria-label="Language">
             {(['hr', 'en'] as const).map((target) => (
@@ -621,6 +705,11 @@ export function App() {
               <span className="hero-subtitle">{t.subtitle as string}</span>
             </h1>
             <p className="intro">{t.intro as string}</p>
+            <div className="app-facts" aria-label={lang === 'hr' ? 'Osnovne informacije' : 'App facts'}>
+              {(t.appFacts as string[]).map((fact) => (
+                <span key={fact}>{fact}</span>
+              ))}
+            </div>
             <div className="hero-actions">
               <a className="button primary" href={releaseUrl}>
                 <Download size={18} />
@@ -632,10 +721,12 @@ export function App() {
                   <ExternalLink size={16} />
                 </a>
               ) : null}
-              <a className="button secondary" href="#support">
-                <Heart size={18} />
-                {t.supportHero as string}
-              </a>
+              {hasDonateUrl ? (
+                <a className="button secondary" href="#support">
+                  <Heart size={18} />
+                  {t.supportHero as string}
+                </a>
+              ) : null}
             </div>
           </div>
           <div className="hero-visual" aria-label={`${t.title as string} app preview`}>
@@ -698,8 +789,10 @@ export function App() {
             const Icon = [BookOpen, Map, TrendingUp][index];
             return (
               <article key={title}>
-                <Icon size={22} />
-                <h2>{title}</h2>
+                <div className="title-with-icon">
+                  <Icon size={22} />
+                  <h2>{title}</h2>
+                </div>
                 <p>{body}</p>
               </article>
             );
@@ -717,8 +810,10 @@ export function App() {
               const Icon = [Download, FolderOpen, Map][index];
               return (
                 <article key={title}>
-                  <Icon size={22} />
-                  <h3>{title}</h3>
+                  <div className="title-with-icon title-with-icon-small">
+                    <Icon size={22} />
+                    <h3>{title}</h3>
+                  </div>
                   <p>{body}</p>
                 </article>
               );
@@ -726,8 +821,8 @@ export function App() {
           </div>
         </section>
 
-        <section id="download" className="section split">
-          <div>
+        <section id="download" className="section split download-section">
+          <div className="download-copy">
             <p className="eyebrow"><Download size={15} />{t.latest as string}</p>
             <h2>{releaseVersion}</h2>
             <p>{t.downloadBody as string}</p>
@@ -752,8 +847,15 @@ export function App() {
             ) : null}
           </div>
           <div id="changelog" className="release-card">
-            <p className="mono">{releaseDate}</p>
+            <div className="release-card-top">
+              <span className="mono">{releaseDate}</span>
+              <span>{t.releaseSource as string}</span>
+            </div>
             <h3>{t.changelog as string}</h3>
+            <div className="release-version-row">
+              <strong>{releaseVersion}</strong>
+              <em>{installerAsset ? (t.installerHint as string) : (t.installerFallback as string)}</em>
+            </div>
             <ul>
               {releaseNotes.map((note) => <li key={note}>{note}</li>)}
             </ul>
@@ -762,14 +864,25 @@ export function App() {
 
         <section className="section info-grid" aria-label={lang === 'hr' ? 'Instalacija i privatnost' : 'Install and privacy'}>
           <article>
-            <ShieldCheck size={24} />
-            <h2>{t.installTitle as string}</h2>
+            <div className="title-with-icon">
+              <ShieldCheck size={24} />
+              <h2>{t.installTitle as string}</h2>
+            </div>
             <p>{t.installBody as string}</p>
           </article>
           <article>
-            <HardDrive size={24} />
-            <h2>{t.privacyTitle as string}</h2>
+            <div className="title-with-icon">
+              <HardDrive size={24} />
+              <h2>{t.privacyTitle as string}</h2>
+            </div>
             <p>{t.privacyBody as string}</p>
+          </article>
+          <article className="responsibility-card">
+            <div className="title-with-icon">
+              <AlertCircle size={24} />
+              <h2>{t.responsibilityTitle as string}</h2>
+            </div>
+            <p>{t.responsibilityBody as string}</p>
           </article>
         </section>
 
@@ -782,6 +895,7 @@ export function App() {
                 label={label}
                 detail={(t.screenshotDetails as string[])[index]}
                 index={index}
+                lang={lang}
               />
             ))}
           </div>
@@ -789,16 +903,20 @@ export function App() {
 
         <section id="community" className="section community-grid">
           <div className="feature-panel">
-            <MessageCircle size={24} />
-            <h2>{t.communityTitle as string}</h2>
+            <div className="title-with-icon">
+              <MessageCircle size={24} />
+              <h2>{t.communityTitle as string}</h2>
+            </div>
             <p>{t.communityBody as string}</p>
             <div className="link-row">
               <a href="https://github.com/IvicaSkrobo/Bili-Mushroom/discussions">GitHub Discussions</a>
             </div>
           </div>
           <div id="ideas" className="feature-panel">
-            <Vote size={24} />
-            <h2>{t.ideasTitle as string}</h2>
+            <div className="title-with-icon">
+              <Vote size={24} />
+              <h2>{t.ideasTitle as string}</h2>
+            </div>
             <p>{t.ideasBody as string}</p>
             <div className="idea-flow" aria-label={lang === 'hr' ? 'Put ideje do funding cilja' : 'Idea to funding flow'}>
               {(t.ideaFlow as [string, string, string][]).map(([step, title, body]) => (
@@ -833,46 +951,50 @@ export function App() {
 
         <GiscusPanel lang={lang} theme={theme} />
 
-        <section id="support" className="section split">
-          <div>
-            <p className="eyebrow"><Heart size={15} />{t.support as string}</p>
-            <h2>{t.fundingTitle as string}</h2>
-            <p>{t.fundingBody as string}</p>
-            {donateUrl ? (
+        {hasDonateUrl ? (
+          <section id="support" className="section split">
+            <div>
+              <p className="eyebrow"><Heart size={15} />{t.support as string}</p>
+              <h2>{t.fundingTitle as string}</h2>
+              <p>{t.fundingBody as string}</p>
               <a className="button secondary" href={donateUrl}>
                 {t.supportHero as string}
                 <ExternalLink size={16} />
               </a>
-            ) : (
-              <span className="pending-link">
-                <Heart size={14} />
-                {t.donatePending as string}
-              </span>
-            )}
-          </div>
-          <div className="funding-card">
-            <h3>{t.fundingGoalsTitle as string}</h3>
-            <p className="funding-note">{t.fundingGoalsBody as string}</p>
-            {funding.map((item) => {
-              const pct = Math.round((item.current / item.goal) * 100);
-              return (
-                <article key={item.title}>
-                  <span className="mono">{pct}%</span>
-                  <h3>{lang === 'hr' ? item.titleHr : item.title}</h3>
-                  <div className="progress" aria-label={`${pct}% funded`}>
-                    <span style={{ width: `${pct}%` }} />
-                  </div>
-                  <p>{`EUR ${item.current} / EUR ${item.goal}`}</p>
-                </article>
-              );
-            })}
-          </div>
-        </section>
+            </div>
+            <div className="funding-card">
+              <h3>{t.fundingGoalsTitle as string}</h3>
+              <p className="funding-note">{t.fundingGoalsBody as string}</p>
+              {funding.map((item) => {
+                const pct = Math.round((item.current / item.goal) * 100);
+                return (
+                  <article key={item.title}>
+                    <span className="mono">{pct}%</span>
+                    <h3>{lang === 'hr' ? item.titleHr : item.title}</h3>
+                    <div className="progress" aria-label={`${pct}% funded`}>
+                      <span style={{ width: `${pct}%` }} />
+                    </div>
+                    <p>{`EUR ${item.current} / EUR ${item.goal}`}</p>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
       </main>
 
       <footer>
-        <BrandMark />
-        <p>{t.footer as string}</p>
+        <div className="footer-brand">
+          <BrandMark />
+          <p>{t.footer as string}</p>
+        </div>
+        <div className="footer-links">
+          <a href={repoUrl}>
+            <Github size={14} />
+            {t.footerRepo as string}
+          </a>
+          <span>{releaseVersion}</span>
+        </div>
       </footer>
     </div>
   );

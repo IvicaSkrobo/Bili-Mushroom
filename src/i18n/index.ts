@@ -335,7 +335,7 @@ const hr: Translations = {
   'bugReport.sending': 'Slanje...',
   'bugReport.success': 'Prijava je poslana. Hvala!',
   'bugReport.error': 'Prijava nije poslana. Pokusaj ponovno kasnije.',
-  'bugReport.notConfigured': 'Bug report endpoint jos nije podesen. Vodit cu te kroz Cloudflare setup prije releasea.',
+  'bugReport.notConfigured': 'Bug report slanje jos nije omoguceno u ovoj verziji. Mozes zasad kopirati tekst i poslati ga rucno.',
 
   // first run dialog
   'firstRun.title': 'Odaberite svoju knjižnicu gljiva',
@@ -946,7 +946,7 @@ const en: Translations = {
   'bugReport.sending': 'Sending...',
   'bugReport.success': 'Report sent. Thank you!',
   'bugReport.error': 'Report was not sent. Try again later.',
-  'bugReport.notConfigured': 'Bug report endpoint is not configured yet. I will guide you through the Cloudflare setup before release.',
+  'bugReport.notConfigured': 'Bug report sending is not enabled in this version yet. You can copy the text and send it manually for now.',
 
   // first run dialog
   'firstRun.title': 'Choose Your Mushroom Library',
