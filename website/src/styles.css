@@ -1718,7 +1718,7 @@ h1 {
   background: var(--paper);
 }
 
-.bug-row:hover { background: var(--paper); }
+.bug-row:hover { background: transparent; }
 
 .bug-number {
   font-family: "IBM Plex Mono", monospace;
@@ -1794,7 +1794,7 @@ h1 {
 }
 
 .bug-row-wrap:hover .bug-row {
-  background: var(--paper-2);
+  background: transparent;
 }
 
 .bug-row-wrap-expanded {
