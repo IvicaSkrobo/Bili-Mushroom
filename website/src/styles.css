@@ -1774,7 +1774,6 @@ h1 {
 }
 
 .bug-board-link {
-  grid-column: 2;
   width: max-content;
   margin: 4px 0 0;
 }
@@ -1961,6 +1960,236 @@ h1 {
   line-height: 1.56;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.bug-board-sections {
+  display: grid;
+  gap: 32px;
+}
+
+.bug-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 12px;
+}
+
+.bug-section-title {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--amber-dark);
+}
+
+.bug-board-downloads {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.bug-internal .bug-row-wrap .bug-row {
+  border-left: 3px solid rgba(47, 111, 87, 0.52);
+}
+
+.bug-internal .bug-row-wrap .bug-row.bug-row-expanded {
+  border-left-color: var(--green);
+}
+
+.bug-internal-badge {
+  background: rgba(47, 111, 87, 0.15) !important;
+  border-color: rgba(47, 111, 87, 0.45) !important;
+  color: var(--green-dark) !important;
+  font-size: 10px !important;
+  min-width: 42px !important;
+}
+
+.bug-local-comments {
+  border-top: 1px solid rgba(121, 101, 67, 0.18);
+  padding-top: 14px;
+  margin-top: 2px;
+}
+
+.bug-lc-item {
+  position: relative;
+  padding: 10px 12px;
+  border: 1px solid rgba(121, 101, 67, 0.2);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  display: grid;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.bug-lc-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.bug-lc-item-meta strong {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--green-dark);
+}
+
+.bug-lc-item-meta span {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  flex: 1;
+}
+
+.bug-lc-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(121, 101, 67, 0.3);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+  flex-shrink: 0;
+}
+
+.bug-lc-delete:hover {
+  color: oklch(0.55 0.18 25);
+  border-color: rgba(200, 60, 40, 0.42);
+  background: rgba(200, 60, 40, 0.08);
+}
+
+.bug-lc-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.bug-lc-author {
+  width: max-content;
+  min-width: 140px;
+  padding: 5px 10px;
+  border: 1px solid rgba(121, 101, 67, 0.28);
+  border-radius: 6px;
+  background: var(--paper-2);
+  color: var(--fg);
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 800;
+  transition: border-color 160ms ease;
+}
+
+.bug-lc-author:focus {
+  outline: none;
+  border-color: var(--amber);
+}
+
+.bug-lc-author::placeholder {
+  color: var(--muted);
+  opacity: 0.62;
+}
+
+.bug-lc-body {
+  width: 100%;
+  min-height: 60px;
+  padding: 7px 10px;
+  border: 1px solid rgba(121, 101, 67, 0.28);
+  border-radius: 6px;
+  background: var(--paper-2);
+  color: var(--fg);
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: vertical;
+  transition: border-color 160ms ease;
+}
+
+.bug-lc-body:focus {
+  outline: none;
+  border-color: var(--amber);
+}
+
+.bug-lc-body::placeholder {
+  color: var(--muted);
+  opacity: 0.62;
+}
+
+.bug-lc-form .button {
+  width: max-content;
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 12px;
+}
+
+.bug-lc-form .button:disabled {
+  opacity: 0.44;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.bug-new-form {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(121, 101, 67, 0.28);
+  border-radius: 8px;
+  background: var(--panel-bg);
+  margin-bottom: 12px;
+}
+
+.bug-new-form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.bug-new-form .button {
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 12px;
+}
+
+.bug-new-form .button:disabled {
+  opacity: 0.44;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.bug-section-header .button {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.bug-comment-gh-link {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 5px;
+  color: var(--muted);
+  opacity: 0.72;
+  vertical-align: middle;
+  transition: color 140ms ease, opacity 140ms ease;
+}
+
+.bug-comment-gh-link:hover {
+  color: var(--amber-dark);
+  opacity: 1;
+}
+
+.bug-board-link {
+  display: inline-flex;
+  margin-top: 10px;
 }
 
 .bug-gate {

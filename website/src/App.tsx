@@ -62,6 +62,21 @@ type RemoteComment = {
   user: { login: string } | null;
 };
 
+type LocalComment = {
+  id: string;
+  author: string;
+  body: string;
+  createdAt: string;
+};
+
+type LocalIssue = {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  createdAt: string;
+};
+
 type VisibleIdea = {
   title: string;
   titleHr: string;
@@ -446,7 +461,7 @@ export function App() {
   const [bugBoardUnlocked, setBugBoardUnlocked] = useState(() => window.sessionStorage.getItem('bb') === '1');
   const [bugPassword, setBugPassword] = useState('');
   const [bugPasswordError, setBugPasswordError] = useState(false);
-  const [expandedBug, setExpandedBug] = useState<number | null>(null);
+  const [expandedBug, setExpandedBug] = useState<string | null>(null);
   const [localStatuses, setLocalStatuses] = useState<Record<number, string>>(() => {
     try { return JSON.parse(localStorage.getItem('bb-statuses') ?? '{}'); } catch { return {}; }
   });
@@ -455,6 +470,15 @@ export function App() {
   });
   const [bugComments, setBugComments] = useState<Record<number, RemoteComment[]>>({});
   const [loadingComments, setLoadingComments] = useState<Record<number, boolean>>({});
+  const [localComments, setLocalComments] = useState<Record<string, LocalComment[]>>(() => {
+    try { return JSON.parse(localStorage.getItem('bb-lc') ?? '{}'); } catch { return {}; }
+  });
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, { author: string; body: string }>>({});
+  const [localIssues, setLocalIssues] = useState<LocalIssue[]>(() => {
+    try { return JSON.parse(localStorage.getItem('bb-li') ?? '[]'); } catch { return []; }
+  });
+  const [showNewIssueForm, setShowNewIssueForm] = useState(false);
+  const [newIssueDraft, setNewIssueDraft] = useState({ title: '', description: '' });
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const stored = window.localStorage.getItem('gljivobook-site-theme');
     if (stored === 'light' || stored === 'dark') return stored;
@@ -646,10 +670,11 @@ export function App() {
     localStorage.setItem('bb-notes', JSON.stringify(updated));
   }
 
-  function toggleBug(num: number) {
-    const opening = expandedBug !== num;
-    setExpandedBug(opening ? num : null);
-    if (opening && num && !bugComments[num] && !loadingComments[num]) {
+  function toggleBug(key: string) {
+    const opening = expandedBug !== key;
+    setExpandedBug(opening ? key : null);
+    const num = Number(key);
+    if (opening && num && !isNaN(num) && !bugComments[num] && !loadingComments[num]) {
       setLoadingComments((prev) => ({ ...prev, [num]: true }));
       fetch(`https://api.github.com/repos/IvicaSkrobo/Bili-Mushroom/issues/${num}/comments`, {
         headers: { Accept: 'application/vnd.github+json' },
@@ -659,6 +684,43 @@ export function App() {
         .catch(() => setBugComments((prev) => ({ ...prev, [num]: [] })))
         .finally(() => setLoadingComments((prev) => ({ ...prev, [num]: false })));
     }
+  }
+
+  function addLocalComment(key: string, author: string, body: string) {
+    const comment: LocalComment = { id: Date.now().toString(), author: author.trim() || 'Dev', body, createdAt: new Date().toISOString() };
+    const updated = { ...localComments, [key]: [...(localComments[key] ?? []), comment] };
+    setLocalComments(updated);
+    localStorage.setItem('bb-lc', JSON.stringify(updated));
+    localStorage.setItem('bb-author', author.trim() || 'Dev');
+    setCommentDrafts((prev) => ({ ...prev, [key]: { ...prev[key], body: '' } }));
+  }
+
+  function deleteLocalComment(key: string, commentId: string) {
+    const updated = { ...localComments, [key]: (localComments[key] ?? []).filter((c) => c.id !== commentId) };
+    setLocalComments(updated);
+    localStorage.setItem('bb-lc', JSON.stringify(updated));
+  }
+
+  function createLocalIssue(title: string, description: string) {
+    const issue: LocalIssue = { id: `li-${Date.now()}`, title, description, status: 'open', createdAt: new Date().toISOString() };
+    const updated = [...localIssues, issue];
+    setLocalIssues(updated);
+    localStorage.setItem('bb-li', JSON.stringify(updated));
+    setShowNewIssueForm(false);
+    setNewIssueDraft({ title: '', description: '' });
+  }
+
+  function deleteLocalIssue(id: string) {
+    const updated = localIssues.filter((i) => i.id !== id);
+    setLocalIssues(updated);
+    localStorage.setItem('bb-li', JSON.stringify(updated));
+    if (expandedBug === id) setExpandedBug(null);
+  }
+
+  function updateLocalIssueStatus(id: string, status: string) {
+    const updated = localIssues.map((i) => i.id === id ? { ...i, status } : i);
+    setLocalIssues(updated);
+    localStorage.setItem('bb-li', JSON.stringify(updated));
   }
 
   const LOCAL_STATUSES = [
@@ -672,6 +734,54 @@ export function App() {
     { key: 'verified', label: 'Verified' },
   ];
 
+  function renderLocalCommentsSection(issueKey: string) {
+    const comments = localComments[issueKey] ?? [];
+    const draft = commentDrafts[issueKey] ?? { author: localStorage.getItem('bb-author') ?? '', body: '' };
+    return (
+      <div className="bug-detail-section bug-local-comments">
+        <label className="bug-detail-label">Internal comments</label>
+        {comments.length === 0 ? (
+          <p className="bug-detail-empty">No internal comments yet.</p>
+        ) : comments.map((c) => (
+          <div key={c.id} className="bug-lc-item">
+            <div className="bug-lc-item-meta">
+              <strong>{c.author}</strong>
+              <span>{new Intl.DateTimeFormat('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(c.createdAt))}</span>
+              <button
+                className="bug-lc-delete"
+                type="button"
+                title="Delete comment"
+                onClick={() => deleteLocalComment(issueKey, c.id)}
+              >×</button>
+            </div>
+            <p className="bug-comment-body">{c.body}</p>
+          </div>
+        ))}
+        <div className="bug-lc-form">
+          <input
+            className="bug-lc-author"
+            type="text"
+            placeholder="Author"
+            value={draft.author}
+            onChange={(e) => setCommentDrafts((prev) => ({ ...prev, [issueKey]: { ...draft, author: e.target.value } }))}
+          />
+          <textarea
+            className="bug-lc-body"
+            placeholder="Write an internal comment..."
+            value={draft.body}
+            onChange={(e) => setCommentDrafts((prev) => ({ ...prev, [issueKey]: { ...draft, body: e.target.value } }))}
+          />
+          <button
+            className="button ghost"
+            type="button"
+            disabled={!draft.body.trim()}
+            onClick={() => { if (draft.body.trim()) addLocalComment(issueKey, draft.author, draft.body); }}
+          >Add</button>
+        </div>
+      </div>
+    );
+  }
+
   const bugBoardContent = (
     <section id="bugs" className="section bug-board-section">
       <div className="bug-board-heading">
@@ -679,96 +789,209 @@ export function App() {
         <h2>{t.bugBoardTitle as string}</h2>
         <p>{t.bugBoardBody as string}</p>
       </div>
-      {totalDownloads !== null && (
-        <p className="bug-board-downloads">Total downloads: {totalDownloads}</p>
-      )}
-      <div className="bug-board">
-        {remoteBugsLoading ? (
-          <div className="bug-empty">{t.bugBoardLoading as string}</div>
-        ) : remoteBugs.length ? remoteBugs.map((bug) => {
-          const ghStatus = bugStatus(bug, lang);
-          const localStatus = localStatuses[bug.number ?? 0];
-          const isExpanded = expandedBug === bug.number;
-          const num = bug.number ?? 0;
-          return (
-            <div key={bug.html_url} className={`bug-row-wrap${isExpanded ? ' bug-row-wrap-expanded' : ''}`}>
-              <div
-                className={`bug-row${isExpanded ? ' bug-row-expanded' : ''}`}
-                role="button"
-                tabIndex={0}
-                onClick={() => toggleBug(num)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBug(num); } }}
-              >
-                <span className="bug-number">{num ? `#${num}` : 'Bug'}</span>
-                <strong>{bug.title}</strong>
-                <div className="bug-row-badges">
-                  <span className={`bug-status status-${ghStatus.key}`}>{ghStatus.label}</span>
-                  {localStatus && (
-                    <span className={`bug-status bug-status-local status-local-${localStatus}`}>{LOCAL_STATUSES.find((s) => s.key === localStatus)?.label ?? localStatus}</span>
+      <div className="bug-board-sections">
+        {/* Section 1: Internal Issues */}
+        <div className="bug-internal">
+          <div className="bug-section-header">
+            <span className="bug-section-title">Internal</span>
+            <button
+              className="button ghost"
+              type="button"
+              onClick={() => setShowNewIssueForm((v) => !v)}
+            >{showNewIssueForm ? 'Cancel' : '+ New'}</button>
+          </div>
+          {showNewIssueForm && (
+            <div className="bug-new-form">
+              <input
+                className="bug-detail-textarea"
+                type="text"
+                placeholder="Title"
+                value={newIssueDraft.title}
+                onChange={(e) => setNewIssueDraft((prev) => ({ ...prev, title: e.target.value }))}
+              />
+              <textarea
+                className="bug-detail-textarea"
+                placeholder="Description (optional)"
+                value={newIssueDraft.description}
+                onChange={(e) => setNewIssueDraft((prev) => ({ ...prev, description: e.target.value }))}
+              />
+              <div className="bug-new-form-actions">
+                <button
+                  className="button primary"
+                  type="button"
+                  disabled={!newIssueDraft.title.trim()}
+                  onClick={() => { if (newIssueDraft.title.trim()) createLocalIssue(newIssueDraft.title.trim(), newIssueDraft.description); }}
+                >Create</button>
+                <button
+                  className="button ghost"
+                  type="button"
+                  onClick={() => { setShowNewIssueForm(false); setNewIssueDraft({ title: '', description: '' }); }}
+                >Cancel</button>
+              </div>
+            </div>
+          )}
+          <div className="bug-board">
+            {localIssues.length === 0 && !showNewIssueForm ? (
+              <div className="bug-empty">No internal issues.</div>
+            ) : localIssues.map((issue) => {
+              const isExpanded = expandedBug === issue.id;
+              return (
+                <div key={issue.id} className={`bug-row-wrap${isExpanded ? ' bug-row-wrap-expanded' : ''}`}>
+                  <div
+                    className={`bug-row${isExpanded ? ' bug-row-expanded' : ''}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => toggleBug(issue.id)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBug(issue.id); } }}
+                  >
+                    <span className="bug-number bug-internal-badge">INT</span>
+                    <strong>{issue.title}</strong>
+                    <div className="bug-row-badges">
+                      <span className={`bug-status bug-status-local status-local-${issue.status}`}>{LOCAL_STATUSES.find((s) => s.key === issue.status)?.label ?? issue.status}</span>
+                    </div>
+                    <button
+                      className="bug-lc-delete"
+                      type="button"
+                      title="Delete issue"
+                      onClick={(e) => { e.stopPropagation(); deleteLocalIssue(issue.id); }}
+                    >×</button>
+                    <span className="bug-chevron" aria-hidden="true">
+                      {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                    </span>
+                  </div>
+                  {isExpanded && (
+                    <div className="bug-detail">
+                      {issue.description && (
+                        <div className="bug-detail-section">
+                          <label className="bug-detail-label">Description</label>
+                          <p className="bug-comment-body">{issue.description}</p>
+                        </div>
+                      )}
+                      <div className="bug-detail-section">
+                        <label className="bug-detail-label">Status</label>
+                        <select
+                          className="bug-detail-select"
+                          value={issue.status}
+                          onChange={(e) => updateLocalIssueStatus(issue.id, e.target.value)}
+                        >
+                          {LOCAL_STATUSES.map((s) => (
+                            <option key={s.key} value={s.key}>{s.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      {renderLocalCommentsSection(issue.id)}
+                    </div>
                   )}
                 </div>
-                <span className="bug-comment-count">{bug.comments} {lang === 'hr' ? 'kom.' : 'cmt'}</span>
-                <span className="bug-chevron" aria-hidden="true">
-                  {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-                </span>
-              </div>
-              {isExpanded && (
-                <div className="bug-detail">
-                  <div className="bug-detail-section">
-                    <label className="bug-detail-label">{lang === 'hr' ? 'Lokalni status' : 'Local status'}</label>
-                    <select
-                      className="bug-detail-select"
-                      value={localStatus ?? ghStatus.key}
-                      onChange={(e) => saveLocalStatus(num, e.target.value)}
-                    >
-                      {LOCAL_STATUSES.map((s) => (
-                        <option key={s.key} value={s.key}>{s.label}</option>
-                      ))}
-                    </select>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Section 2: GitHub Bugs */}
+        <div>
+          <div className="bug-section-header">
+            <span className="bug-section-title">From users</span>
+            {totalDownloads !== null && (
+              <span className="bug-board-downloads">↓ {totalDownloads}</span>
+            )}
+          </div>
+          <div className="bug-board">
+            {remoteBugsLoading ? (
+              <div className="bug-empty">{t.bugBoardLoading as string}</div>
+            ) : remoteBugs.length ? remoteBugs.map((bug) => {
+              const ghStatus = bugStatus(bug, lang);
+              const localStatus = localStatuses[bug.number ?? 0];
+              const bugKey = String(bug.number ?? 0);
+              const isExpanded = expandedBug === bugKey;
+              const num = bug.number ?? 0;
+              return (
+                <div key={bug.html_url} className={`bug-row-wrap${isExpanded ? ' bug-row-wrap-expanded' : ''}`}>
+                  <div
+                    className={`bug-row${isExpanded ? ' bug-row-expanded' : ''}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => toggleBug(bugKey)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBug(bugKey); } }}
+                  >
+                    <span className="bug-number">{num ? `#${num}` : 'Bug'}</span>
+                    <strong>{bug.title}</strong>
+                    <div className="bug-row-badges">
+                      <span className={`bug-status status-${ghStatus.key}`}>{ghStatus.label}</span>
+                      {localStatus && (
+                        <span className={`bug-status bug-status-local status-local-${localStatus}`}>{LOCAL_STATUSES.find((s) => s.key === localStatus)?.label ?? localStatus}</span>
+                      )}
+                    </div>
+                    <span className="bug-comment-count">{bug.comments} {lang === 'hr' ? 'kom.' : 'cmt'}</span>
+                    <span className="bug-chevron" aria-hidden="true">
+                      {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                    </span>
                   </div>
-                  <div className="bug-detail-section">
-                    <label className="bug-detail-label">{lang === 'hr' ? 'Bilješka' : 'Dev note'}</label>
-                    <textarea
-                      className="bug-detail-textarea"
-                      value={localNotes[num] ?? ''}
-                      placeholder={lang === 'hr' ? 'Privatna bilješka...' : 'Private note...'}
-                      onChange={(e) => saveLocalNote(num, e.target.value)}
-                    />
-                  </div>
-                  <div className="bug-detail-section bug-detail-link-row">
-                    <a className="text-link" href={bug.html_url} target="_blank" rel="noopener noreferrer">
-                      {lang === 'hr' ? 'Otvori na GitHubu' : 'Open on GitHub'}
-                      <ExternalLink size={13} />
-                    </a>
-                  </div>
-                  <div className="bug-detail-section">
-                    <label className="bug-detail-label">{lang === 'hr' ? 'Komentari' : 'Comments'}</label>
-                    {loadingComments[num] ? (
-                      <p className="bug-detail-loading">{lang === 'hr' ? 'Učitavam...' : 'Loading...'}</p>
-                    ) : (bugComments[num] ?? []).length === 0 ? (
-                      <p className="bug-detail-empty">{lang === 'hr' ? 'Nema komentara.' : 'No comments yet.'}</p>
-                    ) : (bugComments[num] ?? []).map((comment) => (
-                      <div key={comment.id} className="bug-comment">
-                        <div className="bug-comment-meta">
-                          <strong>{comment.user?.login ?? 'unknown'}</strong>
-                          <span>{new Intl.DateTimeFormat(lang === 'hr' ? 'hr-HR' : 'en-US', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(comment.created_at))}</span>
-                        </div>
-                        <p className="bug-comment-body">{comment.body}</p>
+                  {isExpanded && (
+                    <div className="bug-detail">
+                      <div className="bug-detail-section">
+                        <label className="bug-detail-label">{lang === 'hr' ? 'Lokalni status' : 'Local status'}</label>
+                        <select
+                          className="bug-detail-select"
+                          value={localStatus ?? ghStatus.key}
+                          onChange={(e) => saveLocalStatus(num, e.target.value)}
+                        >
+                          {LOCAL_STATUSES.map((s) => (
+                            <option key={s.key} value={s.key}>{s.label}</option>
+                          ))}
+                        </select>
                       </div>
-                    ))}
-                  </div>
+                      <div className="bug-detail-section">
+                        <label className="bug-detail-label">{lang === 'hr' ? 'Bilješka' : 'Dev note'}</label>
+                        <textarea
+                          className="bug-detail-textarea"
+                          value={localNotes[num] ?? ''}
+                          placeholder={lang === 'hr' ? 'Privatna bilješka...' : 'Private note...'}
+                          onChange={(e) => saveLocalNote(num, e.target.value)}
+                        />
+                      </div>
+                      <div className="bug-detail-section bug-detail-link-row">
+                        <a className="text-link" href={bug.html_url} target="_blank" rel="noopener noreferrer">
+                          {lang === 'hr' ? 'Otvori na GitHubu' : 'Open on GitHub'}
+                          <ExternalLink size={13} />
+                        </a>
+                      </div>
+                      <div className="bug-detail-section">
+                        <label className="bug-detail-label">{lang === 'hr' ? 'Komentari' : 'GitHub Comments'}</label>
+                        {loadingComments[num] ? (
+                          <p className="bug-detail-loading">{lang === 'hr' ? 'Učitavam...' : 'Loading...'}</p>
+                        ) : (bugComments[num] ?? []).length === 0 ? (
+                          <p className="bug-detail-empty">{lang === 'hr' ? 'Nema komentara.' : 'No comments yet.'}</p>
+                        ) : (bugComments[num] ?? []).map((comment) => (
+                          <div key={comment.id} className="bug-comment">
+                            <div className="bug-comment-meta">
+                              <strong>
+                                {comment.user?.login ?? 'unknown'}
+                                <a href={bug.html_url} target="_blank" rel="noopener noreferrer" className="bug-comment-gh-link" title="Open on GitHub">
+                                  <ExternalLink size={11} />
+                                </a>
+                              </strong>
+                              <span>{new Intl.DateTimeFormat(lang === 'hr' ? 'hr-HR' : 'en-US', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(comment.created_at))}</span>
+                            </div>
+                            <p className="bug-comment-body">{comment.body}</p>
+                          </div>
+                        ))}
+                      </div>
+                      {renderLocalCommentsSection(bugKey)}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          );
-        }) : (
-          <div className="bug-empty">{t.bugBoardEmpty as string}</div>
-        )}
+              );
+            }) : (
+              <div className="bug-empty">{t.bugBoardEmpty as string}</div>
+            )}
+          </div>
+          <a className="text-link bug-board-link" href={bugsListUrl}>
+            {t.bugBoardAction as string}
+            <ExternalLink size={14} />
+          </a>
+        </div>
       </div>
-      <a className="text-link bug-board-link" href={bugsListUrl}>
-        {t.bugBoardAction as string}
-        <ExternalLink size={14} />
-      </a>
     </section>
   );
 
