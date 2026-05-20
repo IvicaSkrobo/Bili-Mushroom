@@ -35,6 +35,7 @@ type RemoteRelease = {
     name: string;
     browser_download_url: string;
     size: number;
+    download_count?: number;
   }>;
 };
 
@@ -431,6 +432,7 @@ export function App() {
   const [remoteIdeas, setRemoteIdeas] = useState<RemoteIssue[]>([]);
   const [remoteBugs, setRemoteBugs] = useState<RemoteIssue[]>([]);
   const [remoteBugsLoading, setRemoteBugsLoading] = useState(false);
+  const [totalDownloads, setTotalDownloads] = useState<number | null>(null);
   const [showHiddenBugs, setShowHiddenBugs] = useState(() => window.location.hash === '#bugs');
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const stored = window.localStorage.getItem('gljivobook-site-theme');
@@ -457,6 +459,25 @@ export function App() {
     syncHiddenBugBoard();
     window.addEventListener('hashchange', syncHiddenBugBoard);
     return () => window.removeEventListener('hashchange', syncHiddenBugBoard);
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('https://api.github.com/repos/IvicaSkrobo/Bili-Mushroom/releases?per_page=50', {
+      signal: controller.signal,
+      headers: { Accept: 'application/vnd.github+json' },
+    })
+      .then((response) => (response.ok ? response.json() : []))
+      .then((data: Array<{ assets?: Array<{ download_count?: number }> }>) => {
+        const total = data.reduce((sum, rel) => {
+          return sum + (rel.assets ?? []).reduce((s, a) => s + (a.download_count ?? 0), 0);
+        }, 0);
+        setTotalDownloads(total);
+      })
+      .catch(() => {
+        // Keep the stat hidden if GitHub is unavailable or rate-limited.
+      });
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
@@ -590,6 +611,9 @@ export function App() {
         <h2>{t.bugBoardTitle as string}</h2>
         <p>{t.bugBoardBody as string}</p>
       </div>
+      {totalDownloads !== null && (
+        <p className="bug-board-downloads">Total downloads: {totalDownloads}</p>
+      )}
       <div className="bug-board">
         {remoteBugsLoading ? (
           <div className="bug-empty">{t.bugBoardLoading as string}</div>
@@ -845,6 +869,12 @@ export function App() {
                 <ExternalLink size={14} />
               </a>
             ) : null}
+            {totalDownloads !== null && totalDownloads >= 10 && (
+              <span className="downloads-stat">
+                <Download size={13} />
+                {totalDownloads.toLocaleString()} downloads
+              </span>
+            )}
           </div>
           <div id="changelog" className="release-card">
             <div className="release-card-top">
