@@ -16,6 +16,7 @@ import {
   Sprout,
   Star,
   AlertCircle,
+  Trash2,
   Sun,
   TrendingUp,
   Vote,
@@ -959,12 +960,10 @@ export function App() {
                       <div className="bug-detail">
                         {renderLocalCommentsSection(issue.id)}
                         <button
-                          className="bug-lc-delete"
+                          className="bug-issue-delete"
                           type="button"
-                          title="Delete issue"
                           onClick={(e) => { e.stopPropagation(); deleteLocalIssue(issue.id); }}
-                          style={{ alignSelf: 'flex-start' }}
-                        >× Delete issue</button>
+                        ><Trash2 size={14} /> Delete issue</button>
                       </div>
                     )}
                   </div>

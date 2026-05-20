@@ -2387,6 +2387,28 @@ h1 {
   background: rgba(200, 60, 40, 0.08);
 }
 
+.bug-issue-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid rgba(200, 60, 40, 0.25);
+  border-radius: 5px;
+  background: transparent;
+  color: oklch(0.55 0.18 25);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  align-self: flex-start;
+  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+.bug-issue-delete:hover {
+  border-color: rgba(200, 60, 40, 0.5);
+  background: rgba(200, 60, 40, 0.08);
+}
+
 .bug-lc-form {
   display: grid;
   gap: 8px;
