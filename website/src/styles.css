@@ -1767,6 +1767,63 @@ h1 {
   margin: 4px 0 0;
 }
 
+.bug-gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+
+.bug-gate-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: 320px;
+  width: 100%;
+  text-align: center;
+}
+
+.bug-gate-box h2 {
+  font-size: 1.3rem;
+  margin: 0;
+}
+
+.bug-gate-box p {
+  color: var(--muted);
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.bug-gate-box form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.bug-gate-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--fg);
+  font-size: 1rem;
+  outline: none;
+}
+
+.bug-gate-input:focus {
+  border-color: var(--amber);
+}
+
+.bug-gate-error {
+  color: oklch(0.55 0.18 25);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
 .idea-flow {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

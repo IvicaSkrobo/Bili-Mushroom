@@ -434,6 +434,9 @@ export function App() {
   const [remoteBugsLoading, setRemoteBugsLoading] = useState(false);
   const [totalDownloads, setTotalDownloads] = useState<number | null>(null);
   const [showHiddenBugs, setShowHiddenBugs] = useState(() => window.location.hash === '#bugs');
+  const [bugBoardUnlocked, setBugBoardUnlocked] = useState(() => window.sessionStorage.getItem('bb') === '1');
+  const [bugPassword, setBugPassword] = useState('');
+  const [bugPasswordError, setBugPasswordError] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const stored = window.localStorage.getItem('gljivobook-site-theme');
     if (stored === 'light' || stored === 'dark') return stored;
@@ -663,7 +666,38 @@ export function App() {
               {t.bugBoardBack as string}
             </a>
           </div>
-          {bugBoardContent}
+          {bugBoardUnlocked ? bugBoardContent : (
+            <section className="section bug-gate">
+              <div className="bug-gate-box">
+                <AlertCircle size={28} />
+                <h2>Bug Board</h2>
+                <p>Enter the password to continue.</p>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (bugPassword === 'Tajland') {
+                      window.sessionStorage.setItem('bb', '1');
+                      setBugBoardUnlocked(true);
+                      setBugPasswordError(false);
+                    } else {
+                      setBugPasswordError(true);
+                    }
+                  }}
+                >
+                  <input
+                    type="password"
+                    className="bug-gate-input"
+                    placeholder="Password"
+                    value={bugPassword}
+                    autoFocus
+                    onChange={(e) => { setBugPassword(e.target.value); setBugPasswordError(false); }}
+                  />
+                  {bugPasswordError && <p className="bug-gate-error">Wrong password.</p>}
+                  <button className="button primary" type="submit">Enter</button>
+                </form>
+              </div>
+            </section>
+          )}
         </main>
       </div>
     );
