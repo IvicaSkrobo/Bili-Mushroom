@@ -68,6 +68,7 @@ type LocalComment = {
   author: string;
   body: string;
   createdAt: string;
+  images?: string[];
 };
 
 type LocalIssue = {
@@ -475,7 +476,9 @@ export function App() {
   const [localComments, setLocalComments] = useState<Record<string, LocalComment[]>>(() => {
     try { return JSON.parse(localStorage.getItem('bb-lc') ?? '{}'); } catch { return {}; }
   });
-  const [commentDrafts, setCommentDrafts] = useState<Record<string, { author: string; body: string }>>({});
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+  const [commentAuthor, setCommentAuthor] = useState<string>(() => localStorage.getItem('bb-author') ?? 'Ico');
+  const [commentImages, setCommentImages] = useState<Record<string, string[]>>({});
   const [localIssues, setLocalIssues] = useState<LocalIssue[]>(() => {
     try { return JSON.parse(localStorage.getItem('bb-li') ?? '[]'); } catch { return []; }
   });
@@ -688,13 +691,14 @@ export function App() {
     }
   }
 
-  function addLocalComment(key: string, author: string, body: string) {
-    const comment: LocalComment = { id: Date.now().toString(), author: author.trim() || 'Dev', body, createdAt: new Date().toISOString() };
+  function addLocalComment(key: string, body: string) {
+    const imgs = commentImages[key] ?? [];
+    const comment: LocalComment = { id: Date.now().toString(), author: commentAuthor, body, createdAt: new Date().toISOString(), images: imgs.length ? imgs : undefined };
     const updated = { ...localComments, [key]: [...(localComments[key] ?? []), comment] };
     setLocalComments(updated);
     localStorage.setItem('bb-lc', JSON.stringify(updated));
-    localStorage.setItem('bb-author', author.trim() || 'Dev');
-    setCommentDrafts((prev) => ({ ...prev, [key]: { ...prev[key], body: '' } }));
+    setCommentDrafts((prev) => ({ ...prev, [key]: '' }));
+    setCommentImages((prev) => ({ ...prev, [key]: [] }));
   }
 
   function deleteLocalComment(key: string, commentId: string) {
@@ -738,7 +742,7 @@ export function App() {
 
   function renderLocalCommentsSection(issueKey: string, description?: string | null) {
     const comments = localComments[issueKey] ?? [];
-    const draft = commentDrafts[issueKey] ?? { author: localStorage.getItem('bb-author') ?? '', body: '' };
+    const body = commentDrafts[issueKey] ?? '';
     const showComments = expandedComments[issueKey] ?? false;
     return (
       <div className="bug-detail-panel">
@@ -762,31 +766,74 @@ export function App() {
               <button className="bug-lc-delete" type="button" onClick={() => deleteLocalComment(issueKey, c.id)}>×</button>
             </div>
             <p className="bug-comment-body">{c.body}</p>
+            {c.images?.length ? (
+              <div className="bb-img-previews">
+                {c.images.map((src, i) => <img key={i} className="bb-comment-img" src={src} alt="" />)}
+              </div>
+            ) : null}
           </div>
         ))}
         <div className="bug-lc-inline-form">
-          <input
-            className="bug-lc-author-inline"
-            type="text"
-            placeholder="Name"
-            value={draft.author}
-            onChange={(e) => setCommentDrafts((prev) => ({ ...prev, [issueKey]: { ...draft, author: e.target.value } }))}
-          />
+          <div className="bb-author-switcher">
+            {['Ico', 'Bili'].map((name) => (
+              <button
+                key={name}
+                type="button"
+                className={`bb-author-btn${commentAuthor === name ? ' bb-author-btn-active' : ''}`}
+                onClick={(e) => { e.stopPropagation(); setCommentAuthor(name); localStorage.setItem('bb-author', name); }}
+              >{name}</button>
+            ))}
+          </div>
           <input
             className="bug-lc-body-inline"
             type="text"
             placeholder="Add a comment..."
-            value={draft.body}
-            onKeyDown={(e) => { if (e.key === 'Enter' && draft.body.trim()) { addLocalComment(issueKey, draft.author, draft.body); setExpandedComments((prev) => ({ ...prev, [issueKey]: true })); } }}
-            onChange={(e) => setCommentDrafts((prev) => ({ ...prev, [issueKey]: { ...draft, body: e.target.value } }))}
+            value={body}
+            onKeyDown={(e) => { if (e.key === 'Enter' && body.trim()) { addLocalComment(issueKey, body); setExpandedComments((prev) => ({ ...prev, [issueKey]: true })); } }}
+            onChange={(e) => setCommentDrafts((prev) => ({ ...prev, [issueKey]: e.target.value }))}
+            onPaste={(e) => {
+              const items = Array.from(e.clipboardData?.items ?? []);
+              const imgItem = items.find((item) => item.type.startsWith('image/'));
+              if (!imgItem) return;
+              e.preventDefault();
+              const file = imgItem.getAsFile();
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = (ev) => {
+                const src = ev.target?.result as string;
+                const img = new Image();
+                img.onload = () => {
+                  const canvas = document.createElement('canvas');
+                  const maxW = 800;
+                  const scale = img.width > maxW ? maxW / img.width : 1;
+                  canvas.width = img.width * scale;
+                  canvas.height = img.height * scale;
+                  canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+                  const compressed = canvas.toDataURL('image/jpeg', 0.7);
+                  setCommentImages((prev) => ({ ...prev, [issueKey]: [...(prev[issueKey] ?? []), compressed] }));
+                };
+                img.src = src;
+              };
+              reader.readAsDataURL(file);
+            }}
           />
           <button
             className="bug-lc-add"
             type="button"
-            disabled={!draft.body.trim()}
-            onClick={() => { if (draft.body.trim()) { addLocalComment(issueKey, draft.author, draft.body); setExpandedComments((prev) => ({ ...prev, [issueKey]: true })); } }}
+            disabled={!body.trim()}
+            onClick={() => { if (body.trim()) { addLocalComment(issueKey, body); setExpandedComments((prev) => ({ ...prev, [issueKey]: true })); } }}
           >↵</button>
         </div>
+        {(commentImages[issueKey] ?? []).length > 0 && (
+          <div className="bb-img-previews">
+            {(commentImages[issueKey] ?? []).map((src, i) => (
+              <div key={i} className="bb-img-thumb">
+                <img src={src} alt="" />
+                <button type="button" className="bb-img-remove" onClick={() => setCommentImages((prev) => ({ ...prev, [issueKey]: prev[issueKey].filter((_, j) => j !== i) }))}>×</button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
