@@ -1679,7 +1679,7 @@ h1 {
 
 .bug-row {
   display: grid;
-  grid-template-columns: 36px 1fr auto auto auto;
+  grid-template-columns: 52px minmax(0, 1.3fr) 170px minmax(0, 1fr) 28px;
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
@@ -1858,24 +1858,27 @@ h1 {
 
 .bug-row-status-select {
   appearance: none;
-  padding: 3px 12px 3px 8px;
+  padding: 4px 28px 4px 10px;
   border: 1px solid var(--line);
-  border-radius: 20px;
-  background: var(--paper-2);
+  border-radius: 6px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 8px center,
+    var(--paper-2);
   color: var(--fg);
-  font-size: 0.73rem;
+  font-size: 0.75rem;
   font-weight: 700;
   font-family: "IBM Plex Mono", monospace;
   cursor: pointer;
-  letter-spacing: 0.04em;
-  transition: border-color 160ms ease, background 160ms ease;
+  letter-spacing: 0.03em;
+  width: 100%;
+  transition: border-color 160ms ease, background-color 160ms ease;
 }
 
 .bug-row-status-select:hover,
 .bug-row-status-select:focus {
   outline: none;
   border-color: var(--amber);
-  background: var(--paper);
+  background-color: var(--paper);
 }
 
 .bug-detail-select {
@@ -1981,39 +1984,62 @@ h1 {
   overflow-wrap: anywhere;
 }
 
+/* ── Tab bar ── */
 .bb-tab-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.bb-tab-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 18px 22px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.bb-tab-btn:hover {
+  border-color: rgba(184, 109, 34, 0.44);
+  background: var(--paper-2);
+}
+
+.bb-tab-btn-active {
+  border-color: var(--amber) !important;
+  background: var(--paper-2) !important;
+  box-shadow: 0 0 0 1px var(--amber), 0 4px 18px rgba(184, 109, 34, 0.1);
+}
+
+.bb-tab-btn-header {
   display: flex;
   align-items: center;
-  gap: 4px;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 0;
-  margin-bottom: 20px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.bb-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 9px 16px;
-  border: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  background: none;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 900;
+.bb-tab-btn-title {
   font-family: "IBM Plex Mono", monospace;
-  letter-spacing: 0.1em;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  cursor: pointer;
-  transition: color 140ms ease, border-color 140ms ease;
+  color: var(--fg);
 }
 
-.bb-tab:hover { color: var(--fg); }
-
-.bb-tab-active {
-  color: var(--fg);
-  border-bottom-color: var(--amber);
+.bb-tab-btn-desc {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.45;
 }
 
 .bb-tab-count {
@@ -2031,12 +2057,40 @@ h1 {
   font-weight: 900;
 }
 
-.bb-tab-active .bb-tab-count {
-  background: rgba(184, 109, 34, 0.22);
+.bug-board-downloads {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  margin-left: auto;
 }
 
-.bug-board-downloads {
-  margin-left: auto;
+/* ── Table header ── */
+.bb-table-header {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1.3fr) 170px minmax(0, 1fr) 28px;
+  gap: 10px;
+  padding: 5px 12px 8px;
+  border-bottom: 2px solid var(--line);
+  margin-bottom: 6px;
+}
+
+.bb-table-header span {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.67rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.bb-row-desc-preview {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  color: var(--muted);
+  min-width: 0;
 }
 
 .bug-section-header {
@@ -2852,12 +2906,18 @@ footer p {
     min-height: 0;
   }
 
-  .bug-row {
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
+  .bug-row,
+  .bb-table-header {
+    grid-template-columns: 44px minmax(0, 1fr) 140px 28px;
   }
 
-  .bug-comment-count {
+  .bb-row-desc-preview,
+  .bb-table-header span:nth-child(4) {
     display: none;
+  }
+
+  .bb-tab-bar {
+    grid-template-columns: 1fr;
   }
 
   .info-grid .responsibility-card {
