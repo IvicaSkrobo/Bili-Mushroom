@@ -2250,6 +2250,74 @@ h1 {
   gap: 10px;
 }
 
+.bug-edit-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 14px;
+  align-items: start;
+}
+
+.bug-edit-summary h3 {
+  margin: 3px 0 0;
+  color: var(--fg);
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 26px;
+  font-style: italic;
+  line-height: 1.05;
+}
+
+.bug-edit-summary .bug-detail-description {
+  grid-column: 1 / -1;
+}
+
+.bug-detail-description-empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.bug-edit-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(121, 101, 67, 0.28);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease, background 140ms ease;
+}
+
+.bug-edit-toggle:hover {
+  border-color: rgba(184, 109, 34, 0.46);
+  color: var(--amber-dark);
+  background: var(--panel-strong);
+}
+
+.bug-edit-panel {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(121, 101, 67, 0.22);
+  border-radius: 8px;
+  background: var(--panel-bg);
+}
+
+.bug-edit-title {
+  min-height: 38px;
+}
+
+.bug-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .bug-detail-description {
   font-size: 0.875rem;
   line-height: 1.6;

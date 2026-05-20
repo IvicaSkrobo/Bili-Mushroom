@@ -80,6 +80,11 @@ type LocalIssue = {
   createdAt: string;
 };
 
+type LocalIssueEdit = {
+  title: string;
+  description: string;
+};
+
 type VisibleIdea = {
   title: string;
   titleHr: string;
@@ -483,6 +488,13 @@ export function App() {
   const [localIssues, setLocalIssues] = useState<LocalIssue[]>(() => {
     try { return JSON.parse(localStorage.getItem('bb-li') ?? '[]'); } catch { return []; }
   });
+  const [issueOverrides, setIssueOverrides] = useState<Record<string, LocalIssueEdit>>(() => {
+    try { return JSON.parse(localStorage.getItem('bb-issue-edits') ?? '{}'); } catch { return {}; }
+  });
+  const [issueEditDrafts, setIssueEditDrafts] = useState<Record<string, LocalIssueEdit>>({});
+  const [hiddenGithubComments, setHiddenGithubComments] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('bb-gh-hidden-comments') ?? '[]'); } catch { return []; }
+  });
   const [bugBoardTab, setBugBoardTab] = useState<'internal' | 'from-users'>('internal');
   const [showNewIssueForm, setShowNewIssueForm] = useState(false);
   const [newIssueDraft, setNewIssueDraft] = useState({ title: '', description: '' });
@@ -709,6 +721,13 @@ export function App() {
     localStorage.setItem('bb-lc', JSON.stringify(updated));
   }
 
+  function hideGithubComment(commentId: number) {
+    const id = String(commentId);
+    const updated = hiddenGithubComments.includes(id) ? hiddenGithubComments : [...hiddenGithubComments, id];
+    setHiddenGithubComments(updated);
+    localStorage.setItem('bb-gh-hidden-comments', JSON.stringify(updated));
+  }
+
   function createLocalIssue(title: string, description: string) {
     const issue: LocalIssue = { id: `li-${Date.now()}`, title, description, status: 'open', createdAt: new Date().toISOString() };
     const updated = [...localIssues, issue];
@@ -731,6 +750,98 @@ export function App() {
     localStorage.setItem('bb-li', JSON.stringify(updated));
   }
 
+  function startIssueEdit(key: string, title: string, description: string) {
+    setIssueEditDrafts((prev) => ({ ...prev, [key]: { title, description } }));
+  }
+
+  function cancelIssueEdit(key: string) {
+    setIssueEditDrafts((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }
+
+  function saveIssueEdit(key: string) {
+    const draft = issueEditDrafts[key];
+    if (!draft?.title.trim()) return;
+
+    if (key.startsWith('li-')) {
+      const updated = localIssues.map((issue) => issue.id === key
+        ? { ...issue, title: draft.title.trim(), description: draft.description }
+        : issue);
+      setLocalIssues(updated);
+      localStorage.setItem('bb-li', JSON.stringify(updated));
+    } else {
+      const updated = {
+        ...issueOverrides,
+        [key]: { title: draft.title.trim(), description: draft.description },
+      };
+      setIssueOverrides(updated);
+      localStorage.setItem('bb-issue-edits', JSON.stringify(updated));
+    }
+
+    cancelIssueEdit(key);
+  }
+
+  function renderIssueEditPanel(key: string, title: string, description: string) {
+    const draft = issueEditDrafts[key];
+    if (!draft) {
+      return (
+        <div className="bug-edit-summary">
+          <div>
+            <label className="bug-detail-label">Title</label>
+            <h3>{title}</h3>
+          </div>
+          <button
+            type="button"
+            className="bug-edit-toggle"
+            onClick={(e) => { e.stopPropagation(); startIssueEdit(key, title, description); }}
+          >
+            Edit
+          </button>
+          {description.trim() ? (
+            <p className="bug-detail-description">{description}</p>
+          ) : (
+            <p className="bug-detail-description bug-detail-description-empty">No description yet.</p>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="bug-edit-panel" onClick={(e) => e.stopPropagation()}>
+        <label className="bug-detail-label" htmlFor={`bug-title-${key}`}>Title</label>
+        <input
+          id={`bug-title-${key}`}
+          className="bug-detail-textarea bug-edit-title"
+          value={draft.title}
+          onChange={(e) => setIssueEditDrafts((prev) => ({ ...prev, [key]: { ...draft, title: e.target.value } }))}
+        />
+        <label className="bug-detail-label" htmlFor={`bug-desc-${key}`}>Description</label>
+        <textarea
+          id={`bug-desc-${key}`}
+          className="bug-detail-textarea"
+          value={draft.description}
+          onChange={(e) => setIssueEditDrafts((prev) => ({ ...prev, [key]: { ...draft, description: e.target.value } }))}
+        />
+        <div className="bug-edit-actions">
+          <button
+            type="button"
+            className="button primary"
+            disabled={!draft.title.trim()}
+            onClick={() => saveIssueEdit(key)}
+          >
+            Save
+          </button>
+          <button type="button" className="button ghost" onClick={() => cancelIssueEdit(key)}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const LOCAL_STATUSES = [
     { key: 'open', label: 'Open' },
     { key: 'confirmed', label: 'Confirmed' },
@@ -742,15 +853,12 @@ export function App() {
     { key: 'verified', label: 'Verified' },
   ];
 
-  function renderLocalCommentsSection(issueKey: string, description?: string | null) {
+  function renderLocalCommentsSection(issueKey: string) {
     const comments = localComments[issueKey] ?? [];
     const body = commentDrafts[issueKey] ?? '';
     const showComments = expandedComments[issueKey] ?? false;
     return (
       <div className="bug-detail-panel">
-        {description && (
-          <p className="bug-detail-description">{description}</p>
-        )}
         {comments.length > 0 && (
           <button
             className="bug-comments-toggle"
@@ -765,7 +873,15 @@ export function App() {
             <div className="bug-lc-item-meta">
               <strong>{c.author}</strong>
               <span>{new Intl.DateTimeFormat('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(c.createdAt))}</span>
-              <button className="bug-lc-delete" type="button" onClick={() => deleteLocalComment(issueKey, c.id)}>×</button>
+              <button
+                className="bug-lc-delete"
+                type="button"
+                title="Delete comment"
+                aria-label="Delete comment"
+                onClick={() => deleteLocalComment(issueKey, c.id)}
+              >
+                <Trash2 size={12} />
+              </button>
             </div>
             <p className="bug-comment-body">{c.body}</p>
             {c.images?.length ? (
@@ -958,6 +1074,7 @@ export function App() {
                     </div>
                     {isExpanded && (
                       <div className="bug-detail">
+                        {renderIssueEditPanel(issue.id, issue.title, issue.description)}
                         {renderLocalCommentsSection(issue.id)}
                         <button
                           className="bug-issue-delete"
@@ -992,7 +1109,10 @@ export function App() {
               const bugKey = String(bug.number ?? 0);
               const isExpanded = expandedBug === bugKey;
               const num = bug.number ?? 0;
-              const descPreview = (bug.body ?? '').replace(/[#*_`[\]>]/g, '').trim().slice(0, 120);
+              const bugOverride = issueOverrides[bugKey];
+              const displayTitle = bugOverride?.title ?? bug.title;
+              const displayDescription = bugOverride?.description ?? (bug.body ?? '');
+              const descPreview = displayDescription.replace(/[#*_`[\]>]/g, '').trim().slice(0, 120);
               return (
                 <div key={bug.html_url} className={`bug-row-wrap${isExpanded ? ' bug-row-wrap-expanded' : ''}`}>
                   <div
@@ -1003,7 +1123,7 @@ export function App() {
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBug(bugKey); } }}
                   >
                     <span className="bug-number">{num ? `#${num}` : '?'}</span>
-                    <strong>{bug.title}</strong>
+                    <strong>{displayTitle}</strong>
                     <span className="bb-row-desc-preview">{descPreview || '—'}</span>
                     <div className="bug-status-cell" data-status={localStatus ?? ghStatus.key}>
                       <select
@@ -1023,11 +1143,14 @@ export function App() {
                   </div>
                   {isExpanded && (
                     <div className="bug-detail">
+                      {renderIssueEditPanel(bugKey, displayTitle, displayDescription)}
                       {renderLocalCommentsSection(bugKey)}
-                      {(bugComments[num] ?? []).length > 0 && (
+                      {(bugComments[num] ?? []).filter((comment) => !hiddenGithubComments.includes(String(comment.id))).length > 0 && (
                         <div className="bug-detail-section bug-gh-comments">
                           <label className="bug-detail-label">GitHub comments</label>
-                          {(bugComments[num] ?? []).map((comment) => (
+                          {(bugComments[num] ?? [])
+                            .filter((comment) => !hiddenGithubComments.includes(String(comment.id)))
+                            .map((comment) => (
                             <div key={comment.id} className="bug-comment">
                               <div className="bug-comment-meta">
                                 <strong>
@@ -1037,6 +1160,15 @@ export function App() {
                                   </a>
                                 </strong>
                                 <span>{new Intl.DateTimeFormat(lang === 'hr' ? 'hr-HR' : 'en-US', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(comment.created_at))}</span>
+                                <button
+                                  className="bug-lc-delete"
+                                  type="button"
+                                  title="Hide comment"
+                                  aria-label="Hide comment"
+                                  onClick={(e) => { e.stopPropagation(); hideGithubComment(comment.id); }}
+                                >
+                                  <Trash2 size={12} />
+                                </button>
                               </div>
                               <p className="bug-comment-body">{comment.body}</p>
                             </div>
