@@ -1673,58 +1673,66 @@ h1 {
 }
 
 .bug-board {
-  display: grid;
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
 }
 
 .bug-row {
   display: grid;
-  grid-template-columns: 52px minmax(0, 1.3fr) 170px minmax(0, 1fr) 28px;
+  grid-template-columns: 60px minmax(0, 1.6fr) 200px minmax(0, 2fr) 36px;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 0;
+  min-height: 52px;
+  padding: 0;
   cursor: pointer;
-  border-radius: 8px;
-  transition: background 140ms ease;
+  transition: background 120ms ease;
   user-select: none;
 }
 
-.bug-empty {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
+.bug-row > * {
+  padding: 13px 16px;
+  border-right: 1px solid var(--line);
+  min-height: 52px;
+  display: flex;
   align-items: center;
-  min-height: 58px;
-  padding: 13px 14px;
-  border: 1px solid rgba(121, 101, 67, 0.24);
-  border-radius: 8px;
-  background: var(--panel-bg);
-  transition: border-color 160ms ease, transform 160ms ease, background 160ms ease;
+}
+
+.bug-row > *:last-child {
+  border-right: none;
+  justify-content: center;
+  padding: 0;
+}
+
+.bug-empty {
+  display: flex;
+  align-items: center;
+  min-height: 64px;
+  padding: 16px 20px;
+  background: var(--paper);
 }
 
 .bug-row:hover { background: var(--paper); }
 
 .bug-number {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 36px;
-  min-height: 22px;
-  padding: 0 6px;
-  border: 1px solid rgba(184, 109, 34, 0.38);
-  border-radius: 999px;
-  color: var(--amber-dark);
-  background: rgba(184, 109, 34, 0.1);
   font-family: "IBM Plex Mono", monospace;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
+  color: var(--muted);
+  letter-spacing: 0.06em;
   white-space: nowrap;
+  justify-content: center;
 }
 
 .bug-row strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .bug-row > span:not(.bug-number):not(.bug-chevron) {
@@ -1768,28 +1776,30 @@ h1 {
 }
 
 .bug-empty {
-  grid-template-columns: 1fr;
   color: var(--muted);
+  font-size: 13px;
 }
 
 .bug-row-wrap {
-  border: 1px solid transparent;
-  border-radius: 8px;
-  transition: border-color 160ms ease;
-  margin-bottom: 4px;
+  border: 1px solid var(--line);
+  border-top: none;
+  transition: background 120ms ease;
 }
 
-.bug-row-wrap:hover {
-  border-color: var(--line);
+.bug-row-wrap:last-child {
+  border-bottom-radius: 0;
+}
+
+.bug-row-wrap:hover .bug-row {
+  background: var(--paper-2);
 }
 
 .bug-row-wrap-expanded {
-  border-color: rgba(184, 109, 34, 0.4) !important;
+  border-left: 3px solid var(--amber);
 }
 
 .bug-row-expanded {
-  background: var(--paper);
-  border-radius: 8px 8px 0 0;
+  background: var(--paper-2);
 }
 
 .bug-row:focus-visible {
@@ -1834,13 +1844,12 @@ h1 {
 .status-local-verified { color: var(--green-dark); border-color: rgba(47, 111, 87, 0.6); background: rgba(47, 111, 87, 0.14); }
 
 .bug-detail {
-  padding: 16px 14px 14px;
+  padding: 20px 24px;
   border-top: 1px solid var(--line);
   background: var(--paper);
-  border-radius: 0 0 8px 8px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .bug-detail-section {
@@ -1858,27 +1867,26 @@ h1 {
 
 .bug-row-status-select {
   appearance: none;
-  padding: 4px 28px 4px 10px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
+  padding: 6px 28px 6px 0;
+  border: none;
+  border-radius: 0;
   background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 8px center,
-    var(--paper-2);
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 4px center,
+    transparent;
   color: var(--fg);
-  font-size: 0.75rem;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   font-family: "IBM Plex Mono", monospace;
   cursor: pointer;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
   width: 100%;
-  transition: border-color 160ms ease, background-color 160ms ease;
+  transition: color 160ms ease;
 }
 
 .bug-row-status-select:hover,
 .bug-row-status-select:focus {
   outline: none;
-  border-color: var(--amber);
-  background-color: var(--paper);
+  color: var(--amber);
 }
 
 .bug-detail-select {
@@ -1986,37 +1994,36 @@ h1 {
 
 /* ── Tab bar ── */
 .bb-tab-bar {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 28px;
+  display: flex;
+  border-bottom: 2px solid var(--line);
+  margin-bottom: 0;
 }
 
 .bb-tab-btn {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
-  padding: 18px 22px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--paper);
+  gap: 5px;
+  padding: 16px 28px;
+  min-width: 220px;
+  border: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  background: transparent;
   color: inherit;
   font-family: inherit;
   cursor: pointer;
   text-align: left;
-  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+  transition: border-color 160ms ease, background 160ms ease;
 }
 
 .bb-tab-btn:hover {
-  border-color: rgba(184, 109, 34, 0.44);
-  background: var(--paper-2);
+  background: var(--paper);
 }
 
 .bb-tab-btn-active {
-  border-color: var(--amber) !important;
-  background: var(--paper-2) !important;
-  box-shadow: 0 0 0 1px var(--amber), 0 4px 18px rgba(184, 109, 34, 0.1);
+  border-bottom-color: var(--amber) !important;
+  background: var(--paper) !important;
 }
 
 .bb-tab-btn-header {
@@ -2028,10 +2035,14 @@ h1 {
 
 .bb-tab-btn-title {
   font-family: "IBM Plex Mono", monospace;
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+  color: var(--muted);
+}
+
+.bb-tab-btn-active .bb-tab-btn-title {
   color: var(--fg);
 }
 
@@ -2039,7 +2050,8 @@ h1 {
   margin: 0;
   font-size: 0.78rem;
   color: var(--muted);
-  line-height: 1.45;
+  line-height: 1.4;
+  opacity: 0.72;
 }
 
 .bb-tab-count {
@@ -2062,42 +2074,49 @@ h1 {
   font-weight: 800;
   color: var(--muted);
   font-family: "IBM Plex Mono", monospace;
-  margin-left: auto;
+  margin-left: 4px;
 }
 
-/* ── Table header ── */
+/* ── Table ── */
 .bb-table-header {
   display: grid;
-  grid-template-columns: 52px minmax(0, 1.3fr) 170px minmax(0, 1fr) 28px;
-  gap: 10px;
-  padding: 5px 12px 8px;
-  border-bottom: 2px solid var(--line);
-  margin-bottom: 6px;
+  grid-template-columns: 60px minmax(0, 1.6fr) 200px minmax(0, 2fr) 36px;
+  gap: 0;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-top: none;
 }
 
 .bb-table-header span {
+  padding: 11px 16px;
   font-family: "IBM Plex Mono", monospace;
-  font-size: 0.67rem;
-  font-weight: 800;
-  letter-spacing: 0.15em;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
+  border-right: 1px solid var(--line);
+}
+
+.bb-table-header span:last-child {
+  border-right: none;
 }
 
 .bb-row-desc-preview {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.8rem;
+  font-size: 13px;
   color: var(--muted);
   min-width: 0;
+  padding: 0 4px;
 }
 
 .bug-section-header {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  margin-bottom: 12px;
+  padding: 10px 0;
 }
 
 .bug-section-title {
@@ -2908,7 +2927,7 @@ footer p {
 
   .bug-row,
   .bb-table-header {
-    grid-template-columns: 44px minmax(0, 1fr) 140px 28px;
+    grid-template-columns: 48px minmax(0, 1fr) 160px 36px;
   }
 
   .bb-row-desc-preview,
@@ -2916,8 +2935,9 @@ footer p {
     display: none;
   }
 
-  .bb-tab-bar {
-    grid-template-columns: 1fr;
+  .bb-tab-btn {
+    min-width: 0;
+    padding: 12px 16px;
   }
 
   .info-grid .responsibility-card {
