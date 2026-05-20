@@ -1981,23 +1981,69 @@ h1 {
   overflow-wrap: anywhere;
 }
 
-.bug-board-sections {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: 32px;
-  align-items: start;
+.bb-tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0;
+  margin-bottom: 20px;
 }
-@media (max-width: 900px) {
-  .bug-board-sections { grid-template-columns: 1fr; }
+
+.bb-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  font-family: "IBM Plex Mono", monospace;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+
+.bb-tab:hover { color: var(--fg); }
+
+.bb-tab-active {
+  color: var(--fg);
+  border-bottom-color: var(--amber);
+}
+
+.bb-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(184, 109, 34, 0.15);
+  border: 1px solid rgba(184, 109, 34, 0.32);
+  color: var(--amber-dark);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.bb-tab-active .bb-tab-count {
+  background: rgba(184, 109, 34, 0.22);
+}
+
+.bug-board-downloads {
+  margin-left: auto;
 }
 
 .bug-section-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding-bottom: 10px;
-  border-bottom: 2px solid var(--line);
-  margin-bottom: 14px;
+  justify-content: flex-end;
+  margin-bottom: 12px;
 }
 
 .bug-section-title {

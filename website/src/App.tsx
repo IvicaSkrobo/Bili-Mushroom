@@ -482,6 +482,7 @@ export function App() {
   const [localIssues, setLocalIssues] = useState<LocalIssue[]>(() => {
     try { return JSON.parse(localStorage.getItem('bb-li') ?? '[]'); } catch { return []; }
   });
+  const [bugBoardTab, setBugBoardTab] = useState<'internal' | 'from-users'>('internal');
   const [showNewIssueForm, setShowNewIssueForm] = useState(false);
   const [newIssueDraft, setNewIssueDraft] = useState({ title: '', description: '' });
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -845,11 +846,31 @@ export function App() {
         <h2>{t.bugBoardTitle as string}</h2>
         <p>{t.bugBoardBody as string}</p>
       </div>
-      <div className="bug-board-sections">
-        {/* Section 1: Internal Issues */}
+      <div className="bb-tab-bar">
+        <button
+          type="button"
+          className={`bb-tab${bugBoardTab === 'internal' ? ' bb-tab-active' : ''}`}
+          onClick={() => setBugBoardTab('internal')}
+        >
+          Internal
+          {localIssues.length > 0 && <span className="bb-tab-count">{localIssues.length}</span>}
+        </button>
+        <button
+          type="button"
+          className={`bb-tab${bugBoardTab === 'from-users' ? ' bb-tab-active' : ''}`}
+          onClick={() => setBugBoardTab('from-users')}
+        >
+          From users
+          {remoteBugs.length > 0 && <span className="bb-tab-count">{remoteBugs.length}</span>}
+        </button>
+        {totalDownloads !== null && (
+          <span className="bug-board-downloads">↓ {totalDownloads}</span>
+        )}
+      </div>
+
+      {bugBoardTab === 'internal' && (
         <div className="bug-internal">
           <div className="bug-section-header">
-            <span className="bug-section-title">Internal</span>
             <button
               className="button ghost"
               type="button"
@@ -932,15 +953,10 @@ export function App() {
             })}
           </div>
         </div>
+      )}
 
-        {/* Section 2: GitHub Bugs */}
+      {bugBoardTab === 'from-users' && (
         <div>
-          <div className="bug-section-header">
-            <span className="bug-section-title">From users</span>
-            {totalDownloads !== null && (
-              <span className="bug-board-downloads">↓ {totalDownloads}</span>
-            )}
-          </div>
           <div className="bug-board">
             {remoteBugsLoading ? (
               <div className="bug-empty">{t.bugBoardLoading as string}</div>
@@ -1014,7 +1030,7 @@ export function App() {
             <ExternalLink size={14} />
           </a>
         </div>
-      </div>
+      )}
     </section>
   );
 
