@@ -2182,6 +2182,10 @@ h1 {
   border-right: none;
 }
 
+.bb-table-header span:first-child {
+  text-align: center;
+}
+
 .bb-row-desc-preview {
   overflow: hidden;
   text-overflow: ellipsis;
