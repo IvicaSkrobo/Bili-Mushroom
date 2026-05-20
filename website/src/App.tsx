@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { GiscusPanel } from './GiscusPanel';
-import { funding, ideas, release } from './siteData';
+import { downloadCountFrom, funding, ideas, release } from './siteData';
 
 type Lang = 'en' | 'hr';
 
@@ -468,10 +468,19 @@ export function App() {
       headers: { Accept: 'application/vnd.github+json' },
     })
       .then((response) => (response.ok ? response.json() : []))
-      .then((data: Array<{ assets?: Array<{ download_count?: number }> }>) => {
-        const total = data.reduce((sum, rel) => {
-          return sum + (rel.assets ?? []).reduce((s, a) => s + (a.download_count ?? 0), 0);
-        }, 0);
+      .then((data: Array<{ tag_name: string; assets?: Array<{ name: string; download_count?: number }> }>) => {
+        const cutoff = parseVersion(downloadCountFrom);
+        const total = data
+          .filter((rel) => {
+            if (!cutoff) return true;
+            const v = parseVersion(rel.tag_name);
+            return v !== null && !isOlderVersion(rel.tag_name, downloadCountFrom);
+          })
+          .reduce((sum, rel) => {
+            return sum + (rel.assets ?? [])
+              .filter((a) => /setup.*\.exe$/i.test(a.name))
+              .reduce((s, a) => s + (a.download_count ?? 0), 0);
+          }, 0);
         setTotalDownloads(total);
       })
       .catch(() => {
@@ -869,6 +878,12 @@ export function App() {
                 <ExternalLink size={14} />
               </a>
             ) : null}
+            {totalDownloads !== null && totalDownloads >= 10 && (
+              <span className="downloads-stat">
+                <Download size={13} />
+                {totalDownloads.toLocaleString()} {lang === 'hr' ? 'preuzimanja' : 'downloads'}
+              </span>
+            )}
           </div>
           <div id="changelog" className="release-card">
             <div className="release-card-top">
