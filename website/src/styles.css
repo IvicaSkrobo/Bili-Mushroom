@@ -1859,6 +1859,26 @@ h1 {
   color: var(--muted);
 }
 
+.bug-row-status-select {
+  appearance: none;
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--fg);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 160ms ease;
+}
+
+.bug-row-status-select:hover,
+.bug-row-status-select:focus {
+  outline: none;
+  border-color: var(--amber);
+}
+
 .bug-detail-select {
   appearance: none;
   width: max-content;

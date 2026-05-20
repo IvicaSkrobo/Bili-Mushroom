@@ -846,9 +846,16 @@ export function App() {
                   >
                     <span className="bug-number bug-internal-badge">INT</span>
                     <strong>{issue.title}</strong>
-                    <div className="bug-row-badges">
-                      <span className={`bug-status bug-status-local status-local-${issue.status}`}>{LOCAL_STATUSES.find((s) => s.key === issue.status)?.label ?? issue.status}</span>
-                    </div>
+                    <select
+                      className="bug-row-status-select"
+                      value={issue.status}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => { e.stopPropagation(); updateLocalIssueStatus(issue.id, e.target.value); }}
+                    >
+                      {LOCAL_STATUSES.map((s) => (
+                        <option key={s.key} value={s.key}>{s.label}</option>
+                      ))}
+                    </select>
                     <button
                       className="bug-lc-delete"
                       type="button"
@@ -867,18 +874,6 @@ export function App() {
                           <p className="bug-comment-body">{issue.description}</p>
                         </div>
                       )}
-                      <div className="bug-detail-section">
-                        <label className="bug-detail-label">Status</label>
-                        <select
-                          className="bug-detail-select"
-                          value={issue.status}
-                          onChange={(e) => updateLocalIssueStatus(issue.id, e.target.value)}
-                        >
-                          {LOCAL_STATUSES.map((s) => (
-                            <option key={s.key} value={s.key}>{s.label}</option>
-                          ))}
-                        </select>
-                      </div>
                       {renderLocalCommentsSection(issue.id)}
                     </div>
                   )}
@@ -916,12 +911,16 @@ export function App() {
                   >
                     <span className="bug-number">{num ? `#${num}` : 'Bug'}</span>
                     <strong>{bug.title}</strong>
-                    <div className="bug-row-badges">
-                      <span className={`bug-status status-${ghStatus.key}`}>{ghStatus.label}</span>
-                      {localStatus && (
-                        <span className={`bug-status bug-status-local status-local-${localStatus}`}>{LOCAL_STATUSES.find((s) => s.key === localStatus)?.label ?? localStatus}</span>
-                      )}
-                    </div>
+                    <select
+                      className="bug-row-status-select"
+                      value={localStatus ?? ghStatus.key}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => { e.stopPropagation(); saveLocalStatus(num, e.target.value); }}
+                    >
+                      {LOCAL_STATUSES.map((s) => (
+                        <option key={s.key} value={s.key}>{s.label}</option>
+                      ))}
+                    </select>
                     <span className="bug-comment-count">{bug.comments} {lang === 'hr' ? 'kom.' : 'cmt'}</span>
                     <span className="bug-chevron" aria-hidden="true">
                       {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
@@ -929,18 +928,6 @@ export function App() {
                   </div>
                   {isExpanded && (
                     <div className="bug-detail">
-                      <div className="bug-detail-section">
-                        <label className="bug-detail-label">{lang === 'hr' ? 'Lokalni status' : 'Local status'}</label>
-                        <select
-                          className="bug-detail-select"
-                          value={localStatus ?? ghStatus.key}
-                          onChange={(e) => saveLocalStatus(num, e.target.value)}
-                        >
-                          {LOCAL_STATUSES.map((s) => (
-                            <option key={s.key} value={s.key}>{s.label}</option>
-                          ))}
-                        </select>
-                      </div>
                       <div className="bug-detail-section">
                         <label className="bug-detail-label">{lang === 'hr' ? 'Bilješka' : 'Dev note'}</label>
                         <textarea
