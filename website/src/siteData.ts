@@ -1,7 +1,7 @@
 export const downloadCountFrom = 'v0.2.40';
 
 export const release = {
-  version: 'v0.2.52',
+  version: 'v0.2.53',
   date: 'May 19, 2026',
   installerUrl: 'https://github.com/IvicaSkrobo/Bili-Mushroom/releases/latest',
   notes: {

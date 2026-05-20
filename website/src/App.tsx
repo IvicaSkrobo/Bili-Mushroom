@@ -847,29 +847,32 @@ export function App() {
       </div>
 
       <div className="bb-tab-bar">
-        <button
-          type="button"
-          className={`bb-tab-btn${bugBoardTab === 'internal' ? ' bb-tab-btn-active' : ''}`}
-          onClick={() => setBugBoardTab('internal')}
-        >
-          <div className="bb-tab-btn-header">
+        <div className="bb-tab-pill-track">
+          <button
+            type="button"
+            className={`bb-tab-btn${bugBoardTab === 'internal' ? ' bb-tab-btn-active' : ''}`}
+            onClick={() => setBugBoardTab('internal')}
+          >
             <span className="bb-tab-btn-title">Internal</span>
             {localIssues.length > 0 && <span className="bb-tab-count">{localIssues.length}</span>}
-          </div>
-          <p className="bb-tab-btn-desc">Private issues tracked locally — not synced or visible to anyone else</p>
-        </button>
-        <button
-          type="button"
-          className={`bb-tab-btn${bugBoardTab === 'from-users' ? ' bb-tab-btn-active' : ''}`}
-          onClick={() => setBugBoardTab('from-users')}
-        >
-          <div className="bb-tab-btn-header">
+          </button>
+          <button
+            type="button"
+            className={`bb-tab-btn${bugBoardTab === 'from-users' ? ' bb-tab-btn-active' : ''}`}
+            onClick={() => setBugBoardTab('from-users')}
+          >
             <span className="bb-tab-btn-title">From users</span>
             {remoteBugs.length > 0 && <span className="bb-tab-count">{remoteBugs.length}</span>}
-            {totalDownloads !== null && <span className="bug-board-downloads">↓ {totalDownloads} installs</span>}
-          </div>
-          <p className="bb-tab-btn-desc">Bug reports submitted from the app — pulled live from GitHub Issues</p>
-        </button>
+            {totalDownloads !== null && <span className="bb-tab-downloads">↓ {totalDownloads}</span>}
+          </button>
+        </div>
+      </div>
+      <div className="bb-tab-context">
+        {bugBoardTab === 'internal' ? (
+          <><span className="bb-tab-ctx-icon"><HardDrive size={13} /></span><span>Private issues — stored in your browser, never synced or visible to anyone else</span></>
+        ) : (
+          <><span className="bb-tab-ctx-icon"><Github size={13} /></span><span>Bug reports submitted from the app — pulled live from GitHub Issues</span></>
+        )}
       </div>
 
       {bugBoardTab === 'internal' && (
@@ -911,65 +914,69 @@ export function App() {
               </div>
             </div>
           )}
-          <div className="bb-table-header">
-            <span>#</span>
-            <span>Title</span>
-            <span>Description</span>
-            <span>Status</span>
-            <span />
-          </div>
-          <div className="bug-board">
-            {localIssues.length === 0 && !showNewIssueForm ? (
-              <div className="bug-empty">No internal issues yet. Use + New to add one.</div>
-            ) : localIssues.map((issue, idx) => {
-              const isExpanded = expandedBug === issue.id;
-              return (
-                <div key={issue.id} className={`bug-row-wrap${isExpanded ? ' bug-row-wrap-expanded' : ''}`}>
-                  <div
-                    className={`bug-row${isExpanded ? ' bug-row-expanded' : ''}`}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => toggleBug(issue.id)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBug(issue.id); } }}
-                  >
-                    <span className="bug-number">{String(idx + 1).padStart(2, '0')}</span>
-                    <strong>{issue.title}</strong>
-                    <span className="bb-row-desc-preview">{issue.description.trim().slice(0, 120) || '—'}</span>
-                    <select
-                      className="bug-row-status-select"
-                      value={issue.status}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => { e.stopPropagation(); updateLocalIssueStatus(issue.id, e.target.value); }}
+          <div className="bb-table-wrap">
+            <div className="bb-table-header">
+              <span>#</span>
+              <span>Title</span>
+              <span>Description</span>
+              <span>Status</span>
+              <span />
+            </div>
+            <div className="bug-board">
+              {localIssues.length === 0 && !showNewIssueForm ? (
+                <div className="bug-empty">No internal issues yet. Use + New to add one.</div>
+              ) : localIssues.map((issue, idx) => {
+                const isExpanded = expandedBug === issue.id;
+                return (
+                  <div key={issue.id} className={`bug-row-wrap${isExpanded ? ' bug-row-wrap-expanded' : ''}`}>
+                    <div
+                      className={`bug-row${isExpanded ? ' bug-row-expanded' : ''}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => toggleBug(issue.id)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBug(issue.id); } }}
                     >
-                      {LOCAL_STATUSES.map((s) => (
-                        <option key={s.key} value={s.key}>{s.label}</option>
-                      ))}
-                    </select>
-                    <span className="bug-chevron" aria-hidden="true">
-                      {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-                    </span>
-                  </div>
-                  {isExpanded && (
-                    <div className="bug-detail">
-                      {renderLocalCommentsSection(issue.id)}
-                      <button
-                        className="bug-lc-delete"
-                        type="button"
-                        title="Delete issue"
-                        onClick={(e) => { e.stopPropagation(); deleteLocalIssue(issue.id); }}
-                        style={{ alignSelf: 'flex-start' }}
-                      >× Delete issue</button>
+                      <span className="bug-number">{String(idx + 1).padStart(2, '0')}</span>
+                      <strong>{issue.title}</strong>
+                      <span className="bb-row-desc-preview">{issue.description.trim().slice(0, 120) || '—'}</span>
+                      <div className="bug-status-cell" data-status={issue.status}>
+                        <select
+                          className="bug-row-status-select"
+                          value={issue.status}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => { e.stopPropagation(); updateLocalIssueStatus(issue.id, e.target.value); }}
+                        >
+                          {LOCAL_STATUSES.map((s) => (
+                            <option key={s.key} value={s.key}>{s.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <span className="bug-chevron" aria-hidden="true">
+                        {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                      </span>
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                    {isExpanded && (
+                      <div className="bug-detail">
+                        {renderLocalCommentsSection(issue.id)}
+                        <button
+                          className="bug-lc-delete"
+                          type="button"
+                          title="Delete issue"
+                          onClick={(e) => { e.stopPropagation(); deleteLocalIssue(issue.id); }}
+                          style={{ alignSelf: 'flex-start' }}
+                        >× Delete issue</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
 
       {bugBoardTab === 'from-users' && (
-        <div>
+        <div className="bb-table-wrap">
           <div className="bb-table-header">
             <span>#</span>
             <span>Title</span>
@@ -999,16 +1006,18 @@ export function App() {
                     <span className="bug-number">{num ? `#${num}` : '?'}</span>
                     <strong>{bug.title}</strong>
                     <span className="bb-row-desc-preview">{descPreview || '—'}</span>
-                    <select
-                      className="bug-row-status-select"
-                      value={localStatus ?? ghStatus.key}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => { e.stopPropagation(); saveLocalStatus(num, e.target.value); }}
-                    >
-                      {LOCAL_STATUSES.map((s) => (
-                        <option key={s.key} value={s.key}>{s.label}</option>
-                      ))}
-                    </select>
+                    <div className="bug-status-cell" data-status={localStatus ?? ghStatus.key}>
+                      <select
+                        className="bug-row-status-select"
+                        value={localStatus ?? ghStatus.key}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => { e.stopPropagation(); saveLocalStatus(num, e.target.value); }}
+                      >
+                        {LOCAL_STATUSES.map((s) => (
+                          <option key={s.key} value={s.key}>{s.label}</option>
+                        ))}
+                      </select>
+                    </div>
                     <span className="bug-chevron" aria-hidden="true">
                       {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
                     </span>

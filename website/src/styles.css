@@ -1870,11 +1870,11 @@ h1 {
 
 .bug-row-status-select {
   appearance: none;
-  padding: 6px 28px 6px 0;
+  padding: 13px 30px 13px 26px;
   border: none;
   border-radius: 0;
   background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 4px center,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 10px center,
     transparent;
   color: var(--fg);
   font-size: 13px;
@@ -1883,13 +1883,17 @@ h1 {
   cursor: pointer;
   letter-spacing: 0.02em;
   width: 100%;
-  transition: color 160ms ease;
+  min-height: 52px;
+  transition: background-color 140ms ease;
 }
 
-.bug-row-status-select:hover,
+.bug-row-status-select:hover {
+  outline: none;
+  background-color: var(--paper-2);
+}
+
 .bug-row-status-select:focus {
   outline: none;
-  color: var(--amber);
 }
 
 .bug-detail-select {
@@ -1998,70 +2002,58 @@ h1 {
 /* ── Tab bar ── */
 .bb-tab-bar {
   display: flex;
-  border-bottom: 2px solid var(--line);
+  justify-content: center;
+  padding: 28px 0 0;
   margin-bottom: 0;
 }
 
-.bb-tab-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 5px;
-  padding: 16px 28px;
-  min-width: 220px;
-  border: none;
-  border-bottom: 3px solid transparent;
-  margin-bottom: -2px;
-  background: transparent;
-  color: inherit;
-  font-family: inherit;
-  cursor: pointer;
-  text-align: left;
-  transition: border-color 160ms ease, background 160ms ease;
-}
-
-.bb-tab-btn:hover {
+.bb-tab-pill-track {
+  display: inline-flex;
   background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 4px;
+  gap: 3px;
 }
 
-.bb-tab-btn-active {
-  border-bottom-color: var(--amber) !important;
-  background: var(--paper) !important;
-}
-
-.bb-tab-btn-header {
-  display: flex;
+.bb-tab-btn {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.bb-tab-btn-title {
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 0.85rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  gap: 9px;
+  padding: 10px 22px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
   color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease;
 }
 
-.bb-tab-btn-active .bb-tab-btn-title {
+.bb-tab-btn:hover:not(.bb-tab-btn-active) {
+  background: var(--paper-2);
   color: var(--fg);
 }
 
-.bb-tab-btn-desc {
-  margin: 0;
-  font-size: 0.78rem;
-  color: var(--muted);
-  line-height: 1.4;
-  opacity: 0.72;
+.bb-tab-btn-active {
+  background: var(--amber) !important;
+  color: oklch(0.99 0.005 95) !important;
+  box-shadow: 0 2px 10px oklch(0.62 0.16 42 / 0.35);
+}
+
+.bb-tab-btn-title {
+  /* inline within the button itself */
 }
 
 .bb-tab-count {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 20px;
+  min-width: 18px;
   height: 18px;
   padding: 0 5px;
   border-radius: 999px;
@@ -2070,7 +2062,93 @@ h1 {
   color: var(--amber-dark);
   font-size: 10px;
   font-weight: 900;
+  line-height: 1;
 }
+
+.bb-tab-btn-active .bb-tab-count {
+  background: oklch(0 0 0 / 0.14);
+  border-color: oklch(0 0 0 / 0.18);
+  color: oklch(0.99 0.005 95);
+}
+
+.bb-tab-downloads {
+  font-size: 10px;
+  font-weight: 800;
+  opacity: 0.7;
+  font-family: "IBM Plex Mono", monospace;
+  letter-spacing: 0.02em;
+}
+
+/* ── Tab context banner ── */
+.bb-tab-context {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 12px 0 20px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 20px;
+}
+
+.bb-tab-ctx-icon {
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.55;
+}
+
+/* ── Table wrap (fixes column alignment) ── */
+.bb-table-wrap {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.bb-table-wrap .bug-board {
+  border: none;
+  border-radius: 0;
+}
+
+.bb-table-wrap .bug-row-wrap {
+  border-left: none;
+  border-right: none;
+}
+
+/* ── Status cell ── */
+.bug-status-cell {
+  padding: 0 !important;
+  position: relative;
+  display: flex !important;
+  align-items: stretch !important;
+}
+
+.bug-status-cell::before {
+  content: '';
+  display: block;
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+  opacity: 0.35;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.bug-status-cell[data-status="open"]::before { background: var(--muted); opacity: 0.35; }
+.bug-status-cell[data-status="confirmed"]::before { background: var(--amber); opacity: 0.85; }
+.bug-status-cell[data-status="in-progress"]::before { background: var(--amber); opacity: 1; }
+.bug-status-cell[data-status="needs-user-verify"]::before { background: var(--amber-dark); opacity: 0.65; }
+.bug-status-cell[data-status="fixed"]::before { background: var(--green); opacity: 0.9; }
+.bug-status-cell[data-status="verified"]::before { background: var(--green); opacity: 1; }
+.bug-status-cell[data-status="canceled"]::before { background: var(--muted); opacity: 0.2; }
+.bug-status-cell[data-status="not-priority"]::before { background: var(--muted); opacity: 0.2; }
 
 .bug-board-downloads {
   font-size: 11px;
@@ -2086,8 +2164,7 @@ h1 {
   grid-template-columns: 60px minmax(0, 1.6fr) minmax(0, 2fr) 200px 36px;
   gap: 0;
   background: var(--paper-2);
-  border: 1px solid var(--line);
-  border-top: none;
+  border-bottom: 1px solid var(--line);
 }
 
 .bb-table-header span {
