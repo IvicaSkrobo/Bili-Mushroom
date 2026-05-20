@@ -914,8 +914,8 @@ export function App() {
           <div className="bb-table-header">
             <span>#</span>
             <span>Title</span>
-            <span>Status</span>
             <span>Description</span>
+            <span>Status</span>
             <span />
           </div>
           <div className="bug-board">
@@ -934,6 +934,7 @@ export function App() {
                   >
                     <span className="bug-number">{String(idx + 1).padStart(2, '0')}</span>
                     <strong>{issue.title}</strong>
+                    <span className="bb-row-desc-preview">{issue.description.trim().slice(0, 120) || '—'}</span>
                     <select
                       className="bug-row-status-select"
                       value={issue.status}
@@ -944,14 +945,13 @@ export function App() {
                         <option key={s.key} value={s.key}>{s.label}</option>
                       ))}
                     </select>
-                    <span className="bb-row-desc-preview">{issue.description.trim().slice(0, 100) || '—'}</span>
                     <span className="bug-chevron" aria-hidden="true">
                       {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
                     </span>
                   </div>
                   {isExpanded && (
                     <div className="bug-detail">
-                      {renderLocalCommentsSection(issue.id, issue.description)}
+                      {renderLocalCommentsSection(issue.id)}
                       <button
                         className="bug-lc-delete"
                         type="button"
@@ -973,8 +973,8 @@ export function App() {
           <div className="bb-table-header">
             <span>#</span>
             <span>Title</span>
-            <span>Status</span>
             <span>Description</span>
+            <span>Status</span>
             <span />
           </div>
           <div className="bug-board">
@@ -986,7 +986,7 @@ export function App() {
               const bugKey = String(bug.number ?? 0);
               const isExpanded = expandedBug === bugKey;
               const num = bug.number ?? 0;
-              const descPreview = (bug.body ?? '').replace(/[#*_`[\]>]/g, '').trim().slice(0, 100);
+              const descPreview = (bug.body ?? '').replace(/[#*_`[\]>]/g, '').trim().slice(0, 120);
               return (
                 <div key={bug.html_url} className={`bug-row-wrap${isExpanded ? ' bug-row-wrap-expanded' : ''}`}>
                   <div
@@ -998,6 +998,7 @@ export function App() {
                   >
                     <span className="bug-number">{num ? `#${num}` : '?'}</span>
                     <strong>{bug.title}</strong>
+                    <span className="bb-row-desc-preview">{descPreview || '—'}</span>
                     <select
                       className="bug-row-status-select"
                       value={localStatus ?? ghStatus.key}
@@ -1008,14 +1009,13 @@ export function App() {
                         <option key={s.key} value={s.key}>{s.label}</option>
                       ))}
                     </select>
-                    <span className="bb-row-desc-preview">{descPreview || '—'}</span>
                     <span className="bug-chevron" aria-hidden="true">
                       {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
                     </span>
                   </div>
                   {isExpanded && (
                     <div className="bug-detail">
-                      {renderLocalCommentsSection(bugKey, bug.body)}
+                      {renderLocalCommentsSection(bugKey)}
                       {(bugComments[num] ?? []).length > 0 && (
                         <div className="bug-detail-section bug-gh-comments">
                           <label className="bug-detail-label">GitHub comments</label>
@@ -1067,9 +1067,23 @@ export function App() {
                 <small>{lang === 'hr' ? 'Hrvatski' : 'English'}</small>
               </span>
             </a>
-            <a className="button ghost" href={lang === 'hr' ? './?lang=hr' : './'}>
-              {t.bugBoardBack as string}
-            </a>
+            <div className="hidden-bugs-topbar-actions">
+              <button
+                className="theme-switch"
+                data-theme-state={theme}
+                type="button"
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                aria-label={`${t.theme as string}: ${themeLabel}`}
+                title={`${t.theme as string}: ${themeLabel}`}
+              >
+                <span className="theme-switch-thumb" aria-hidden="true" />
+                <span className="theme-switch-option" aria-hidden="true"><Sun size={14} /></span>
+                <span className="theme-switch-option" aria-hidden="true"><Moon size={14} /></span>
+              </button>
+              <a className="button ghost" href={lang === 'hr' ? './?lang=hr' : './'}>
+                {t.bugBoardBack as string}
+              </a>
+            </div>
           </div>
           {bugBoardUnlocked ? bugBoardContent : (
             <section className="section bug-gate">
