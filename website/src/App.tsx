@@ -869,12 +869,6 @@ export function App() {
                 <ExternalLink size={14} />
               </a>
             ) : null}
-            {totalDownloads !== null && totalDownloads >= 10 && (
-              <span className="downloads-stat">
-                <Download size={13} />
-                {totalDownloads.toLocaleString()} downloads
-              </span>
-            )}
           </div>
           <div id="changelog" className="release-card">
             <div className="release-card-top">
