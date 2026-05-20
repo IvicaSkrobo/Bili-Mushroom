@@ -1798,7 +1798,7 @@ h1 {
 }
 
 .bug-row-wrap-expanded {
-  border-left: 3px solid var(--amber);
+  box-shadow: inset 3px 0 0 var(--amber);
 }
 
 .bug-row-expanded {
@@ -2220,11 +2220,11 @@ h1 {
 }
 
 .bug-internal .bug-row-wrap .bug-row {
-  border-left: 3px solid rgba(47, 111, 87, 0.52);
+  box-shadow: inset 3px 0 0 rgba(47, 111, 87, 0.52);
 }
 
 .bug-internal .bug-row-wrap .bug-row.bug-row-expanded {
-  border-left-color: var(--green);
+  box-shadow: inset 3px 0 0 var(--green);
 }
 
 .bug-internal-badge {
