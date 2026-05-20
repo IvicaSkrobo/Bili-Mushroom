@@ -45,6 +45,7 @@ type RemoteIssue = {
   number?: number;
   html_url: string;
   title: string;
+  body?: string | null;
   comments: number;
   updated_at?: string | null;
   state?: string;
@@ -462,6 +463,7 @@ export function App() {
   const [bugPassword, setBugPassword] = useState('');
   const [bugPasswordError, setBugPasswordError] = useState(false);
   const [expandedBug, setExpandedBug] = useState<string | null>(null);
+  const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
   const [localStatuses, setLocalStatuses] = useState<Record<number, string>>(() => {
     try { return JSON.parse(localStorage.getItem('bb-statuses') ?? '{}'); } catch { return {}; }
   });
@@ -734,49 +736,56 @@ export function App() {
     { key: 'verified', label: 'Verified' },
   ];
 
-  function renderLocalCommentsSection(issueKey: string) {
+  function renderLocalCommentsSection(issueKey: string, description?: string | null) {
     const comments = localComments[issueKey] ?? [];
     const draft = commentDrafts[issueKey] ?? { author: localStorage.getItem('bb-author') ?? '', body: '' };
+    const showComments = expandedComments[issueKey] ?? false;
     return (
-      <div className="bug-detail-section bug-local-comments">
-        <label className="bug-detail-label">Internal comments</label>
-        {comments.length === 0 ? (
-          <p className="bug-detail-empty">No internal comments yet.</p>
-        ) : comments.map((c) => (
+      <div className="bug-detail-panel">
+        {description && (
+          <p className="bug-detail-description">{description}</p>
+        )}
+        {comments.length > 0 && (
+          <button
+            className="bug-comments-toggle"
+            type="button"
+            onClick={() => setExpandedComments((prev) => ({ ...prev, [issueKey]: !showComments }))}
+          >
+            {showComments ? `▲ Hide comments` : `▼ Show ${comments.length} comment${comments.length !== 1 ? 's' : ''}`}
+          </button>
+        )}
+        {showComments && comments.map((c) => (
           <div key={c.id} className="bug-lc-item">
             <div className="bug-lc-item-meta">
               <strong>{c.author}</strong>
               <span>{new Intl.DateTimeFormat('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(c.createdAt))}</span>
-              <button
-                className="bug-lc-delete"
-                type="button"
-                title="Delete comment"
-                onClick={() => deleteLocalComment(issueKey, c.id)}
-              >×</button>
+              <button className="bug-lc-delete" type="button" onClick={() => deleteLocalComment(issueKey, c.id)}>×</button>
             </div>
             <p className="bug-comment-body">{c.body}</p>
           </div>
         ))}
-        <div className="bug-lc-form">
+        <div className="bug-lc-inline-form">
           <input
-            className="bug-lc-author"
+            className="bug-lc-author-inline"
             type="text"
-            placeholder="Author"
+            placeholder="Name"
             value={draft.author}
             onChange={(e) => setCommentDrafts((prev) => ({ ...prev, [issueKey]: { ...draft, author: e.target.value } }))}
           />
-          <textarea
-            className="bug-lc-body"
-            placeholder="Write an internal comment..."
+          <input
+            className="bug-lc-body-inline"
+            type="text"
+            placeholder="Add a comment..."
             value={draft.body}
+            onKeyDown={(e) => { if (e.key === 'Enter' && draft.body.trim()) { addLocalComment(issueKey, draft.author, draft.body); setExpandedComments((prev) => ({ ...prev, [issueKey]: true })); } }}
             onChange={(e) => setCommentDrafts((prev) => ({ ...prev, [issueKey]: { ...draft, body: e.target.value } }))}
           />
           <button
-            className="button ghost"
+            className="bug-lc-add"
             type="button"
             disabled={!draft.body.trim()}
-            onClick={() => { if (draft.body.trim()) addLocalComment(issueKey, draft.author, draft.body); }}
-          >Add</button>
+            onClick={() => { if (draft.body.trim()) { addLocalComment(issueKey, draft.author, draft.body); setExpandedComments((prev) => ({ ...prev, [issueKey]: true })); } }}
+          >↵</button>
         </div>
       </div>
     );
@@ -868,13 +877,7 @@ export function App() {
                   </div>
                   {isExpanded && (
                     <div className="bug-detail">
-                      {issue.description && (
-                        <div className="bug-detail-section">
-                          <label className="bug-detail-label">Description</label>
-                          <p className="bug-comment-body">{issue.description}</p>
-                        </div>
-                      )}
-                      {renderLocalCommentsSection(issue.id)}
+                      {renderLocalCommentsSection(issue.id, issue.description)}
                     </div>
                   )}
                 </div>
@@ -928,43 +931,29 @@ export function App() {
                   </div>
                   {isExpanded && (
                     <div className="bug-detail">
-                      <div className="bug-detail-section">
-                        <label className="bug-detail-label">{lang === 'hr' ? 'Bilješka' : 'Dev note'}</label>
-                        <textarea
-                          className="bug-detail-textarea"
-                          value={localNotes[num] ?? ''}
-                          placeholder={lang === 'hr' ? 'Privatna bilješka...' : 'Private note...'}
-                          onChange={(e) => saveLocalNote(num, e.target.value)}
-                        />
-                      </div>
-                      <div className="bug-detail-section bug-detail-link-row">
-                        <a className="text-link" href={bug.html_url} target="_blank" rel="noopener noreferrer">
-                          {lang === 'hr' ? 'Otvori na GitHubu' : 'Open on GitHub'}
-                          <ExternalLink size={13} />
-                        </a>
-                      </div>
-                      <div className="bug-detail-section">
-                        <label className="bug-detail-label">{lang === 'hr' ? 'Komentari' : 'GitHub Comments'}</label>
-                        {loadingComments[num] ? (
-                          <p className="bug-detail-loading">{lang === 'hr' ? 'Učitavam...' : 'Loading...'}</p>
-                        ) : (bugComments[num] ?? []).length === 0 ? (
-                          <p className="bug-detail-empty">{lang === 'hr' ? 'Nema komentara.' : 'No comments yet.'}</p>
-                        ) : (bugComments[num] ?? []).map((comment) => (
-                          <div key={comment.id} className="bug-comment">
-                            <div className="bug-comment-meta">
-                              <strong>
-                                {comment.user?.login ?? 'unknown'}
-                                <a href={bug.html_url} target="_blank" rel="noopener noreferrer" className="bug-comment-gh-link" title="Open on GitHub">
-                                  <ExternalLink size={11} />
-                                </a>
-                              </strong>
-                              <span>{new Intl.DateTimeFormat(lang === 'hr' ? 'hr-HR' : 'en-US', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(comment.created_at))}</span>
+                      {renderLocalCommentsSection(bugKey, bug.body)}
+                      {(bugComments[num] ?? []).length > 0 && (
+                        <div className="bug-detail-section bug-gh-comments">
+                          <label className="bug-detail-label">GitHub comments</label>
+                          {(bugComments[num] ?? []).map((comment) => (
+                            <div key={comment.id} className="bug-comment">
+                              <div className="bug-comment-meta">
+                                <strong>
+                                  {comment.user?.login ?? 'unknown'}
+                                  <a href={bug.html_url} target="_blank" rel="noopener noreferrer" className="bug-comment-gh-link" title="Open on GitHub">
+                                    <ExternalLink size={11} />
+                                  </a>
+                                </strong>
+                                <span>{new Intl.DateTimeFormat(lang === 'hr' ? 'hr-HR' : 'en-US', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(comment.created_at))}</span>
+                              </div>
+                              <p className="bug-comment-body">{comment.body}</p>
                             </div>
-                            <p className="bug-comment-body">{comment.body}</p>
-                          </div>
-                        ))}
-                      </div>
-                      {renderLocalCommentsSection(bugKey)}
+                          ))}
+                        </div>
+                      )}
+                      <a className="text-link bug-gh-link" href={bug.html_url} target="_blank" rel="noopener noreferrer">
+                        GitHub <ExternalLink size={12} />
+                      </a>
                     </div>
                   )}
                 </div>
