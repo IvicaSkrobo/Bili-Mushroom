@@ -72,14 +72,6 @@ type LocalComment = {
   images?: string[];
 };
 
-type LocalIssue = {
-  id: string;
-  title: string;
-  description: string;
-  status: string;
-  createdAt: string;
-};
-
 type LocalIssueEdit = {
   title: string;
   description: string;
@@ -99,7 +91,12 @@ const ideaSubmitUrl =
   'https://github.com/IvicaSkrobo/Bili-Mushroom/issues/new?template=feature_idea.yml&labels=idea';
 const ideasListUrl = 'https://github.com/IvicaSkrobo/Bili-Mushroom/issues?q=is%3Aissue%20label%3Aidea';
 const bugsListUrl = 'https://github.com/IvicaSkrobo/Bili-Mushroom/issues?q=is%3Aissue%20label%3Abug';
+const internalIssuesUrl =
+  'https://github.com/IvicaSkrobo/Bili-Mushroom/issues?q=is%3Aissue%20label%3Ainternal';
+const internalIssueSubmitUrl =
+  'https://github.com/IvicaSkrobo/Bili-Mushroom/issues/new?labels=internal&title=%5BInternal%5D%20';
 const repoUrl = 'https://github.com/IvicaSkrobo/Bili-Mushroom';
+const bugReportEndpoint = 'https://gljivobook-bug-report.skroboivica.workers.dev/';
 
 const copy = {
   en: {
@@ -463,7 +460,18 @@ export function App() {
   const [latestRelease, setLatestRelease] = useState<RemoteRelease | null>(null);
   const [remoteIdeas, setRemoteIdeas] = useState<RemoteIssue[]>([]);
   const [remoteBugs, setRemoteBugs] = useState<RemoteIssue[]>([]);
+  const [remoteInternalIssues, setRemoteInternalIssues] = useState<RemoteIssue[]>([]);
   const [remoteBugsLoading, setRemoteBugsLoading] = useState(false);
+  const [remoteInternalLoading, setRemoteInternalLoading] = useState(false);
+  const [websiteBugForm, setWebsiteBugForm] = useState({
+    title: '',
+    description: '',
+    steps: '',
+    contact: '',
+    trap: '',
+  });
+  const [websiteBugSubmitting, setWebsiteBugSubmitting] = useState(false);
+  const [websiteBugResult, setWebsiteBugResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [totalDownloads, setTotalDownloads] = useState<number | null>(null);
   const [showHiddenBugs, setShowHiddenBugs] = useState(() => window.location.hash === '#bugs');
   const [bugBoardUnlocked, setBugBoardUnlocked] = useState(() => window.sessionStorage.getItem('bb') === '1');
@@ -474,9 +482,6 @@ export function App() {
   const [localStatuses, setLocalStatuses] = useState<Record<number, string>>(() => {
     try { return JSON.parse(localStorage.getItem('bb-statuses') ?? '{}'); } catch { return {}; }
   });
-  const [localNotes, setLocalNotes] = useState<Record<number, string>>(() => {
-    try { return JSON.parse(localStorage.getItem('bb-notes') ?? '{}'); } catch { return {}; }
-  });
   const [bugComments, setBugComments] = useState<Record<number, RemoteComment[]>>({});
   const [loadingComments, setLoadingComments] = useState<Record<number, boolean>>({});
   const [localComments, setLocalComments] = useState<Record<string, LocalComment[]>>(() => {
@@ -485,9 +490,6 @@ export function App() {
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
   const [commentAuthor, setCommentAuthor] = useState<string>(() => localStorage.getItem('bb-author') ?? 'Ico');
   const [commentImages, setCommentImages] = useState<Record<string, string[]>>({});
-  const [localIssues, setLocalIssues] = useState<LocalIssue[]>(() => {
-    try { return JSON.parse(localStorage.getItem('bb-li') ?? '[]'); } catch { return []; }
-  });
   const [issueOverrides, setIssueOverrides] = useState<Record<string, LocalIssueEdit>>(() => {
     try { return JSON.parse(localStorage.getItem('bb-issue-edits') ?? '{}'); } catch { return {}; }
   });
@@ -496,8 +498,6 @@ export function App() {
     try { return JSON.parse(localStorage.getItem('bb-gh-hidden-comments') ?? '[]'); } catch { return []; }
   });
   const [bugBoardTab, setBugBoardTab] = useState<'internal' | 'from-users'>('internal');
-  const [showNewIssueForm, setShowNewIssueForm] = useState(false);
-  const [newIssueDraft, setNewIssueDraft] = useState({ title: '', description: '' });
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const stored = window.localStorage.getItem('gljivobook-site-theme');
     if (stored === 'light' || stored === 'dark') return stored;
@@ -588,15 +588,19 @@ export function App() {
   useEffect(() => {
     if (!showHiddenBugs) {
       setRemoteBugs([]);
+      setRemoteInternalIssues([]);
       setRemoteBugsLoading(false);
+      setRemoteInternalLoading(false);
       return;
     }
 
     const controller = new AbortController();
     setRemoteBugsLoading(true);
-    fetch('https://api.github.com/repos/IvicaSkrobo/Bili-Mushroom/issues?state=open&labels=bug&per_page=8', {
+    setRemoteInternalLoading(true);
+    const githubHeaders = { Accept: 'application/vnd.github+json' };
+    fetch('https://api.github.com/repos/IvicaSkrobo/Bili-Mushroom/issues?state=open&labels=bug&per_page=20', {
       signal: controller.signal,
-      headers: { Accept: 'application/vnd.github+json' },
+      headers: githubHeaders,
     })
       .then((response) => (response.ok ? response.json() : []))
       .then((data: RemoteIssue[]) => {
@@ -607,6 +611,20 @@ export function App() {
       })
       .finally(() => {
         if (!controller.signal.aborted) setRemoteBugsLoading(false);
+      });
+    fetch('https://api.github.com/repos/IvicaSkrobo/Bili-Mushroom/issues?state=open&labels=internal&per_page=50', {
+      signal: controller.signal,
+      headers: githubHeaders,
+    })
+      .then((response) => (response.ok ? response.json() : []))
+      .then((data: RemoteIssue[]) => {
+        setRemoteInternalIssues(data.filter((issue) => !issue.pull_request));
+      })
+      .catch(() => {
+        // Internal work remains GitHub-backed; keep it empty if GitHub is unavailable.
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setRemoteInternalLoading(false);
       });
     return () => controller.abort();
   }, [showHiddenBugs]);
@@ -676,17 +694,57 @@ export function App() {
         species: 'Species',
         outings: 'Outings',
       };
+  const websiteBugCanSubmit =
+    websiteBugForm.title.trim().length >= 4 && websiteBugForm.description.trim().length >= 10;
+
+  function updateWebsiteBugField(field: keyof typeof websiteBugForm, value: string) {
+    setWebsiteBugForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  async function submitWebsiteBugReport() {
+    if (!websiteBugCanSubmit || websiteBugSubmitting) return;
+    setWebsiteBugSubmitting(true);
+    setWebsiteBugResult(null);
+    try {
+      const response = await fetch(bugReportEndpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          ...websiteBugForm,
+          title: websiteBugForm.title.trim(),
+          description: websiteBugForm.description.trim(),
+          steps: websiteBugForm.steps.trim(),
+          contact: websiteBugForm.contact.trim(),
+          language: lang,
+          theme,
+          source: 'website',
+          appVersion: release.version,
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+          reportedAt: new Date().toISOString(),
+        }),
+      });
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      setWebsiteBugResult({
+        type: 'success',
+        message: lang === 'hr' ? 'Prijava je poslana na GitHub issues.' : 'Report was sent to GitHub issues.',
+      });
+      setWebsiteBugForm({ title: '', description: '', steps: '', contact: '', trap: '' });
+    } catch {
+      setWebsiteBugResult({
+        type: 'error',
+        message: lang === 'hr' ? 'Prijava nije poslana. Pokusaj ponovno kasnije.' : 'Report was not sent. Try again later.',
+      });
+    } finally {
+      setWebsiteBugSubmitting(false);
+    }
+  }
 
   function saveLocalStatus(issueNum: number, status: string) {
     const updated = { ...localStatuses, [issueNum]: status };
     setLocalStatuses(updated);
     localStorage.setItem('bb-statuses', JSON.stringify(updated));
-  }
-
-  function saveLocalNote(issueNum: number, note: string) {
-    const updated = { ...localNotes, [issueNum]: note };
-    setLocalNotes(updated);
-    localStorage.setItem('bb-notes', JSON.stringify(updated));
   }
 
   function toggleBug(key: string) {
@@ -728,28 +786,6 @@ export function App() {
     localStorage.setItem('bb-gh-hidden-comments', JSON.stringify(updated));
   }
 
-  function createLocalIssue(title: string, description: string) {
-    const issue: LocalIssue = { id: `li-${Date.now()}`, title, description, status: 'open', createdAt: new Date().toISOString() };
-    const updated = [...localIssues, issue];
-    setLocalIssues(updated);
-    localStorage.setItem('bb-li', JSON.stringify(updated));
-    setShowNewIssueForm(false);
-    setNewIssueDraft({ title: '', description: '' });
-  }
-
-  function deleteLocalIssue(id: string) {
-    const updated = localIssues.filter((i) => i.id !== id);
-    setLocalIssues(updated);
-    localStorage.setItem('bb-li', JSON.stringify(updated));
-    if (expandedBug === id) setExpandedBug(null);
-  }
-
-  function updateLocalIssueStatus(id: string, status: string) {
-    const updated = localIssues.map((i) => i.id === id ? { ...i, status } : i);
-    setLocalIssues(updated);
-    localStorage.setItem('bb-li', JSON.stringify(updated));
-  }
-
   function startIssueEdit(key: string, title: string, description: string) {
     setIssueEditDrafts((prev) => ({ ...prev, [key]: { title, description } }));
   }
@@ -766,20 +802,12 @@ export function App() {
     const draft = issueEditDrafts[key];
     if (!draft?.title.trim()) return;
 
-    if (key.startsWith('li-')) {
-      const updated = localIssues.map((issue) => issue.id === key
-        ? { ...issue, title: draft.title.trim(), description: draft.description }
-        : issue);
-      setLocalIssues(updated);
-      localStorage.setItem('bb-li', JSON.stringify(updated));
-    } else {
-      const updated = {
-        ...issueOverrides,
-        [key]: { title: draft.title.trim(), description: draft.description },
-      };
-      setIssueOverrides(updated);
-      localStorage.setItem('bb-issue-edits', JSON.stringify(updated));
-    }
+    const updated = {
+      ...issueOverrides,
+      [key]: { title: draft.title.trim(), description: draft.description },
+    };
+    setIssueOverrides(updated);
+    localStorage.setItem('bb-issue-edits', JSON.stringify(updated));
 
     cancelIssueEdit(key);
   }
@@ -971,7 +999,7 @@ export function App() {
             onClick={() => setBugBoardTab('internal')}
           >
             <span className="bb-tab-btn-title">Internal</span>
-            {localIssues.length > 0 && <span className="bb-tab-count">{localIssues.length}</span>}
+            {remoteInternalIssues.length > 0 && <span className="bb-tab-count">{remoteInternalIssues.length}</span>}
           </button>
           <button
             type="button"
@@ -986,51 +1014,86 @@ export function App() {
       </div>
       <div className="bb-tab-context">
         {bugBoardTab === 'internal' ? (
-          <><span className="bb-tab-ctx-icon"><HardDrive size={13} /></span><span>Private issues — stored in your browser, never synced or visible to anyone else</span></>
+          <><span className="bb-tab-ctx-icon"><Github size={13} /></span><span>Internal issues - synced through GitHub label <strong>internal</strong>, so you and your friend see the same list</span></>
         ) : (
           <><span className="bb-tab-ctx-icon"><Github size={13} /></span><span>Bug reports submitted from the app — pulled live from GitHub Issues</span></>
         )}
       </div>
 
+      <div className="website-bug-report-panel">
+        <div className="website-bug-report-head">
+          <div>
+            <p className="bug-detail-label">{lang === 'hr' ? 'Prijava bez GitHub racuna' : 'No-account report'}</p>
+            <h3>{lang === 'hr' ? 'Posalji bug s weba' : 'Send a bug from the website'}</h3>
+          </div>
+          <span>{lang === 'hr' ? 'Ide preko istog worker endpointa kao aplikacija.' : 'Uses the same worker endpoint as the app.'}</span>
+        </div>
+        <div className="website-bug-form">
+          <input
+            className="bug-detail-textarea website-bug-title"
+            type="text"
+            placeholder={lang === 'hr' ? 'Naslov problema' : 'Problem title'}
+            value={websiteBugForm.title}
+            maxLength={120}
+            onChange={(e) => updateWebsiteBugField('title', e.target.value)}
+          />
+          <textarea
+            className="bug-detail-textarea"
+            placeholder={lang === 'hr' ? 'Sto se dogodilo?' : 'What happened?'}
+            value={websiteBugForm.description}
+            maxLength={3000}
+            onChange={(e) => updateWebsiteBugField('description', e.target.value)}
+          />
+          <textarea
+            className="bug-detail-textarea"
+            placeholder={lang === 'hr' ? 'Koraci za ponoviti (opcionalno)' : 'Steps to reproduce (optional)'}
+            value={websiteBugForm.steps}
+            maxLength={2000}
+            onChange={(e) => updateWebsiteBugField('steps', e.target.value)}
+          />
+          <input
+            className="bug-detail-textarea website-bug-title"
+            type="text"
+            placeholder={lang === 'hr' ? 'Kontakt (opcionalno)' : 'Contact (optional)'}
+            value={websiteBugForm.contact}
+            maxLength={160}
+            onChange={(e) => updateWebsiteBugField('contact', e.target.value)}
+          />
+          <input
+            className="hidden"
+            tabIndex={-1}
+            autoComplete="off"
+            value={websiteBugForm.trap}
+            onChange={(e) => updateWebsiteBugField('trap', e.target.value)}
+            aria-hidden="true"
+          />
+          <div className="website-bug-actions">
+            <button
+              type="button"
+              className="button primary"
+              disabled={!websiteBugCanSubmit || websiteBugSubmitting}
+              onClick={submitWebsiteBugReport}
+            >
+              {websiteBugSubmitting
+                ? (lang === 'hr' ? 'Saljem...' : 'Sending...')
+                : (lang === 'hr' ? 'Posalji prijavu' : 'Send report')}
+            </button>
+            {websiteBugResult && (
+              <span className={`website-bug-result website-bug-result-${websiteBugResult.type}`}>
+                {websiteBugResult.message}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
       {bugBoardTab === 'internal' && (
         <div className="bug-internal">
           <div className="bug-section-header">
-            <button
-              className="button ghost"
-              type="button"
-              onClick={() => setShowNewIssueForm((v) => !v)}
-            >{showNewIssueForm ? 'Cancel' : '+ New'}</button>
+            <a className="button ghost" href={internalIssueSubmitUrl} target="_blank" rel="noopener noreferrer">
+              + New synced issue <ExternalLink size={13} />
+            </a>
           </div>
-          {showNewIssueForm && (
-            <div className="bug-new-form">
-              <input
-                className="bug-detail-textarea"
-                type="text"
-                placeholder="Title"
-                value={newIssueDraft.title}
-                onChange={(e) => setNewIssueDraft((prev) => ({ ...prev, title: e.target.value }))}
-              />
-              <textarea
-                className="bug-detail-textarea"
-                placeholder="Description (optional)"
-                value={newIssueDraft.description}
-                onChange={(e) => setNewIssueDraft((prev) => ({ ...prev, description: e.target.value }))}
-              />
-              <div className="bug-new-form-actions">
-                <button
-                  className="button primary"
-                  type="button"
-                  disabled={!newIssueDraft.title.trim()}
-                  onClick={() => { if (newIssueDraft.title.trim()) createLocalIssue(newIssueDraft.title.trim(), newIssueDraft.description); }}
-                >Create</button>
-                <button
-                  className="button ghost"
-                  type="button"
-                  onClick={() => { setShowNewIssueForm(false); setNewIssueDraft({ title: '', description: '' }); }}
-                >Cancel</button>
-              </div>
-            </div>
-          )}
           <div className="bb-table-wrap">
             <div className="bb-table-header">
               <span>#</span>
@@ -1040,33 +1103,29 @@ export function App() {
               <span />
             </div>
             <div className="bug-board">
-              {localIssues.length === 0 && !showNewIssueForm ? (
-                <div className="bug-empty">No internal issues yet. Use + New to add one.</div>
-              ) : localIssues.map((issue, idx) => {
-                const isExpanded = expandedBug === issue.id;
+              {remoteInternalLoading ? (
+                <div className="bug-empty">Loading synced internal issues...</div>
+              ) : remoteInternalIssues.length === 0 ? (
+                <div className="bug-empty">No synced internal issues yet. Use + New synced issue to create one on GitHub.</div>
+              ) : remoteInternalIssues.map((issue) => {
+                const issueKey = String(issue.number ?? issue.html_url);
+                const isExpanded = expandedBug === issueKey;
+                const ghStatus = bugStatus(issue, lang);
+                const descPreview = (issue.body ?? '').replace(/[#*_`[\]>]/g, '').trim().slice(0, 120);
                 return (
-                  <div key={issue.id} className={`bug-row-wrap${isExpanded ? ' bug-row-wrap-expanded' : ''}`}>
+                  <div key={issue.html_url} className={`bug-row-wrap${isExpanded ? ' bug-row-wrap-expanded' : ''}`}>
                     <div
                       className={`bug-row${isExpanded ? ' bug-row-expanded' : ''}`}
                       role="button"
                       tabIndex={0}
-                      onClick={() => toggleBug(issue.id)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBug(issue.id); } }}
+                      onClick={() => toggleBug(issueKey)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBug(issueKey); } }}
                     >
-                      <span className="bug-number">{String(idx + 1).padStart(2, '0')}</span>
+                      <span className="bug-number">{issue.number ? `#${issue.number}` : '?'}</span>
                       <strong>{issue.title}</strong>
-                      <span className="bb-row-desc-preview">{issue.description.trim().slice(0, 120) || '—'}</span>
-                      <div className="bug-status-cell" data-status={issue.status}>
-                        <select
-                          className="bug-row-status-select"
-                          value={issue.status}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => { e.stopPropagation(); updateLocalIssueStatus(issue.id, e.target.value); }}
-                        >
-                          {LOCAL_STATUSES.map((s) => (
-                            <option key={s.key} value={s.key}>{s.label}</option>
-                          ))}
-                        </select>
+                      <span className="bb-row-desc-preview">{descPreview || '—'}</span>
+                      <div className="bug-status-cell" data-status={ghStatus.key}>
+                        <span className="bug-status bug-status-local">{ghStatus.label}</span>
                       </div>
                       <span className="bug-chevron" aria-hidden="true">
                         {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
@@ -1074,13 +1133,23 @@ export function App() {
                     </div>
                     {isExpanded && (
                       <div className="bug-detail">
-                        {renderIssueEditPanel(issue.id, issue.title, issue.description)}
-                        {renderLocalCommentsSection(issue.id)}
-                        <button
-                          className="bug-issue-delete"
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); deleteLocalIssue(issue.id); }}
-                        ><Trash2 size={14} /> Delete issue</button>
+                        <div className="bug-edit-summary">
+                          <div>
+                            <label className="bug-detail-label">Synced GitHub issue</label>
+                            <h3>{issue.title}</h3>
+                          </div>
+                          <a className="bug-edit-toggle" href={issue.html_url} target="_blank" rel="noopener noreferrer">
+                            Edit on GitHub <ExternalLink size={12} />
+                          </a>
+                          {issue.body?.trim() ? (
+                            <p className="bug-detail-description">{issue.body}</p>
+                          ) : (
+                            <p className="bug-detail-description bug-detail-description-empty">No description yet.</p>
+                          )}
+                        </div>
+                        <a className="text-link bug-gh-link" href={issue.html_url} target="_blank" rel="noopener noreferrer">
+                          Open synced issue <ExternalLink size={12} />
+                        </a>
                       </div>
                     )}
                   </div>
@@ -1088,6 +1157,10 @@ export function App() {
               })}
             </div>
           </div>
+          <a className="text-link bug-board-link" href={internalIssuesUrl} target="_blank" rel="noopener noreferrer">
+            View synced internal issues
+            <ExternalLink size={14} />
+          </a>
         </div>
       )}
 

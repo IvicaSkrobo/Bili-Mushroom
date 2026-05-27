@@ -2572,6 +2572,93 @@ h1 {
   transform: none;
 }
 
+.website-bug-report-panel {
+  display: grid;
+  gap: 14px;
+  margin: 18px 0 14px;
+  padding: 16px;
+  border: 1px solid rgba(121, 101, 67, 0.32);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(47, 111, 87, 0.09), transparent 42%),
+    var(--panel-bg);
+}
+
+.website-bug-report-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.website-bug-report-head h3 {
+  margin: 3px 0 0;
+  color: var(--fg);
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 28px;
+  font-style: italic;
+  line-height: 1;
+}
+
+.website-bug-report-head span {
+  max-width: 340px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: right;
+}
+
+.website-bug-form {
+  display: grid;
+  gap: 10px;
+}
+
+.website-bug-form textarea {
+  min-height: 78px;
+}
+
+.website-bug-title {
+  min-height: 40px;
+  resize: none;
+}
+
+.website-bug-form .hidden {
+  display: none;
+}
+
+.website-bug-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.website-bug-actions .button {
+  min-height: 36px;
+  padding: 0 15px;
+  font-size: 12px;
+}
+
+.website-bug-actions .button:disabled {
+  opacity: 0.46;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.website-bug-result {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.website-bug-result-success {
+  color: var(--green-dark);
+}
+
+.website-bug-result-error {
+  color: var(--danger);
+}
+
 .bug-section-header .button {
   min-height: 32px;
   padding: 0 12px;
