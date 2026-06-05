@@ -440,6 +440,10 @@ export default function MapTab() {
     setPolygonEditor((prev) => prev ? { ...prev, mode } : prev);
   }
 
+  function handlePolygonNameChange(name: string) {
+    setPolygonEditor((prev) => prev ? { ...prev, name } : prev);
+  }
+
   function handlePolygonCancel() {
     setPolygonEditor(null);
   }
@@ -609,6 +613,7 @@ export default function MapTab() {
         polygonEditorZoneName={polygonEditor?.name ?? null}
         polygonEditorZoneType={polygonEditor?.zoneType ?? null}
         polygonEditorSelectedPoint={polygonEditor?.selectedPointIndex ?? null}
+        onPolygonEditorNameChange={handlePolygonNameChange}
         onPolygonEditorAddPoint={handlePolygonAddPoint}
         onPolygonEditorMovePoint={handlePolygonMovePoint}
         onPolygonEditorSelectPoint={handlePolygonSelectPoint}
@@ -664,6 +669,7 @@ export default function MapTab() {
           creatingRegion={upsertZone.isPending}
           collapsed={zoneControlsCollapsed}
           onCollapsedChange={setZoneControlsCollapsed}
+          activeZoneOpen={activeZone != null}
         />
       )}
       {!polygonEditorActive && (

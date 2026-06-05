@@ -1,20 +1,30 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  getFinds, updateFind, deleteFind, getSpeciesNotes, upsertSpeciesNote,
+  getFinds, updateFind, deleteFind, getFindPhotos, getSpeciesNotes, upsertSpeciesNote,
   getSpeciesProfiles, upsertSpeciesProfile, getSpeciesRecipes, upsertSpeciesRecipe, deleteSpeciesRecipe,
   bulkRenameSpecies, moveFindToFolder, setFindFavorite, addFindPhotos, createFind,
   deleteFindPhoto, bulkDeleteFindPhotos,
   FINDS_QUERY_KEY, SPECIES_NOTES_QUERY_KEY, SPECIES_PROFILES_QUERY_KEY, SPECIES_RECIPES_QUERY_KEY,
-  type Find, type UpdateFindPayload, type CreateFindPayload,
+  type Find, type FindSearchFilters, type UpdateFindPayload, type CreateFindPayload,
 } from '@/lib/finds';
 import { useAppStore } from '@/stores/appStore';
 
-export function useFinds() {
+export function useFinds(filters?: FindSearchFilters) {
   const storagePath = useAppStore((s) => s.storagePath);
   return useQuery<Find[]>({
-    queryKey: [FINDS_QUERY_KEY, storagePath],
-    queryFn: () => getFinds(storagePath!),
+    queryKey: [FINDS_QUERY_KEY, storagePath, filters ?? null],
+    queryFn: () => getFinds(storagePath!, filters),
     enabled: !!storagePath,
+  });
+}
+
+export function useFindPhotos(findId: number, enabled = true) {
+  const storagePath = useAppStore((s) => s.storagePath);
+  return useQuery({
+    queryKey: [FINDS_QUERY_KEY, storagePath, 'photos', findId],
+    queryFn: () => getFindPhotos(storagePath!, findId),
+    enabled: !!storagePath && enabled,
+    staleTime: 60_000,
   });
 }
 

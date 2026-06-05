@@ -116,6 +116,11 @@ export function ZoneEditorPanel({
             <p className="font-serif text-sm italic text-foreground">
               {displaySpeciesName ? renderSpeciesName(displaySpeciesName) : (isLocal ? t('zone.localZone') : t('zone.regionZone'))}
             </p>
+            {!isLocal && name.trim() && (
+              <p className="mt-0.5 truncate text-xs font-semibold text-primary">
+                {name.trim()}
+              </p>
+            )}
             <p className="truncate text-xs text-muted-foreground">
               {isPolygon ? `${polygonPoints.length} pt` : formatRadius(Number(radius))}
             </p>
@@ -161,7 +166,7 @@ export function ZoneEditorPanel({
           </div>
 
           <label className="mb-1.5 flex flex-col gap-1 text-[11px] text-muted-foreground">
-            {t('zone.name')}
+            {isLocal ? t('zone.name') : 'Ime lokacije'}
             <input
               value={name}
               onChange={(event) => setName(event.target.value)}

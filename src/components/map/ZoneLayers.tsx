@@ -10,22 +10,22 @@ import {
 } from '@/lib/zones';
 import { useAppStore } from '@/stores/appStore';
 
-function getZoneStyle(zoneType: Zone['zone_type'], isSatellite: boolean) {
+function getZoneStyle(zoneType: Zone['zone_type'], isSatellite: boolean, active = false) {
   if (zoneType === 'local') {
-    return isSatellite
+    const style = isSatellite
       ? {
           halo: {
             color: '#FFF2D6',
-            opacity: 0.78,
-            weight: 8,
+            opacity: active ? 0.86 : 0.62,
+            weight: active ? 9 : 8,
             fillOpacity: 0,
           },
           main: {
             color: '#FF7B4A',
             fillColor: '#C94A25',
-            fillOpacity: 0.18,
-            opacity: 0.98,
-            weight: 3,
+            fillOpacity: active ? 0.2 : 0.09,
+            opacity: active ? 1 : 0.78,
+            weight: active ? 4 : 2,
           },
         }
       : {
@@ -33,27 +33,28 @@ function getZoneStyle(zoneType: Zone['zone_type'], isSatellite: boolean) {
           main: {
             color: '#D4512A',
             fillColor: '#D4512A',
-            fillOpacity: 0.14,
-            opacity: 0.95,
-            weight: 3,
+            fillOpacity: active ? 0.16 : 0.08,
+            opacity: active ? 1 : 0.78,
+            weight: active ? 4 : 2,
           },
         };
+    return style;
   }
 
-  return isSatellite
+  const style = isSatellite
     ? {
         halo: {
           color: '#FFF4D9',
-          opacity: 0.86,
-          weight: 7,
+          opacity: active ? 0.9 : 0.66,
+          weight: active ? 8 : 7,
           fillOpacity: 0,
         },
         main: {
           color: '#49D7C6',
           fillColor: '#2FAE9E',
-          fillOpacity: 0.18,
-          opacity: 0.98,
-          weight: 3,
+          fillOpacity: active ? 0.2 : 0.08,
+          opacity: active ? 1 : 0.76,
+          weight: active ? 4 : 2,
           dashArray: '10 8',
         },
       }
@@ -62,11 +63,12 @@ function getZoneStyle(zoneType: Zone['zone_type'], isSatellite: boolean) {
         main: {
           color: '#2D8C7C',
           fillColor: '#2D8C7C',
-          fillOpacity: 0.12,
-          opacity: 0.85,
-          weight: 2,
+          fillOpacity: active ? 0.16 : 0.07,
+          opacity: active ? 0.98 : 0.72,
+          weight: active ? 4 : 2,
         },
       };
+  return style;
 }
 
 interface ZoneLayersProps {
@@ -107,11 +109,13 @@ export function ZoneLayers({
     },
     [zones, mode, activeZoneId, hiddenZoneIds],
   );
+  const displayZones = useMemo(() => dedupeVisualZones(visibleZones, activeZoneId), [visibleZones, activeZoneId]);
 
   return (
     <>
-      {visibleZones.map((zone) => {
-        const style = getZoneStyle(zone.zone_type, isSatellite);
+      {displayZones.map((zone) => {
+        const active = activeZoneId === zone.id;
+        const style = getZoneStyle(zone.zone_type, isSatellite, active);
         if (
           zone.geometry_type === 'circle' &&
           zone.center_lat != null &&
@@ -187,4 +191,42 @@ function PolygonZoneGroup({
   children: ReactNode;
 }) {
   return <>{children}</>;
+}
+
+function dedupeVisualZones(zones: Zone[], activeZoneId: number | null | undefined): Zone[] {
+  const seen = new Set<string>();
+  const result: Zone[] = [];
+  for (const zone of zones) {
+    if (zone.id === activeZoneId) {
+      result.push(zone);
+      continue;
+    }
+    const key = visualKey(zone);
+    if (!key || !seen.has(key)) {
+      if (key) seen.add(key);
+      result.push(zone);
+    }
+  }
+  return result;
+}
+
+function visualKey(zone: Zone): string | null {
+  if (
+    zone.geometry_type === 'circle' &&
+    zone.center_lat != null &&
+    zone.center_lng != null &&
+    zone.radius_meters != null
+  ) {
+    return [
+      zone.zone_type,
+      zone.geometry_type,
+      zone.center_lat.toFixed(5),
+      zone.center_lng.toFixed(5),
+      Math.round(zone.radius_meters),
+    ].join(':');
+  }
+  if (zone.geometry_type === 'polygon' && zone.polygon_json) {
+    return [zone.zone_type, zone.geometry_type, zone.polygon_json].join(':');
+  }
+  return null;
 }

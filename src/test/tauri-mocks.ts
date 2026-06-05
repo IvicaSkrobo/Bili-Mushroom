@@ -45,6 +45,10 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
   delete_find: (_args: unknown) => undefined,
   move_find_files: (_args: unknown) => undefined,
   get_find_photos: (_args: unknown) => [],
+  get_photo_thumbnail: (args: unknown) => {
+    const payload = args as { photoPath?: string };
+    return payload.photoPath ?? '';
+  },
   get_species_notes: (_args: unknown) => [],
   get_species_profiles: (_args: unknown) => [],
   upsert_species_note: (_args: unknown) => undefined,

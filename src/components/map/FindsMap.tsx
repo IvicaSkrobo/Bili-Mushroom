@@ -35,6 +35,7 @@ interface FindsMapProps {
   polygonEditorZoneName?: string | null;
   polygonEditorZoneType?: ZoneType | null;
   polygonEditorSelectedPoint?: number | null;
+  onPolygonEditorNameChange?: (name: string) => void;
   onPolygonEditorAddPoint?: (point: ZonePolygonPoint) => void;
   onPolygonEditorMovePoint?: (index: number, point: ZonePolygonPoint) => void;
   onPolygonEditorSelectPoint?: (index: number) => void;
@@ -71,6 +72,7 @@ export function FindsMap({
   polygonEditorZoneName = null,
   polygonEditorZoneType = null,
   polygonEditorSelectedPoint = null,
+  onPolygonEditorNameChange = () => undefined,
   onPolygonEditorAddPoint = () => undefined,
   onPolygonEditorMovePoint = () => undefined,
   onPolygonEditorSelectPoint = () => undefined,
@@ -278,6 +280,7 @@ export function FindsMap({
           mode={polygonEditorMode}
           pointCount={polygonEditorPoints.length}
           selectedPointIndex={polygonEditorSelectedPoint}
+          onNameChange={onPolygonEditorNameChange}
           onSetMode={onPolygonEditorSetMode}
           onUndo={onPolygonEditorUndo}
           onDelete={onPolygonEditorDelete}
@@ -295,6 +298,7 @@ function PolygonEditorBanner({
   mode,
   pointCount,
   selectedPointIndex,
+  onNameChange,
   onSetMode,
   onUndo,
   onDelete,
@@ -306,6 +310,7 @@ function PolygonEditorBanner({
   mode: PolygonEditorMode;
   pointCount: number;
   selectedPointIndex: number | null;
+  onNameChange: (name: string) => void;
   onSetMode: (mode: PolygonEditorMode) => void;
   onUndo: () => void;
   onDelete: () => void;
@@ -337,8 +342,8 @@ function PolygonEditorBanner({
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-4 z-[1003] flex justify-center px-4">
-      <div className="pointer-events-auto flex w-[min(620px,100%)] items-center justify-between gap-3 rounded-xl border border-secondary/35 bg-card/96 px-3 py-2.5 shadow-2xl backdrop-blur">
-        <div className="min-w-0">
+      <div className="pointer-events-auto flex w-[min(760px,100%)] flex-col gap-2 rounded-xl border border-secondary/35 bg-card/96 px-3 py-2.5 shadow-2xl backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 flex-1">
           <p className="truncate font-serif text-sm font-semibold italic text-foreground">
             {mode === 'add' ? 'Drawing' : 'Adjusting'} {zoneType ?? 'zone'} boundary
             {zoneName ? `: ${zoneName}` : ''}
@@ -347,6 +352,17 @@ function PolygonEditorBanner({
             <Move className="h-3.5 w-3.5 shrink-0 text-secondary" />
             {statusText}
           </p>
+          {zoneType === 'region' && (
+            <label className="mt-2 flex max-w-[320px] items-center gap-2 text-[11px] text-muted-foreground">
+              <span className="shrink-0 font-semibold uppercase tracking-[0.12em]">Ime lokacije</span>
+              <input
+                value={zoneName ?? ''}
+                onChange={(event) => onNameChange(event.target.value)}
+                placeholder="opcionalno"
+                className="h-7 min-w-0 flex-1 rounded-md border border-border/70 bg-input/80 px-2 text-xs text-foreground outline-none focus:border-primary/50"
+              />
+            </label>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           <div className="flex overflow-hidden rounded-md border border-border/60">

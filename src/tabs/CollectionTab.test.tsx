@@ -180,7 +180,7 @@ describe('CollectionTab', () => {
     renderTab();
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Search species…')).toHaveValue('');
       expect(screen.getAllByText('Boletus edulis').length).toBeGreaterThan(0);
     });
 

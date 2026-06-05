@@ -1,5 +1,6 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
-import { GalleryHorizontal, Plus, ChevronDown, ChevronRight, FolderOpen, Search, X, CheckSquare, Pencil, Star, SquarePen, Trash2, BookOpen, Map as MapIcon, CalendarDays } from 'lucide-react';
+import { memo, useState, useMemo, useEffect, useRef, useDeferredValue, useCallback, type ReactNode } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { GalleryHorizontal, Plus, ChevronDown, ChevronRight, FolderOpen, Search, X, CheckSquare, Pencil, Star, SquarePen, Trash2, BookOpen, Map as MapIcon, CalendarDays, MapPin } from 'lucide-react';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -13,15 +14,19 @@ import { FolderEditDialog } from '@/components/finds/FolderEditDialog';
 import { DeleteFindDialog } from '@/components/finds/DeleteFindDialog';
 import { BulkDeleteDialog } from '@/components/finds/BulkDeleteDialog';
 import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
-import { useFinds, useSpeciesNotes, useSpeciesProfiles, useUpsertSpeciesNote, useUpsertSpeciesProfile, useBulkRenameSpecies, useSetFindFavorite, useDeleteFindPhoto } from '@/hooks/useFinds';
+import { useFinds, useFindPhotos, useSpeciesNotes, useSpeciesProfiles, useUpsertSpeciesNote, useUpsertSpeciesProfile, useBulkRenameSpecies, useSetFindFavorite, useDeleteFindPhoto } from '@/hooks/useFinds';
+import { usePhotoThumbnailSrc } from '@/hooks/usePhotoThumbnail';
 import { useAppStore } from '@/stores/appStore';
 import { useT, tFindsCount } from '@/i18n/index';
 import type { Find, SpeciesProfile } from '@/lib/finds';
-import { openSpeciesFolder, SUPPORTED_EXTENSIONS } from '@/lib/finds';
+import { getFindPhotoCount, openSpeciesFolder, SUPPORTED_EXTENSIONS } from '@/lib/finds';
 import { isInternalLibraryName } from '@/lib/internalEntries';
-import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { renderSpeciesName, plainSpeciesName, normalizeCommonName, compareSpeciesNames } from '@/lib/speciesName';
 import { formatDisplayDate } from '@/lib/dateFormat';
+
+const DATE_SEARCH_AUTO_EXPAND_LIMIT = 80;
+const COLLAPSED_SPECIES_ROW_ESTIMATE = 116;
+const OPEN_SPECIES_ROW_ESTIMATE = 280;
 
 function normalizeDateQuery(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, '');
@@ -61,6 +66,27 @@ function matchesSmartDate(isoDate: string, query: string): boolean {
   });
 }
 
+function matchesDateVariants(variants: string[], query: string): boolean {
+  const q = normalizeDateQuery(query);
+  if (!q) return true;
+  const compactQuery = q.replace(/[./-]/g, '');
+  return variants.some((variant) => {
+    const compactVariant = variant.replace(/[./-]/g, '');
+    return variant.startsWith(q) || compactVariant.startsWith(compactQuery);
+  });
+}
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [delayMs, value]);
+
+  return debounced;
+}
+
 function parseCompleteDateQuery(query: string): string | null {
   const q = normalizeDateQuery(query);
   let match = q.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
@@ -98,6 +124,21 @@ function matchesSmartMonth(isoDate: string, query: string): boolean {
   ].map(normalizeDateQuery);
   const compactQuery = q.replace(/[./-]/g, '');
   return variants.some((variant) => variant.startsWith(q) || variant.replace(/[./-]/g, '').startsWith(compactQuery));
+}
+
+function monthVariants(isoDate: string): string[] {
+  const [year, month] = isoDate.split('-');
+  if (!year || !month) return [];
+  const monthNumber = String(Number(month));
+  return [
+    `${year}-${month}`,
+    `${year}${month}`,
+    `${month}.${year}`,
+    `${monthNumber}.${year}`,
+    month,
+    monthNumber,
+    year,
+  ].map(normalizeDateQuery);
 }
 
 interface DatePartsInputProps {
@@ -177,11 +218,263 @@ function DatePartsInput({ value, onChange, includeDay = true, ariaLabel, classNa
   );
 }
 
+type CollectionT = ReturnType<typeof useT>;
+
+interface PhotoThumbnailImageProps {
+  photoPath: string;
+  size?: number;
+  alt?: string;
+  className: string;
+}
+
+const PhotoThumbnailImage = memo(function PhotoThumbnailImage({
+  photoPath,
+  size = 256,
+  alt = '',
+  className,
+}: PhotoThumbnailImageProps) {
+  const src = usePhotoThumbnailSrc(photoPath, size);
+  if (!src) return null;
+  return (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      className={className}
+      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+    />
+  );
+});
+
+interface FindRowProps {
+  find: Find;
+  index: number;
+  speciesFinds: Find[];
+  lang: string;
+  t: CollectionT;
+  speciesProfilesByName: Map<string, SpeciesProfile>;
+  selectMode: boolean;
+  selectedIds: Set<number>;
+  isExpanded: boolean;
+  onToggleSelect: (id: number) => void;
+  onOpenLightbox: (speciesFinds: Find[], findId: number, photoIndex: number) => void;
+  onSetEditing: (find: Find) => void;
+  onSetDeleting: (find: Find) => void;
+  onToggleFindExpand: (id: number) => void;
+  onViewOnMap: (find: Find) => void;
+}
+
+const FindRow = memo(function FindRow({
+  find,
+  index,
+  speciesFinds,
+  lang,
+  t,
+  speciesProfilesByName,
+  selectMode,
+  selectedIds,
+  isExpanded,
+  onToggleSelect,
+  onOpenLightbox,
+  onSetEditing,
+  onSetDeleting,
+  onToggleFindExpand,
+  onViewOnMap,
+}: FindRowProps) {
+  const firstPhoto = find.photos[0];
+  const photoCount = getFindPhotoCount(find);
+  const shouldLoadAllPhotos = isExpanded && photoCount > find.photos.length;
+  const { data: loadedPhotos } = useFindPhotos(find.id, shouldLoadAllPhotos);
+  const rowPhotos = loadedPhotos ?? find.photos;
+  const lightboxSpeciesFinds = rowPhotos === find.photos
+    ? speciesFinds
+    : speciesFinds.map((entry) => entry.id === find.id ? { ...entry, photos: rowPhotos } : entry);
+
+  return (
+    <div
+      className={`group/findrow overflow-hidden rounded border bg-card shadow-sm transition-colors ${
+        selectMode && selectedIds.has(find.id)
+          ? 'border-primary/60 bg-primary/8'
+          : 'border-border/50 hover:border-border/80'
+      }`}
+    >
+      <div
+        className={`flex items-center gap-2.5 px-3 py-2 transition-colors cursor-pointer ${
+          selectMode && selectedIds.has(find.id)
+            ? 'bg-primary/10'
+            : 'hover:bg-accent/30'
+        }`}
+        onClick={() => {
+          if (selectMode) {
+            onToggleSelect(find.id);
+          } else {
+            onOpenLightbox(speciesFinds, find.id, 0);
+          }
+        }}
+      >
+        {firstPhoto ? (
+          <PhotoThumbnailImage
+            photoPath={firstPhoto.photo_path}
+            size={128}
+            className="h-9 w-9 flex-shrink-0 rounded-sm object-cover"
+          />
+        ) : (
+          <div className="h-9 w-9 flex-shrink-0 rounded-sm bg-muted" />
+        )}
+
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium text-foreground/90 truncate">
+            <span className="font-mono text-[10px] text-muted-foreground/45 mr-1 select-none">{index + 1}.</span>
+            {find.date_found ? formatDisplayDate(find.date_found, lang) : t('collection.noDate')}
+            {find.location_note && (
+              <span className="text-muted-foreground"> · {find.location_note}</span>
+            )}
+          </p>
+          <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
+            {photoCount} {photoCount === 1 ? t('collection.photoUnit.one') : t('collection.photoUnit.many')}
+            {find.is_favorite && <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />}
+          </p>
+          <div className="mt-0.5">
+            <SpeciesMetadataBadges
+              speciesProfile={speciesProfilesByName.get(find.species_name)}
+              size="sm"
+              hideUnknown={true}
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-0.5 opacity-40 group-hover/findrow:opacity-100 focus-within:opacity-100 transition-opacity">
+          {find.lat != null && find.lng != null && (
+            <button
+              type="button"
+              className="rounded p-1 text-muted-foreground hover:text-primary hover:bg-accent transition-colors"
+              onClick={(e) => { e.stopPropagation(); onViewOnMap(find); }}
+              title={t('collection.viewOnMap')}
+            >
+              <MapIcon className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            className="rounded p-1 text-muted-foreground hover:text-primary hover:bg-accent transition-colors"
+            onClick={(e) => { e.stopPropagation(); onSetEditing(find); }}
+            title={t('findCard.edit')}
+          >
+            <SquarePen className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            className="rounded p-1 text-muted-foreground hover:text-destructive hover:bg-accent transition-colors"
+            onClick={(e) => { e.stopPropagation(); onSetDeleting(find); }}
+            title={t('collection.deleteFind')}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {photoCount > 0 && (
+          <button
+            type="button"
+            className="rounded p-1 text-muted-foreground/50 hover:text-muted-foreground hover:bg-accent/50 transition-colors flex-shrink-0"
+            onClick={(e) => { e.stopPropagation(); onToggleFindExpand(find.id); }}
+            title={isExpanded ? t('collection.hidePhotos') : t('collection.showPhotos')}
+          >
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform duration-150 ${isExpanded ? '' : '-rotate-90'}`}
+            />
+          </button>
+        )}
+      </div>
+
+      {isExpanded && rowPhotos.length > 0 && (
+        <div className="grid grid-cols-8 gap-1 border-t border-border/30 px-3 pb-3 pt-2 sm:grid-cols-10">
+          {rowPhotos.map((photo, photoIdx) => (
+            <div key={photo.id} className="group relative aspect-square overflow-hidden rounded-sm bg-muted flex items-center justify-center">
+              <GalleryHorizontal className="h-4 w-4 text-muted-foreground/20 pointer-events-none" />
+              <button
+                type="button"
+                className="absolute inset-0 w-full h-full"
+                onClick={() => onOpenLightbox(lightboxSpeciesFinds, find.id, photoIdx)}
+              >
+                <PhotoThumbnailImage
+                  photoPath={photo.photo_path}
+                  size={256}
+                  className="h-full w-full object-cover transition-transform duration-150 group-hover:scale-105"
+                />
+              </button>
+              <button
+                type="button"
+                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded p-0.5 text-white hover:bg-black/80 z-10"
+                onClick={(e) => { e.stopPropagation(); onSetEditing(find); }}
+                title={t('collection.editFind')}
+              >
+                <SquarePen className="h-3 w-3" />
+              </button>
+              {selectMode && (
+                <div
+                  className={`absolute inset-0 flex items-center justify-center transition-colors z-10 ${selectedIds.has(find.id) ? 'bg-primary/40' : 'bg-black/0 group-hover:bg-black/20'}`}
+                  onClick={(e) => { e.stopPropagation(); onToggleSelect(find.id); }}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
+
+interface SpeciesFolderProps {
+  index: number;
+  virtualIndex: number;
+  virtualStart: number;
+  isOpen: boolean;
+  isJumpTarget: boolean;
+  measureElement: (element: HTMLDivElement | null) => void;
+  children: ReactNode;
+}
+
+const SpeciesFolder = memo(function SpeciesFolder({
+  index,
+  virtualIndex,
+  virtualStart,
+  isOpen,
+  isJumpTarget,
+  measureElement,
+  children,
+}: SpeciesFolderProps) {
+  return (
+    <div
+      ref={measureElement}
+      data-index={virtualIndex}
+      className={`stagger-item overflow-hidden rounded-sm border bg-card ${
+        isJumpTarget
+          ? 'border-primary border-l-[3px] ring-1 ring-primary/30'
+          : isOpen
+            ? 'border-primary/60 border-l-[3px]'
+            : 'border-border/70'
+      }`}
+      style={{
+        animationDelay: `${Math.min(index * 30, 300)}ms`,
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        transform: `translateY(${virtualStart}px)`,
+        contentVisibility: 'auto',
+        containIntrinsicSize: isOpen ? `${OPEN_SPECIES_ROW_ESTIMATE}px` : `${COLLAPSED_SPECIES_ROW_ESTIMATE}px`,
+      }}
+    >
+      {children}
+    </div>
+  );
+});
+
 export default function CollectionTab() {
   const t = useT();
   const lang = useAppStore((s) => s.language);
   const storagePath = useAppStore((s) => s.storagePath);
-  const photoAssetVersion = useAppStore((s) => s.photoAssetVersion);
   const editingFindId = useAppStore((s) => s.editingFindId);
   const setEditingFindId = useAppStore((s) => s.setEditingFindId);
   const selectedCollectionSpecies = useAppStore((s) => s.selectedCollectionSpecies);
@@ -190,7 +483,6 @@ export default function CollectionTab() {
   const setPendingSpeciesSelection = useAppStore((s) => s.setPendingSpeciesSelection);
   const setPendingMapCenter = useAppStore((s) => s.setPendingMapCenter);
   const setPendingMapSpeciesFilter = useAppStore((s) => s.setPendingMapSpeciesFilter);
-  const { data: finds, isLoading, isError, error } = useFinds();
   const { data: speciesNotesData } = useSpeciesNotes();
   const { data: speciesProfiles } = useSpeciesProfiles();
   const upsertNote = useUpsertSpeciesNote();
@@ -198,6 +490,7 @@ export default function CollectionTab() {
   const setFindFavorite = useSetFindFavorite();
   const deletePhotoMutation = useDeleteFindPhoto();
 
+  const [contentScrollElement, setContentScrollElement] = useState<HTMLDivElement | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [createFindOpen, setCreateFindOpen] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
@@ -207,14 +500,71 @@ export default function CollectionTab() {
   const [deleting, setDeleting] = useState<Find | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
+  const [locationSearch, setLocationSearch] = useState('');
   const [focusedSpeciesFilter, setFocusedSpeciesFilter] = useState<string | null>(null);
   const [dateFilterMode, setDateFilterMode] = useState<'exact' | 'range' | 'month' | 'year'>('exact');
   const [dateSearch, setDateSearch] = useState('');
   const [dateSearchEnd, setDateSearchEnd] = useState('');
   const [monthSearch, setMonthSearch] = useState('');
   const [yearSearch, setYearSearch] = useState('');
+  const deferredSearch = useDeferredValue(search);
+  const deferredLocationSearch = useDeferredValue(locationSearch);
+  const deferredDateSearch = useDeferredValue(dateSearch);
+  const deferredDateSearchEnd = useDeferredValue(dateSearchEnd);
+  const deferredMonthSearch = useDeferredValue(monthSearch);
+  const deferredYearSearch = useDeferredValue(yearSearch);
+  const debouncedSearch = useDebouncedValue(deferredSearch, 180);
+  const debouncedLocationSearch = useDebouncedValue(deferredLocationSearch, 180);
+  const debouncedDateSearch = useDebouncedValue(deferredDateSearch, 180);
+  const debouncedDateSearchEnd = useDebouncedValue(deferredDateSearchEnd, 180);
+  const debouncedMonthSearch = useDebouncedValue(deferredMonthSearch, 180);
+  const debouncedYearSearch = useDebouncedValue(deferredYearSearch, 180);
   const [jumpTargetSpecies, setJumpTargetSpecies] = useState<string | null>(null);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+
+  const collectionFindFilters = useMemo(() => {
+    const filters: {
+      speciesQuery?: string;
+      locationQuery?: string;
+      favoritesOnly?: boolean;
+      dateStart?: string;
+      dateEnd?: string;
+      datePrefix?: string;
+      photosMode: 'primary';
+      limit: number;
+      offset: number;
+    } = { photosMode: 'primary', limit: 1000, offset: 0 };
+    const speciesQuery = plainSpeciesName(debouncedSearch).trim();
+    const locationQuery = debouncedLocationSearch.trim();
+    if (speciesQuery) filters.speciesQuery = speciesQuery;
+    if (locationQuery) filters.locationQuery = locationQuery;
+    if (favoritesOnly) filters.favoritesOnly = true;
+
+    if (dateFilterMode === 'exact') {
+      const complete = parseCompleteDateQuery(debouncedDateSearch);
+      if (complete) {
+        filters.dateStart = complete;
+        filters.dateEnd = complete;
+      }
+    } else if (dateFilterMode === 'range') {
+      const start = parseCompleteDateQuery(debouncedDateSearch);
+      const end = parseCompleteDateQuery(debouncedDateSearchEnd);
+      if (start) filters.dateStart = start;
+      if (end) filters.dateEnd = end;
+    } else if (dateFilterMode === 'month') {
+      const [month, year] = splitDateParts(debouncedMonthSearch, false);
+      if (year?.length === 4) {
+        filters.datePrefix = month ? `${year}-${month.padStart(2, '0')}` : year;
+      }
+    } else {
+      const year = debouncedYearSearch.trim();
+      if (/^\d{4}$/.test(year)) filters.datePrefix = year;
+    }
+
+    return filters;
+  }, [dateFilterMode, debouncedDateSearch, debouncedDateSearchEnd, debouncedLocationSearch, debouncedMonthSearch, debouncedSearch, debouncedYearSearch, favoritesOnly]);
+
+  const { data: finds, isLoading, isError, error } = useFinds(collectionFindFilters);
 
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
 
@@ -229,14 +579,14 @@ export default function CollectionTab() {
   const bulkRename = useBulkRenameSpecies();
 
   const [expandedFinds, setExpandedFinds] = useState<Set<number>>(new Set());
-  const toggleFindExpand = (id: number) => {
+  const toggleFindExpand = useCallback((id: number) => {
     setExpandedFinds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  };
+  }, []);
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -244,7 +594,13 @@ export default function CollectionTab() {
   const [lightboxFallbackFind, setLightboxFallbackFind] = useState<Find | null>(null);
   const [lightboxSpeciesName, setLightboxSpeciesName] = useState<string | null>(null);
 
-  const openLightbox = (speciesFinds: Find[], findId: number, photoIndex: number) => {
+  const handleViewFindOnMap = useCallback((target: Find) => {
+    if (target.lat == null || target.lng == null) return;
+    setPendingMapCenter({ lat: target.lat, lng: target.lng, zoom: 16 });
+    setActiveTab('map');
+  }, [setActiveTab, setPendingMapCenter]);
+
+  const openLightbox = useCallback((speciesFinds: Find[], findId: number, photoIndex: number) => {
     const fallbackFind = speciesFinds.find((f) => f.id === findId) ?? null;
     const targetPhoto = fallbackFind?.photos[photoIndex];
     if (!targetPhoto) {
@@ -277,16 +633,16 @@ export default function CollectionTab() {
     setLightboxFallbackFind(fallbackFind);
     setLightboxSpeciesName(fallbackFind?.species_name ?? speciesFinds[0]?.species_name ?? null);
     setLightboxOpen(true);
-  };
+  }, []);
 
-  const toggleSelect = (id: number) => {
+  const toggleSelect = useCallback((id: number) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  };
+  }, []);
 
   const enterSelectMode = () => {
     setSelectMode(true);
@@ -371,6 +727,18 @@ export default function CollectionTab() {
     [allGroups, favoritesOnly],
   );
 
+  const dateLookupByFindId = useMemo(() => {
+    const lookup = new Map<number, { dateVariants: string[]; monthVariants: string[] }>();
+    for (const find of finds ?? []) {
+      if (!find.date_found) continue;
+      lookup.set(find.id, {
+        dateVariants: dateVariants(find.date_found),
+        monthVariants: monthVariants(find.date_found),
+      });
+    }
+    return lookup;
+  }, [finds]);
+
   useEffect(() => {
     if (!selectedCollectionSpecies || allGroups.length === 0) return;
 
@@ -383,8 +751,9 @@ export default function CollectionTab() {
 
     setExpanded(new Set([resolvedSpecies]));
     setExpandedFinds(new Set());
-    setFocusedSpeciesFilter(resolvedSpecies);
-    setSearch(plainSpeciesName(resolvedSpecies));
+    setFocusedSpeciesFilter(null);
+    setSearch('');
+    setLocationSearch('');
     setDateSearch('');
     setDateSearchEnd('');
     setMonthSearch('');
@@ -409,37 +778,44 @@ export default function CollectionTab() {
         plainSpeciesName(name).toLowerCase() === plainFocused
       ));
     }
-    if (!search.trim()) return groups;
-    const q = plainSpeciesName(search).trim().toLowerCase();
+    if (!deferredSearch.trim()) return groups;
+    const q = plainSpeciesName(deferredSearch).trim().toLowerCase();
     return groups.filter(([name]) => plainSpeciesName(name).toLowerCase().startsWith(q));
-  }, [focusedSpeciesFilter, groups, search]);
+  }, [deferredSearch, focusedSpeciesFilter, groups]);
   const filteredGroups = useMemo(() => {
     const matchesDateFilter = (find: Find) => {
       if (!find.date_found) return false;
-      if (dateFilterMode === 'exact') return matchesSmartDate(find.date_found, dateSearch);
+      if (dateFilterMode === 'exact') {
+        const lookup = dateLookupByFindId.get(find.id);
+        return lookup ? matchesDateVariants(lookup.dateVariants, deferredDateSearch) : matchesSmartDate(find.date_found, deferredDateSearch);
+      }
       if (dateFilterMode === 'range') {
-        if (!dateSearch && !dateSearchEnd) return true;
-        const start = parseCompleteDateQuery(dateSearch);
-        const end = parseCompleteDateQuery(dateSearchEnd);
+        if (!deferredDateSearch && !deferredDateSearchEnd) return true;
+        const start = parseCompleteDateQuery(deferredDateSearch);
+        const end = parseCompleteDateQuery(deferredDateSearchEnd);
         if (start && find.date_found < start) return false;
         if (end && find.date_found > end) return false;
-        if (!start && dateSearch && !matchesSmartDate(find.date_found, dateSearch)) return false;
-        if (!end && dateSearchEnd && !matchesSmartDate(find.date_found, dateSearchEnd)) return false;
+        const lookup = dateLookupByFindId.get(find.id);
+        if (!start && deferredDateSearch && !(lookup ? matchesDateVariants(lookup.dateVariants, deferredDateSearch) : matchesSmartDate(find.date_found, deferredDateSearch))) return false;
+        if (!end && deferredDateSearchEnd && !(lookup ? matchesDateVariants(lookup.dateVariants, deferredDateSearchEnd) : matchesSmartDate(find.date_found, deferredDateSearchEnd))) return false;
         return true;
       }
-      if (dateFilterMode === 'month') return matchesSmartMonth(find.date_found, monthSearch);
-      return yearSearch.trim() ? find.date_found.startsWith(yearSearch.trim()) : true;
+      if (dateFilterMode === 'month') {
+        const lookup = dateLookupByFindId.get(find.id);
+        return lookup ? matchesDateVariants(lookup.monthVariants, deferredMonthSearch) : matchesSmartMonth(find.date_found, deferredMonthSearch);
+      }
+      return deferredYearSearch.trim() ? find.date_found.startsWith(deferredYearSearch.trim()) : true;
     };
     const hasDateFilter =
-      (dateFilterMode === 'exact' && dateSearch) ||
-      (dateFilterMode === 'range' && (dateSearch || dateSearchEnd)) ||
-      (dateFilterMode === 'month' && monthSearch) ||
-      (dateFilterMode === 'year' && yearSearch.trim());
+      (dateFilterMode === 'exact' && deferredDateSearch) ||
+      (dateFilterMode === 'range' && (deferredDateSearch || deferredDateSearchEnd)) ||
+      (dateFilterMode === 'month' && deferredMonthSearch) ||
+      (dateFilterMode === 'year' && deferredYearSearch.trim());
     if (!hasDateFilter) return speciesFilteredGroups;
     return speciesFilteredGroups
       .map(([name, speciesFinds]) => [name, speciesFinds.filter(matchesDateFilter)] as [string, Find[]])
       .filter(([, speciesFinds]) => speciesFinds.length > 0);
-  }, [dateFilterMode, dateSearch, dateSearchEnd, monthSearch, speciesFilteredGroups, yearSearch]);
+  }, [dateFilterMode, dateLookupByFindId, deferredDateSearch, deferredDateSearchEnd, deferredMonthSearch, deferredYearSearch, speciesFilteredGroups]);
 
   const speciesNames = useMemo(
     () => groups.map(([name]) => name).filter((n) => n !== '(unnamed)'),
@@ -452,11 +828,42 @@ export default function CollectionTab() {
   }, [speciesNames, moveTarget]);
 
   const isSearching = search.trim().length > 0;
+  const isLocationSearching = locationSearch.trim().length > 0;
   const isDateSearching =
     (dateFilterMode === 'exact' && dateSearch.length > 0) ||
     (dateFilterMode === 'range' && (dateSearch.length > 0 || dateSearchEnd.length > 0)) ||
     (dateFilterMode === 'month' && monthSearch.length > 0) ||
     (dateFilterMode === 'year' && yearSearch.trim().length > 0);
+  const filteredFindCount = useMemo(
+    () => filteredGroups.reduce((sum, [, speciesFinds]) => sum + speciesFinds.length, 0),
+    [filteredGroups],
+  );
+  const autoExpandDateResults = isDateSearching && filteredFindCount <= DATE_SEARCH_AUTO_EXPAND_LIMIT;
+  const estimateSpeciesFolderSize = (index: number) => {
+    const speciesName = filteredGroups[index]?.[0];
+    const isOpen = Boolean(speciesName && (autoExpandDateResults || expanded.has(speciesName)));
+    return (isOpen ? OPEN_SPECIES_ROW_ESTIMATE : COLLAPSED_SPECIES_ROW_ESTIMATE) + 8;
+  };
+  const speciesFolderVirtualizer = useVirtualizer({
+    count: filteredGroups.length,
+    getScrollElement: () => contentScrollElement,
+    estimateSize: estimateSpeciesFolderSize,
+    getItemKey: (index) => filteredGroups[index]?.[0] ?? index,
+    initialRect: { width: 1024, height: 768 },
+    measureElement: (element) => element.getBoundingClientRect().height + 8,
+    overscan: 6,
+  });
+  const virtualSpeciesFolders = speciesFolderVirtualizer.getVirtualItems();
+  const renderedSpeciesFolders = useMemo(() => {
+    if (virtualSpeciesFolders.length > 0) return virtualSpeciesFolders;
+    let start = 0;
+    return filteredGroups.map(([speciesName], index) => {
+      const size = estimateSpeciesFolderSize(index);
+      const row = { key: speciesName, index, start, size };
+      start += size;
+      return row;
+    });
+  }, [filteredGroups, virtualSpeciesFolders]);
   const clearDateSearch = () => {
     setDateSearch('');
     setDateSearchEnd('');
@@ -468,6 +875,7 @@ export default function CollectionTab() {
       dateFilterMode === 'year' ? yearSearch :
         dateFilterMode === 'range' ? [dateSearch, dateSearchEnd].filter(Boolean).join(' - ') :
           dateSearch;
+  const activeSearchLabel = dateSearchLabel || locationSearch || search;
   const favoriteCount = useMemo(
     () => (finds ?? []).filter((find) => find.is_favorite && !isInternalLibraryName(find.species_name)).length,
     [finds],
@@ -600,6 +1008,28 @@ export default function CollectionTab() {
                     setSearch('');
                   }}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="relative w-56 flex-shrink-0">
+              <MapPin className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                value={locationSearch}
+                onChange={(e) => setLocationSearch(e.target.value)}
+                placeholder={t('collection.locationSearch')}
+                aria-label={t('collection.locationSearch')}
+                className="h-9 w-full rounded-md border border-border bg-input pl-8 pr-8 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40 transition-colors"
+              />
+              {isLocationSearching && (
+                <button
+                  type="button"
+                  onClick={() => setLocationSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label={t('collection.clearLocationSearch')}
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -779,7 +1209,7 @@ export default function CollectionTab() {
       )}
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-4 pb-10 space-y-2">
+      <div ref={setContentScrollElement} className="flex-1 overflow-auto p-4 pb-10">
         {isLoading && (
           <p className="text-sm text-muted-foreground px-1">{t('collection.loading')}</p>
         )}
@@ -795,30 +1225,36 @@ export default function CollectionTab() {
             body={t('collection.empty.body')}
           />
         )}
-        {!isLoading && !isError && (isSearching || isDateSearching) && filteredGroups.length === 0 && (
+        {!isLoading && !isError && (isSearching || isLocationSearching || isDateSearching) && filteredGroups.length === 0 && (
           <p className="text-sm text-muted-foreground px-1 pt-4 text-center">
-            {t('collection.noResults', { search: dateSearchLabel || search })}
+            {t('collection.noResults', { search: activeSearchLabel })}
           </p>
         )}
-        {!isLoading && !isError && favoritesOnly && filteredGroups.length === 0 && !isSearching && !isDateSearching && (
+        {!isLoading && !isError && favoritesOnly && filteredGroups.length === 0 && !isSearching && !isLocationSearching && !isDateSearching && (
           <p className="text-sm text-muted-foreground px-1 pt-4 text-center">
             {t('collection.noFavorites')}
           </p>
         )}
 
         {/* Species folders */}
-        {filteredGroups.map(([speciesName, speciesFinds], idx) => {
-          const isOpen = isDateSearching || expanded.has(speciesName);
+        {!isLoading && !isError && filteredGroups.length > 0 && (
+          <div
+            className="relative w-full"
+            style={{ height: `${speciesFolderVirtualizer.getTotalSize()}px` }}
+          >
+            {renderedSpeciesFolders.map((virtualRow) => {
+              const group = filteredGroups[virtualRow.index];
+              if (!group) return null;
+              const [speciesName, speciesFinds] = group;
+              const idx = virtualRow.index;
+          const isOpen = autoExpandDateResults || expanded.has(speciesName);
+          const canToggleFolder = !autoExpandDateResults;
           const profile = speciesProfilesByName.get(speciesName) ?? null;
           const commonName = normalizeCommonName(profile?.common_name, speciesName);
           const coverPhotoId = profile?.cover_photo_id ?? null;
           const representativePhoto = speciesFinds
             .flatMap((find) => find.photos)
             .find((photo) => photo.id === coverPhotoId) ?? speciesFinds[0]?.photos[0] ?? null;
-          const primaryPhoto = representativePhoto;
-          const thumbSrc = primaryPhoto
-            ? resolvePhotoSrc(storagePath!, primaryPhoto.photo_path, photoAssetVersion)
-            : null;
           const isJumpTarget = speciesName === jumpTargetSpecies;
           const speciesFavoriteCount = speciesFinds.filter((find) => find.is_favorite).length;
 
@@ -830,21 +1266,19 @@ export default function CollectionTab() {
             : 0;
 
           return (
-            <div
+            <SpeciesFolder
               key={speciesName}
-              className={`stagger-item overflow-hidden rounded-sm border bg-card ${
-                isJumpTarget
-                  ? 'border-primary border-l-[3px] ring-1 ring-primary/30'
-                  : isOpen
-                    ? 'border-primary/60 border-l-[3px]'
-                    : 'border-border/70'
-              }`}
-              style={{ animationDelay: `${Math.min(idx * 30, 300)}ms` }}
+              index={idx}
+              virtualIndex={virtualRow.index}
+              virtualStart={virtualRow.start}
+              isOpen={isOpen}
+              isJumpTarget={isJumpTarget}
+              measureElement={speciesFolderVirtualizer.measureElement}
             >
               {/* Folder header */}
               <div className={`group relative flex w-full items-center gap-3 px-4 py-3 transition-colors duration-150 hover:bg-accent/60 ${isOpen ? 'bg-accent/20' : ''}`}>
                 {/* Thumbnail — separate button opens lightbox */}
-                {thumbSrc ? (
+                {representativePhoto ? (
                   <button
                     type="button"
                     className="flex-shrink-0 overflow-hidden rounded-sm h-11 w-11 focus:outline-none focus:ring-2 focus:ring-ring/40"
@@ -854,11 +1288,11 @@ export default function CollectionTab() {
                     }}
                     title={t('collection.openPhoto')}
                   >
-                    <img
-                      src={thumbSrc}
+                    <PhotoThumbnailImage
+                      photoPath={representativePhoto.photo_path}
+                      size={160}
                       alt={speciesName}
                       className="h-11 w-11 object-cover transition-transform duration-150 hover:scale-110"
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                     />
                   </button>
                 ) : (
@@ -870,7 +1304,7 @@ export default function CollectionTab() {
                   <button
                     type="button"
                     className="flex flex-1 min-w-0 items-center gap-3 text-left"
-                  onClick={() => !isDateSearching && toggleExpand(speciesName)}
+                  onClick={() => canToggleFolder && toggleExpand(speciesName)}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -895,7 +1329,7 @@ export default function CollectionTab() {
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
                       {tFindsCount(speciesFinds.length, lang)}
                       {' · '}
-                      {(() => { const n = speciesFinds.flatMap(f => f.photos).length; return `${n} ${n === 1 ? t('collection.photoUnit.one') : t('collection.photoUnit.many')}`; })()}
+                      {(() => { const n = speciesFinds.reduce((sum, find) => sum + getFindPhotoCount(find), 0); return `${n} ${n === 1 ? t('collection.photoUnit.one') : t('collection.photoUnit.many')}`; })()}
                     </p>
                     <div className="mt-1">
                       <SpeciesMetadataBadges
@@ -980,9 +1414,9 @@ export default function CollectionTab() {
                 <button
                   type="button"
                   className="flex-shrink-0"
-                  onClick={() => !isDateSearching && toggleExpand(speciesName)}
+                  onClick={() => canToggleFolder && toggleExpand(speciesName)}
                   tabIndex={-1}
-                  disabled={isDateSearching}
+                  disabled={!canToggleFolder}
                 >
                   {isOpen
                     ? <ChevronDown className="h-4 w-4 text-muted-foreground/50" />
@@ -1048,158 +1482,34 @@ export default function CollectionTab() {
                     <div className="h-px flex-1 bg-border/40" />
                   </div>
                   <div className="flex flex-col gap-2">
-                    {speciesFinds.map((f, idx) => {
-                      const isExpanded = expandedFinds.has(f.id);
-                      const firstPhoto = f.photos[0];
-                      const rowThumbSrc = firstPhoto ? resolvePhotoSrc(storagePath!, firstPhoto.photo_path, photoAssetVersion) : null;
-                      return (
-                        <div
-                          key={f.id}
-                          className={`group/findrow overflow-hidden rounded border bg-card shadow-sm transition-colors ${
-                            selectMode && selectedIds.has(f.id)
-                              ? 'border-primary/60 bg-primary/8'
-                              : 'border-border/50 hover:border-border/80'
-                          }`}
-                        >
-                          {/* Find header row */}
-                          <div
-                            className={`flex items-center gap-2.5 px-3 py-2 transition-colors cursor-pointer ${
-                              selectMode && selectedIds.has(f.id)
-                                ? 'bg-primary/10'
-                                : 'hover:bg-accent/30'
-                            }`}
-                            onClick={() => {
-                              if (selectMode) {
-                                toggleSelect(f.id);
-                              } else {
-                                openLightbox(speciesFinds, f.id, 0);
-                              }
-                            }}
-                          >
-                            {/* Thumbnail */}
-                            {rowThumbSrc ? (
-                              <img
-                                src={rowThumbSrc}
-                                alt=""
-                                className="h-9 w-9 flex-shrink-0 rounded-sm object-cover"
-                                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                              />
-                            ) : (
-                              <div className="h-9 w-9 flex-shrink-0 rounded-sm bg-muted" />
-                            )}
-
-                            {/* Info */}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium text-foreground/90 truncate">
-                                <span className="font-mono text-[10px] text-muted-foreground/45 mr-1 select-none">{idx + 1}.</span>
-                                {f.date_found ? formatDisplayDate(f.date_found, lang) : t('collection.noDate')}
-                                {f.location_note && (
-                                  <span className="text-muted-foreground"> · {f.location_note}</span>
-                                )}
-                              </p>
-                              <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                                {f.photos.length} {f.photos.length === 1 ? t('collection.photoUnit.one') : t('collection.photoUnit.many')}
-                                {f.is_favorite && <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />}
-                              </p>
-                              <div className="mt-0.5">
-                                <SpeciesMetadataBadges
-                                  speciesProfile={speciesProfilesByName.get(f.species_name)}
-                                  size="sm"
-                                  hideUnknown={true}
-                                />
-                              </div>
-                            </div>
-
-                            {/* Actions — visible on hover */}
-                            <div className="flex items-center gap-0.5 opacity-40 group-hover/findrow:opacity-100 focus-within:opacity-100 transition-opacity">
-                              {f.lat != null && f.lng != null && (
-                                <button
-                                  type="button"
-                                  className="rounded p-1 text-muted-foreground hover:text-primary hover:bg-accent transition-colors"
-                                  onClick={(e) => { e.stopPropagation(); setPendingMapCenter({ lat: f.lat!, lng: f.lng!, zoom: 16 }); setActiveTab('map'); }}
-                                  title={t('collection.viewOnMap')}
-                                >
-                                  <MapIcon className="h-3.5 w-3.5" />
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                className="rounded p-1 text-muted-foreground hover:text-primary hover:bg-accent transition-colors"
-                                onClick={(e) => { e.stopPropagation(); setEditing(f); }}
-                                title={t('findCard.edit')}
-                              >
-                                <SquarePen className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                className="rounded p-1 text-muted-foreground hover:text-destructive hover:bg-accent transition-colors"
-                                onClick={(e) => { e.stopPropagation(); setDeleting(f); }}
-                                title={t('collection.deleteFind')}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-
-                            {/* Expand chevron */}
-                            {f.photos.length > 0 && (
-                              <button
-                                type="button"
-                                className="rounded p-1 text-muted-foreground/50 hover:text-muted-foreground hover:bg-accent/50 transition-colors flex-shrink-0"
-                                onClick={(e) => { e.stopPropagation(); toggleFindExpand(f.id); }}
-                                title={isExpanded ? t('collection.hidePhotos') : t('collection.showPhotos')}
-                              >
-                                <ChevronDown
-                                  className={`h-3.5 w-3.5 transition-transform duration-150 ${isExpanded ? '' : '-rotate-90'}`}
-                                />
-                              </button>
-                            )}
-                          </div>
-
-                          {/* Photo grid — collapsible */}
-                          {isExpanded && f.photos.length > 0 && (
-                            <div className="grid grid-cols-8 gap-1 border-t border-border/30 px-3 pb-3 pt-2 sm:grid-cols-10">
-                              {f.photos.map((photo, photoIdx) => (
-                                <div key={photo.id} className="group relative aspect-square overflow-hidden rounded-sm bg-muted flex items-center justify-center">
-                                  <GalleryHorizontal className="h-4 w-4 text-muted-foreground/20 pointer-events-none" />
-                                  <button
-                                    type="button"
-                                    className="absolute inset-0 w-full h-full"
-                                    onClick={() => openLightbox(speciesFinds, f.id, photoIdx)}
-                                  >
-                                    <img
-                                      src={resolvePhotoSrc(storagePath!, photo.photo_path, photoAssetVersion)}
-                                      alt=""
-                                      className="h-full w-full object-cover transition-transform duration-150 group-hover:scale-105"
-                                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                                    />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded p-0.5 text-white hover:bg-black/80 z-10"
-                                    onClick={(e) => { e.stopPropagation(); setEditing(f); }}
-                                    title={t('collection.editFind')}
-                                  >
-                                    <SquarePen className="h-3 w-3" />
-                                  </button>
-                                  {selectMode && (
-                                    <div
-                                      className={`absolute inset-0 flex items-center justify-center transition-colors z-10 ${selectedIds.has(f.id) ? 'bg-primary/40' : 'bg-black/0 group-hover:bg-black/20'}`}
-                                      onClick={(e) => { e.stopPropagation(); toggleSelect(f.id); }}
-                                    />
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                    {speciesFinds.map((find, findIndex) => (
+                      <FindRow
+                        key={find.id}
+                        find={find}
+                        index={findIndex}
+                        speciesFinds={speciesFinds}
+                        lang={lang}
+                        t={t}
+                        speciesProfilesByName={speciesProfilesByName}
+                        selectMode={selectMode}
+                        selectedIds={selectedIds}
+                        isExpanded={expandedFinds.has(find.id)}
+                        onToggleSelect={toggleSelect}
+                        onOpenLightbox={openLightbox}
+                        onSetEditing={setEditing}
+                        onSetDeleting={setDeleting}
+                        onToggleFindExpand={toggleFindExpand}
+                        onViewOnMap={handleViewFindOnMap}
+                      />
+                    ))}
                   </div>
                 </div>
               )}
-            </div>
+            </SpeciesFolder>
           );
-        })}
+          })}
+        </div>
+        )}
       </div>
 
       <ImportDialog

@@ -9,11 +9,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useAppStore, saveMapViewport, loadMapViewport } from '@/stores/appStore';
 import { applyLeafletIconFix } from './leafletIconFix';
 import { createRustProxyTileLayer } from './RustProxyTileLayer';
 import type { MapLayer } from '@/stores/appStore';
 import { useFinds } from '@/hooks/useFinds';
+import { useZones } from '@/hooks/useZones';
+import { findContainingRegionZone } from '@/lib/zones';
 import { PickerPins } from './PickerPins';
 import { SpeciesFilterPanel } from './SpeciesFilterPanel';
 import { isInternalLibraryName } from '@/lib/internalEntries';
@@ -182,6 +185,10 @@ export function LocationPickerMap({
     initialLatLng ?? null,
   );
   const [pinLabel, setPinLabel] = useState<string | null>(null);
+  const [pinLocationNote, setPinLocationNote] = useState<string | null>(null);
+  const [manualLat, setManualLat] = useState('');
+  const [manualLng, setManualLng] = useState('');
+  const [manualError, setManualError] = useState<string | null>(null);
   const [selectedSpecies, setSelectedSpecies] = useState<Set<string>>(new Set());
   const [filterOpen, setFilterOpen] = useState(false);
 
@@ -203,7 +210,11 @@ export function LocationPickerMap({
   useEffect(() => {
     if (open) {
       setPin(initialLatLng ?? null);
+      setManualLat(initialLatLng ? String(initialLatLng.lat) : '');
+      setManualLng(initialLatLng ? String(initialLatLng.lng) : '');
+      setManualError(null);
       setPinLabel(null);
+      setPinLocationNote(null);
       setFilterOpen(false);
       const sv = !initialLatLng ? loadMapViewport() : null;
       currentZoomRef.current = initialLatLng ? EXISTING_PIN_ZOOM : (sv?.zoom ?? CROATIA_ZOOM);
@@ -211,6 +222,7 @@ export function LocationPickerMap({
   }, [open, initialLatLng]);
 
   const { data: finds } = useFinds();
+  const { data: zones } = useZones();
   const visibleFinds = (finds ?? []).filter((find) => !isInternalLibraryName(find.species_name));
   const allSpecies = Array.from(new Set(visibleFinds.map((find) => find.species_name).filter(Boolean)))
     .sort(compareSpeciesNames);
@@ -225,6 +237,25 @@ export function LocationPickerMap({
       else next.add(name);
       return next;
     });
+  }
+
+  function setPickedCoordinate(lat: number, lng: number, existingLocationNote?: string | null, fallbackLabel?: string | null) {
+    const containingRegion = findContainingRegionZone(zones ?? [], lat, lng);
+    setPin({ lat, lng });
+    setManualLat(formatManualCoordinate(lat));
+    setManualLng(formatManualCoordinate(lng));
+    setManualError(null);
+    setPinLabel(containingRegion?.name ?? fallbackLabel ?? null);
+    setPinLocationNote(existingLocationNote?.trim() || containingRegion?.name || null);
+  }
+
+  function applyManualCoordinates() {
+    const parsed = parseManualCoordinates(manualLat, manualLng);
+    if (!parsed) {
+      setManualError('Unesi GPS koordinate kao lat/lng, npr. 45.7542 i 16.0186.');
+      return;
+    }
+    setPickedCoordinate(parsed.lat, parsed.lng);
   }
 
   return (
@@ -253,17 +284,15 @@ export function LocationPickerMap({
                 <PickerFitButton finds={filteredFinds} />
                 <ClickHandler
                   onPick={(latlng) => {
-                    setPin({ lat: latlng.lat, lng: latlng.lng });
-                    setPinLabel(null);
+                    setPickedCoordinate(latlng.lat, latlng.lng);
                   }}
                 />
 
               {/* Existing find pins — click to adopt that location, no popup */}
                 <PickerPins
                   finds={filteredFinds}
-                  onPickLocation={(lat, lng, label) => {
-                    setPin({ lat, lng });
-                    setPinLabel(label);
+                  onPickLocation={(lat, lng, label, locationNote) => {
+                    setPickedCoordinate(lat, lng, locationNote, label);
                   }}
                 />
 
@@ -275,8 +304,7 @@ export function LocationPickerMap({
                     eventHandlers={{
                       dragend: (e) => {
                         const ll = (e.target as L.Marker).getLatLng();
-                        setPin({ lat: ll.lat, lng: ll.lng });
-                        setPinLabel(null);
+                        setPickedCoordinate(ll.lat, ll.lng);
                       },
                     }}
                   >
@@ -298,6 +326,51 @@ export function LocationPickerMap({
               />
             </>
           )}
+        </div>
+
+        <div className="shrink-0 border-t border-border/40 bg-secondary/10 px-5 py-3">
+          <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Latitude
+              </label>
+              <Input
+                value={manualLat}
+                onChange={(event) => {
+                  setManualLat(event.target.value);
+                  setManualError(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') applyManualCoordinates();
+                }}
+                inputMode="decimal"
+                placeholder="45.7542"
+                className="h-8 font-mono text-xs"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Longitude
+              </label>
+              <Input
+                value={manualLng}
+                onChange={(event) => {
+                  setManualLng(event.target.value);
+                  setManualError(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') applyManualCoordinates();
+                }}
+                inputMode="decimal"
+                placeholder="16.0186"
+                className="h-8 font-mono text-xs"
+              />
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={applyManualCoordinates}>
+              Primijeni GPS
+            </Button>
+          </div>
+          {manualError && <p className="mt-1 text-xs text-destructive">{manualError}</p>}
         </div>
 
         {/* Footer */}
@@ -328,7 +401,7 @@ export function LocationPickerMap({
             onClick={() => {
               if (pin) {
                 saveMapViewport(pin.lat, pin.lng, currentZoomRef.current);
-                onConfirm(pin.lat, pin.lng, pinLabel ?? undefined);
+                onConfirm(pin.lat, pin.lng, pinLocationNote ?? undefined);
               }
             }}
             className="shrink-0"
@@ -342,3 +415,42 @@ export function LocationPickerMap({
 }
 
 export default LocationPickerMap;
+
+function formatManualCoordinate(value: number): string {
+  return Number.isFinite(value) ? Number(value.toFixed(6)).toString() : '';
+}
+
+function parseManualCoordinates(latInput: string, lngInput: string): { lat: number; lng: number } | null {
+  const explicitLat = parseManualNumber(latInput);
+  const explicitLng = parseManualNumber(lngInput);
+  if (explicitLat != null && explicitLng != null && isValidLatLng(explicitLat, explicitLng)) {
+    return { lat: explicitLat, lng: explicitLng };
+  }
+
+  if (!lngInput.trim()) {
+    const pair = extractCoordinatePair(latInput);
+    if (pair && isValidLatLng(pair.lat, pair.lng)) return pair;
+  }
+
+  return null;
+}
+
+function parseManualNumber(value: string): number | null {
+  const normalized = value.trim().replace(',', '.');
+  if (!normalized) return null;
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function extractCoordinatePair(value: string): { lat: number; lng: number } | null {
+  const matches = value.match(/[-+]?\d+(?:[.,]\d+)?/g);
+  if (!matches || matches.length < 2) return null;
+  const lat = parseManualNumber(matches[0]);
+  const lng = parseManualNumber(matches[1]);
+  if (lat == null || lng == null) return null;
+  return { lat, lng };
+}
+
+function isValidLatLng(lat: number, lng: number): boolean {
+  return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+}

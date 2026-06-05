@@ -18,6 +18,7 @@ const findsMock = vi.hoisted(() => ({
   data: [] as Array<{
     id: number;
     species_name: string;
+    location_note?: string;
     lat: number | null;
     lng: number | null;
   }>,
@@ -28,8 +29,32 @@ vi.mock('leaflet', () => ({
     control: {
       layers: leafletMocks.layers,
     },
+    DomEvent: {
+      disableClickPropagation: vi.fn(),
+      disableScrollPropagation: vi.fn(),
+      stopPropagation: vi.fn(),
+      preventDefault: vi.fn(),
+    },
     divIcon: vi.fn(() => ({ options: {} })),
   },
+}));
+
+const zonesMock = vi.hoisted(() => ({
+  data: [] as Array<{
+    id: number;
+    species_name: string;
+    zone_type: 'local' | 'region';
+    name: string;
+    geometry_type: 'circle' | 'polygon';
+    center_lat: number | null;
+    center_lng: number | null;
+    radius_meters: number | null;
+    polygon_json: string;
+    source_find_id: number | null;
+    notes: string;
+    created_at: string;
+    updated_at: string;
+  }>,
 }));
 
 // Mock react-leaflet to avoid DOM rendering issues in jsdom
@@ -53,8 +78,10 @@ vi.mock('react-leaflet', () => ({
   ),
   Marker: ({
     position,
+    children,
   }: {
     position: [number, number];
+    children?: React.ReactNode;
     draggable?: boolean;
     eventHandlers?: Record<string, unknown>;
   }) => (
@@ -62,8 +89,11 @@ vi.mock('react-leaflet', () => ({
       data-testid="marker"
       data-lat={position[0]}
       data-lng={position[1]}
-    />
+    >
+      {children}
+    </div>
   ),
+  Popup: ({ children }: { children: React.ReactNode }) => <div data-testid="popup">{children}</div>,
   useMap: () => ({
     addLayer: vi.fn(),
     removeLayer: vi.fn(),
@@ -96,22 +126,42 @@ vi.mock('@/hooks/useFinds', () => ({
 
 // Mock PickerPins — renders one marker per find with coordinates
 vi.mock('./PickerPins', () => ({
-  PickerPins: ({ finds }: { finds: Array<{ id: number; lat?: number | null; lng?: number | null }> }) => (
+  PickerPins: ({
+    finds,
+    onPickLocation,
+  }: {
+    finds: Array<{ id: number; species_name: string; location_note?: string; lat?: number | null; lng?: number | null }>;
+    onPickLocation: (lat: number, lng: number, label: string, locationNote?: string) => void;
+  }) => (
     <>
       {finds
         .filter((f) => f.lat != null && f.lng != null)
         .map((f) => (
-          <div key={f.id} data-testid="marker" data-lat={f.lat} data-lng={f.lng} />
+          <button
+            key={f.id}
+            type="button"
+            data-testid="marker"
+            data-lat={f.lat}
+            data-lng={f.lng}
+            onClick={() => onPickLocation(f.lat!, f.lng!, f.species_name, f.location_note)}
+          >
+            {f.species_name}
+          </button>
         ))}
     </>
   ),
 }));
 
+vi.mock('@/hooks/useZones', () => ({
+  useZones: () => ({ data: zonesMock.data }),
+}));
+
 // Mock appStore to return a storagePath
 vi.mock('@/stores/appStore', () => ({
-  useAppStore: (selector: (s: { storagePath: string; mapLayer: 'Satellite'; setMapLayer: ReturnType<typeof vi.fn> }) => unknown) =>
-    selector({ storagePath: '/tmp/storage', mapLayer: 'Satellite', setMapLayer: vi.fn() }),
+  useAppStore: (selector: (s: { storagePath: string; mapLayer: 'Satellite'; language: 'en'; setMapLayer: ReturnType<typeof vi.fn> }) => unknown) =>
+    selector({ storagePath: '/tmp/storage', mapLayer: 'Satellite', language: 'en', setMapLayer: vi.fn() }),
   saveMapViewport: vi.fn(),
+  loadMapViewport: vi.fn(() => null),
 }));
 
 describe('LocationPickerMap', () => {
@@ -121,6 +171,7 @@ describe('LocationPickerMap', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     findsMock.data = [];
+    zonesMock.data = [];
   });
 
   it('does not render MapContainer when open is false', () => {
@@ -226,6 +277,102 @@ describe('LocationPickerMap', () => {
     const [lat, lng] = onConfirm.mock.calls[0] as [number, number, unknown];
     expect(lat).toBe(45);
     expect(lng).toBe(15);
+  });
+
+  it('applies manually entered GPS coordinates', () => {
+    render(
+      <LocationPickerMap
+        open={true}
+        onOpenChange={onOpenChange}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('45.7542'), { target: { value: '45.7542' } });
+    fireEvent.change(screen.getByPlaceholderText('16.0186'), { target: { value: '16.0186' } });
+    fireEvent.click(screen.getByText('Primijeni GPS'));
+    fireEvent.click(screen.getByText('Potvrdi'));
+
+    const [lat, lng] = onConfirm.mock.calls[0] as [number, number, unknown];
+    expect(lat).toBe(45.7542);
+    expect(lng).toBe(16.0186);
+  });
+
+  it('does not use the existing pin species label as the saved location note', () => {
+    findsMock.data = [
+      { id: 1, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 },
+    ];
+
+    render(
+      <LocationPickerMap
+        open={true}
+        onOpenChange={onOpenChange}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('marker'));
+    fireEvent.click(screen.getByText('Potvrdi'));
+
+    const [, , locationNote] = onConfirm.mock.calls[0] as [number, number, string | undefined];
+    expect(locationNote).toBeUndefined();
+  });
+
+  it('passes through an existing pin location note when one is available', () => {
+    findsMock.data = [
+      { id: 1, species_name: 'Boletus edulis', location_note: 'Stari hrast', lat: 45.1, lng: 15.2 },
+    ];
+
+    render(
+      <LocationPickerMap
+        open={true}
+        onOpenChange={onOpenChange}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('marker'));
+    fireEvent.click(screen.getByText('Potvrdi'));
+
+    const [, , locationNote] = onConfirm.mock.calls[0] as [number, number, string | undefined];
+    expect(locationNote).toBe('Stari hrast');
+  });
+
+  it('uses the containing named location when a picked pin has no location note', () => {
+    findsMock.data = [
+      { id: 1, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 },
+    ];
+    zonesMock.data = [
+      {
+        id: 1,
+        species_name: 'Boletus edulis',
+        zone_type: 'region',
+        name: 'Bukova padina',
+        geometry_type: 'polygon',
+        center_lat: null,
+        center_lng: null,
+        radius_meters: null,
+        polygon_json: JSON.stringify([[45.0, 15.0], [45.0, 15.4], [45.3, 15.4], [45.3, 15.0]]),
+        source_find_id: null,
+        notes: '',
+        created_at: '',
+        updated_at: '',
+      },
+    ];
+
+    render(
+      <LocationPickerMap
+        open={true}
+        onOpenChange={onOpenChange}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('marker'));
+    fireEvent.click(screen.getByText('Potvrdi'));
+
+    const [, , locationNote] = onConfirm.mock.calls[0] as [number, number, string | undefined];
+    expect(locationNote).toBe('Bukova padina');
   });
 
   it('shows no-pin placeholder and formatted coords when pin set', () => {

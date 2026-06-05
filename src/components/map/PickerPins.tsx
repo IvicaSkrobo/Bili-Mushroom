@@ -86,7 +86,7 @@ export function pickedLocationLabel(species: Array<{ name: string }>): string {
 interface PickerPinsProps {
   finds: Find[];
   /** Called when the user clicks an existing pin to adopt its location. */
-  onPickLocation: (lat: number, lng: number, label: string) => void;
+  onPickLocation: (lat: number, lng: number, label: string, locationNote?: string) => void;
 }
 
 export function PickerPins({ finds, onPickLocation }: PickerPinsProps) {
@@ -119,6 +119,15 @@ export function PickerPins({ finds, onPickLocation }: PickerPinsProps) {
         const showLabel =
           zoom >= LABEL_ZOOM_THRESHOLD && !crowded.has(c.key) && !c.suppressLabel;
         const label = pickedLocationLabel(c.species);
+        const locationNotes = Array.from(
+          new Set(
+            c.species
+              .flatMap((species) => species.finds)
+              .map((find) => find.location_note?.trim() ?? '')
+              .filter(Boolean),
+          ),
+        );
+        const locationNote = locationNotes.length === 1 ? locationNotes[0] : undefined;
 
         return (
           <Marker
@@ -128,7 +137,7 @@ export function PickerPins({ finds, onPickLocation }: PickerPinsProps) {
             eventHandlers={{
               click: (e) => {
                 L.DomEvent.stopPropagation(e.originalEvent);
-                onPickLocation(c.lat, c.lng, label);
+                onPickLocation(c.lat, c.lng, label, locationNote);
               },
             }}
             title={label}

@@ -126,8 +126,13 @@ function renderDialog(open = true, onOpenChange = vi.fn()) {
   );
 }
 
+function getSpeciesInput(): HTMLInputElement {
+  return screen.getByPlaceholderText(/Coprinellus|Mushroom name/i) as HTMLInputElement;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
   // Reset invoke handlers to safe defaults
   invokeHandlers['parse_exif'] = () => ({ date: '2024-05-10', lat: 45.1, lng: 13.9 });
   invokeHandlers['import_find'] = () => sampleSummary;
@@ -213,7 +218,7 @@ describe('ImportDialog', () => {
       fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
     });
     await waitFor(() => screen.getByRole('button', { name: /Remove photo/i }));
-    fireEvent.change(screen.getByPlaceholderText('Mushroom name'), { target: { value: 'Amanita muscaria' } });
+    fireEvent.change(getSpeciesInput(), { target: { value: 'Amanita muscaria' } });
 
     rerender(
       <Wrapper>
@@ -243,7 +248,7 @@ describe('ImportDialog', () => {
       fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
     });
     await waitFor(() => screen.getByRole('button', { name: /Remove photo/i }));
-    fireEvent.change(screen.getByPlaceholderText('Mushroom name'), { target: { value: 'Amanita muscaria' } });
+    fireEvent.change(getSpeciesInput(), { target: { value: 'Amanita muscaria' } });
 
     fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -303,10 +308,10 @@ describe('ImportDialog', () => {
       fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
     });
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Pick shared location/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Pick on map/i })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /Pick shared location/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Pick on map/i }));
     expect(screen.getByRole('button', { name: /Mock Confirm Location/i })).toBeInTheDocument();
 
     await act(async () => {
@@ -318,7 +323,7 @@ describe('ImportDialog', () => {
       expect(screen.queryByRole('button', { name: /Mock Confirm Location/i })).not.toBeInTheDocument();
       expect(screen.getByDisplayValue('Croatia')).toBeInTheDocument();
       expect(screen.getByDisplayValue('Istria')).toBeInTheDocument();
-      expect(screen.getByText(/45\.123, 13\.654/)).toBeInTheDocument();
+      expect(screen.getByText(/45\.1235, 13\.6543/)).toBeInTheDocument();
     });
   });
 
@@ -334,7 +339,7 @@ describe('ImportDialog', () => {
     await waitFor(() => screen.getByRole('button', { name: /Remove photo/i }));
 
     // Fill species name so Import All is enabled
-    fireEvent.change(screen.getByPlaceholderText('Mushroom name'), { target: { value: 'Boletus edulis' } });
+    fireEvent.change(getSpeciesInput(), { target: { value: 'Boletus edulis' } });
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Import All/i }));
@@ -344,6 +349,47 @@ describe('ImportDialog', () => {
       expect(invoke).toHaveBeenCalledWith(
         'import_find',
         expect.objectContaining({ storagePath: '/test-storage', deleteSource: true }),
+      );
+    });
+  });
+
+  it('saves the import note on the find payload, separate from the species note', async () => {
+    vi.mocked(mockOpen).mockResolvedValueOnce(['/photos/shroom.jpg']);
+    invokeHandlers['parse_exif'] = () => ({ date: '2024-05-10', lat: null, lng: null });
+    const { invoke } = await import('@tauri-apps/api/core');
+    renderDialog();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
+    });
+    await waitFor(() => screen.getByRole('button', { name: /Remove photo/i }));
+
+    fireEvent.change(screen.getByPlaceholderText(/Coprinellus/i), { target: { value: 'Boletus edulis' } });
+    fireEvent.change(screen.getByLabelText(/Find note/i), { target: { value: 'Found under the old oak.' } });
+    fireEvent.change(screen.getByLabelText(/Species note/i), { target: { value: 'Usually fruits after rain.' } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Import All/i }));
+    });
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(
+        'import_find',
+        expect.objectContaining({
+          payloads: [
+            expect.objectContaining({
+              species_name: 'Boletus edulis',
+              notes: 'Found under the old oak.',
+            }),
+          ],
+        }),
+      );
+      expect(invoke).toHaveBeenCalledWith(
+        'upsert_species_note',
+        expect.objectContaining({
+          speciesName: 'Boletus edulis',
+          notes: 'Usually fruits after rain.',
+        }),
       );
     });
   });
@@ -365,7 +411,7 @@ describe('ImportDialog', () => {
     await waitFor(() => screen.getByRole('button', { name: /Remove photo/i }));
 
     // Fill species name so Import All is enabled
-    fireEvent.change(screen.getByPlaceholderText('Mushroom name'), { target: { value: 'Amanita muscaria' } });
+    fireEvent.change(getSpeciesInput(), { target: { value: 'Amanita muscaria' } });
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Import All/i }));
@@ -396,7 +442,7 @@ describe('ImportDialog', () => {
     await waitFor(() => screen.getByRole('button', { name: /Remove photo/i }));
 
     // Fill species name
-    fireEvent.change(screen.getByPlaceholderText('Mushroom name'), { target: { value: 'Boletus edulis' } });
+    fireEvent.change(getSpeciesInput(), { target: { value: 'Boletus edulis' } });
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Import All/i }));
@@ -452,7 +498,7 @@ describe('ImportDialog', () => {
     });
     await waitFor(() => screen.getByRole('button', { name: /Remove photo/i }));
 
-    const speciesInput = screen.getByPlaceholderText('Mushroom name') as HTMLInputElement;
+    const speciesInput = getSpeciesInput();
     fireEvent.change(speciesInput, { target: { value: 'Boletus edulis' } });
     expect(speciesInput.value).toBe('Boletus edulis');
   });
@@ -474,7 +520,7 @@ describe('ImportDialog', () => {
     await waitFor(() => screen.getByRole('button', { name: /Remove photo/i }));
 
     // Fill species name so Import All is enabled
-    fireEvent.change(screen.getByPlaceholderText('Mushroom name'), { target: { value: 'Boletus edulis' } });
+    fireEvent.change(getSpeciesInput(), { target: { value: 'Boletus edulis' } });
 
     act(() => {
       fireEvent.click(screen.getByRole('button', { name: /Import All/i }));

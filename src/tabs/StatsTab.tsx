@@ -4,7 +4,6 @@ import { Loader2, BarChart3, Download, FileText, Compass, CalendarDays, ChevronD
 import { EmptyState } from '@/components/layout/EmptyState';
 import { StatCard } from '@/components/stats/StatCard';
 import { RankedList } from '@/components/stats/RankedList';
-import { SeasonalCalendar } from '@/components/stats/SeasonalCalendar';
 import { SpeciesStatRow } from '@/components/stats/SpeciesStatRow';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -12,7 +11,6 @@ import {
   useStatsCards,
   useTopSpots,
   useBestMonths,
-  useCalendar,
   useSpeciesStats,
 } from '@/hooks/useStats';
 import { useFinds, useSpeciesProfiles } from '@/hooks/useFinds';
@@ -100,7 +98,6 @@ export default function StatsTab() {
   const { data: statsCards, isLoading: statsLoading } = useStatsCards();
   const { data: topSpots } = useTopSpots();
   const { data: bestMonths } = useBestMonths();
-  const { data: calendar } = useCalendar();
   const { data: speciesStats } = useSpeciesStats();
   const { data: finds } = useFinds();
   const { data: speciesProfiles } = useSpeciesProfiles();
@@ -184,10 +181,7 @@ export default function StatsTab() {
     () => buildSpeciesSpotHint(speciesStats, topSpots, locale, t),
     [speciesStats, topSpots, locale],
   );
-  const historicalComparison = useMemo(
-    () => (calendar ? buildHistoricalComparison(calendar) : null),
-    [calendar],
-  );
+  const historicalComparison = useMemo(() => buildHistoricalComparison(finds ?? []), [finds]);
   const fieldOutings = useMemo(() => {
     const byDate = new Map<string, {
       date: string;
@@ -466,12 +460,6 @@ export default function StatsTab() {
               <AlertDescription className="text-sm">{renderMarkedText(speciesSpotHint)}</AlertDescription>
             </Alert>
           )}
-
-          {/* Divider */}
-          <div className="border-b border-border" />
-
-          {/* Seasonal calendar */}
-          {calendar && <SeasonalCalendar entries={calendar} speciesProfiles={speciesProfiles} />}
 
           {/* Divider */}
           <div className="border-b border-border" />

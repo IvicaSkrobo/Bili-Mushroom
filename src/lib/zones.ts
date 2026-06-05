@@ -142,6 +142,36 @@ export function visibleZonesForMode(zones: Zone[], mode: ZoneViewMode): Zone[] {
   return zones.filter((zone) => zone.zone_type === mode);
 }
 
+export function findContainingRegionZone(zones: Zone[], lat: number, lng: number): Zone | null {
+  const matches = zones
+    .filter((zone) => zone.zone_type === 'region')
+    .filter((zone) => isPointInsideZone(lat, lng, zone))
+    .sort((a, b) => zoneFootprint(a) - zoneFootprint(b));
+  return matches[0] ?? null;
+}
+
+function isPointInsideZone(lat: number, lng: number, zone: Zone): boolean {
+  if (zone.geometry_type === 'circle') {
+    if (zone.center_lat == null || zone.center_lng == null || zone.radius_meters == null) return false;
+    return pointInCircle(lat, lng, zone.center_lat, zone.center_lng, zone.radius_meters);
+  }
+  const polygon = parsePolygonJson(zone.polygon_json);
+  return polygon.length >= 3 && pointInPolygon(lat, lng, polygon);
+}
+
+function zoneFootprint(zone: Zone): number {
+  if (zone.geometry_type === 'circle') return Math.PI * Math.pow(zone.radius_meters ?? Number.MAX_SAFE_INTEGER, 2);
+  const points = parsePolygonJson(zone.polygon_json);
+  if (points.length < 3) return Number.MAX_SAFE_INTEGER;
+  let area = 0;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const [latI, lngI] = points[i];
+    const [latJ, lngJ] = points[j];
+    area += (lngJ + lngI) * (latJ - latI);
+  }
+  return Math.abs(area);
+}
+
 export function formatRadius(radiusMeters: number | null): string {
   if (radiusMeters == null) return '';
   if (radiusMeters >= 1000) return `${(radiusMeters / 1000).toFixed(1)} km`;

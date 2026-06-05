@@ -26,6 +26,7 @@ interface ZoneModeControlProps {
   creatingRegion: boolean;
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
+  activeZoneOpen?: boolean;
 }
 
 export function ZoneModeControl({
@@ -47,6 +48,7 @@ export function ZoneModeControl({
   creatingRegion,
   collapsed,
   onCollapsedChange,
+  activeZoneOpen = false,
 }: ZoneModeControlProps) {
   const t = useT();
   const lang = useAppStore((s) => s.language);
@@ -61,8 +63,8 @@ export function ZoneModeControl({
   const canCreateRegion = targetSpecies != null && visibleFinds.some(
     (find) => find.species_name === targetSpecies && find.lat != null && find.lng != null,
   );
-  const showRegionTools = mode === 'region' || mode === 'all';
-  const showLocalTools = mode === 'local';
+  const showRegionTools = !activeZoneOpen && (mode === 'region' || mode === 'all');
+  const showLocalTools = !activeZoneOpen && mode === 'local';
   const hasRegionTarget = targetSpecies != null;
 
   return (
@@ -221,6 +223,7 @@ export function ZoneModeControl({
           )}
         </div>
       )}
+
       </>
       )}
       </>

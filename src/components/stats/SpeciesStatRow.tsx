@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
 import type { Find, SpeciesProfile } from '@/lib/finds';
@@ -34,6 +34,8 @@ function formatMonthShort(month: number): string {
 export function SpeciesStatRow({ stat, rank, index, finds = [], speciesProfile }: SpeciesStatRowProps) {
   const t = useT();
   const lang = useAppStore((s) => s.language);
+  const setActiveTab = useAppStore((s) => s.setActiveTab);
+  const setPendingSpeciesSelection = useAppStore((s) => s.setPendingSpeciesSelection);
   const locale = lang === 'hr' ? 'hr-HR' : 'en-US';
   const [isOpen, setIsOpen] = useState(false);
 
@@ -121,6 +123,30 @@ export function SpeciesStatRow({ stat, rank, index, finds = [], speciesProfile }
               <SpeciesMetadataBadges speciesProfile={speciesProfile ?? undefined} size="sm" hideUnknown={true} />
             </div>
           )}
+
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-border/60 bg-card/60 px-3 py-2">
+            <div className="min-w-0">
+              <p className="truncate font-serif text-sm font-semibold italic text-foreground">
+                {renderSpeciesName(stat.species_name)}
+              </p>
+              {commonName && (
+                <p className="truncate text-xs font-semibold text-muted-foreground">
+                  {commonName}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setPendingSpeciesSelection(stat.species_name);
+                setActiveTab('species');
+              }}
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-primary/35 bg-primary/10 px-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-primary/20 hover:text-primary"
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              {t('stats.openInSpecies')}
+            </button>
+          </div>
 
           <div className="flex flex-wrap gap-x-12 gap-y-3">
             <InlineStat label={t('stats.totalFinds')} value={stat.find_count} />

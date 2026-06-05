@@ -45,6 +45,8 @@ const hr: Translations = {
   'collection.setRepresentativePhoto': 'Postavi kao reprezentativnu fotografiju vrste',
   'collection.currentRepresentativePhoto': 'Trenutna reprezentativna fotografija vrste',
   'collection.noResults': 'Nema rezultata za "{search}"',
+  'collection.locationSearch': 'Pretraži lokacije…',
+  'collection.clearLocationSearch': 'Ukloni lokaciju',
   'collection.dateSearch': 'Pretraži nalaze po datumu',
   'collection.dateSearchFrom': 'Datum od',
   'collection.dateSearchTo': 'Datum do',
@@ -176,6 +178,11 @@ const hr: Translations = {
   'import.observedCountPlaceholder': 'npr. 12',
   'import.observedCountHelp': 'Gruba procjena koliko je plodnih tijela bilo prisutno. Opcionalno.',
   'import.folderNotes': 'Bilješka o vrsti…',
+  'import.findNotesLabel': 'Bilješka o nalazu',
+  'import.findNotesPlaceholder': 'Što je bilo posebno kod ovog nalaza?',
+  'import.speciesNotesLabel': 'Bilješka o vrsti',
+  'import.speciesNotesPlaceholder': 'Opća bilješka za ovu vrstu…',
+  'import.speciesNotesHelp': 'Sprema se na vrstu i prikazuje uz sve nalaze iste vrste.',
   'import.nameRequired': 'Sve fotografije moraju imati naziv gljive prije uvoza.',
   'import.importAll': 'Uvezi sve',
   'import.reviewTitle': 'Uvoz završen — {finds} nalaza, {photos} fotografija',
@@ -211,6 +218,8 @@ const hr: Translations = {
 
   // create dialog
   'create.title': 'Novi nalaz',
+  'create.description': 'Rucni unos nalaza s opcionalnim fotografijama.',
+  'create.photosHint': 'Odaberi fotografije, zatim klikni thumbnail za pregled i zumiranje.',
   'create.save': 'Spremi',
   'collection.newFind': 'Novi nalaz',
 
@@ -449,6 +458,7 @@ const hr: Translations = {
   'stats.fruitingBodies': 'Plodna tijela',
   'stats.locations': 'Lokacije',
   'stats.lastSeen': 'zadnje {date}',
+  'stats.openInSpecies': 'Otvori u vrstama',
 
   // stats tab — seasonal calendar & insights
   'stats.yourSeason': 'Sezone',
@@ -658,6 +668,8 @@ const en: Translations = {
   'collection.setRepresentativePhoto': 'Set as species representative photo',
   'collection.currentRepresentativePhoto': 'Current species representative photo',
   'collection.noResults': 'No results for "{search}"',
+  'collection.locationSearch': 'Search locations…',
+  'collection.clearLocationSearch': 'Clear location',
   'collection.dateSearch': 'Search finds by date',
   'collection.dateSearchFrom': 'Date from',
   'collection.dateSearchTo': 'Date to',
@@ -787,6 +799,11 @@ const en: Translations = {
   'import.observedCountPlaceholder': 'e.g. 12',
   'import.observedCountHelp': 'A rough estimate of how many fruiting bodies were present. Optional.',
   'import.folderNotes': 'Species note…',
+  'import.findNotesLabel': 'Find note',
+  'import.findNotesPlaceholder': 'What was specific to this find?',
+  'import.speciesNotesLabel': 'Species note',
+  'import.speciesNotesPlaceholder': 'General note for this species…',
+  'import.speciesNotesHelp': 'Saved on the species and shown alongside all finds of the same species.',
   'import.nameRequired': 'All photos must have a mushroom name before importing.',
   'import.importAll': 'Import All',
   'import.reviewTitle': 'Import complete — {finds} finds, {photos} photos',
@@ -822,6 +839,8 @@ const en: Translations = {
 
   // create dialog
   'create.title': 'New Find',
+  'create.description': 'Manual find entry with optional photos.',
+  'create.photosHint': 'Pick photos, then click a thumbnail to preview and zoom.',
   'create.save': 'Save',
   'collection.newFind': 'New Find',
 
@@ -1060,6 +1079,7 @@ const en: Translations = {
   'stats.fruitingBodies': 'Fruiting Bodies',
   'stats.locations': 'Locations',
   'stats.lastSeen': 'last {date}',
+  'stats.openInSpecies': 'Open in Species',
 
   // stats tab — seasonal calendar & insights
   'stats.yourSeason': 'Seasons',

@@ -152,6 +152,14 @@ describe('getFinds', () => {
     expect(invoke).toHaveBeenCalledWith('get_finds', { storagePath: '/storage' });
   });
 
+  it('passes search filters when provided', async () => {
+    await getFinds('/storage', { locationQuery: 'Istra', limit: 100, offset: 0 });
+    expect(invoke).toHaveBeenCalledWith('get_finds', {
+      storagePath: '/storage',
+      filters: { locationQuery: 'Istra', limit: 100, offset: 0 },
+    });
+  });
+
   it('returns Find array from handler', async () => {
     const result = await getFinds('/storage');
     expect(result).toHaveLength(1);

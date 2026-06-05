@@ -1,5 +1,5 @@
 import type { CalendarEntry } from './stats';
-import { compareSpeciesNames } from './speciesName';
+import { compareSpeciesNames, plainSpeciesName } from './speciesName';
 
 export interface YearBucket {
   year: number;
@@ -48,7 +48,7 @@ export function buildHistoricalComparison(
 
     const entryMonth = entryDate.getMonth() + 1;
     const entryWeek = getISOWeek(entryDate);
-    const latinName = entry.species_name.trim();
+    const latinName = plainSpeciesName(entry.species_name).split(',')[0].trim();
 
     if (entryWeek === currentWeek) {
       if (!weekByYear.has(year)) weekByYear.set(year, { count: 0, species: new Set() });

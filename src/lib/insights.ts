@@ -27,13 +27,20 @@ export function buildSeasonalityInsights(
   speciesStats: SpeciesStatSummary[] | undefined,
   locale: string,
   t: Translator,
+  today: Date = new Date(),
 ): SeasonalityInsight[] {
   if (!bestMonths || bestMonths.length === 0 || !speciesStats || speciesStats.length === 0) return [];
 
-  const topMonths = bestMonths.slice(0, 2);
+  const currentMonth = today.getMonth() + 1;
+  const nextMonth = currentMonth === 12 ? 1 : currentMonth + 1;
+  const targetMonths = [currentMonth, nextMonth];
+  const monthsByNumber = new Map(bestMonths.map((month) => [month.month_num, month]));
+  const targetBestMonths = targetMonths
+    .map((monthNum) => monthsByNumber.get(monthNum))
+    .filter((month): month is BestMonth => Boolean(month));
   const insights: SeasonalityInsight[] = [];
 
-  for (const month of topMonths) {
+  for (const month of targetBestMonths) {
     const monthLabel = localMonthName(month.month_num, locale);
     const species = speciesStats
       .filter((s) => extractMonthNum(s.best_month) === month.month_num)

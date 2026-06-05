@@ -1,4 +1,5 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { invoke } from '@tauri-apps/api/core';
 
 function normalizePath(path: string): string {
   return path.replace(/\\/g, '/');
@@ -35,4 +36,12 @@ export function resolvePhotoSrc(storagePath: string, photoPath: string, cacheVer
   const src = convertFileSrc(resolvePhotoAbsolutePath(storagePath, photoPath));
   if (cacheVersion == null || cacheVersion <= 0) return src;
   return `${src}${src.includes('?') ? '&' : '?'}v=${cacheVersion}`;
+}
+
+export async function getPhotoThumbnailPath(
+  storagePath: string,
+  photoPath: string,
+  size = 256,
+): Promise<string> {
+  return invoke<string>('get_photo_thumbnail', { storagePath, photoPath, size });
 }
