@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { BookOpen, Calendar, Camera, FolderOpen, GalleryHorizontal, Map as MapIcon, MapPin, Pencil, Plus, Repeat2, Search, Star, X } from 'lucide-react';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,8 @@ import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useInfiniteCollectionFolders, useInfiniteSpeciesFinds, useSpeciesFinds, useSpeciesNotes, useUpsertSpeciesNote, useSpeciesProfiles, useUpsertSpeciesProfile, useSpeciesRecipes, useUpsertSpeciesRecipe, useDeleteSpeciesRecipe } from '@/hooks/useFinds';
+import { useInfiniteCollectionFolders, useInfiniteSpeciesFinds, useSpeciesNotes, useUpsertSpeciesNote, useSpeciesProfiles, useUpsertSpeciesProfile, useSpeciesRecipes, useUpsertSpeciesRecipe, useDeleteSpeciesRecipe } from '@/hooks/useFinds';
+import { usePhotoThumbnailSrc } from '@/hooks/usePhotoThumbnail';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
 import { isInternalLibraryName } from '@/lib/internalEntries';
@@ -22,6 +24,32 @@ import { formatDisplayDate } from '@/lib/dateFormat';
 
 const SPECIES_FOLDER_PAGE_SIZE = 500;
 const SPECIES_DETAIL_PAGE_SIZE = 200;
+const SPECIES_LIST_VIRTUALIZATION_THRESHOLD = 80;
+const SPECIES_LIST_ROW_ESTIMATE = 86;
+const SPECIES_FIND_VIRTUALIZATION_THRESHOLD = 80;
+const SPECIES_FIND_ROW_ESTIMATE = 74;
+const COVER_PICKER_PAGE_SIZE = 120;
+const LIGHTBOX_WINDOW_RADIUS = 60;
+
+interface CachedThumbnailProps {
+  photoPath: string | null | undefined;
+  size?: number;
+  alt?: string;
+  className: string;
+  draggable?: boolean;
+}
+
+const CachedThumbnail = memo(function CachedThumbnail({
+  photoPath,
+  size = 256,
+  alt = '',
+  className,
+  draggable,
+}: CachedThumbnailProps) {
+  const src = usePhotoThumbnailSrc(photoPath, size);
+  if (!src) return null;
+  return <img src={src} alt={alt} className={className} draggable={draggable} loading="lazy" decoding="async" />;
+});
 
 interface DateSummary {
   date: string;
@@ -452,6 +480,9 @@ export default function SpeciesTab() {
   const [lightboxFallbackFind, setLightboxFallbackFind] = useState<Find | null>(null);
   const [editingFind, setEditingFind] = useState<Find | null>(null);
   const [detailTab, setDetailTab] = useState<'overview' | 'finds' | 'recipes' | 'description'>('overview');
+  const [speciesListScrollElement, setSpeciesListScrollElement] = useState<HTMLDivElement | null>(null);
+  const [selectedFindScrollElement, setSelectedFindScrollElement] = useState<HTMLDivElement | null>(null);
+  const [coverPickerScrollElement, setCoverPickerScrollElement] = useState<HTMLDivElement | null>(null);
 
   const folderSummaries = useMemo(() => folderPages?.pages.flat() ?? [], [folderPages]);
   const speciesProfilesByName = useMemo(
@@ -483,6 +514,38 @@ export default function SpeciesTab() {
     return speciesPreviews.filter((entry) => plainSpeciesName(entry.speciesName).toLowerCase().startsWith(query));
   }, [search, speciesPreviews]);
 
+  const shouldVirtualizeSpeciesList = filteredSpecies.length > SPECIES_LIST_VIRTUALIZATION_THRESHOLD;
+  const speciesListVirtualizer = useVirtualizer({
+    count: shouldVirtualizeSpeciesList ? filteredSpecies.length : 0,
+    getScrollElement: () => speciesListScrollElement,
+    estimateSize: () => SPECIES_LIST_ROW_ESTIMATE,
+    getItemKey: (index) => filteredSpecies[index]?.speciesName ?? index,
+    initialRect: { width: 320, height: 720 },
+    measureElement: (element) => element.getBoundingClientRect().height + 8,
+    overscan: 8,
+  });
+  const virtualSpeciesRows = speciesListVirtualizer.getVirtualItems();
+  const renderedSpeciesRows = useMemo(() => {
+    if (shouldVirtualizeSpeciesList && virtualSpeciesRows.length > 0) return virtualSpeciesRows;
+    let start = 0;
+    return filteredSpecies.map((entry, index) => {
+      const row = { key: entry.speciesName, index, start, size: SPECIES_LIST_ROW_ESTIMATE };
+      start += SPECIES_LIST_ROW_ESTIMATE;
+      return row;
+    });
+  }, [filteredSpecies, shouldVirtualizeSpeciesList, virtualSpeciesRows]);
+  const speciesListTotalSize = shouldVirtualizeSpeciesList
+    ? speciesListVirtualizer.getTotalSize()
+    : renderedSpeciesRows.at(-1)
+      ? renderedSpeciesRows.at(-1)!.start + renderedSpeciesRows.at(-1)!.size
+      : 0;
+  const firstRenderedSpeciesRow = renderedSpeciesRows[0];
+  const lastRenderedSpeciesRow = renderedSpeciesRows.at(-1);
+  const speciesListTopSpacer = shouldVirtualizeSpeciesList ? firstRenderedSpeciesRow?.start ?? 0 : 0;
+  const speciesListBottomSpacer = shouldVirtualizeSpeciesList && lastRenderedSpeciesRow
+    ? Math.max(0, speciesListTotalSize - lastRenderedSpeciesRow.start - lastRenderedSpeciesRow.size)
+    : 0;
+
   const selectedPreview = filteredSpecies.find((entry) => entry.speciesName === selectedSpecies) ?? filteredSpecies[0] ?? null;
   const {
     data: selectedFindPages,
@@ -491,23 +554,71 @@ export default function SpeciesTab() {
     isFetchingNextPage: isFetchingNextSelectedFindPage,
   } = useInfiniteSpeciesFinds(selectedPreview?.speciesName ?? null, undefined, SPECIES_DETAIL_PAGE_SIZE);
   const selectedFinds = useMemo(() => selectedFindPages?.pages.flat() ?? [], [selectedFindPages]);
+  const shouldVirtualizeSelectedFinds = selectedFinds.length > SPECIES_FIND_VIRTUALIZATION_THRESHOLD;
+  const selectedFindVirtualizer = useVirtualizer({
+    count: shouldVirtualizeSelectedFinds ? selectedFinds.length : 0,
+    getScrollElement: () => selectedFindScrollElement,
+    estimateSize: () => SPECIES_FIND_ROW_ESTIMATE,
+    getItemKey: (index) => selectedFinds[index]?.id ?? index,
+    initialRect: { width: 720, height: 520 },
+    measureElement: (element) => element.getBoundingClientRect().height + 8,
+    overscan: 10,
+  });
+  const virtualSelectedFindRows = selectedFindVirtualizer.getVirtualItems();
+  const renderedSelectedFindRows = useMemo(() => {
+    if (shouldVirtualizeSelectedFinds && virtualSelectedFindRows.length > 0) return virtualSelectedFindRows;
+    let start = 0;
+    return selectedFinds.map((find, index) => {
+      const row = { key: find.id, index, start, size: SPECIES_FIND_ROW_ESTIMATE };
+      start += SPECIES_FIND_ROW_ESTIMATE;
+      return row;
+    });
+  }, [selectedFinds, shouldVirtualizeSelectedFinds, virtualSelectedFindRows]);
+  const selectedFindTotalSize = shouldVirtualizeSelectedFinds
+    ? selectedFindVirtualizer.getTotalSize()
+    : renderedSelectedFindRows.at(-1)
+      ? renderedSelectedFindRows.at(-1)!.start + renderedSelectedFindRows.at(-1)!.size
+      : 0;
+  const firstRenderedSelectedFind = renderedSelectedFindRows[0];
+  const lastRenderedSelectedFind = renderedSelectedFindRows.at(-1);
+  const selectedFindTopSpacer = shouldVirtualizeSelectedFinds ? firstRenderedSelectedFind?.start ?? 0 : 0;
+  const selectedFindBottomSpacer = shouldVirtualizeSelectedFinds && lastRenderedSelectedFind
+    ? Math.max(0, selectedFindTotalSize - lastRenderedSelectedFind.start - lastRenderedSelectedFind.size)
+    : 0;
   const selectedJournal = useMemo(() => {
     if (!selectedPreview) return null;
     if (selectedFinds.length === 0) return selectedPreview;
-    return buildSpeciesJournal(
+    const journal = buildSpeciesJournal(
       selectedPreview.speciesName,
       selectedFinds,
       speciesProfilesByName.get(selectedPreview.speciesName)?.cover_photo_id ?? null,
     );
+    return {
+      ...journal,
+      recordedFinds: selectedPreview.recordedFinds,
+      favoriteCount: selectedPreview.favoriteCount,
+      lastRecorded: selectedPreview.lastRecorded,
+    };
   }, [selectedFinds, selectedPreview, speciesProfilesByName]);
-  const coverPickerFindsQuery = useSpeciesFinds(
+  const coverPickerFilters = useMemo(() => ({ photosMode: 'all' as const }), []);
+  const coverPickerFindsQuery = useInfiniteSpeciesFinds(
     selectedJournal?.speciesName ?? null,
-    { photosMode: 'all', limit: 2000, offset: 0 },
+    coverPickerFilters,
+    COVER_PICKER_PAGE_SIZE,
     coverPickerOpen,
   );
-  const coverPickerPhotos = useMemo(
-    () => (coverPickerFindsQuery.data ?? []).flatMap((find) => find.photos.map((photo) => ({ photo, find }))),
+  const {
+    fetchNextPage: fetchNextCoverPickerPage,
+    hasNextPage: hasNextCoverPickerPage,
+    isFetchingNextPage: isFetchingNextCoverPickerPage,
+  } = coverPickerFindsQuery;
+  const coverPickerFinds = useMemo(
+    () => coverPickerFindsQuery.data?.pages.flat() ?? [],
     [coverPickerFindsQuery.data],
+  );
+  const coverPickerPhotos = useMemo(
+    () => coverPickerFinds.flatMap((find) => find.photos.map((photo) => ({ photo, find }))),
+    [coverPickerFinds],
   );
 
   useEffect(() => {
@@ -527,9 +638,50 @@ export default function SpeciesTab() {
   }, [fetchNextSpeciesFolderPage, hasNextSpeciesFolderPage, isFetchingNextSpeciesFolderPage]);
 
   useEffect(() => {
-    if (!hasNextSelectedFindPage || isFetchingNextSelectedFindPage) return;
-    void fetchNextSelectedFindPage();
-  }, [fetchNextSelectedFindPage, hasNextSelectedFindPage, isFetchingNextSelectedFindPage]);
+    if (!selectedFindScrollElement || !hasNextSelectedFindPage || isFetchingNextSelectedFindPage) return;
+
+    const maybeFetchNextPage = () => {
+      const { scrollTop, clientHeight, scrollHeight } = selectedFindScrollElement;
+      if (scrollHeight <= clientHeight) {
+        void fetchNextSelectedFindPage();
+        return;
+      }
+      if (scrollTop + clientHeight >= scrollHeight - 500) {
+        void fetchNextSelectedFindPage();
+      }
+    };
+
+    maybeFetchNextPage();
+    selectedFindScrollElement.addEventListener('scroll', maybeFetchNextPage, { passive: true });
+    return () => selectedFindScrollElement.removeEventListener('scroll', maybeFetchNextPage);
+  }, [fetchNextSelectedFindPage, hasNextSelectedFindPage, isFetchingNextSelectedFindPage, selectedFindScrollElement, selectedFinds.length]);
+
+  useEffect(() => {
+    if (
+      !coverPickerOpen ||
+      !coverPickerScrollElement ||
+      !hasNextCoverPickerPage ||
+      isFetchingNextCoverPickerPage
+    ) return;
+
+    const maybeFetchNextPage = () => {
+      const { scrollTop, clientHeight, scrollHeight } = coverPickerScrollElement;
+      if (scrollHeight <= clientHeight || scrollTop + clientHeight >= scrollHeight - 500) {
+        void fetchNextCoverPickerPage();
+      }
+    };
+
+    maybeFetchNextPage();
+    coverPickerScrollElement.addEventListener('scroll', maybeFetchNextPage, { passive: true });
+    return () => coverPickerScrollElement.removeEventListener('scroll', maybeFetchNextPage);
+  }, [
+    coverPickerFinds.length,
+    coverPickerOpen,
+    coverPickerScrollElement,
+    fetchNextCoverPickerPage,
+    hasNextCoverPickerPage,
+    isFetchingNextCoverPickerPage,
+  ]);
 
   useEffect(() => {
     if (!pendingSpeciesSelection || speciesPreviews.length === 0) return;
@@ -550,6 +702,18 @@ export default function SpeciesTab() {
   const selectedHeroPhotoPath = coverPhotoEntry?.photo.photo_path ?? selectedJournal?.heroPhotoPath ?? null;
   const selectedLightboxPhotos = lightboxPhotosOverride
     ?? (coverPickerPhotos.length > 0 ? coverPickerPhotos : selectedJournal?.allPhotos ?? []);
+  const lightboxWindowStart = lightboxPhotosOverride
+    ? 0
+    : Math.max(0, lightboxIndex - LIGHTBOX_WINDOW_RADIUS);
+  const lightboxWindowEnd = lightboxPhotosOverride
+    ? selectedLightboxPhotos.length
+    : Math.min(selectedLightboxPhotos.length, lightboxIndex + LIGHTBOX_WINDOW_RADIUS + 1);
+  const lightboxWindowPhotos = lightboxPhotosOverride
+    ? selectedLightboxPhotos
+    : selectedLightboxPhotos.slice(lightboxWindowStart, lightboxWindowEnd);
+  const lightboxLocalIndex = lightboxPhotosOverride
+    ? lightboxIndex
+    : Math.max(0, Math.min(lightboxWindowPhotos.length - 1, lightboxIndex - lightboxWindowStart));
   const selectedTags = selectedProfile?.tags ?? [];
 
   const [noteInput, setNoteInput] = useState(selectedNote);
@@ -868,21 +1032,25 @@ export default function SpeciesTab() {
             </div>
           </div>
 
-          <div className="overflow-y-auto px-3 pb-24 lg:h-[calc(100vh-13rem)]">
+          <div ref={setSpeciesListScrollElement} className="overflow-y-auto px-3 pb-24 lg:h-[calc(100vh-13rem)]">
             {filteredSpecies.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
                 {t('species.noResults')}
               </div>
             ) : (
               <div className="space-y-2">
-                {filteredSpecies.map((entry) => {
-                  const thumbSrc = entry.heroPhotoPath && storagePath
-                    ? resolvePhotoSrc(storagePath, entry.heroPhotoPath, photoAssetVersion)
-                    : null;
+                {speciesListTopSpacer > 0 && (
+                  <div aria-hidden="true" style={{ height: speciesListTopSpacer }} />
+                )}
+                {renderedSpeciesRows.map((virtualRow) => {
+                  const entry = filteredSpecies[virtualRow.index];
+                  if (!entry) return null;
                   const isActive = entry.speciesName === selectedJournal?.speciesName;
                   return (
                     <button
                       key={entry.speciesName}
+                      ref={shouldVirtualizeSpeciesList ? speciesListVirtualizer.measureElement : undefined}
+                      data-index={virtualRow.index}
                       type="button"
                       onClick={() => setSelectedSpecies(entry.speciesName)}
                       className={`flex w-full items-center gap-3 rounded-lg border px-3 py-3 text-left transition-colors ${
@@ -891,8 +1059,8 @@ export default function SpeciesTab() {
                           : 'border-border/70 bg-background hover:bg-accent/60'
                       }`}
                     >
-                      {thumbSrc ? (
-                        <img src={thumbSrc} alt={entry.speciesName} className="h-12 w-12 rounded-md bg-black object-contain" />
+                      {entry.heroPhotoPath ? (
+                        <CachedThumbnail photoPath={entry.heroPhotoPath} size={128} alt={entry.speciesName} className="h-12 w-12 rounded-md bg-black object-contain" />
                       ) : (
                         <div className="flex h-12 w-12 items-center justify-center rounded-md bg-muted">
                           <Camera className="h-4 w-4 text-muted-foreground" />
@@ -921,6 +1089,12 @@ export default function SpeciesTab() {
                     </button>
                   );
                 })}
+                {speciesListBottomSpacer > 0 && (
+                  <div aria-hidden="true" style={{ height: speciesListBottomSpacer }} />
+                )}
+                {isFetchingNextSpeciesFolderPage && (
+                  <p className="py-2 text-center text-xs text-muted-foreground">{t('species.loading')}</p>
+                )}
               </div>
             )}
           </div>
@@ -1299,15 +1473,17 @@ export default function SpeciesTab() {
                   {detailTab === 'finds' && (
                     <Card className="gap-0 py-5">
                       <CardContent className="px-5">
-                        <div className="max-h-[calc(100vh-20rem)] space-y-2 overflow-y-auto pr-1">
-                          {selectedJournal.finds.map((find) => {
+                        <div ref={setSelectedFindScrollElement} className="max-h-[calc(100vh-20rem)] space-y-2 overflow-y-auto pr-1">
+                          {selectedFindTopSpacer > 0 && (
+                            <div aria-hidden="true" style={{ height: selectedFindTopSpacer }} />
+                          )}
+                          {renderedSelectedFindRows.map((virtualRow) => {
+                            const find = selectedJournal.finds[virtualRow.index];
+                            if (!find) return null;
                             const primaryPhoto = find.photos.find((p) => p.is_primary) ?? find.photos[0] ?? null;
                             const photoIdx = primaryPhoto
                               ? selectedLightboxPhotos.findIndex((e) => e.photo.id === primaryPhoto.id)
                               : -1;
-                            const thumbSrc = primaryPhoto && storagePath
-                              ? resolvePhotoSrc(storagePath, primaryPhoto.photo_path, photoAssetVersion)
-                              : null;
                             const obsMin = find.observed_count_min ?? find.observed_count;
                             const obsMax = find.observed_count_max ?? find.observed_count_min ?? find.observed_count;
                             const obsDisplay = obsMin != null
@@ -1318,6 +1494,8 @@ export default function SpeciesTab() {
                             return (
                               <div
                                 key={find.id}
+                                ref={shouldVirtualizeSelectedFinds ? selectedFindVirtualizer.measureElement : undefined}
+                                data-index={virtualRow.index}
                                 className="group flex w-full items-center gap-3 rounded-md border border-border/40 bg-card/40 px-3 py-2 transition-colors hover:border-primary/40 hover:bg-primary/5"
                               >
                                 <button
@@ -1326,8 +1504,8 @@ export default function SpeciesTab() {
                                   className="flex min-w-0 flex-1 items-center gap-3 text-left"
                                 >
                                   <div className="h-12 w-12 shrink-0 overflow-hidden rounded border border-border/30 bg-muted/40">
-                                    {thumbSrc ? (
-                                      <img src={thumbSrc} alt="" className="h-full w-full object-contain" draggable={false} />
+                                    {primaryPhoto ? (
+                                      <CachedThumbnail photoPath={primaryPhoto.photo_path} size={128} alt="" className="h-full w-full object-contain" draggable={false} />
                                     ) : (
                                       <div className="flex h-full w-full items-center justify-center text-muted-foreground/30">
                                         <Camera className="h-5 w-5" />
@@ -1374,6 +1552,12 @@ export default function SpeciesTab() {
                               </div>
                             );
                           })}
+                          {selectedFindBottomSpacer > 0 && (
+                            <div aria-hidden="true" style={{ height: selectedFindBottomSpacer }} />
+                          )}
+                          {isFetchingNextSelectedFindPage && (
+                            <p className="py-2 text-center text-xs text-muted-foreground">{t('species.loading')}</p>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -1546,15 +1730,12 @@ export default function SpeciesTab() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="max-h-[60vh] overflow-y-auto pr-1">
+          <div ref={setCoverPickerScrollElement} className="max-h-[60vh] overflow-y-auto pr-1">
             {coverPickerOpen && coverPickerFindsQuery.isLoading ? (
               <p className="text-sm text-muted-foreground">{t('species.loading')}</p>
             ) : selectedJournal && (coverPickerPhotos.length > 0 || selectedJournal.allPhotos.length > 0) ? (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                 {(coverPickerPhotos.length > 0 ? coverPickerPhotos : selectedJournal.allPhotos).map(({ photo, find }) => {
-                  const thumbSrc = storagePath
-                    ? resolvePhotoSrc(storagePath, photo.photo_path, photoAssetVersion)
-                    : '';
                   const isActive = currentCoverPhotoId === photo.id;
 
                   return (
@@ -1568,7 +1749,7 @@ export default function SpeciesTab() {
                           : 'border-border/70 hover:border-primary/50'
                       }`}
                     >
-                      <img src={thumbSrc} alt={find.date_found} className="aspect-square w-full bg-black object-contain" />
+                      <CachedThumbnail photoPath={photo.photo_path} size={256} alt={find.date_found} className="aspect-square w-full bg-black object-contain" />
                       <div className="space-y-1 px-3 py-2">
                         <p className="text-sm font-medium text-foreground">{formatDate(find.date_found, locale)}</p>
                         {find.location_note && (
@@ -1578,6 +1759,9 @@ export default function SpeciesTab() {
                     </button>
                   );
                 })}
+                {isFetchingNextCoverPickerPage && (
+                  <p className="col-span-full py-2 text-center text-xs text-muted-foreground">{t('species.loading')}</p>
+                )}
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
@@ -1598,10 +1782,10 @@ export default function SpeciesTab() {
               setLightboxPhotosOverride(null);
             }
           }}
-          photos={selectedLightboxPhotos}
+          photos={lightboxWindowPhotos}
           fallbackFind={lightboxFallbackFind}
-          currentIndex={lightboxIndex}
-          onIndexChange={setLightboxIndex}
+          currentIndex={lightboxLocalIndex}
+          onIndexChange={(index) => setLightboxIndex(lightboxWindowStart + index)}
           storagePath={storagePath!}
           onSetAsSpeciesCover={(entry) => handleSelectCover(selectedJournal.speciesName, entry.photo.id)}
           isCurrentSpeciesCover={(entry) => entry.photo.id === currentCoverPhotoId}

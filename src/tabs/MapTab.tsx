@@ -25,11 +25,12 @@ import { X } from 'lucide-react';
 export default function MapTab() {
   const t = useT();
   const storagePath = useAppStore((s) => s.storagePath);
+  const isActive = useAppStore((s) => s.activeTab === 'map');
   const lang = useAppStore((s) => s.language);
   const pendingMapSpeciesFilter = useAppStore((s) => s.pendingMapSpeciesFilter);
   const setPendingMapSpeciesFilter = useAppStore((s) => s.setPendingMapSpeciesFilter);
-  const { data: finds } = useFinds();
-  const { data: zones } = useZones();
+  const { data: finds } = useFinds(undefined, isActive);
+  const { data: zones } = useZones(isActive);
   const upsertZone = useUpsertZone();
   const [selectedSpecies, setSelectedSpecies] = useState<Set<string>>(new Set());
   const [filterOpen, setFilterOpen] = useState(false);

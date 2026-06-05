@@ -3,8 +3,8 @@ import { ChevronLeft, ZoomIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useMap } from 'react-leaflet';
 import { useAppStore } from '@/stores/appStore';
+import { usePhotoThumbnailSrc } from '@/hooks/usePhotoThumbnail';
 import type { Find } from '@/lib/finds';
-import { resolvePhotoSrc } from '@/lib/photoSrc';
 import type { FindGroup } from './groupFindsByCoords';
 import { renderSpeciesName, plainSpeciesName } from '@/lib/speciesName';
 import { useT } from '@/i18n/index';
@@ -43,22 +43,17 @@ function PopupRow({
 
 function LevelTwoCard({
   find,
-  storagePath,
   onBack,
 }: {
   find: Find;
-  storagePath: string;
   onBack: () => void;
 }) {
   const t = useT();
   const map = useMap();
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const setEditingFindId = useAppStore((s) => s.setEditingFindId);
-  const photoAssetVersion = useAppStore((s) => s.photoAssetVersion);
   const primaryPhoto = find.photos.find((p) => p.is_primary) ?? find.photos[0];
-  const thumbSrc = primaryPhoto
-    ? resolvePhotoSrc(storagePath, primaryPhoto.photo_path, photoAssetVersion)
-    : null;
+  const thumbSrc = usePhotoThumbnailSrc(primaryPhoto?.photo_path, 128);
   return (
     <div className="flex w-[240px] flex-col gap-2">
       <button
@@ -116,7 +111,7 @@ function LevelTwoCard({
   );
 }
 
-export function FindPopup({ group, storagePath }: FindPopupProps) {
+export function FindPopup({ group }: FindPopupProps) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const t = useT();
   const map = useMap();
@@ -127,7 +122,6 @@ export function FindPopup({ group, storagePath }: FindPopupProps) {
       return (
         <LevelTwoCard
           find={find}
-          storagePath={storagePath}
           onBack={() => setExpandedId(null)}
         />
       );

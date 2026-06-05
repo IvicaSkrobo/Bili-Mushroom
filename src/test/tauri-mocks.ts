@@ -77,6 +77,7 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
     const payload = args as { photoPath?: string };
     return payload.photoPath ?? '';
   },
+  warm_photo_thumbnail_cache: (_args: unknown) => ({ processed: 0, failed: 0 }),
   get_species_notes: (_args: unknown) => [],
   get_species_profiles: (_args: unknown) => [],
   upsert_species_note: (_args: unknown) => undefined,
@@ -179,6 +180,11 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
     missing_db_photo_paths: [],
     orphan_filesystem_images: [],
     duplicate_photo_paths: [],
+  }),
+  cleanup_duplicate_photo_rows: (_args: unknown) => ({
+    deleted_rows: 0,
+    affected_find_ids: [],
+    backup_path: null,
   }),
   quit_app: (_args: unknown) => undefined,
   fetch_tile: async (_args: { url: string }) => {

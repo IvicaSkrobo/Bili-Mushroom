@@ -8,17 +8,31 @@ vi.mock('react-leaflet', () => ({
   })),
 }));
 
-const setActiveTab = vi.fn();
-const setEditingFindId = vi.fn();
+const { setActiveTab, setEditingFindId, appStoreMock } = vi.hoisted(() => {
+  const setActiveTab = vi.fn();
+  const setEditingFindId = vi.fn();
+  const appStoreMock = Object.assign(
+    (selector: (s: {
+      language: 'en';
+      setActiveTab: typeof setActiveTab;
+      setEditingFindId: typeof setEditingFindId;
+    }) => unknown) => selector({ language: 'en', setActiveTab, setEditingFindId }),
+    {
+      getState: () => ({ language: 'en' }),
+    },
+  );
+  return { setActiveTab, setEditingFindId, appStoreMock };
+});
 vi.mock('@/stores/appStore', () => ({
-  useAppStore: (selector: (s: {
-    setActiveTab: typeof setActiveTab;
-    setEditingFindId: typeof setEditingFindId;
-  }) => unknown) => selector({ setActiveTab, setEditingFindId }),
+  useAppStore: appStoreMock,
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({
   convertFileSrc: (p: string) => `asset://${p}`,
+}));
+
+vi.mock('@/hooks/usePhotoThumbnail', () => ({
+  usePhotoThumbnailSrc: (photoPath: string | null | undefined) => photoPath ? `asset:///tmp/x/${photoPath}` : null,
 }));
 
 import { FindPopup } from './FindPopup';
@@ -48,7 +62,7 @@ describe('FindPopup', () => {
   it('Level 1 single find shows species name and date', () => {
     render(<FindPopup group={group([mk(1, 'Cantharellus', '2026-04-01')])} storagePath="/tmp/x" />);
     expect(screen.getByText('Cantharellus')).toBeInTheDocument();
-    expect(screen.getByText('2026-04-01')).toBeInTheDocument();
+    expect(screen.getByText('04/01/26')).toBeInTheDocument();
   });
 
   it('Level 1 cluster shows all find rows', () => {

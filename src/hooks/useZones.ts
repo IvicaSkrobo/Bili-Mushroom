@@ -9,12 +9,12 @@ import {
   type Zone,
 } from '@/lib/zones';
 
-export function useZones() {
+export function useZones(enabled = true) {
   const storagePath = useAppStore((s) => s.storagePath);
   return useQuery<Zone[]>({
     queryKey: [ZONES_QUERY_KEY, storagePath],
     queryFn: () => getZones(storagePath!),
-    enabled: !!storagePath,
+    enabled: !!storagePath && enabled,
   });
 }
 

@@ -8,6 +8,7 @@ import { BookOpen, Loader2, Sprout } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { loadStoragePath } from '@/lib/storage';
 import { cleanupInternalRecords, initializeDatabase, DatabaseInitError } from '@/lib/db';
+import { warmPhotoThumbnailCache } from '@/lib/photoSrc';
 import { FirstRunDialog } from '@/components/dialogs/FirstRunDialog';
 import { MigrationErrorDialog } from '@/components/dialogs/MigrationErrorDialog';
 import { AutoImportDialog } from '@/components/dialogs/AutoImportDialog';
@@ -253,6 +254,7 @@ export default function App() {
   useEffect(() => {
     if (!storagePath) return;
     let cancelled = false;
+    let thumbnailWarmupTimer: number | null = null;
     const startedAt = performance.now();
     initializeDatabase(storagePath)
       .then(() => {
@@ -262,6 +264,11 @@ export default function App() {
           cleanupInternalRecords(storagePath).catch((err) => {
             console.warn('Background library cleanup failed', err);
           });
+          thumbnailWarmupTimer = window.setTimeout(() => {
+            warmPhotoThumbnailCache(storagePath, 256, 40).catch((err) => {
+              console.warn('Background thumbnail warmup failed', err);
+            });
+          }, 4000);
         }
       })
       .catch((err) => {
@@ -272,7 +279,10 @@ export default function App() {
           setDbError(`${String(err?.message ?? err)}${detail}`);
         }
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (thumbnailWarmupTimer != null) window.clearTimeout(thumbnailWarmupTimer);
+    };
   }, [storagePath, setDbReady, setDbError]);
 
   if (dbError) {

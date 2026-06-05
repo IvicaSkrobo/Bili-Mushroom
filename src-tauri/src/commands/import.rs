@@ -495,6 +495,7 @@ fn ensure_performance_indexes(conn: &Connection) -> Result<(), String> {
         "
         CREATE INDEX IF NOT EXISTS idx_finds_date_id ON finds(date_found DESC, id DESC);
         CREATE INDEX IF NOT EXISTS idx_finds_species_name ON finds(species_name);
+        CREATE INDEX IF NOT EXISTS idx_finds_species_date_id ON finds(species_name, date_found DESC, id DESC);
         CREATE INDEX IF NOT EXISTS idx_finds_species_name_lower ON finds(LOWER(species_name));
         CREATE INDEX IF NOT EXISTS idx_finds_favorite_date ON finds(is_favorite, date_found DESC, id DESC);
         CREATE INDEX IF NOT EXISTS idx_finds_location_country_lower ON finds(LOWER(country));
@@ -503,6 +504,7 @@ fn ensure_performance_indexes(conn: &Connection) -> Result<(), String> {
         CREATE INDEX IF NOT EXISTS idx_find_photos_find_order ON find_photos(find_id, is_primary DESC, id ASC);
         CREATE INDEX IF NOT EXISTS idx_find_photos_path ON find_photos(photo_path);
         CREATE INDEX IF NOT EXISTS idx_species_profiles_name ON species_profiles(species_name);
+        CREATE INDEX IF NOT EXISTS idx_zones_species_geometry_source ON zones(species_name, geometry_type, source_find_id, updated_at DESC, id DESC);
         ",
     )
     .map_err(|e| format!("Failed to ensure performance indexes: {}", e))?;

@@ -1,25 +1,10 @@
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
+import { MAX_PDF_PAGES, MAX_SPOTLIGHT_PAGES } from '@/lib/pdfModel';
+import type { FindForPdf, SpeciesNoteForPdf } from '@/lib/pdfModel';
+export { MAX_PDF_PAGES, MAX_SPOTLIGHT_PAGES } from '@/lib/pdfModel';
+export type { FindForPdf, SpeciesNoteForPdf } from '@/lib/pdfModel';
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
-
-export interface FindForPdf {
-  id: number;
-  species_name: string;
-  date_found: string;
-  country: string;
-  region: string;
-  location_note: string;
-  lat: number | null;
-  lng: number | null;
-  notes: string;
-  photo_count: number;
-  photos_base64: string[];
-}
-
-export interface SpeciesNoteForPdf {
-  species_name: string;
-  notes: string;
-}
 
 interface Props {
   finds: FindForPdf[];
@@ -31,9 +16,6 @@ interface SmokeTestProps {
   finds: FindForPdf[];
 }
 
-export const MAX_PDF_PAGES = 12;
-const STATIC_PAGE_COUNT = 5;
-export const MAX_SPOTLIGHT_PAGES = Math.max(0, MAX_PDF_PAGES - STATIC_PAGE_COUNT);
 const MAX_FOLDER_ROWS = 12;
 const SPOTLIGHTS_PER_PAGE = 2;
 

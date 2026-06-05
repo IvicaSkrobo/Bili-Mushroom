@@ -1,19 +1,12 @@
-import React from 'react';
 import * as Comlink from 'comlink';
-import { pdf } from '@react-pdf/renderer';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import { readPhotosAsBase64 } from '@/lib/stats';
 import { getSpeciesNotes } from '@/lib/finds';
 import type { Find } from '@/lib/finds';
 import type { PdfWorkerApi } from '../workers/pdfExport.worker';
-import {
-  MAX_SPOTLIGHT_PAGES,
-  MushroomJournal,
-  SmokeTestDocument,
-  type FindForPdf,
-  type SpeciesNoteForPdf,
-} from '@/components/stats/ExportDocument';
+import { MAX_SPOTLIGHT_PAGES } from '@/lib/pdfModel';
+import type { FindForPdf, SpeciesNoteForPdf } from '@/lib/pdfModel';
 
 const PHOTO_SPECIES_BUDGET = MAX_SPOTLIGHT_PAGES * 2;
 
@@ -46,16 +39,6 @@ function pickSmokeTestFinds(finds: Find[]): Find[] {
 
 const PDF_WORKER_TIMEOUT_MS = 8_000;
 
-function createPdfElement(
-  finds: FindForPdf[],
-  speciesNotes: SpeciesNoteForPdf[],
-  smokeTest: boolean,
-) {
-  return smokeTest
-    ? React.createElement(SmokeTestDocument, { finds })
-    : React.createElement(MushroomJournal, { finds, speciesNotes });
-}
-
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
@@ -67,7 +50,15 @@ async function renderPdfOnMainThread(
   speciesNotes: SpeciesNoteForPdf[],
   smokeTest: boolean,
 ): Promise<Uint8Array> {
-  const element = createPdfElement(finds, speciesNotes, smokeTest);
+  const [{ pdf }, ReactModule, { MushroomJournal, SmokeTestDocument }] = await Promise.all([
+    import('@react-pdf/renderer'),
+    import('react'),
+    import('@/components/stats/ExportDocument'),
+  ]);
+  const React = ReactModule.default;
+  const element = smokeTest
+    ? React.createElement(SmokeTestDocument, { finds })
+    : React.createElement(MushroomJournal, { finds, speciesNotes });
   const blob = await pdf(element).toBlob();
   return new Uint8Array(await blob.arrayBuffer());
 }

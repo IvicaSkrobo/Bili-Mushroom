@@ -340,6 +340,8 @@ function computeCrowded(map: L.Map, groups: LocationGroup[]): Set<string> {
   return crowded;
 }
 
+const MARKER_VIEWPORT_PADDING = 0.45;
+
 function CollectionPinsInner({
   groups,
   onStartLocalPolygonForFind,
@@ -356,6 +358,7 @@ function CollectionPinsInner({
   const map = useMap();
   const [crowded, setCrowded] = useState<Set<string>>(new Set());
   const [zoom, setZoom] = useState(() => map.getZoom());
+  const [viewportTick, setViewportTick] = useState(0);
   const { data: speciesNotesData } = useSpeciesNotes();
   const { data: speciesProfilesRaw } = useSpeciesProfiles();
   const storagePath = useAppStore((s) => s.storagePath) ?? '';
@@ -373,16 +376,30 @@ function CollectionPinsInner({
     return m;
   }, [speciesProfilesRaw]);
 
-  const update = useCallback(() => { setCrowded(computeCrowded(map, groups)); }, [map, groups]);
-  useEffect(() => { update(); }, [update]);
+  const visibleGroups = useMemo(() => {
+    void viewportTick;
+    const bounds = map.getBounds().pad(MARKER_VIEWPORT_PADDING);
+    return groups.filter((g) => bounds.contains([g.lat, g.lng]));
+  }, [groups, map, viewportTick]);
+
+  const updateCrowding = useCallback(() => {
+    setCrowded(computeCrowded(map, visibleGroups));
+  }, [map, visibleGroups]);
+
+  useEffect(() => { updateCrowding(); }, [updateCrowding]);
   useMapEvents({
-    zoomend: () => { update(); setZoom(map.getZoom()); },
-    moveend: update,
+    zoomend: () => {
+      setZoom(map.getZoom());
+      setViewportTick((tick) => tick + 1);
+    },
+    moveend: () => {
+      setViewportTick((tick) => tick + 1);
+    },
   });
 
   return (
     <>
-      {groups.map((g) => {
+      {visibleGroups.map((g) => {
         const showLabel = zoom >= LABEL_ZOOM_THRESHOLD && !crowded.has(g.key) && !g.suppressLabel;
         const groupZones = zones.filter((z) => g.species.some((s) => z.species_name === s.name));
         return (

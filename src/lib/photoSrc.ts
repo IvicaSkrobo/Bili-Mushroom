@@ -45,3 +45,16 @@ export async function getPhotoThumbnailPath(
 ): Promise<string> {
   return invoke<string>('get_photo_thumbnail', { storagePath, photoPath, size });
 }
+
+export interface ThumbnailWarmupSummary {
+  processed: number;
+  failed: number;
+}
+
+export async function warmPhotoThumbnailCache(
+  storagePath: string,
+  size = 256,
+  limit = 40,
+): Promise<ThumbnailWarmupSummary> {
+  return invoke<ThumbnailWarmupSummary>('warm_photo_thumbnail_cache', { storagePath, size, limit });
+}

@@ -11,9 +11,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { EditFindDialog } from '@/components/finds/EditFindDialog';
 import { useAppStore } from '@/stores/appStore';
+import { usePhotoThumbnailSrc } from '@/hooks/usePhotoThumbnail';
 import { deleteFind } from '@/lib/finds';
 import type { ImportSummary, Find } from '@/lib/finds';
-import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { useT } from '@/i18n/index';
 import { formatDisplayDate } from '@/lib/dateFormat';
 
@@ -23,13 +23,26 @@ interface PostImportReviewDialogProps {
   onImportMore?: () => void;
 }
 
+function ReviewThumbnail({ photoPath }: { photoPath: string | null | undefined }) {
+  const thumbSrc = usePhotoThumbnailSrc(photoPath, 128);
+  if (!thumbSrc) return <div className="h-12 w-12 rounded bg-muted flex-shrink-0" />;
+  return (
+    <img
+      src={thumbSrc}
+      alt=""
+      className="h-12 w-12 rounded object-cover flex-shrink-0"
+      loading="lazy"
+      decoding="async"
+    />
+  );
+}
+
 export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: PostImportReviewDialogProps) {
   const t = useT();
   const [editingFind, setEditingFind] = useState<Find | null>(null);
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
   const storagePath = useAppStore((s) => s.storagePath);
   const lang = useAppStore((s) => s.language);
-  const photoAssetVersion = useAppStore((s) => s.photoAssetVersion);
 
   const open = summary !== null;
 
@@ -68,9 +81,6 @@ export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: 
                 <p className="text-sm font-medium text-muted-foreground">{t('import.reviewImportedSection')}</p>
                 {visibleFinds.map((find) => {
                   const primaryPhoto = find.photos?.[0];
-                  const thumbSrc = primaryPhoto && storagePath
-                    ? resolvePhotoSrc(storagePath, primaryPhoto.photo_path, photoAssetVersion)
-                    : null;
 
                   return (
                     <div
@@ -78,15 +88,7 @@ export function PostImportReviewDialog({ summary, onOpenChange, onImportMore }: 
                       className="flex items-center gap-3 rounded border px-3 py-2"
                     >
                       {/* Thumbnail */}
-                      {thumbSrc ? (
-                        <img
-                          src={thumbSrc}
-                          alt=""
-                          className="h-12 w-12 rounded object-cover flex-shrink-0"
-                        />
-                      ) : (
-                        <div className="h-12 w-12 rounded bg-muted flex-shrink-0" />
-                      )}
+                      <ReviewThumbnail photoPath={primaryPhoto?.photo_path} />
 
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium text-sm">

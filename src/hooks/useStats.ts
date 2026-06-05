@@ -18,47 +18,47 @@ import {
   type SpeciesStatSummary,
 } from '@/lib/stats';
 
-export function useStatsCards() {
+export function useStatsCards(enabled = true) {
   const storagePath = useAppStore((s) => s.storagePath);
   return useQuery<StatsCards>({
     queryKey: [STATS_QUERY_KEY, storagePath],
     queryFn: () => getStatsCards(storagePath!),
-    enabled: !!storagePath,
+    enabled: !!storagePath && enabled,
   });
 }
 
-export function useTopSpots() {
+export function useTopSpots(enabled = true) {
   const storagePath = useAppStore((s) => s.storagePath);
   return useQuery<TopSpot[]>({
     queryKey: [TOP_SPOTS_QUERY_KEY, storagePath],
     queryFn: () => getTopSpots(storagePath!),
-    enabled: !!storagePath,
+    enabled: !!storagePath && enabled,
   });
 }
 
-export function useBestMonths() {
+export function useBestMonths(enabled = true) {
   const storagePath = useAppStore((s) => s.storagePath);
   return useQuery<BestMonth[]>({
     queryKey: [BEST_MONTHS_QUERY_KEY, storagePath],
     queryFn: () => getBestMonths(storagePath!),
-    enabled: !!storagePath,
+    enabled: !!storagePath && enabled,
   });
 }
 
-export function useCalendar() {
+export function useCalendar(enabled = true) {
   const storagePath = useAppStore((s) => s.storagePath);
   return useQuery<CalendarEntry[]>({
     queryKey: [CALENDAR_QUERY_KEY, storagePath],
     queryFn: () => getCalendar(storagePath!),
-    enabled: !!storagePath,
+    enabled: !!storagePath && enabled,
   });
 }
 
-export function useSpeciesStats() {
+export function useSpeciesStats(enabled = true) {
   const storagePath = useAppStore((s) => s.storagePath);
   return useQuery<SpeciesStatSummary[]>({
     queryKey: [SPECIES_STATS_QUERY_KEY, storagePath],
     queryFn: () => getSpeciesStats(storagePath!),
-    enabled: !!storagePath,
+    enabled: !!storagePath && enabled,
   });
 }

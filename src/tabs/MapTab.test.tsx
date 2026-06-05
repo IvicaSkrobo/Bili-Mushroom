@@ -19,8 +19,8 @@ vi.mock('@/hooks/useZones', () => ({
 // Mock the store to allow per-test override of storagePath
 const storagePathRef = { current: null as string | null };
 vi.mock('@/stores/appStore', () => ({
-  useAppStore: (selector: (s: { storagePath: string | null }) => unknown) =>
-    selector({ storagePath: storagePathRef.current }),
+  useAppStore: (selector: (s: { activeTab: string; language: string; storagePath: string | null }) => unknown) =>
+    selector({ activeTab: 'map', language: 'en', storagePath: storagePathRef.current }),
 }));
 
 import MapTab from './MapTab';

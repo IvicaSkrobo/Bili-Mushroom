@@ -244,6 +244,53 @@ pub async fn get_photo_thumbnail(
     .map_err(|e| format!("Thumbnail worker failed: {}", e))?
 }
 
+#[derive(serde::Serialize)]
+pub struct ThumbnailWarmupSummary {
+    pub processed: u32,
+    pub failed: u32,
+}
+
+#[tauri::command]
+pub async fn warm_photo_thumbnail_cache(
+    storage_path: String,
+    size: Option<u32>,
+    limit: Option<u32>,
+) -> Result<ThumbnailWarmupSummary, String> {
+    let size = size.unwrap_or(256).clamp(64, 768);
+    let limit = limit.unwrap_or(40).clamp(1, 500);
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT photo_path
+                 FROM find_photos
+                 GROUP BY photo_path
+                 ORDER BY MIN(id) ASC
+                 LIMIT ?1",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map(params![limit], |row| row.get::<_, String>(0))
+            .map_err(|e| e.to_string())?;
+
+        let mut processed = 0u32;
+        let mut failed = 0u32;
+        for row in rows {
+            match row {
+                Ok(photo_path) => match generate_photo_thumbnail_blocking(&storage_path, &photo_path, size) {
+                    Ok(_) => processed += 1,
+                    Err(_) => failed += 1,
+                },
+                Err(_) => failed += 1,
+            }
+        }
+
+        Ok(ThumbnailWarmupSummary { processed, failed })
+    })
+    .await
+    .map_err(|e| format!("Thumbnail warmup worker failed: {}", e))?
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct SpeciesRecipe {
     pub id: i64,
@@ -1667,6 +1714,103 @@ pub async fn prune_missing_photos(storage_path: String) -> Result<u32, String> {
     }
 
     Ok(deleted)
+}
+
+#[derive(serde::Serialize, Debug)]
+pub struct DuplicatePhotoCleanupSummary {
+    pub deleted_rows: u32,
+    pub affected_find_ids: Vec<i64>,
+    pub backup_path: Option<String>,
+}
+
+/// Remove duplicate find_photos rows for the same find + path.
+///
+/// This is deliberately conservative: it never deletes physical files and it does
+/// not remove references where different finds point at the same path.
+#[tauri::command]
+pub async fn cleanup_duplicate_photo_rows(
+    storage_path: String,
+) -> Result<DuplicatePhotoCleanupSummary, String> {
+    let mut conn = open_db(&storage_path)?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, find_id, photo_path, is_primary
+             FROM find_photos
+             ORDER BY find_id, photo_path, is_primary DESC, id ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows: Vec<(i64, i64, String, bool)> = stmt
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, i64>(3)? == 1,
+            ))
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    drop(stmt);
+
+    let mut seen: HashSet<(i64, String)> = HashSet::new();
+    let mut delete_ids = Vec::new();
+    let mut affected_find_ids: HashSet<i64> = HashSet::new();
+
+    for (photo_id, find_id, photo_path, _is_primary) in &rows {
+        let key = (*find_id, photo_path.replace('\\', "/"));
+        if seen.insert(key) {
+            continue;
+        }
+        delete_ids.push(*photo_id);
+        affected_find_ids.insert(*find_id);
+    }
+
+    if delete_ids.is_empty() {
+        return Ok(DuplicatePhotoCleanupSummary {
+            deleted_rows: 0,
+            affected_find_ids: Vec::new(),
+            backup_path: None,
+        });
+    }
+
+    let backup_path = backup_db_before_destructive_change(&storage_path, "cleanup-duplicate-photo-rows")?;
+    let tx = conn
+        .transaction()
+        .map_err(|e| format!("Failed to start duplicate cleanup transaction: {}", e))?;
+
+    for photo_id in &delete_ids {
+        tx.execute("DELETE FROM find_photos WHERE id = ?1", params![photo_id])
+            .map_err(|e| format!("Duplicate photo row delete failed: {}", e))?;
+    }
+
+    let mut affected_find_ids: Vec<i64> = affected_find_ids.into_iter().collect();
+    affected_find_ids.sort_unstable();
+    for find_id in &affected_find_ids {
+        let primary_id: Option<i64> = tx
+            .query_row(
+                "SELECT id FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC LIMIT 1",
+                params![find_id],
+                |row| row.get(0),
+            )
+            .ok();
+        if let Some(primary_id) = primary_id {
+            tx.execute(
+                "UPDATE find_photos SET is_primary = CASE WHEN id = ?1 THEN 1 ELSE 0 END WHERE find_id = ?2",
+                params![primary_id, find_id],
+            )
+            .map_err(|e| format!("Primary repair failed: {}", e))?;
+        }
+    }
+
+    tx.commit()
+        .map_err(|e| format!("Failed to commit duplicate cleanup: {}", e))?;
+
+    Ok(DuplicatePhotoCleanupSummary {
+        deleted_rows: delete_ids.len() as u32,
+        affected_find_ids,
+        backup_path,
+    })
 }
 
 #[derive(serde::Serialize, Debug)]

@@ -9,12 +9,12 @@ import {
 } from '@/lib/finds';
 import { useAppStore } from '@/stores/appStore';
 
-export function useFinds(filters?: FindSearchFilters) {
+export function useFinds(filters?: FindSearchFilters, enabled = true) {
   const storagePath = useAppStore((s) => s.storagePath);
   return useQuery<Find[]>({
     queryKey: [FINDS_QUERY_KEY, storagePath, filters ?? null],
     queryFn: () => getFinds(storagePath!, filters),
-    enabled: !!storagePath,
+    enabled: !!storagePath && enabled,
   });
 }
 
@@ -52,21 +52,21 @@ export function useInfiniteCollectionFolders(filters?: FindSearchFilters, pageSi
   });
 }
 
-export function useInfiniteSpeciesFinds(speciesName: string | null, filters?: FindSearchFilters, pageSize = 100) {
+export function useInfiniteSpeciesFinds(speciesName: string | null, filters?: FindSearchFilters, pageSize = 100, enabled = true) {
   const storagePath = useAppStore((s) => s.storagePath);
   return useInfiniteQuery({
     queryKey: [FINDS_QUERY_KEY, storagePath, 'species-finds', speciesName, filters ?? null, pageSize],
     queryFn: ({ pageParam }) =>
       getSpeciesFinds(storagePath!, speciesName!, {
         ...filters,
-        photosMode: 'primary',
+        photosMode: filters?.photosMode ?? 'primary',
         limit: pageSize,
         offset: pageParam * pageSize,
       }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) =>
       lastPage.length === pageSize ? allPages.length : undefined,
-    enabled: !!storagePath && !!speciesName,
+    enabled: !!storagePath && !!speciesName && enabled,
   });
 }
 
@@ -121,12 +121,12 @@ export function useSpeciesNotes() {
   });
 }
 
-export function useSpeciesProfiles() {
+export function useSpeciesProfiles(enabled = true) {
   const storagePath = useAppStore((s) => s.storagePath);
   return useQuery({
     queryKey: [SPECIES_PROFILES_QUERY_KEY, storagePath],
     queryFn: () => getSpeciesProfiles(storagePath!),
-    enabled: !!storagePath,
+    enabled: !!storagePath && enabled,
   });
 }
 

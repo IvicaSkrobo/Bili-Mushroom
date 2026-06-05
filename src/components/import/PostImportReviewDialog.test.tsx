@@ -124,7 +124,7 @@ describe('PostImportReviewDialog', () => {
         <PostImportReviewDialog summary={sampleSummary} onOpenChange={onOpenChange} />
       </Wrapper>,
     );
-    fireEvent.click(screen.getByRole('button', { name: /done/i }));
+    fireEvent.click(screen.getByRole('button', { name: /done|gotovo/i }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
@@ -134,7 +134,7 @@ describe('PostImportReviewDialog', () => {
         <PostImportReviewDialog summary={sampleSummary} onOpenChange={vi.fn()} />
       </Wrapper>,
     );
-    fireEvent.click(screen.getByRole('button', { name: /edit/i }));
+    fireEvent.click(screen.getByRole('button', { name: /edit|uredi/i }));
     expect(screen.getByTestId('edit-find-dialog')).toBeInTheDocument();
   });
 });

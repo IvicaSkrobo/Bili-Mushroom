@@ -110,6 +110,12 @@ export interface PhotoLibraryAudit {
   duplicate_photo_paths: DuplicatePhotoPath[];
 }
 
+export interface DuplicatePhotoCleanupSummary {
+  deleted_rows: number;
+  affected_find_ids: number[];
+  backup_path: string | null;
+}
+
 export interface SpeciesProfile {
   species_name: string;
   common_name?: string | null;
@@ -507,4 +513,8 @@ export async function editSourcePhotoImage(
 
 export async function auditPhotoLibrary(storagePath: string): Promise<PhotoLibraryAudit> {
   return invoke<PhotoLibraryAudit>('audit_photo_library', { storagePath });
+}
+
+export async function cleanupDuplicatePhotoRows(storagePath: string): Promise<DuplicatePhotoCleanupSummary> {
+  return invoke<DuplicatePhotoCleanupSummary>('cleanup_duplicate_photo_rows', { storagePath });
 }

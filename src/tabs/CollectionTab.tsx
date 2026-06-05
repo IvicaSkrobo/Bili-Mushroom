@@ -571,6 +571,22 @@ const SpeciesFindRows = memo(function SpeciesFindRows({
     ? Math.max(0, findRowsTotalSize - lastRenderedFindRow.start - lastRenderedFindRow.size)
     : 0;
 
+  useEffect(() => {
+    if (!findScrollElement || !hasNextPage || isFetchingNextPage) return;
+
+    const maybeFetchNextPage = () => {
+      const { scrollTop, clientHeight, scrollHeight } = findScrollElement;
+      if (scrollHeight <= clientHeight) return;
+      if (scrollTop + clientHeight >= scrollHeight - 500) {
+        void fetchNextPage();
+      }
+    };
+
+    maybeFetchNextPage();
+    findScrollElement.addEventListener('scroll', maybeFetchNextPage, { passive: true });
+    return () => findScrollElement.removeEventListener('scroll', maybeFetchNextPage);
+  }, [fetchNextPage, findScrollElement, hasNextPage, isFetchingNextPage, speciesFinds.length]);
+
   if (isLoading && speciesFinds.length === 0) {
     return <p className="text-xs text-muted-foreground">{t('collection.loading')}</p>;
   }

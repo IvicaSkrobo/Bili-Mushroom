@@ -95,12 +95,13 @@ function formatObservedCount(find: {
 export default function StatsTab() {
   const t = useT();
   const showDebugPdf = import.meta.env.DEV;
-  const { data: statsCards, isLoading: statsLoading } = useStatsCards();
-  const { data: topSpots } = useTopSpots();
-  const { data: bestMonths } = useBestMonths();
-  const { data: speciesStats } = useSpeciesStats();
-  const { data: finds } = useFinds();
-  const { data: speciesProfiles } = useSpeciesProfiles();
+  const isActive = useAppStore((s) => s.activeTab === 'stats');
+  const { data: statsCards, isLoading: statsLoading } = useStatsCards(isActive);
+  const { data: topSpots } = useTopSpots(isActive);
+  const { data: bestMonths } = useBestMonths(isActive);
+  const { data: speciesStats } = useSpeciesStats(isActive);
+  const { data: finds } = useFinds(undefined, isActive);
+  const { data: speciesProfiles } = useSpeciesProfiles(isActive);
   const storagePath = useAppStore((s) => s.storagePath);
   const lang = useAppStore((s) => s.language);
   const locale = lang === 'hr' ? 'hr-HR' : 'en-US';

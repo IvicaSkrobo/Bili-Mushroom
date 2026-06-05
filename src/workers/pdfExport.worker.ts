@@ -13,7 +13,7 @@ import React from 'react';
 import * as Comlink from 'comlink';
 import { pdf } from '@react-pdf/renderer';
 import { MushroomJournal, SmokeTestDocument } from '../components/stats/ExportDocument';
-import type { FindForPdf, SpeciesNoteForPdf } from '../components/stats/ExportDocument';
+import type { FindForPdf, SpeciesNoteForPdf } from '../lib/pdfModel';
 
 // ---------------------------------------------------------------------------
 // API exposed to main thread via Comlink
