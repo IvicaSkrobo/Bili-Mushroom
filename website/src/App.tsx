@@ -6,13 +6,11 @@ import {
   Download,
   ExternalLink,
   FolderOpen,
-  HardDrive,
   Heart,
   Map,
   MessageCircle,
   Moon,
   ShieldCheck,
-  Sparkles,
   Sprout,
   Star,
   AlertCircle,
@@ -362,28 +360,6 @@ const screenshotSrcMap: Record<string, string> = {
   find: './screenshots/import-find.png',
 };
 
-function AppScreenshot({ label, detail, index, onExpand }: { label: string; detail: string; index: number; lang?: Lang; onExpand?: (src: string) => void }) {
-  const kind = screenshotFiles[index] ?? 'collection';
-  const src = screenshotSrcMap[kind] ?? `./screenshots/screenshot-${kind}.png`;
-  return (
-    <figure className={`shot shot-${kind}${onExpand ? ' shot-expandable' : ''}`} onClick={() => onExpand?.(src)}>
-      <div className="shot-img-wrap">
-        <img
-          src={src}
-          alt={label}
-          width={1192}
-          height={638}
-          loading="lazy"
-          decoding="async"
-        />
-      </div>
-      <figcaption>
-        <p>{label}</p>
-        <span>{detail}</span>
-      </figcaption>
-    </figure>
-  );
-}
 
 function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
   useEffect(() => {
@@ -619,31 +595,6 @@ export function App() {
         ...idea,
         url: 'https://github.com/IvicaSkrobo/Bili-Mushroom/issues',
       }));
-  const appTabs =
-    lang === 'hr'
-      ? { collection: 'Zbirka', species: 'Vrste', map: 'Mapa', stats: 'Statistike' }
-      : { collection: 'Collection', species: 'Species', map: 'Map', stats: 'Stats' };
-  const activeFind = lang === 'hr'
-    ? {
-        count: '3 nalaza - travanj',
-        badge: 'Jestiva',
-        edit: 'Uredi',
-        folder: 'Folder',
-        latest: 'Zadnji zapis danas',
-        finds: 'Nalazi',
-        species: 'Vrste',
-        outings: 'Izlasci',
-      }
-    : {
-        count: '3 finds - April',
-        badge: 'Edible',
-        edit: 'Edit',
-        folder: 'Folder',
-        latest: 'Last entry today',
-        finds: 'Finds',
-        species: 'Species',
-        outings: 'Outings',
-      };
   const websiteBugCanSubmit =
     websiteBugForm.title.trim().length >= 4 && websiteBugForm.description.trim().length >= 10;
 
