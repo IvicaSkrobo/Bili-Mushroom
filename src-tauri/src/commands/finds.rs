@@ -1,9 +1,12 @@
 use rusqlite::params;
 use chrono::Utc;
+use std::collections::HashSet;
+use std::fs::File;
+use std::io::BufReader;
 use std::process::Command;
 use std::path::{Path, PathBuf};
 
-use crate::commands::import::{open_db, insert_find_photo, insert_find_row, find_record_from_row, upsert_species_common_name, FindPhoto, FindRecord};
+use crate::commands::import::{open_db, insert_find_photo, insert_find_row, find_record_from_row, remember_source_path, upsert_species_common_name, FindPhoto, FindRecord};
 use crate::commands::path_builder::{build_dest_path, next_seq_for_folder, resolve_location_component, plain_species_name};
 
 // ---------------------------------------------------------------------------
@@ -119,6 +122,27 @@ pub struct CropRect {
     pub y: u32,
     pub width: u32,
     pub height: u32,
+}
+
+fn read_exif_orientation(path: &Path) -> Option<u32> {
+    let file = File::open(path).ok()?;
+    let mut reader = BufReader::new(file);
+    let exif = exif::Reader::new().read_from_container(&mut reader).ok()?;
+    let field = exif.get_field(exif::Tag::Orientation, exif::In::PRIMARY)?;
+    field.value.get_uint(0)
+}
+
+fn apply_exif_orientation(image: image::DynamicImage, orientation: Option<u32>) -> image::DynamicImage {
+    match orientation.unwrap_or(1) {
+        2 => image.fliph(),
+        3 => image.rotate180(),
+        4 => image.flipv(),
+        5 => image.fliph().rotate90(),
+        6 => image.rotate90(),
+        7 => image.fliph().rotate270(),
+        8 => image.rotate270(),
+        _ => image,
+    }
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -1167,46 +1191,59 @@ pub async fn edit_find_photo_image(
         return Err(format!("Photo file does not exist: {}", absolute_path.display()));
     }
 
-    let mut image = image::open(&absolute_path)
-        .map_err(|e| format!("Failed to open image for editing: {}", e))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut image = image::open(&absolute_path)
+            .map_err(|e| format!("Failed to open image for editing: {}", e))?;
 
-    match rotate_degrees.unwrap_or(0).rem_euclid(360) {
-        90 => image = image.rotate90(),
-        180 => image = image.rotate180(),
-        270 => image = image.rotate270(),
-        0 => {}
-        other => return Err(format!("Unsupported rotation angle: {}", other)),
-    }
+        image = apply_exif_orientation(image, read_exif_orientation(&absolute_path));
 
-    if let Some(rect) = crop {
-        let img_w = image.width();
-        let img_h = image.height();
-        if rect.width == 0 || rect.height == 0 || rect.x >= img_w || rect.y >= img_h {
-            return Err("Invalid crop rectangle".into());
+        match rotate_degrees.unwrap_or(0).rem_euclid(360) {
+            90 => image = image.rotate90(),
+            180 => image = image.rotate180(),
+            270 => image = image.rotate270(),
+            0 => {}
+            other => return Err(format!("Unsupported rotation angle: {}", other)),
         }
-        let width = rect.width.min(img_w.saturating_sub(rect.x));
-        let height = rect.height.min(img_h.saturating_sub(rect.y));
-        if width == 0 || height == 0 {
-            return Err("Invalid crop rectangle".into());
-        }
-        image = image.crop_imm(rect.x, rect.y, width, height);
-    }
 
-    let file_stem = absolute_path
-        .file_stem()
-        .and_then(|name| name.to_str())
-        .unwrap_or("edited-photo");
-    let extension = absolute_path
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .unwrap_or("jpg");
-    let temp_path = absolute_path.with_file_name(format!(".{}.editing.{}", file_stem, extension));
-    image
-        .save(&temp_path)
-        .map_err(|e| format!("Failed to save edited image: {}", e))?;
-    std::fs::copy(&temp_path, &absolute_path)
-        .map_err(|e| format!("Failed to overwrite original image: {}", e))?;
-    let _ = std::fs::remove_file(&temp_path);
+        if let Some(rect) = crop {
+            let img_w = image.width();
+            let img_h = image.height();
+            if rect.width == 0 || rect.height == 0 || rect.x >= img_w || rect.y >= img_h {
+                return Err("Invalid crop rectangle".into());
+            }
+            let width = rect.width.min(img_w.saturating_sub(rect.x));
+            let height = rect.height.min(img_h.saturating_sub(rect.y));
+            if width == 0 || height == 0 {
+                return Err("Invalid crop rectangle".into());
+            }
+            image = image.crop_imm(rect.x, rect.y, width, height);
+        }
+
+        let file_stem = absolute_path
+            .file_stem()
+            .and_then(|name| name.to_str())
+            .unwrap_or("edited-photo");
+        let extension = absolute_path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("jpg");
+        let temp_path = absolute_path.with_file_name(format!(
+            ".{}.editing.{}.{}",
+            file_stem,
+            std::process::id(),
+            extension,
+        ));
+        image
+            .save(&temp_path)
+            .map_err(|e| format!("Failed to save edited image: {}", e))?;
+        std::fs::copy(&temp_path, &absolute_path)
+            .map_err(|e| format!("Failed to overwrite original image: {}", e))?;
+        let _ = std::fs::remove_file(&temp_path);
+
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Image edit task failed: {}", e))??;
 
     Ok(())
 }

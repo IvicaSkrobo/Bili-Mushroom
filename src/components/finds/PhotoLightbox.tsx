@@ -231,6 +231,7 @@ export function PhotoLightbox({
   const canEditRaster = photo != null && !heic && isEditableRasterPhoto(photo.photo_path);
   const renderedPhotoSrc = photo && !heic ? resolvePhotoSrc(storagePath, photo.photo_path, photoAssetVersion) : null;
   const isSpeciesCover = current ? (isCurrentSpeciesCover?.(current) ?? false) : false;
+  const previewTransform = `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom}) rotate(${pendingRotation}deg)`;
 
   // Observed count display for this find
   const obsMin = find.observed_count_min ?? find.observed_count;
@@ -356,8 +357,11 @@ export function PhotoLightbox({
                   className={`relative max-w-full max-h-full select-none ${cropMode ? 'cursor-crosshair' : ''}`}
                   style={{
                     maxHeight: isFullscreen ? 'calc(100vh - 2rem)' : 'calc(85vh - 2rem)',
-                    transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
+                    transform: previewTransform,
                     transformOrigin: 'center center',
+                    transition: dragActive.current ? undefined : 'transform 120ms ease-out',
+                    willChange: 'transform',
+                    contain: 'layout paint',
                   }}
                   onPointerDown={startCrop}
                   onPointerMove={updateCrop}
@@ -368,10 +372,9 @@ export function PhotoLightbox({
                     ref={imageRef}
                     src={renderedPhotoSrc!}
                     alt={find.species_name || photo.photo_path}
-                    className="max-w-full max-h-full object-contain transition-transform duration-150"
+                    className="max-w-full max-h-full object-contain"
                     style={{
                       maxHeight: isFullscreen ? 'calc(100vh - 2rem)' : 'calc(85vh - 2rem)',
-                      transform: pendingRotation ? `rotate(${pendingRotation}deg)` : undefined,
                     }}
                     draggable={false}
                   />
