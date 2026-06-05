@@ -444,7 +444,7 @@ export function SpeciesNameEditor({
                       selectSuggestion(s);
                     }}
                   >
-                    <span className="font-serif">{renderSpeciesName(s)}</span>
+                    <span className="font-serif font-medium text-foreground/82">{renderSpeciesName(s)}</span>
                     {commonName && (
                       <span className="ml-1.5 text-xs text-muted-foreground">{commonName}</span>
                     )}

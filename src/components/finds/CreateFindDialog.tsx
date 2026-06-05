@@ -24,6 +24,7 @@ import { LocationPickerMap } from '@/components/map/LocationPickerMap';
 import { PickLocationButton } from '@/components/map/PickLocationButton';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 import { plainSpeciesName } from '@/lib/speciesName';
+import { cn } from '@/lib/utils';
 
 interface FormState {
   species_name: string;
@@ -71,6 +72,20 @@ const BLANK_FORM: FormState = {
   observed_count_range: '',
   species_description: '',
 };
+
+const filledTextClass =
+  'border-primary/65 bg-primary/10 font-serif text-[15px] font-semibold shadow-[inset_3px_0_0_var(--primary)] placeholder:font-sans placeholder:text-muted-foreground/45 dark:bg-primary/12';
+const filledUiTextClass =
+  'border-primary/65 bg-primary/10 font-semibold shadow-[inset_3px_0_0_var(--primary)] placeholder:font-normal placeholder:text-muted-foreground/45 dark:bg-primary/12';
+const filledNumericClass =
+  'border-primary/65 bg-primary/10 font-mono text-[13px] font-semibold shadow-[inset_3px_0_0_var(--primary)] placeholder:font-sans placeholder:text-muted-foreground/45 dark:bg-primary/12';
+
+function filledClass(value: string, variant: 'text' | 'ui' | 'numeric' = 'text') {
+  if (!value.trim()) return undefined;
+  if (variant === 'numeric') return filledNumericClass;
+  if (variant === 'ui') return filledUiTextClass;
+  return filledTextClass;
+}
 
 const CREATE_FIND_DRAFT_KEY = 'bili:create-find-draft';
 
@@ -347,6 +362,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
                 suggestions={speciesSuggestions}
                 suggestionsProfiles={speciesSuggestionsProfiles}
                 label={t('edit.latinName')}
+                className={filledClass(form.species_name)}
               />
             </div>
             <div>
@@ -355,6 +371,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
                 value={form.common_name}
                 onChange={(e) => handleChange('common_name', e.target.value)}
                 placeholder={t('edit.commonNamePlaceholder')}
+                className={filledClass(form.common_name)}
               />
             </div>
             <PickLocationButton
@@ -367,7 +384,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
           <div>
             <label className="text-sm font-medium">{t('edit.date')}</label>
             <DateInput
-              className="ml-2 align-middle"
+              className={cn('ml-2 align-middle', filledClass(form.date_found, 'ui'))}"
               value={form.date_found}
               onChange={(value) => handleChange('date_found', value)}
               aria-label={t('edit.date')}
@@ -380,6 +397,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
                 value={form.country}
                 onChange={(e) => handleChange('country', e.target.value)}
                 placeholder={t('edit.country')}
+                className={filledClass(form.country, 'ui')}
               />
             </div>
             <div>
@@ -388,6 +406,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
                 value={form.region}
                 onChange={(e) => handleChange('region', e.target.value)}
                 placeholder={t('edit.region')}
+                className={filledClass(form.region, 'ui')}
               />
             </div>
             <div className="col-span-2">
@@ -397,6 +416,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
                 onChange={(v) => handleChange('location_note', v)}
                 suggestions={locationNoteSuggestions}
                 placeholder={t('edit.locationMarkPlaceholder')}
+                inputClassName={filledClass(form.location_note, 'ui')}
               />
             </div>
           </div>
@@ -411,6 +431,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
               value={form.observed_count_range}
               onChange={(e) => handleChange('observed_count_range', e.target.value)}
               placeholder="npr. 15 ili 15-20"
+              className={filledClass(form.observed_count_range, 'numeric')}
             />
             {!isObservedRangeInputValid(form.observed_count_range) && (
               <p className="mt-1 text-xs text-amber-600">
@@ -425,6 +446,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
                 value={form.lat}
                 onChange={(e) => handleChange('lat', e.target.value)}
                 placeholder="e.g. 45.1234"
+                className={filledClass(form.lat, 'numeric')}
               />
             </div>
             <div>
@@ -434,6 +456,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
                 value={form.lng}
                 onChange={(e) => handleChange('lng', e.target.value)}
                 placeholder="e.g. 13.9876"
+                className={filledClass(form.lng, 'numeric')}
               />
             </div>
           </div>
@@ -444,6 +467,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
               onChange={(e) => handleChange('notes', e.target.value)}
               placeholder={t('edit.notes')}
               rows={3}
+              className={filledClass(form.notes)}
             />
           </div>
           <div>
@@ -453,6 +477,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
               onChange={(e) => handleChange('species_description', e.target.value)}
               placeholder={speciesProfile?.description ?? speciesProfile?.edibility_note ?? t('edit.speciesDescriptionPlaceholder')}
               rows={3}
+              className={filledClass(form.species_description)}
             />
             <p className="mt-1 text-xs text-muted-foreground">{t('edit.speciesDescriptionHelp')}</p>
           </div>

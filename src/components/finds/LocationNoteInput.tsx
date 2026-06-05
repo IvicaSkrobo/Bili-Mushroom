@@ -55,6 +55,7 @@ export interface LocationNoteInputProps {
   suggestions?: string[];
   placeholder?: string;
   className?: string;
+  inputClassName?: string;
 }
 
 export function LocationNoteInput({
@@ -63,6 +64,7 @@ export function LocationNoteInput({
   suggestions = [],
   placeholder,
   className,
+  inputClassName,
 }: LocationNoteInputProps) {
   const t = useT();
   // Internal value drives the input display and dropdown filter.
@@ -179,6 +181,7 @@ export function LocationNoteInput({
         onFocus={handleFocus}
         placeholder={placeholder}
         autoComplete="off"
+        className={inputClassName}
       />
 
       {dropdownOpen && visibleSuggestions.length > 0 && (

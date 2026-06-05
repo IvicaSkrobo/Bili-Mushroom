@@ -73,6 +73,16 @@ function getPickerPinIcon(
   return iconCache.get(key)!;
 }
 
+export function pickedLocationLabel(species: Array<{ name: string }>): string {
+  return Array.from(
+    new Set(
+      species
+        .map((entry) => plainSpeciesName(entry.name).trim())
+        .filter(Boolean),
+    ),
+  ).join(', ');
+}
+
 interface PickerPinsProps {
   finds: Find[];
   /** Called when the user clicks an existing pin to adopt its location. */
@@ -108,7 +118,7 @@ export function PickerPins({ finds, onPickLocation }: PickerPinsProps) {
       {collections.map((c) => {
         const showLabel =
           zoom >= LABEL_ZOOM_THRESHOLD && !crowded.has(c.key) && !c.suppressLabel;
-        const label = plainSpeciesName((c.species[0]?.name ?? '').trim());
+        const label = pickedLocationLabel(c.species);
 
         return (
           <Marker
