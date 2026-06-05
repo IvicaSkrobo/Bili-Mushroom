@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactNode } from 'react';
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { CreateFindDialog } from './CreateFindDialog';
 import { FindCard } from './FindCard';
 import { invokeHandlers } from '@/test/tauri-mocks';
@@ -9,6 +10,10 @@ import { useAppStore } from '@/stores/appStore';
 import type { Find } from '@/lib/finds';
 
 import '@/test/tauri-mocks';
+
+vi.mock('@/lib/geocoding', () => ({
+  reverseGeocode: vi.fn().mockResolvedValue({ country: 'Croatia', region: 'Istria' }),
+}));
 
 function makeQueryClient() {
   return new QueryClient({
@@ -56,7 +61,10 @@ describe('CreateFindDialog', () => {
 
   beforeEach(() => {
     onOpenChange.mockClear();
+    localStorage.clear();
+    vi.mocked(openDialog).mockResolvedValue('/tmp/test-mushroom-library');
     useAppStore.setState({ storagePath: storageRoot, dbReady: true, language: 'en' });
+    invokeHandlers['parse_exif'] = (_args: unknown) => ({ date: null, lat: null, lng: null });
     invokeHandlers['create_find'] = (_args: unknown) => ({
       id: 99,
       original_filename: '',
@@ -239,6 +247,22 @@ describe('CreateFindDialog', () => {
     });
 
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  it('prefills location fields from selected photo EXIF', async () => {
+    vi.mocked(openDialog).mockResolvedValue(['/photos/with-gps.jpg']);
+    invokeHandlers['parse_exif'] = (_args: unknown) => ({ date: null, lat: 45.1234, lng: 13.9876 });
+
+    renderDialog(true);
+    fireEvent.click(screen.getByRole('button', { name: /pick photos/i }));
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('45.1234')).toBeInTheDocument();
+      expect(screen.getByDisplayValue('13.9876')).toBeInTheDocument();
+    });
+
+    expect(screen.getByDisplayValue('Croatia')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Istria')).toBeInTheDocument();
   });
 });
 

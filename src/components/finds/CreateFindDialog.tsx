@@ -28,7 +28,7 @@ import { PickLocationButton } from '@/components/map/PickLocationButton';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 import { compareSpeciesNames, plainSpeciesName } from '@/lib/speciesName';
 import { cn } from '@/lib/utils';
-import { editSourcePhotoImage, isHeic, SUPPORTED_EXTENSIONS } from '@/lib/finds';
+import { editSourcePhotoImage, isHeic, parseExif, SUPPORTED_EXTENSIONS } from '@/lib/finds';
 
 interface FormState {
   species_name: string;
@@ -700,6 +700,35 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
+  async function prefillLocationFromExif(paths: string[]) {
+    if (paths.length === 0 || form.lat !== '' || form.lng !== '') return;
+
+    for (const path of paths) {
+      try {
+        const exif = await parseExif(path);
+        if (exif.lat == null || exif.lng == null) continue;
+
+        setForm((prev) => {
+          if (prev.lat !== '' || prev.lng !== '') return prev;
+          return { ...prev, lat: String(exif.lat), lng: String(exif.lng) };
+        });
+
+        const lang = useAppStore.getState().language;
+        const geo = await reverseGeocode(exif.lat, exif.lng, lang);
+        if (geo.country || geo.region) {
+          setForm((prev) => ({
+            ...prev,
+            country: prev.country || geo.country || '',
+            region: prev.region || geo.region || '',
+          }));
+        }
+        return;
+      } catch {
+        // Keep looking; another selected photo may contain GPS EXIF.
+      }
+    }
+  }
+
   async function handlePickPhotos() {
     try {
       const selected = await openDialog({
@@ -708,6 +737,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
       });
       if (!selected) return;
       const paths = Array.isArray(selected) ? selected : [selected];
+      void prefillLocationFromExif(paths);
       setSelectedPhotos((prev) => {
         const seen = new Set(prev);
         return [...prev, ...paths.filter((path) => {

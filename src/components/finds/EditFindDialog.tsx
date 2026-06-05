@@ -20,7 +20,7 @@ import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { useUpdateFind, useAddFindPhotos, useDeleteFindPhoto, useBulkDeleteFindPhotos, useFinds, useSpeciesProfiles, useUpsertSpeciesProfile } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
-import { openFindFolder, SUPPORTED_EXTENSIONS, type Find } from '@/lib/finds';
+import { openFindFolder, parseExif, SUPPORTED_EXTENSIONS, type Find } from '@/lib/finds';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { reverseGeocode } from '@/lib/geocoding';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
@@ -332,6 +332,35 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     }
   }
 
+  async function prefillLocationFromExif(paths: string[]) {
+    if (paths.length === 0 || form.lat !== '' || form.lng !== '') return;
+
+    for (const path of paths) {
+      try {
+        const exif = await parseExif(path);
+        if (exif.lat == null || exif.lng == null) continue;
+
+        setForm((prev) => {
+          if (prev.lat !== '' || prev.lng !== '') return prev;
+          return { ...prev, lat: String(exif.lat), lng: String(exif.lng) };
+        });
+
+        const lang = useAppStore.getState().language;
+        const geo = await reverseGeocode(exif.lat, exif.lng, lang);
+        if (geo.country || geo.region) {
+          setForm((prev) => ({
+            ...prev,
+            country: prev.country || geo.country || '',
+            region: prev.region || geo.region || '',
+          }));
+        }
+        return;
+      } catch {
+        // Keep looking; another selected photo may contain GPS EXIF.
+      }
+    }
+  }
+
   async function handlePickPhotos() {
     const selected = await openDialog({
       multiple: true,
@@ -339,6 +368,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     });
     if (!selected) return;
     const paths = Array.isArray(selected) ? selected : [selected];
+    void prefillLocationFromExif(paths);
     setPendingPhotos((prev) => dedupePhotoPaths([...prev, ...paths]));
   }
 
