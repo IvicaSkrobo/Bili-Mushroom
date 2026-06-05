@@ -1293,7 +1293,7 @@ export function App() {
           ))}
         </nav>
         {hasDonateUrl ? (
-          <a className="funding-strip" href="#support" aria-label={t.fundingTop as string}>
+          <a className="funding-strip" href={donateUrl} target="_blank" rel="noopener noreferrer" aria-label={t.fundingTop as string}>
             <span>
               <Heart size={14} />
               {t.fundingTop as string}
@@ -1361,7 +1361,7 @@ export function App() {
                 </a>
               ) : null}
               {hasDonateUrl ? (
-                <a className="button secondary" href="#support">
+                <a className="button secondary" href={donateUrl} target="_blank" rel="noopener noreferrer">
                   <Heart size={18} />
                   {t.supportHero as string}
                 </a>
