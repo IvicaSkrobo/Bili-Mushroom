@@ -5,6 +5,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::process::Command;
 use std::path::{Path, PathBuf};
+use sha2::{Digest, Sha256};
 
 use crate::commands::import::{open_db, insert_find_photo, insert_find_row, find_record_from_row, remember_source_path, upsert_species_common_name, FindPhoto, FindRecord};
 use crate::commands::path_builder::{build_dest_path, next_seq_for_folder, resolve_location_component, plain_species_name};
@@ -69,6 +70,7 @@ pub async fn create_find(
         is_favorite: false,
         created_at,
         edibility_note: payload.edibility_note,
+        photo_count: Some(0),
         photos: vec![],
     };
 
@@ -143,6 +145,83 @@ fn apply_exif_orientation(image: image::DynamicImage, orientation: Option<u32>) 
         8 => image.rotate270(),
         _ => image,
     }
+}
+
+fn is_safe_relative_photo_path(photo_path: &str) -> bool {
+    let path = Path::new(photo_path);
+    !path.is_absolute()
+        && path.components().all(|component| {
+            !matches!(
+                component,
+                std::path::Component::ParentDir | std::path::Component::Prefix(_)
+            )
+        })
+}
+
+fn thumbnail_relative_path(photo_path: &str, size: u32) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(photo_path.replace('\\', "/").as_bytes());
+    let hash = format!("{:x}", hasher.finalize());
+    format!(".bili-cache/thumbnails/{}_{}.jpg", &hash[..20], size)
+}
+
+fn generate_photo_thumbnail_blocking(
+    storage_path: &str,
+    photo_path: &str,
+    size: u32,
+) -> Result<String, String> {
+    if !is_safe_relative_photo_path(photo_path) {
+        return Err("photo_path must be relative to the library folder".into());
+    }
+
+    let size = size.clamp(64, 768);
+    let normalized_photo_path = photo_path.replace('/', std::path::MAIN_SEPARATOR_STR);
+    let source_path = Path::new(storage_path).join(normalized_photo_path);
+    if !source_path.exists() {
+        return Err(format!("Photo file does not exist: {}", photo_path));
+    }
+
+    let relative_thumb = thumbnail_relative_path(photo_path, size);
+    let thumb_path = Path::new(storage_path).join(relative_thumb.replace('/', std::path::MAIN_SEPARATOR_STR));
+
+    let source_modified = std::fs::metadata(&source_path).and_then(|meta| meta.modified()).ok();
+    let thumb_is_current = thumb_path.exists()
+        && match (source_modified, std::fs::metadata(&thumb_path).and_then(|meta| meta.modified()).ok()) {
+            (Some(source_time), Some(thumb_time)) => thumb_time >= source_time,
+            _ => true,
+        };
+    if thumb_is_current {
+        return Ok(relative_thumb);
+    }
+
+    if let Some(parent) = thumb_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create thumbnail cache folder: {}", e))?;
+    }
+
+    let orientation = read_exif_orientation(&source_path);
+    let image = image::open(&source_path)
+        .map_err(|e| format!("Failed to decode thumbnail source: {}", e))?;
+    let thumb = apply_exif_orientation(image, orientation).thumbnail(size, size);
+    thumb
+        .save_with_format(&thumb_path, image::ImageFormat::Jpeg)
+        .map_err(|e| format!("Failed to write thumbnail: {}", e))?;
+
+    Ok(relative_thumb)
+}
+
+#[tauri::command]
+pub async fn get_photo_thumbnail(
+    storage_path: String,
+    photo_path: String,
+    size: Option<u32>,
+) -> Result<String, String> {
+    let size = size.unwrap_or(256);
+    tauri::async_runtime::spawn_blocking(move || {
+        generate_photo_thumbnail_blocking(&storage_path, &photo_path, size)
+    })
+    .await
+    .map_err(|e| format!("Thumbnail worker failed: {}", e))?
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -896,7 +975,12 @@ pub async fn add_find_photos(
     std::fs::create_dir_all(&dest_folder)
         .map_err(|e| format!("Failed to create destination folder '{}': {}", dest_folder.display(), e))?;
 
+    let mut seen_source_paths: HashSet<String> = HashSet::new();
     for source_path in &source_paths {
+        if !remember_source_path(&mut seen_source_paths, source_path) {
+            continue;
+        }
+
         let ext = std::path::Path::new(source_path)
             .extension()
             .map(|e| format!(".{}", e.to_string_lossy().to_lowercase()))
@@ -1248,6 +1332,71 @@ pub async fn edit_find_photo_image(
     Ok(())
 }
 
+#[tauri::command]
+pub async fn edit_source_photo_image(
+    source_path: String,
+    rotate_degrees: Option<i32>,
+    crop: Option<CropRect>,
+) -> Result<String, String> {
+    let source = PathBuf::from(&source_path);
+    if !source.exists() {
+        return Err(format!("Source photo file does not exist: {}", source.display()));
+    }
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut image = image::open(&source)
+            .map_err(|e| format!("Failed to open source image for editing: {}", e))?;
+
+        image = apply_exif_orientation(image, read_exif_orientation(&source));
+
+        match rotate_degrees.unwrap_or(0).rem_euclid(360) {
+            90 => image = image.rotate90(),
+            180 => image = image.rotate180(),
+            270 => image = image.rotate270(),
+            0 => {}
+            other => return Err(format!("Unsupported rotation angle: {}", other)),
+        }
+
+        if let Some(rect) = crop {
+            let img_w = image.width();
+            let img_h = image.height();
+            if rect.width == 0 || rect.height == 0 || rect.x >= img_w || rect.y >= img_h {
+                return Err("Invalid crop rectangle".into());
+            }
+            let width = rect.width.min(img_w.saturating_sub(rect.x));
+            let height = rect.height.min(img_h.saturating_sub(rect.y));
+            if width == 0 || height == 0 {
+                return Err("Invalid crop rectangle".into());
+            }
+            image = image.crop_imm(rect.x, rect.y, width, height);
+        }
+
+        let file_stem = source
+            .file_stem()
+            .and_then(|name| name.to_str())
+            .unwrap_or("source-photo");
+        let extension = source
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("jpg");
+        let temp_path = std::env::temp_dir().join(format!(
+            "gljivobook-source-edit-{}-{}-{}.{}",
+            std::process::id(),
+            Utc::now().timestamp_millis(),
+            file_stem,
+            extension,
+        ));
+
+        image
+            .save(&temp_path)
+            .map_err(|e| format!("Failed to save edited source image: {}", e))?;
+
+        Ok(temp_path.to_string_lossy().to_string())
+    })
+    .await
+    .map_err(|e| format!("Source image edit task failed: {}", e))?
+}
+
 /// Remove find_photos entries whose files no longer exist on disk.
 /// Returns the number of photo rows deleted.
 #[tauri::command]
@@ -1365,6 +1514,7 @@ mod tests {
             is_favorite: false,
             created_at,
             edibility_note: None,
+            photo_count: Some(0),
             photos: vec![],
         };
         let new_id = insert_find_row(conn, &record).map_err(|e| e.to_string())?;

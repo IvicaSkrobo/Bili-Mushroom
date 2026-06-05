@@ -71,6 +71,20 @@ function isObservedRangeInputValid(value: string): boolean {
   return trimmed === '' || /^(\d+)(?:\s*-\s*(\d+))?$/.test(trimmed);
 }
 
+function photoPathKey(path: string): string {
+  return path.trim().replace(/\\/g, '/').toLowerCase();
+}
+
+function dedupePhotoPaths(paths: string[]): string[] {
+  const seen = new Set<string>();
+  return paths.filter((path) => {
+    const key = photoPathKey(path);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function findToFormState(find: Find): FormState {
   return {
     species_name: find.species_name ?? '',
@@ -325,7 +339,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     });
     if (!selected) return;
     const paths = Array.isArray(selected) ? selected : [selected];
-    setPendingPhotos(paths);
+    setPendingPhotos((prev) => dedupePhotoPaths([...prev, ...paths]));
   }
 
   function handleAddPhotos() {

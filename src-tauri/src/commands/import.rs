@@ -1,7 +1,7 @@
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, ToSql, params, params_from_iter};
 use tauri::Emitter;
 use chrono::Utc;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
@@ -61,6 +61,8 @@ pub struct FindRecord {
     pub is_favorite: bool,
     pub created_at: String,
     pub edibility_note: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub photo_count: Option<i64>,
     pub photos: Vec<FindPhoto>,
 }
 
@@ -155,6 +157,7 @@ pub(crate) fn find_record_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<
         is_favorite: row.get::<_, i64>(13)? == 1,
         created_at: row.get(14)?,
         edibility_note: row.get(15)?,
+        photo_count: None,
         photos: vec![],
     })
 }
@@ -430,7 +433,6 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
         conn.execute_batch("PRAGMA user_version = 22")
             .map_err(|e| format!("Failed to set user_version=22: {}", e))?;
     }
-
     // Repair development/local databases whose user_version advanced before
     // these metadata columns were present. This is idempotent and keeps
     // synonyms/local names saveable without touching stored values.
@@ -461,11 +463,31 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
     Ok(())
 }
 
+fn ensure_performance_indexes(conn: &Connection) -> Result<(), String> {
+    conn.execute_batch(
+        "
+        CREATE INDEX IF NOT EXISTS idx_finds_date_id ON finds(date_found DESC, id DESC);
+        CREATE INDEX IF NOT EXISTS idx_finds_species_name ON finds(species_name);
+        CREATE INDEX IF NOT EXISTS idx_finds_species_name_lower ON finds(LOWER(species_name));
+        CREATE INDEX IF NOT EXISTS idx_finds_favorite_date ON finds(is_favorite, date_found DESC, id DESC);
+        CREATE INDEX IF NOT EXISTS idx_finds_location_country_lower ON finds(LOWER(country));
+        CREATE INDEX IF NOT EXISTS idx_finds_location_region_lower ON finds(LOWER(region));
+        CREATE INDEX IF NOT EXISTS idx_finds_location_note_lower ON finds(LOWER(location_note));
+        CREATE INDEX IF NOT EXISTS idx_find_photos_find_order ON find_photos(find_id, is_primary DESC, id ASC);
+        CREATE INDEX IF NOT EXISTS idx_find_photos_path ON find_photos(photo_path);
+        CREATE INDEX IF NOT EXISTS idx_species_profiles_name ON species_profiles(species_name);
+        ",
+    )
+    .map_err(|e| format!("Failed to ensure performance indexes: {}", e))?;
+    Ok(())
+}
+
 pub(crate) fn open_db(storage_path: &str) -> Result<Connection, String> {
     let db_path = format!("{}/bili-mushroom.db", storage_path);
     let conn = Connection::open(&db_path)
         .map_err(|e| format!("Failed to open DB at {}: {}", db_path, e))?;
     migrate_db(&conn)?;
+    ensure_performance_indexes(&conn)?;
     Ok(conn)
 }
 
@@ -515,6 +537,19 @@ pub(crate) fn insert_find_photo(
         params![find_id, photo_path, if is_primary { 1i64 } else { 0i64 }],
     )?;
     Ok(conn.last_insert_rowid())
+}
+
+pub(crate) fn source_path_key(path: &str) -> String {
+    let normalized = path.trim().replace('\\', "/");
+    if cfg!(windows) {
+        normalized.to_lowercase()
+    } else {
+        normalized
+    }
+}
+
+pub(crate) fn remember_source_path(seen: &mut HashSet<String>, path: &str) -> bool {
+    seen.insert(source_path_key(path))
 }
 
 pub(crate) fn upsert_species_common_name(
@@ -598,8 +633,22 @@ pub async fn import_find(
 
     let conn = open_db(&storage_path)?;
     let storage_path_buf = Path::new(&storage_path);
+    let mut seen_source_paths: HashSet<String> = HashSet::new();
 
     for (i, payload) in payloads.iter().enumerate() {
+        if !remember_source_path(&mut seen_source_paths, &payload.source_path) {
+            skipped.push(payload.original_filename.clone());
+            let _ = app.emit(
+                "import-progress",
+                ImportProgress {
+                    current: i + 1,
+                    total,
+                    filename: payload.original_filename.clone(),
+                },
+            );
+            continue;
+        }
+
         // Location label for filename: only location_note (user-entered "oznaka").
         // Region is NOT used — user wants the manual label, not the auto-geocoded region.
         let location_label = payload.location_note.trim().to_string();
@@ -717,6 +766,7 @@ pub async fn import_find(
             is_favorite: false,
             created_at,
             edibility_note: payload.edibility_note.clone(),
+            photo_count: Some(1 + payload.additional_photos.len() as i64),
             photos: vec![],
         };
 
@@ -742,6 +792,16 @@ pub async fn import_find(
 
         // Mode A: handle additional_photos (always copied to storage, never in-place)
         for additional_src in &payload.additional_photos {
+            if !remember_source_path(&mut seen_source_paths, additional_src) {
+                skipped.push(
+                    Path::new(additional_src)
+                        .file_name()
+                        .map(|name| name.to_string_lossy().to_string())
+                        .unwrap_or_else(|| additional_src.clone()),
+                );
+                continue;
+            }
+
             let add_ext = Path::new(additional_src)
                 .extension()
                 .map(|e| format!(".{}", e.to_string_lossy().to_lowercase()))
@@ -804,31 +864,129 @@ pub async fn import_find(
 }
 
 #[tauri::command]
-pub async fn get_finds(storage_path: String) -> Result<Vec<FindRecord>, String> {
+pub async fn get_finds(storage_path: String, filters: Option<FindSearchFilters>) -> Result<Vec<FindRecord>, String> {
     let conn = open_db(&storage_path)?;
+    let filters = filters.unwrap_or_default();
+    let mut where_clauses: Vec<String> = Vec::new();
+    let mut query_params: Vec<Box<dyn ToSql>> = Vec::new();
+
+    if let Some(species_query) = normalized_like_query(filters.species_query.as_deref()) {
+        where_clauses.push("LOWER(species_name) LIKE ? ESCAPE '\\'".to_string());
+        query_params.push(Box::new(species_query));
+    }
+
+    if let Some(location_query) = normalized_like_query(filters.location_query.as_deref()) {
+        where_clauses.push("(LOWER(country) LIKE ? ESCAPE '\\' OR LOWER(region) LIKE ? ESCAPE '\\' OR LOWER(location_note) LIKE ? ESCAPE '\\')".to_string());
+        query_params.push(Box::new(location_query.clone()));
+        query_params.push(Box::new(location_query.clone()));
+        query_params.push(Box::new(location_query));
+    }
+
+    if filters.favorites_only.unwrap_or(false) {
+        where_clauses.push("is_favorite = 1".to_string());
+    }
+
+    if let Some(date_start) = normalized_date_bound(filters.date_start.as_deref()) {
+        where_clauses.push("date_found >= ?".to_string());
+        query_params.push(Box::new(date_start));
+    }
+
+    if let Some(date_end) = normalized_date_bound(filters.date_end.as_deref()) {
+        where_clauses.push("date_found <= ?".to_string());
+        query_params.push(Box::new(date_end));
+    }
+
+    if let Some(date_prefix) = normalized_date_prefix(filters.date_prefix.as_deref()) {
+        where_clauses.push("date_found LIKE ?".to_string());
+        query_params.push(Box::new(format!("{}%", date_prefix)));
+    }
+
+    let limit = filters.limit.map(|value| value.clamp(1, 2000)).unwrap_or(i64::MAX);
+    let offset = filters.offset.unwrap_or(0).max(0);
+    let primary_photos_only = filters.photos_mode.as_deref() == Some("primary");
+    let where_sql = if where_clauses.is_empty() {
+        String::new()
+    } else {
+        format!(" WHERE {}", where_clauses.join(" AND "))
+    };
+    let sql = format!(
+        "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note
+         FROM finds{} ORDER BY date_found DESC, id DESC LIMIT ? OFFSET ?",
+        where_sql,
+    );
+    query_params.push(Box::new(limit));
+    query_params.push(Box::new(offset));
 
     let mut find_stmt = conn
-        .prepare(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note
-             FROM finds ORDER BY date_found DESC, id DESC",
-        )
+        .prepare(&sql)
         .map_err(|e| format!("Failed to prepare finds query: {}", e))?;
 
     let mut records: Vec<FindRecord> = find_stmt
-        .query_map([], |row| find_record_from_row(row))
+        .query_map(params_from_iter(query_params.iter().map(|value| value.as_ref() as &dyn ToSql)), |row| find_record_from_row(row))
         .map_err(|e| format!("Query failed: {}", e))?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("Row mapping failed: {}", e))?;
 
-    // Fetch all photos and build a HashMap<find_id, Vec<FindPhoto>>
+    if records.is_empty() {
+        return Ok(records);
+    }
+
+    let find_ids: Vec<i64> = records.iter().map(|record| record.id).collect();
+    let photo_placeholders = std::iter::repeat("?")
+        .take(records.len())
+        .collect::<Vec<_>>()
+        .join(",");
+    if primary_photos_only {
+        let count_sql = format!(
+            "SELECT find_id, COUNT(*) FROM find_photos WHERE find_id IN ({}) GROUP BY find_id",
+            photo_placeholders,
+        );
+        let mut count_stmt = conn
+            .prepare(&count_sql)
+            .map_err(|e| format!("Failed to prepare photo counts query: {}", e))?;
+        let photo_counts: Vec<(i64, i64)> = count_stmt
+            .query_map(params_from_iter(find_ids.iter()), |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))
+            })
+            .map_err(|e| format!("Photo counts query failed: {}", e))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("Photo counts row mapping failed: {}", e))?;
+        let count_by_find: HashMap<i64, i64> = photo_counts.into_iter().collect();
+        for record in &mut records {
+            record.photo_count = Some(*count_by_find.get(&record.id).unwrap_or(&0));
+        }
+    }
+
+    // Fetch photos and build a HashMap<find_id, Vec<FindPhoto>>. Collection can ask
+    // for only the representative photo; detail screens keep the full photo list.
+    let photo_sql = format!(
+        "{} ORDER BY find_id, is_primary DESC, id ASC",
+        if primary_photos_only {
+            format!(
+                "SELECT fp.id, fp.find_id, fp.photo_path, fp.is_primary
+                 FROM find_photos fp
+                 WHERE fp.find_id IN ({}) AND fp.id = (
+                   SELECT fp2.id
+                   FROM find_photos fp2
+                   WHERE fp2.find_id = fp.find_id
+                   ORDER BY fp2.is_primary DESC, fp2.id ASC
+                   LIMIT 1
+                 )",
+                photo_placeholders,
+            )
+        } else {
+            format!(
+                "SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id IN ({})",
+                photo_placeholders,
+            )
+        },
+    );
     let mut photo_stmt = conn
-        .prepare(
-            "SELECT id, find_id, photo_path, is_primary FROM find_photos ORDER BY find_id, is_primary DESC, id ASC",
-        )
+        .prepare(&photo_sql)
         .map_err(|e| format!("Failed to prepare photos query: {}", e))?;
 
     let photo_rows: Vec<FindPhoto> = photo_stmt
-        .query_map([], |row| {
+        .query_map(params_from_iter(find_ids.iter()), |row| {
             Ok(FindPhoto {
                 id: row.get(0)?,
                 find_id: row.get(1)?,
@@ -847,11 +1005,60 @@ pub async fn get_finds(storage_path: String) -> Result<Vec<FindRecord>, String> 
 
     for record in &mut records {
         if let Some(photos) = photos_by_find.remove(&record.id) {
+            if record.photo_count.is_none() {
+                record.photo_count = Some(photos.len() as i64);
+            }
             record.photos = photos;
+        } else if record.photo_count.is_none() {
+            record.photo_count = Some(0);
         }
     }
 
     Ok(records)
+}
+
+#[derive(serde::Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct FindSearchFilters {
+    pub species_query: Option<String>,
+    pub location_query: Option<String>,
+    pub favorites_only: Option<bool>,
+    pub date_start: Option<String>,
+    pub date_end: Option<String>,
+    pub date_prefix: Option<String>,
+    pub photos_mode: Option<String>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+fn normalized_like_query(value: Option<&str>) -> Option<String> {
+    let trimmed = value?.trim().to_lowercase();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(format!("%{}%", trimmed.replace('%', "\\%").replace('_', "\\_")))
+    }
+}
+
+fn normalized_date_bound(value: Option<&str>) -> Option<String> {
+    let trimmed = value?.trim();
+    if trimmed.len() == 10 && trimmed.chars().nth(4) == Some('-') && trimmed.chars().nth(7) == Some('-') {
+        Some(trimmed.to_string())
+    } else {
+        None
+    }
+}
+
+fn normalized_date_prefix(value: Option<&str>) -> Option<String> {
+    let trimmed = value?.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if trimmed.len() <= 10 && trimmed.chars().all(|ch| ch.is_ascii_digit() || ch == '-') {
+        Some(trimmed.to_string())
+    } else {
+        None
+    }
 }
 
 #[derive(serde::Deserialize)]
@@ -1110,6 +1317,7 @@ pub(crate) mod test_helpers {
             is_favorite: false,
             created_at: "2024-05-10T14:23:00Z".to_string(),
             edibility_note: None,
+            photo_count: Some(0),
             photos: vec![],
         }
     }
@@ -1155,6 +1363,24 @@ mod tests {
     }
 
     #[test]
+    fn test_remember_source_path_deduplicates_normalized_paths() {
+        let mut seen = HashSet::new();
+
+        assert!(remember_source_path(&mut seen, r"C:\photos\same.JPG"));
+        assert!(
+            !remember_source_path(&mut seen, "C:/photos/same.JPG"),
+            "same path with different separators should be duplicate"
+        );
+        if cfg!(windows) {
+            assert!(
+                !remember_source_path(&mut seen, "c:/photos/same.jpg"),
+                "same Windows path with different case should be duplicate"
+            );
+        }
+        assert!(remember_source_path(&mut seen, r"C:\photos\other.JPG"));
+    }
+
+    #[test]
     fn test_insert_find_row_returns_new_id() {
         let conn = setup_in_memory_db();
         let record = make_find_record("photo.jpg", "2024-05-10");
@@ -1193,6 +1419,7 @@ mod tests {
                     observed_count_min: None,
                     observed_count_max: None,
                     edibility_note: None,
+                    photo_count: None,
                     photos: vec![],
                 }),
             )
@@ -1407,6 +1634,7 @@ mod tests {
                     is_favorite: row.get::<_, i64>(11)? == 1,
                     created_at: row.get(12)?,
                     edibility_note: None,
+                    photo_count: None,
                     photos: vec![],
                 })
             },

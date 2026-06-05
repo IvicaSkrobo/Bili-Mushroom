@@ -53,7 +53,7 @@ export function compareSpeciesNames(a: string, b: string): number {
 /**
  * Returns true when the query matches any searchable field of a species:
  * latin name, common/folk name, synonyms, or other names.
- * Case-insensitive substring match. Pass query already lowercased for efficiency.
+ * Case-insensitive prefix match. Pass query already lowercased for efficiency.
  */
 export function matchesSpeciesQuery(
   query: string,
@@ -62,9 +62,9 @@ export function matchesSpeciesQuery(
 ): boolean {
   if (!query) return true;
   if (plainSpeciesName(rawName).toLowerCase().startsWith(query)) return true;
-  if (profile?.common_name?.toLowerCase().includes(query)) return true;
+  if (profile?.common_name?.toLowerCase().startsWith(query)) return true;
   if (profile?.synonyms?.some((s) => s.toLowerCase().startsWith(query))) return true;
-  if (profile?.other_names?.some((n) => n.toLowerCase().includes(query))) return true;
+  if (profile?.other_names?.some((n) => n.toLowerCase().startsWith(query))) return true;
   return false;
 }
 

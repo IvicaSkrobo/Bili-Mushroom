@@ -16,6 +16,7 @@ pub fn run() {
             commands::import::update_find,
             commands::finds::delete_find,
             commands::finds::get_find_photos,
+            commands::finds::get_photo_thumbnail,
             commands::finds::get_species_notes,
             commands::finds::get_species_profiles,
             commands::finds::get_species_recipes,
@@ -35,6 +36,7 @@ pub fn run() {
             commands::finds::delete_find_photo,
             commands::finds::bulk_delete_find_photos,
             commands::finds::edit_find_photo_image,
+            commands::finds::edit_source_photo_image,
             commands::finds::prune_missing_photos,
             commands::finds::create_find,
             commands::tile_proxy::fetch_tile,
@@ -156,6 +158,7 @@ mod smoke {
             )
             .expect("query species_recipes");
         assert_eq!(recipes_exists, 1, "species_recipes table must exist after open_db");
+
     }
 
     #[test]

@@ -90,6 +90,20 @@ function isImagePath(name: string): boolean {
   return SUPPORTED_EXTENSIONS.includes(ext as (typeof SUPPORTED_EXTENSIONS)[number]);
 }
 
+function photoPathKey(path: string): string {
+  return path.trim().replace(/\\/g, '/').toLowerCase();
+}
+
+function dedupePhotoPaths(paths: string[]): string[] {
+  const seen = new Set<string>();
+  return paths.filter((path) => {
+    const key = photoPathKey(path);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Persist last used import directory so the picker reopens in the same place
 // ---------------------------------------------------------------------------
@@ -297,7 +311,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     draftLoadedRef.current = true;
     const draft = loadImportDraft();
     if (!draft) return;
-    setPhotos(draft.photos);
+    setPhotos(dedupePhotoPaths(draft.photos));
     setDeleteSource(draft.deleteSource);
     setSharedName(draft.sharedName);
     setSharedCommonName(draft.sharedCommonName);
@@ -428,7 +442,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
       const paths = Array.isArray(selected) ? selected : [selected];
       saveLastImportDir(paths[0]);
       const isFirst = photos.length === 0;
-      setPhotos((prev) => [...prev, ...paths]);
+      setPhotos((prev) => dedupePhotoPaths([...prev, ...paths]));
       if (isFirst) await prefillFromExif(paths);
     } catch (e) {
       setError(String(e));
@@ -465,7 +479,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         // One named subfolder → use its name as species, add all its photos
         if (!sharedName) setSharedName(subfolderGroups[0].name);
         const paths = [...directImages, ...subfolderGroups[0].paths];
-        setPhotos((prev) => [...prev, ...paths]);
+        setPhotos((prev) => dedupePhotoPaths([...prev, ...paths]));
         if (isFirst) await prefillFromExif(paths);
       } else if (subfolderGroups.length > 1) {
         // Multiple named subfolders = multi-species library → only take direct images,
@@ -474,7 +488,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         const folderName = dir.split('/').pop()?.split('\\').pop() ?? '';
         if (folderName && !sharedName) setSharedName(folderName);
         if (paths.length > 0) {
-          setPhotos((prev) => [...prev, ...paths]);
+          setPhotos((prev) => dedupePhotoPaths([...prev, ...paths]));
           if (isFirst) await prefillFromExif(paths);
         }
         setError(`Mapa sadrži ${subfolderGroups.length} podmapa s vrstama. Za uvoz cijele knjižnice koristi Postavke → Promijeni mapu.`);
@@ -482,7 +496,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         // No subfolders — flat folder, use folder name
         const folderName = dir.split('/').pop()?.split('\\').pop() ?? '';
         if (folderName && !sharedName) setSharedName(folderName);
-        setPhotos((prev) => [...prev, ...directImages]);
+        setPhotos((prev) => dedupePhotoPaths([...prev, ...directImages]));
         if (isFirst) await prefillFromExif(directImages);
       }
     } catch (e) {
@@ -754,15 +768,37 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                 )}
               </div>
 
-            <Textarea
-              placeholder={t('import.folderNotes')}
-              rows={2}
-              value={sharedFolderNotes}
-              onChange={(e) => {
-                folderNotesManuallyEditedRef.current = true;
-                setSharedFolderNotes(e.target.value);
-              }}
-            />
+            <div className="grid gap-2 md:grid-cols-2">
+              <div>
+                <label className="text-sm font-medium">{t('import.findNotesLabel')}</label>
+                <Textarea
+                  className="mt-1"
+                  aria-label={t('import.findNotesLabel')}
+                  placeholder={t('import.findNotesPlaceholder')}
+                  rows={3}
+                  value={sharedFindNotes}
+                  onChange={(e) => setSharedFindNotes(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">{t('import.speciesNotesLabel')}</label>
+                <Textarea
+                  className="mt-1"
+                  aria-label={t('import.speciesNotesLabel')}
+                  placeholder={t('import.speciesNotesPlaceholder')}
+                  rows={3}
+                  value={sharedFolderNotes}
+                  onChange={(e) => {
+                    folderNotesManuallyEditedRef.current = true;
+                    setSharedFolderNotes(e.target.value);
+                  }}
+                />
+                <p className="mt-1 text-xs text-muted-foreground/70">
+                  {t('import.speciesNotesHelp')}
+                </p>
+              </div>
+            </div>
 
             <div>
               <label className="mb-1 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground/70">

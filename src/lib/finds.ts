@@ -53,7 +53,24 @@ export interface Find {
   is_favorite: boolean;
   created_at: string;
   edibility_note: string | null;
+  photo_count?: number;
   photos: FindPhoto[];
+}
+
+export interface FindSearchFilters {
+  speciesQuery?: string;
+  locationQuery?: string;
+  favoritesOnly?: boolean;
+  dateStart?: string;
+  dateEnd?: string;
+  datePrefix?: string;
+  photosMode?: 'all' | 'primary';
+  limit?: number;
+  offset?: number;
+}
+
+export function getFindPhotoCount(find: Pick<Find, 'photos' | 'photo_count'>): number {
+  return find.photo_count ?? find.photos.length;
 }
 
 export interface ImportSummary {
@@ -145,8 +162,8 @@ export async function importFind(
  * Calls the Rust `get_finds` command.
  * Returns all find records ordered by date_found DESC, id DESC.
  */
-export async function getFinds(storagePath: string): Promise<Find[]> {
-  return invoke<Find[]>('get_finds', { storagePath });
+export async function getFinds(storagePath: string, filters?: FindSearchFilters): Promise<Find[]> {
+  return invoke<Find[]>('get_finds', filters ? { storagePath, filters } : { storagePath });
 }
 
 // ---------------------------------------------------------------------------
@@ -424,6 +441,18 @@ export async function editFindPhotoImage(
   return invoke<void>('edit_find_photo_image', {
     storagePath,
     photoId,
+    rotateDegrees,
+    crop: crop ?? null,
+  });
+}
+
+export async function editSourcePhotoImage(
+  sourcePath: string,
+  rotateDegrees = 0,
+  crop?: PhotoCropRect | null,
+): Promise<string> {
+  return invoke<string>('edit_source_photo_image', {
+    sourcePath,
     rotateDegrees,
     crop: crop ?? null,
   });
