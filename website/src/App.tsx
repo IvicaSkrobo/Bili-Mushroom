@@ -101,7 +101,7 @@ const bugReportEndpoint = 'https://gljivobook-bug-report.skroboivica.workers.dev
 const copy = {
   en: {
     eyebrow: 'Local-first field journal for Windows',
-    title: 'Mushroom Book',
+    title: 'Gljivobook',
     subtitle: 'Your foraging journal',
     intro: 'A quiet Windows app for saving mushroom finds, photos, notes, folders, maps, and seasons on your own computer.',
     download: 'Download for Windows',
@@ -117,7 +117,7 @@ const copy = {
     latest: 'Latest release',
     changelog: 'Small changelog',
     language: 'Hrvatski',
-    nav: ['Download', 'Changelog', 'Community', 'Ideas', 'Donate'],
+    nav: ['Download', 'Community', 'Donate'],
     theme: 'Theme',
     fundingTop: 'Donate if you like it',
     pillars: [
@@ -132,8 +132,10 @@ const copy = {
       ['Edit', 'Correct species, date, location, notes, badges, and photos later.'],
       ['Use', 'Open folders, filter maps, read stats, and export your archive.'],
     ],
+    speciesTitle: 'Species pages',
+    speciesBody: 'Every species in your collection gets its own page — notes, other names, edibility, recipes, best spots, and your personal finds over time.',
     downloadBody:
-      'Latest Windows download. Local fallback protects the page if GitHub returns old release data.',
+      'Windows installer, no account needed. Run the setup file and the app is ready.',
     installTitle: 'Install notes',
     installBody:
       'Download the Windows setup file, run it, and if Windows SmartScreen appears choose More info, then Run anyway.',
@@ -142,10 +144,10 @@ const copy = {
       'Finds, notes, folders, and photos stay on your computer. Core cataloging works without an account or cloud service.',
     responsibilityTitle: 'Shared in good faith',
     responsibilityBody:
-      'Mushroom Book was first made to help a fellow forager keep a personal archive, then shared with anyone who may find it useful. I hope you like it. Please keep your own backups: your data stays local and remains yours, and I cannot take responsibility for data loss, damaged files, or decisions made from your records.',
-    communityTitle: 'Community without a custom backend',
+      'Gljivobook was first made to help a fellow forager keep a personal archive, then shared with anyone who may find it useful. I hope you like it. Please keep your own backups: your data stays local and remains yours, and I cannot take responsibility for data loss, damaged files, or decisions made from your records.',
+    communityTitle: 'Join the community',
     communityBody:
-      'Questions, release comments, showcase posts, and feature ideas live through GitHub. Bug reports are sent from the app.',
+      'Ask questions, share your finds, leave release feedback, and suggest features — all through GitHub. Bug reports go directly from the app.',
     bugBoardTitle: 'Bug board',
     bugBoardBody: 'Unlisted overview of open GitHub bug reports. Bug reporting itself stays inside the app.',
     bugBoardLoading: 'Loading bug reports...',
@@ -202,7 +204,7 @@ const copy = {
     latest: 'Zadnja verzija',
     changelog: 'Kratki changelog',
     language: 'English',
-    nav: ['Preuzimanje', 'Promjene', 'Zajednica', 'Ideje', 'Doniraj'],
+    nav: ['Preuzimanje', 'Zajednica', 'Doniraj'],
     theme: 'Tema',
     fundingTop: 'Doniraj iz dobre volje',
     pillars: [
@@ -217,8 +219,10 @@ const copy = {
       ['Uredi', 'Popravi vrstu, datum, lokaciju, biljeske, badgeve i fotografije.'],
       ['Koristi', 'Otvori foldere, filtriraj mapu, citaj statistiku i izvezi arhivu.'],
     ],
+    speciesTitle: 'Stranice vrsta',
+    speciesBody: 'Svaka vrsta u tvojoj zbirci dobiva svoju stranicu — biljeske, drugi nazivi, jestivost, recepti, najbolja mjesta i tvoji osobni nalazi kroz vrijeme.',
     downloadBody:
-      'Zadnji Windows download. Lokalni fallback cuva stranicu ako GitHub vrati stariji release.',
+      'Windows installer, bez racuna. Pokreni setup datoteku i aplikacija je spremna.',
     installTitle: 'Napomena za instalaciju',
     installBody:
       'Preuzmi Windows setup, pokreni ga, a ako se pojavi Windows SmartScreen odaberi More info pa Run anyway.',
@@ -228,8 +232,8 @@ const copy = {
     responsibilityTitle: 'Podijeljeno u dobroj namjeri',
     responsibilityBody:
       'Gljivobook je prvo napravljen da kolegi olaksa cuvanje osobne gljivarske arhive, a onda smo ga odlucili podijeliti svima koji ga zele koristiti za sebe. Nadam se da ce vam se svidjeti. Svi podaci su lokalni i samo vasi, zato molim cuvajte vlastite backup kopije: ne mogu preuzeti odgovornost za gubitak podataka, ostecene datoteke ili odluke donesene prema vasim zapisima.',
-    communityTitle: 'Zajednica bez vlastitog backend-a',
-    communityBody: 'Pitanja, komentari, prikazi nalaza i ideje idu kroz GitHub. Bugovi se prijavljuju iz aplikacije.',
+    communityTitle: 'Pridruzi se zajednici',
+    communityBody: 'Postavi pitanje, podijeli nalaz, ostavi komentar na release ili predlozi ideju — sve kroz GitHub. Bugovi se salju direktno iz aplikacije.',
     bugBoardTitle: 'Lista bugova',
     bugBoardBody: 'Skriveni pregled otvorenih GitHub bug prijava. Sama prijava buga ostaje samo u aplikaciji.',
     bugBoardLoading: 'Ucitavam bug prijave...',
@@ -349,107 +353,52 @@ function BrandMark() {
   );
 }
 
-function AppScreenshot({ label, detail, index, lang }: { label: string; detail: string; index: number; lang: Lang }) {
-  const kind = ['collection', 'species', 'map', 'find'][index] ?? 'collection';
-  const preview = lang === 'hr'
-    ? {
-        search: 'Pretrazi vrste...',
-        collectionFirst: '3 nalaza - 18 foto',
-        collectionSecond: '2 nalaza - Zagreb',
-        speciesCommon: 'lisicarka',
-        speciesFirst: 'Prvi nalaz 18.06.2025.',
-        edible: 'Jestiva',
-        common: 'Cesta',
-        season: 'Sezona',
-        mapCount: '3 nalaza - travanj',
-        open: 'Otvori',
-        latinName: 'Latinski naziv',
-        date: 'dd mm yyyy',
-        country: 'Drzava',
-        region: 'Regija',
-        note: 'Biljeska o vrsti...',
-        save: 'Spremi',
-        editPhoto: 'Uredi foto',
-        map: 'Karta',
-      }
-    : {
-        search: 'Search species...',
-        collectionFirst: '3 finds - 18 photos',
-        collectionSecond: '2 finds - Zagreb',
-        speciesCommon: 'chanterelle',
-        speciesFirst: 'First find 18.06.2025',
-        edible: 'Edible',
-        common: 'Common',
-        season: 'Season',
-        mapCount: '3 finds - April',
-        open: 'Open',
-        latinName: 'Latin name',
-        date: 'dd mm yyyy',
-        country: 'Country',
-        region: 'Region',
-        note: 'Species note...',
-        save: 'Save',
-        editPhoto: 'Edit photo',
-        map: 'Map',
-      };
+const screenshotFiles = ['collection', 'species', 'map', 'find'] as const;
+
+const screenshotSrcMap: Record<string, string> = {
+  collection: './screenshots/screenshot-collection.png',
+  species: './screenshots/species-list.png',
+  map: './screenshots/screenshot-map.png',
+  find: './screenshots/import-find.png',
+};
+
+function AppScreenshot({ label, detail, index, onExpand }: { label: string; detail: string; index: number; lang?: Lang; onExpand?: (src: string) => void }) {
+  const kind = screenshotFiles[index] ?? 'collection';
+  const src = screenshotSrcMap[kind] ?? `./screenshots/screenshot-${kind}.png`;
   return (
-    <div className={`shot shot-${kind}`}>
-      <div className="shot-top">
-        <span />
-        <span />
-        <span />
-        <strong>{label}</strong>
+    <figure className={`shot shot-${kind}${onExpand ? ' shot-expandable' : ''}`} onClick={() => onExpand?.(src)}>
+      <div className="shot-img-wrap">
+        <img
+          src={src}
+          alt={label}
+          width={1192}
+          height={638}
+          loading="lazy"
+          decoding="async"
+        />
       </div>
-      <div className="shot-surface" aria-hidden="true">
-        {kind === 'collection' ? (
-          <>
-            <div className="shot-search">{preview.search}</div>
-            <div className="shot-folder active">
-              <span>12.05.</span>
-              <strong>Morchella esculenta</strong>
-              <em>{preview.collectionFirst}</em>
-            </div>
-            <div className="shot-folder">
-              <span>04.04.</span>
-              <strong>Boletus edulis</strong>
-              <em>{preview.collectionSecond}</em>
-            </div>
-            <div className="shot-action-row"><i>{label}</i><i>Folder</i><i>{preview.map}</i></div>
-          </>
-        ) : null}
-        {kind === 'species' ? (
-          <>
-            <div className="shot-photo">foto</div>
-            <div className="shot-species-copy">
-              <strong>Cantharellus cibarius</strong>
-              <span>{preview.speciesCommon}</span>
-              <span className="short">{preview.speciesFirst}</span>
-              <div><i>{preview.edible}</i><i>{preview.common}</i><i>{preview.season}</i></div>
-            </div>
-          </>
-        ) : null}
-        {kind === 'map' ? (
-          <>
-            <div className="shot-map-grid" />
-            <span className="shot-pin a" />
-            <span className="shot-pin b" />
-            <span className="shot-pin c" />
-            <div className="shot-popup"><strong>Morchella esculenta</strong><span>{preview.mapCount}</span><i>{preview.open}</i></div>
-          </>
-        ) : null}
-        {kind === 'find' ? (
-          <>
-            <div className="shot-form-line long">{preview.latinName}</div>
-            <div className="shot-form-row"><span>{preview.date}</span><span>{preview.country}</span><span>{preview.region}</span></div>
-            <div className="shot-form-box">{preview.note}</div>
-            <div className="shot-action-row"><i>{preview.save}</i><i>{preview.editPhoto}</i><i>{preview.map}</i></div>
-          </>
-        ) : null}
-      </div>
-      <div className="shot-caption">
+      <figcaption>
         <p>{label}</p>
         <span>{detail}</span>
-      </div>
+      </figcaption>
+    </figure>
+  );
+}
+
+function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', handler);
+      document.body.style.overflow = '';
+    };
+  }, [onClose]);
+  return (
+    <div className="lightbox-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label="Screenshot fullscreen">
+      <button className="lightbox-close" onClick={onClose} aria-label="Close">×</button>
+      <img src={src} alt="" className="lightbox-img" onClick={(e) => e.stopPropagation()} />
     </div>
   );
 }
@@ -498,6 +447,7 @@ export function App() {
     try { return JSON.parse(localStorage.getItem('bb-gh-hidden-comments') ?? '[]'); } catch { return []; }
   });
   const [bugBoardTab, setBugBoardTab] = useState<'internal' | 'from-users'>('internal');
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const stored = window.localStorage.getItem('gljivobook-site-theme');
     if (stored === 'light' || stored === 'dark') return stored;
@@ -650,7 +600,7 @@ export function App() {
     : release.notes[lang];
   const donateUrl = configuredDonateUrl?.trim() ?? '';
   const hasDonateUrl = /^https:\/\//i.test(donateUrl);
-  const navTargets = ['download', 'changelog', 'community', 'ideas', 'support'] as const;
+  const navTargets = ['download', 'community', 'support'] as const;
   const navLabels = t.nav as string[];
   const navItems = navTargets
     .map((target, index) => ({ item: navLabels[index], target }))
@@ -1436,49 +1386,13 @@ export function App() {
                 <span />
                 <strong>{t.title as string}</strong>
               </div>
-              <div className="window-content">
-                <div className="window-list">
-                  <div>
-                    <span>Cantharellus cibarius</span>
-                    <small>{lang === 'hr' ? '2 nalaza' : '2 finds'}</small>
-                  </div>
-                  <div>
-                    <span>Boletus edulis</span>
-                    <small>{lang === 'hr' ? '4 nalaza' : '4 finds'}</small>
-                  </div>
-                  <div className="active">
-                    <span>Morchella esculenta</span>
-                    <small>{activeFind.latest}</small>
-                    <em>{activeFind.badge}</em>
-                  </div>
-                </div>
-                <div className="window-map">
-                  <div className="window-tabs">
-                    <span>{appTabs.collection}</span>
-                    <span>{appTabs.species}</span>
-                    <span className="selected">{appTabs.map}</span>
-                    <span>{appTabs.stats}</span>
-                  </div>
-                  <Map size={44} />
-                  <span className="pin one" />
-                  <span className="pin two" />
-                  <span className="pin three" />
-                  <div className="map-callout">
-                    <strong>Morchella esculenta</strong>
-                    <small>{activeFind.count}</small>
-                    <em>{activeFind.badge}</em>
-                    <div className="callout-actions">
-                      <span>{activeFind.edit}</span>
-                      <span>{activeFind.folder}</span>
-                    </div>
-                  </div>
-                  <div className="window-stats">
-                    <span><strong>128</strong>{activeFind.finds}</span>
-                    <span><strong>46</strong>{activeFind.species}</span>
-                    <span><strong>19</strong>{activeFind.outings}</span>
-                  </div>
-                </div>
-              </div>
+              <img
+                src="./screenshots/screenshot-map.png"
+                alt={`${t.title as string} map view`}
+                width={1192}
+                height={638}
+                className="window-screenshot"
+              />
             </div>
           </div>
         </section>
@@ -1486,34 +1400,73 @@ export function App() {
         <section className="pillars" aria-label="Product highlights">
           {(t.pillars as [string, string][]).map(([title, body], index) => {
             const Icon = [BookOpen, Map, TrendingUp][index];
+            const pillarImages = ['collection.png', 'screenshot-map.png', 'screenshot-stats.png'];
+            const pillarAlts = ['Collection tab', 'Map with zones', 'Stats overview'];
+            const imgSrc = `./screenshots/${pillarImages[index]}`;
             return (
-              <article key={title}>
-                <div className="title-with-icon">
-                  <Icon size={22} />
-                  <h2>{title}</h2>
+              <article key={title} className="pillar-card">
+                <div className="card-img-wrap card-img-expandable" onClick={() => setLightboxSrc(imgSrc)}>
+                  <img
+                    src={imgSrc}
+                    alt={pillarAlts[index]}
+                    loading="lazy"
+                    decoding="async"
+                  />
                 </div>
-                <p>{body}</p>
+                <div className="pillar-body">
+                  <div className="title-with-icon">
+                    <Icon size={22} />
+                    <h2>{title}</h2>
+                  </div>
+                  <p>{body}</p>
+                </div>
               </article>
             );
           })}
         </section>
 
+        <section className="section species-spotlight">
+          <div className="species-spotlight-copy">
+            <p className="eyebrow"><BookOpen size={15} />{lang === 'hr' ? 'Vrste' : 'Species'}</p>
+            <h2>{t.speciesTitle as string}</h2>
+            <p>{t.speciesBody as string}</p>
+          </div>
+          <div className="species-spotlight-panels">
+            <div className="card-img-wrap card-img-expandable species-panel-full" onClick={() => setLightboxSrc('./screenshots/complete-species-page.png')}>
+              <img src="./screenshots/complete-species-page.png" alt="Complete species page" loading="lazy" decoding="async" />
+            </div>
+          </div>
+        </section>
+
         <section className="section workflow-section">
           <div className="workflow-heading">
-            <p className="eyebrow"><ClipboardList size={15} />{t.workflowTitle as string}</p>
+            <p className="eyebrow"><ClipboardList size={15} />{lang === 'hr' ? 'Kako radi' : 'How it works'}</p>
             <h2>{t.workflowTitle as string}</h2>
             <p>{t.workflowBody as string}</p>
           </div>
           <div className="workflow-grid">
             {(t.workflow as [string, string][]).map(([title, body], index) => {
               const Icon = [Download, FolderOpen, Map][index];
+              const workflowImages = ['import-find.png', 'Edit-find.png', 'map-filter.png'];
+              const workflowAlts = ['Import photos dialog', 'Edit find dialog', 'Map with filter'];
+              const wSrc = `./screenshots/${workflowImages[index]}`;
               return (
-                <article key={title}>
-                  <div className="title-with-icon title-with-icon-small">
-                    <Icon size={22} />
-                    <h3>{title}</h3>
+                <article key={title} className="workflow-card">
+                  <div className="card-img-wrap card-img-expandable" onClick={() => setLightboxSrc(wSrc)}>
+                    <img
+                      src={wSrc}
+                      alt={workflowAlts[index]}
+                      loading="lazy"
+                      decoding="async"
+                    />
                   </div>
-                  <p>{body}</p>
+                  <div className="workflow-card-body">
+                    <div className="title-with-icon title-with-icon-small">
+                      <Icon size={22} />
+                      <h3>{title}</h3>
+                    </div>
+                    <p>{body}</p>
+                  </div>
                 </article>
               );
             })}
@@ -1556,7 +1509,10 @@ export function App() {
               <em>{installerAsset ? (t.installerHint as string) : (t.installerFallback as string)}</em>
             </div>
             <ul>
-              {releaseNotes.map((note) => <li key={note}>{note}</li>)}
+              {releaseNotes
+                .filter((note) => note.split(' ').length > 2)
+                .filter((note) => !/setup file|smartscreen|run anyway|download the windows|windows may ask/i.test(note))
+                .map((note) => <li key={note}>{note}</li>)}
             </ul>
           </div>
         </section>
@@ -1569,13 +1525,6 @@ export function App() {
             </div>
             <p>{t.installBody as string}</p>
           </article>
-          <article>
-            <div className="title-with-icon">
-              <HardDrive size={24} />
-              <h2>{t.privacyTitle as string}</h2>
-            </div>
-            <p>{t.privacyBody as string}</p>
-          </article>
           <article className="responsibility-card">
             <div className="title-with-icon">
               <AlertCircle size={24} />
@@ -1583,21 +1532,6 @@ export function App() {
             </div>
             <p>{t.responsibilityBody as string}</p>
           </article>
-        </section>
-
-        <section className="section">
-          <p className="eyebrow"><Sparkles size={15} />{t.screenshotsTitle as string}</p>
-          <div className="screenshots">
-            {(t.screenshots as string[]).map((label, index) => (
-              <AppScreenshot
-                key={label}
-                label={label}
-                detail={(t.screenshotDetails as string[])[index]}
-                index={index}
-                lang={lang}
-              />
-            ))}
-          </div>
         </section>
 
         <section id="community" className="section community-grid">
@@ -1695,6 +1629,7 @@ export function App() {
           <span>{releaseVersion}</span>
         </div>
       </footer>
+      {lightboxSrc && <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
     </div>
   );
 }
