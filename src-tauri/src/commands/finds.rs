@@ -1,14 +1,19 @@
-use rusqlite::params;
 use chrono::Utc;
+use rusqlite::params;
+use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::BufReader;
-use std::process::Command;
 use std::path::{Path, PathBuf};
-use sha2::{Digest, Sha256};
+use std::process::Command;
 
-use crate::commands::import::{open_db, insert_find_photo, insert_find_row, find_record_from_row, remember_source_path, upsert_species_common_name, FindPhoto, FindRecord};
-use crate::commands::path_builder::{build_dest_path, next_seq_for_folder, resolve_location_component, plain_species_name};
+use crate::commands::import::{
+    find_record_from_row, insert_find_photo, insert_find_row, open_db, remember_source_path,
+    upsert_species_common_name, FindPhoto, FindRecord,
+};
+use crate::commands::path_builder::{
+    build_dest_path, next_seq_for_folder, plain_species_name, resolve_location_component,
+};
 
 // ---------------------------------------------------------------------------
 // create_find
@@ -74,10 +79,14 @@ pub async fn create_find(
         photos: vec![],
     };
 
-    let new_id = insert_find_row(&conn, &record)
-        .map_err(|e| format!("Failed to insert find: {}", e))?;
+    let new_id =
+        insert_find_row(&conn, &record).map_err(|e| format!("Failed to insert find: {}", e))?;
 
-    upsert_species_common_name(&conn, &inserted_species_name, payload.common_name.as_deref())?;
+    upsert_species_common_name(
+        &conn,
+        &inserted_species_name,
+        payload.common_name.as_deref(),
+    )?;
 
     let mut inserted = conn
         .query_row(
@@ -134,7 +143,10 @@ fn read_exif_orientation(path: &Path) -> Option<u32> {
     field.value.get_uint(0)
 }
 
-fn apply_exif_orientation(image: image::DynamicImage, orientation: Option<u32>) -> image::DynamicImage {
+fn apply_exif_orientation(
+    image: image::DynamicImage,
+    orientation: Option<u32>,
+) -> image::DynamicImage {
     match orientation.unwrap_or(1) {
         2 => image.fliph(),
         3 => image.rotate180(),
@@ -182,11 +194,19 @@ fn generate_photo_thumbnail_blocking(
     }
 
     let relative_thumb = thumbnail_relative_path(photo_path, size);
-    let thumb_path = Path::new(storage_path).join(relative_thumb.replace('/', std::path::MAIN_SEPARATOR_STR));
+    let thumb_path =
+        Path::new(storage_path).join(relative_thumb.replace('/', std::path::MAIN_SEPARATOR_STR));
 
-    let source_modified = std::fs::metadata(&source_path).and_then(|meta| meta.modified()).ok();
+    let source_modified = std::fs::metadata(&source_path)
+        .and_then(|meta| meta.modified())
+        .ok();
     let thumb_is_current = thumb_path.exists()
-        && match (source_modified, std::fs::metadata(&thumb_path).and_then(|meta| meta.modified()).ok()) {
+        && match (
+            source_modified,
+            std::fs::metadata(&thumb_path)
+                .and_then(|meta| meta.modified())
+                .ok(),
+        ) {
             (Some(source_time), Some(thumb_time)) => thumb_time >= source_time,
             _ => true,
         };
@@ -241,7 +261,12 @@ pub async fn get_species_notes(storage_path: String) -> Result<Vec<SpeciesNote>,
         .prepare("SELECT species_name, notes FROM species_notes ORDER BY species_name")
         .map_err(|e| e.to_string())?;
     let notes = stmt
-        .query_map([], |row| Ok(SpeciesNote { species_name: row.get(0)?, notes: row.get(1)? }))
+        .query_map([], |row| {
+            Ok(SpeciesNote {
+                species_name: row.get(0)?,
+                notes: row.get(1)?,
+            })
+        })
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
@@ -269,8 +294,14 @@ pub async fn get_species_profiles(storage_path: String) -> Result<Vec<SpeciesPro
                 distribution: row.get(6)?,
                 edibility_note: row.get(7)?,
                 description: row.get(8)?,
-                synonyms: synonyms_json.as_deref().and_then(|s| serde_json::from_str(s).ok()).unwrap_or_default(),
-                other_names: other_names_json.as_deref().and_then(|s| serde_json::from_str(s).ok()).unwrap_or_default(),
+                synonyms: synonyms_json
+                    .as_deref()
+                    .and_then(|s| serde_json::from_str(s).ok())
+                    .unwrap_or_default(),
+                other_names: other_names_json
+                    .as_deref()
+                    .and_then(|s| serde_json::from_str(s).ok())
+                    .unwrap_or_default(),
                 fruiting_body_count_override: row.get(11)?,
             })
         })
@@ -497,7 +528,9 @@ pub async fn open_find_folder(
             absolute_photo_path
                 .parent()
                 .map(PathBuf::from)
-                .ok_or_else(|| "Could not determine the containing folder for this find.".to_string())?
+                .ok_or_else(|| {
+                    "Could not determine the containing folder for this find.".to_string()
+                })?
         } else {
             // No photos — fall back to species folder (create on demand if needed)
             if !species_folder.exists() {
@@ -508,8 +541,12 @@ pub async fn open_find_folder(
     } else if species_folder.exists() {
         species_folder
     } else {
-        let photo_path = photo_path_result
-            .map_err(|e| format!("Could not locate the species folder or a photo for this find: {}", e))?;
+        let photo_path = photo_path_result.map_err(|e| {
+            format!(
+                "Could not locate the species folder or a photo for this find: {}",
+                e
+            )
+        })?;
         let absolute_photo_path = Path::new(&storage_path).join(&photo_path);
         absolute_photo_path
             .parent()
@@ -546,10 +583,7 @@ pub async fn open_find_folder(
 }
 
 #[tauri::command]
-pub async fn open_species_folder(
-    storage_path: String,
-    species_name: String,
-) -> Result<(), String> {
+pub async fn open_species_folder(storage_path: String, species_name: String) -> Result<(), String> {
     let species_folder = Path::new(&storage_path).join(resolve_location_component(
         &plain_species_name(&species_name),
         "unknown_species",
@@ -575,7 +609,9 @@ pub async fn open_species_folder(
             absolute_photo_path
                 .parent()
                 .map(PathBuf::from)
-                .ok_or_else(|| "Could not determine the species folder from its photos.".to_string())?
+                .ok_or_else(|| {
+                    "Could not determine the species folder from its photos.".to_string()
+                })?
         } else {
             std::fs::create_dir_all(&species_folder)
                 .map_err(|e| format!("Could not create species folder: {}", e))?;
@@ -660,10 +696,7 @@ pub async fn delete_find(
 }
 
 #[tauri::command]
-pub async fn get_find_photos(
-    storage_path: String,
-    find_id: i64,
-) -> Result<Vec<FindPhoto>, String> {
+pub async fn get_find_photos(storage_path: String, find_id: i64) -> Result<Vec<FindPhoto>, String> {
     let conn = open_db(&storage_path)?;
     let mut stmt = conn
         .prepare(
@@ -720,30 +753,46 @@ pub async fn bulk_rename_species(
             )
             .map_err(|e| e.to_string())?;
         let rows = stmt
-            .query_map(params![find_id], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))
+            .query_map(params![find_id], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+            })
             .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
         photo_rows.extend(rows);
     }
 
-    let target_folder = Path::new(&storage_path).join(resolve_location_component(&plain_species_name(&new_species_name), "unknown_species"));
+    let target_folder = Path::new(&storage_path).join(resolve_location_component(
+        &plain_species_name(&new_species_name),
+        "unknown_species",
+    ));
     let mut old_folders: Vec<PathBuf> = old_species_names
         .iter()
-        .map(|name| Path::new(&storage_path).join(resolve_location_component(&plain_species_name(name), "unknown_species")))
+        .map(|name| {
+            Path::new(&storage_path).join(resolve_location_component(
+                &plain_species_name(name),
+                "unknown_species",
+            ))
+        })
         .collect();
     old_folders.sort();
     old_folders.dedup();
 
-    let renamed_whole_folder = if old_folders.len() == 1 && old_folders[0].exists() && !target_folder.exists() {
-        std::fs::rename(&old_folders[0], &target_folder).is_ok()
-    } else {
-        false
-    };
+    let renamed_whole_folder =
+        if old_folders.len() == 1 && old_folders[0].exists() && !target_folder.exists() {
+            std::fs::rename(&old_folders[0], &target_folder).is_ok()
+        } else {
+            false
+        };
 
     if !renamed_whole_folder {
-        std::fs::create_dir_all(&target_folder)
-            .map_err(|e| format!("Failed to create target folder '{}': {}", target_folder.display(), e))?;
+        std::fs::create_dir_all(&target_folder).map_err(|e| {
+            format!(
+                "Failed to create target folder '{}': {}",
+                target_folder.display(),
+                e
+            )
+        })?;
     }
 
     for (photo_id, photo_path) in &photo_rows {
@@ -760,25 +809,41 @@ pub async fn bulk_rename_species(
         if source_abs != target_abs && !renamed_whole_folder {
             if source_abs.exists() {
                 target_abs = unique_destination_path(&target_abs);
-                std::fs::create_dir_all(
-                    target_abs
-                        .parent()
-                        .ok_or_else(|| format!("Target path has no parent: {}", target_abs.display()))?,
-                )
-                .map_err(|e| format!("Failed to prepare target folder for '{}': {}", target_abs.display(), e))?;
+                std::fs::create_dir_all(target_abs.parent().ok_or_else(|| {
+                    format!("Target path has no parent: {}", target_abs.display())
+                })?)
+                .map_err(|e| {
+                    format!(
+                        "Failed to prepare target folder for '{}': {}",
+                        target_abs.display(),
+                        e
+                    )
+                })?;
                 std::fs::rename(&source_abs, &target_abs)
                     .or_else(|_| {
                         std::fs::copy(&source_abs, &target_abs)?;
                         std::fs::remove_file(&source_abs)
                     })
-                    .map_err(|e| format!("Failed to move '{}' to '{}': {}", source_abs.display(), target_abs.display(), e))?;
+                    .map_err(|e| {
+                        format!(
+                            "Failed to move '{}' to '{}': {}",
+                            source_abs.display(),
+                            target_abs.display(),
+                            e
+                        )
+                    })?;
             }
             // Update DB path regardless — heals stale paths from partial earlier renames
         }
 
         let relative = target_abs
             .strip_prefix(&storage_path)
-            .map(|p| p.to_string_lossy().replace('\\', "/").trim_start_matches('/').to_string())
+            .map(|p| {
+                p.to_string_lossy()
+                    .replace('\\', "/")
+                    .trim_start_matches('/')
+                    .to_string()
+            })
             .unwrap_or_else(|_| target_abs.to_string_lossy().replace('\\', "/"));
         tx.execute(
             "UPDATE find_photos SET photo_path = ?1 WHERE id = ?2",
@@ -816,11 +881,45 @@ pub async fn bulk_rename_species(
     tx.commit().map_err(|e| e.to_string())?;
 
     for old_species_name in &old_species_names {
-        let old_folder = Path::new(&storage_path).join(resolve_location_component(&plain_species_name(&old_species_name), "unknown_species"));
+        let old_folder = Path::new(&storage_path).join(resolve_location_component(
+            &plain_species_name(&old_species_name),
+            "unknown_species",
+        ));
         remove_empty_dir_if_possible(&old_folder);
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn rename_species_folder(
+    storage_path: String,
+    old_species_name: String,
+    new_species_name: String,
+) -> Result<(), String> {
+    let old_species_name = old_species_name.trim().to_string();
+    let new_species_name = new_species_name.trim().to_string();
+    if old_species_name.is_empty() || new_species_name.is_empty() {
+        return Err("species names cannot be empty".into());
+    }
+    if old_species_name == new_species_name {
+        return Ok(());
+    }
+
+    let find_ids: Vec<i64> = {
+        let conn = open_db(&storage_path)?;
+        let mut stmt = conn
+            .prepare("SELECT id FROM finds WHERE species_name = ?1 ORDER BY id ASC")
+            .map_err(|e| e.to_string())?;
+        let ids = stmt
+            .query_map(params![old_species_name], |row| row.get(0))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        ids
+    };
+
+    bulk_rename_species(storage_path, find_ids, new_species_name).await
 }
 
 fn unique_destination_path(initial: &Path) -> PathBuf {
@@ -852,9 +951,55 @@ fn remove_empty_dir_if_possible(path: &Path) {
     if !path.exists() {
         return;
     }
-    if std::fs::read_dir(path).map(|mut entries| entries.next().is_none()).unwrap_or(false) {
+    if std::fs::read_dir(path)
+        .map(|mut entries| entries.next().is_none())
+        .unwrap_or(false)
+    {
         let _ = std::fs::remove_dir(path);
     }
+}
+
+fn backup_db_before_destructive_change(
+    storage_path: &str,
+    reason: &str,
+) -> Result<Option<String>, String> {
+    let db_path = Path::new(storage_path).join("bili-mushroom.db");
+    if !db_path.exists() {
+        return Ok(None);
+    }
+
+    let backup_dir = Path::new(storage_path).join(".bili-backups");
+    std::fs::create_dir_all(&backup_dir).map_err(|e| {
+        format!(
+            "Failed to create backup folder '{}': {}",
+            backup_dir.display(),
+            e
+        )
+    })?;
+
+    let safe_reason: String = reason
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    let timestamp = Utc::now().format("%Y%m%d-%H%M%S").to_string();
+    let backup_path = backup_dir.join(format!("bili-mushroom-{timestamp}-{safe_reason}.db"));
+
+    std::fs::copy(&db_path, &backup_path).map_err(|e| {
+        format!(
+            "Failed to back up database from '{}' to '{}': {}",
+            db_path.display(),
+            backup_path.display(),
+            e
+        )
+    })?;
+
+    Ok(Some(backup_path.to_string_lossy().to_string()))
 }
 
 #[tauri::command]
@@ -913,16 +1058,33 @@ pub async fn cleanup_internal_records(storage_path: String) -> Result<i64, Strin
     conn.execute_batch("PRAGMA foreign_keys = ON;")
         .map_err(|e| e.to_string())?;
 
+    let stale_count: i64 = conn
+        .query_row(
+            &format!(
+                "SELECT COUNT(*) FROM finds WHERE {}",
+                INTERNAL_SPECIES_FILTER
+            ),
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Failed to count internal finds: {}", e))?;
+    if stale_count > 0 {
+        backup_db_before_destructive_change(&storage_path, "cleanup-internal-records")?;
+    }
+
     let tx = conn.transaction().map_err(|e| e.to_string())?;
-    let deleted_finds = tx
-        .execute(
+    let deleted_finds =
+        tx.execute(
             &format!("DELETE FROM finds WHERE {}", INTERNAL_SPECIES_FILTER),
             [],
         )
         .map_err(|e| format!("Failed to delete internal finds: {}", e))? as i64;
 
     tx.execute(
-        &format!("DELETE FROM species_notes WHERE {}", INTERNAL_SPECIES_FILTER),
+        &format!(
+            "DELETE FROM species_notes WHERE {}",
+            INTERNAL_SPECIES_FILTER
+        ),
         [],
     )
     .map_err(|e| format!("Failed to delete internal species notes: {}", e))?;
@@ -966,14 +1128,27 @@ pub async fn add_find_photos(
             .unwrap_or_else(|| std::path::Path::new(&storage_path).to_path_buf())
     } else {
         // No existing photos — derive folder the same way as import
-        let probe = build_dest_path(&storage_path, &species_name, &date_found, &location_label, 1, ".jpg");
-        probe.parent()
+        let probe = build_dest_path(
+            &storage_path,
+            &species_name,
+            &date_found,
+            &location_label,
+            1,
+            ".jpg",
+        );
+        probe
+            .parent()
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| std::path::Path::new(&storage_path).to_path_buf())
     };
 
-    std::fs::create_dir_all(&dest_folder)
-        .map_err(|e| format!("Failed to create destination folder '{}': {}", dest_folder.display(), e))?;
+    std::fs::create_dir_all(&dest_folder).map_err(|e| {
+        format!(
+            "Failed to create destination folder '{}': {}",
+            dest_folder.display(),
+            e
+        )
+    })?;
 
     let mut seen_source_paths: HashSet<String> = HashSet::new();
     for source_path in &source_paths {
@@ -996,12 +1171,23 @@ pub async fn add_find_photos(
             &ext,
         );
 
-        std::fs::copy(source_path, &dest_path)
-            .map_err(|e| format!("Failed to copy '{}' to '{}': {}", source_path, dest_path.display(), e))?;
+        std::fs::copy(source_path, &dest_path).map_err(|e| {
+            format!(
+                "Failed to copy '{}' to '{}': {}",
+                source_path,
+                dest_path.display(),
+                e
+            )
+        })?;
 
         let relative = dest_path
             .strip_prefix(&storage_path)
-            .map(|p| p.to_string_lossy().replace('\\', "/").trim_start_matches('/').to_string())
+            .map(|p| {
+                p.to_string_lossy()
+                    .replace('\\', "/")
+                    .trim_start_matches('/')
+                    .to_string()
+            })
             .unwrap_or_else(|_| dest_path.to_string_lossy().replace('\\', "/"));
 
         insert_find_photo(&conn, find_id, &relative, false)
@@ -1269,10 +1455,13 @@ pub async fn edit_find_photo_image(
         )
         .map_err(|e| format!("Photo not found: {}", e))?;
 
-    let absolute_path = Path::new(&storage_path)
-        .join(photo_path.replace('/', std::path::MAIN_SEPARATOR_STR));
+    let absolute_path =
+        Path::new(&storage_path).join(photo_path.replace('/', std::path::MAIN_SEPARATOR_STR));
     if !absolute_path.exists() {
-        return Err(format!("Photo file does not exist: {}", absolute_path.display()));
+        return Err(format!(
+            "Photo file does not exist: {}",
+            absolute_path.display()
+        ));
     }
 
     tauri::async_runtime::spawn_blocking(move || {
@@ -1340,7 +1529,10 @@ pub async fn edit_source_photo_image(
 ) -> Result<String, String> {
     let source = PathBuf::from(&source_path);
     if !source.exists() {
-        return Err(format!("Source photo file does not exist: {}", source.display()));
+        return Err(format!(
+            "Source photo file does not exist: {}",
+            source.display()
+        ));
     }
 
     tauri::async_runtime::spawn_blocking(move || {
@@ -1422,12 +1614,31 @@ pub async fn prune_missing_photos(storage_path: String) -> Result<u32, String> {
         .map_err(|e| e.to_string())?;
     drop(stmt);
 
+    let missing_photo_ids: Vec<i64> = rows
+        .iter()
+        .filter_map(|(photo_id, _, photo_path, _)| {
+            let abs = Path::new(&storage_path)
+                .join(photo_path.replace('/', std::path::MAIN_SEPARATOR_STR));
+            if abs.exists() {
+                None
+            } else {
+                Some(*photo_id)
+            }
+        })
+        .collect();
+
+    if missing_photo_ids.is_empty() {
+        return Ok(0);
+    }
+
+    backup_db_before_destructive_change(&storage_path, "prune-missing-photos")?;
+
+    let missing_photo_ids: HashSet<i64> = missing_photo_ids.into_iter().collect();
     let mut deleted: u32 = 0;
     let mut primaries_deleted: std::collections::HashSet<i64> = Default::default();
 
-    for (photo_id, find_id, photo_path, is_primary) in &rows {
-        let abs = format!("{}/{}", storage_path, photo_path);
-        if !std::path::Path::new(&abs).exists() {
+    for (photo_id, find_id, _photo_path, is_primary) in &rows {
+        if missing_photo_ids.contains(photo_id) {
             conn.execute("DELETE FROM find_photos WHERE id = ?1", params![photo_id])
                 .map_err(|e| format!("delete failed: {}", e))?;
             if *is_primary {
@@ -1458,11 +1669,147 @@ pub async fn prune_missing_photos(storage_path: String) -> Result<u32, String> {
     Ok(deleted)
 }
 
+#[derive(serde::Serialize, Debug)]
+pub struct DuplicatePhotoPath {
+    pub photo_path: String,
+    pub count: u32,
+    pub find_ids: Vec<i64>,
+}
+
+#[derive(serde::Serialize, Debug)]
+pub struct PhotoLibraryAudit {
+    pub db_photo_rows: u32,
+    pub db_distinct_photo_paths: u32,
+    pub filesystem_images: u32,
+    pub missing_db_photo_paths: Vec<String>,
+    pub orphan_filesystem_images: Vec<String>,
+    pub duplicate_photo_paths: Vec<DuplicatePhotoPath>,
+}
+
+fn is_supported_photo_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| {
+            matches!(
+                ext.to_ascii_lowercase().as_str(),
+                "jpg" | "jpeg" | "png" | "webp" | "heic" | "heif"
+            )
+        })
+        .unwrap_or(false)
+}
+
+fn collect_library_images(
+    storage_root: &Path,
+    current: &Path,
+    out: &mut Vec<String>,
+) -> Result<(), String> {
+    for entry in std::fs::read_dir(current)
+        .map_err(|e| format!("Failed to read folder '{}': {}", current.display(), e))?
+    {
+        let entry = entry.map_err(|e| format!("Failed to read folder entry: {}", e))?;
+        let path = entry.path();
+        let file_name = entry.file_name().to_string_lossy().to_string();
+
+        if path.is_dir() {
+            if matches!(
+                file_name.as_str(),
+                ".bili-cache" | ".bili-backups" | ".bili-cache-tiles"
+            ) {
+                continue;
+            }
+            collect_library_images(storage_root, &path, out)?;
+        } else if is_supported_photo_path(&path) {
+            let rel = path
+                .strip_prefix(storage_root)
+                .map_err(|e| format!("Failed to relativize '{}': {}", path.display(), e))?
+                .to_string_lossy()
+                .replace('\\', "/");
+            out.push(rel);
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn audit_photo_library(storage_path: String) -> Result<PhotoLibraryAudit, String> {
+    let conn = open_db(&storage_path)?;
+    let storage_root = Path::new(&storage_path);
+
+    let mut stmt = conn
+        .prepare("SELECT find_id, photo_path FROM find_photos ORDER BY find_id, id")
+        .map_err(|e| e.to_string())?;
+    let rows: Vec<(i64, String)> = stmt
+        .query_map([], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    drop(stmt);
+
+    let mut db_paths: Vec<String> = rows
+        .iter()
+        .map(|(_, path)| path.replace('\\', "/"))
+        .collect();
+    db_paths.sort();
+    let db_photo_rows = db_paths.len() as u32;
+    let db_path_set: HashSet<String> = db_paths.iter().cloned().collect();
+
+    let mut filesystem_images = Vec::new();
+    collect_library_images(storage_root, storage_root, &mut filesystem_images)?;
+    filesystem_images.sort();
+    let fs_path_set: HashSet<String> = filesystem_images.iter().cloned().collect();
+
+    let mut missing_db_photo_paths: Vec<String> =
+        db_path_set.difference(&fs_path_set).cloned().collect();
+    missing_db_photo_paths.sort();
+
+    let mut orphan_filesystem_images: Vec<String> =
+        fs_path_set.difference(&db_path_set).cloned().collect();
+    orphan_filesystem_images.sort();
+
+    let mut duplicates_stmt = conn
+        .prepare(
+            "SELECT photo_path, COUNT(*) AS duplicate_count, GROUP_CONCAT(find_id) AS find_ids
+             FROM find_photos
+             GROUP BY photo_path
+             HAVING duplicate_count > 1
+             ORDER BY duplicate_count DESC, photo_path",
+        )
+        .map_err(|e| e.to_string())?;
+    let duplicate_photo_paths = duplicates_stmt
+        .query_map([], |row| {
+            let find_ids_csv: String = row.get(2)?;
+            let find_ids = find_ids_csv
+                .split(',')
+                .filter_map(|value| value.parse::<i64>().ok())
+                .collect();
+            Ok(DuplicatePhotoPath {
+                photo_path: row.get(0)?,
+                count: row.get::<_, i64>(1)? as u32,
+                find_ids,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(PhotoLibraryAudit {
+        db_photo_rows,
+        db_distinct_photo_paths: db_path_set.len() as u32,
+        filesystem_images: filesystem_images.len() as u32,
+        missing_db_photo_paths,
+        orphan_filesystem_images,
+        duplicate_photo_paths,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::import::test_helpers::{setup_in_memory_db, make_find_record};
-    use crate::commands::import::{insert_find_photo, insert_find_row, find_record_from_row};
+    use crate::commands::import::test_helpers::{make_find_record, setup_in_memory_db};
+    use crate::commands::import::{find_record_from_row, insert_find_photo, insert_find_row};
 
     // -----------------------------------------------------------------------
     // create_find tests
@@ -1486,7 +1833,10 @@ mod tests {
         }
     }
 
-    fn do_create_find(conn: &rusqlite::Connection, payload: &CreateFindPayload) -> Result<FindRecord, String> {
+    fn do_create_find(
+        conn: &rusqlite::Connection,
+        payload: &CreateFindPayload,
+    ) -> Result<FindRecord, String> {
         if payload.species_name.trim().is_empty() {
             return Err("species_name cannot be empty".into());
         }
@@ -1551,7 +1901,10 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(photo_count, 0, "no find_photos rows should exist for a no-photo find");
+        assert_eq!(
+            photo_count, 0,
+            "no find_photos rows should exist for a no-photo find"
+        );
     }
 
     #[test]
@@ -1559,7 +1912,10 @@ mod tests {
         let conn = setup_in_memory_db();
         let payload = make_create_payload("Cantharellus cibarius");
         let record = do_create_find(&conn, &payload).expect("create_find");
-        assert!(record.photos.is_empty(), "returned record.photos must be empty");
+        assert!(
+            record.photos.is_empty(),
+            "returned record.photos must be empty"
+        );
     }
 
     #[test]
@@ -1591,7 +1947,10 @@ mod tests {
         );
 
         // With no photos, this must be an Err
-        assert!(photo_path_result.is_err(), "no photos means query should return Err");
+        assert!(
+            photo_path_result.is_err(),
+            "no photos means query should return Err"
+        );
 
         // The fallback path in open_find_folder: if photo_path_result is Err, use species_folder
         // Verify this succeeds without panicking (the actual folder open is a process spawn we skip here)
@@ -1606,11 +1965,18 @@ mod tests {
         // species_folder fallback logic — ensure it does not error
         let tmp_dir = tempfile::tempdir().expect("tempdir");
         let storage_path = tmp_dir.path().to_str().unwrap();
-        let species_folder = std::path::Path::new(storage_path)
-            .join(crate::commands::path_builder::resolve_location_component(&species_name, "unknown_species"));
+        let species_folder = std::path::Path::new(storage_path).join(
+            crate::commands::path_builder::resolve_location_component(
+                &species_name,
+                "unknown_species",
+            ),
+        );
         // Ensure folder can be created on demand
         std::fs::create_dir_all(&species_folder).expect("create species folder");
-        assert!(species_folder.exists(), "species folder should exist after creation");
+        assert!(
+            species_folder.exists(),
+            "species folder should exist after creation"
+        );
     }
 
     #[test]
@@ -1618,8 +1984,13 @@ mod tests {
         let conn = setup_in_memory_db();
         let record = make_find_record("mushroom.jpg", "2024-05-10");
         let find_id = insert_find_row(&conn, &record).expect("insert find");
-        insert_find_photo(&conn, find_id, "Croatia/Region/2024-05-10/mushroom_1.jpg", true)
-            .expect("insert photo");
+        insert_find_photo(
+            &conn,
+            find_id,
+            "Croatia/Region/2024-05-10/mushroom_1.jpg",
+            true,
+        )
+        .expect("insert photo");
 
         // delete_files = false path: just delete the DB record
         conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
@@ -1641,10 +2012,20 @@ mod tests {
         let conn = setup_in_memory_db();
         let record = make_find_record("mushroom.jpg", "2024-05-10");
         let find_id = insert_find_row(&conn, &record).expect("insert find");
-        insert_find_photo(&conn, find_id, "Croatia/Region/2024-05-10/mushroom_1.jpg", true)
-            .expect("insert primary photo");
-        insert_find_photo(&conn, find_id, "Croatia/Region/2024-05-10/mushroom_2.jpg", false)
-            .expect("insert secondary photo");
+        insert_find_photo(
+            &conn,
+            find_id,
+            "Croatia/Region/2024-05-10/mushroom_1.jpg",
+            true,
+        )
+        .expect("insert primary photo");
+        insert_find_photo(
+            &conn,
+            find_id,
+            "Croatia/Region/2024-05-10/mushroom_2.jpg",
+            false,
+        )
+        .expect("insert secondary photo");
 
         conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
         conn.execute("DELETE FROM finds WHERE id = ?1", params![find_id])
@@ -1665,10 +2046,20 @@ mod tests {
         let conn = setup_in_memory_db();
         let record = make_find_record("mushroom.jpg", "2024-05-10");
         let find_id = insert_find_row(&conn, &record).expect("insert find");
-        insert_find_photo(&conn, find_id, "Croatia/Region/2024-05-10/mushroom_1.jpg", true)
-            .expect("insert primary photo");
-        insert_find_photo(&conn, find_id, "Croatia/Region/2024-05-10/mushroom_2.jpg", false)
-            .expect("insert secondary photo");
+        insert_find_photo(
+            &conn,
+            find_id,
+            "Croatia/Region/2024-05-10/mushroom_1.jpg",
+            true,
+        )
+        .expect("insert primary photo");
+        insert_find_photo(
+            &conn,
+            find_id,
+            "Croatia/Region/2024-05-10/mushroom_2.jpg",
+            false,
+        )
+        .expect("insert secondary photo");
 
         let mut stmt = conn
             .prepare(
@@ -1870,15 +2261,28 @@ mod tests {
         let conn = setup_in_memory_db();
         let record = make_find_record("mushroom.jpg", "2024-05-10");
         let find_id = insert_find_row(&conn, &record).expect("insert find");
-        insert_find_photo(&conn, find_id, "Croatia/Region/2024-05-10/mushroom_1.jpg", true)
-            .expect("insert primary photo");
-        let secondary_id = insert_find_photo(&conn, find_id, "Croatia/Region/2024-05-10/mushroom_2.jpg", false)
-            .expect("insert secondary photo");
+        insert_find_photo(
+            &conn,
+            find_id,
+            "Croatia/Region/2024-05-10/mushroom_1.jpg",
+            true,
+        )
+        .expect("insert primary photo");
+        let secondary_id = insert_find_photo(
+            &conn,
+            find_id,
+            "Croatia/Region/2024-05-10/mushroom_2.jpg",
+            false,
+        )
+        .expect("insert secondary photo");
 
         let result = do_delete_find_photo(&conn, secondary_id).expect("delete secondary");
 
         assert_eq!(result.photos.len(), 1, "one photo should remain");
-        assert!(result.photos[0].is_primary, "remaining photo should still be primary");
+        assert!(
+            result.photos[0].is_primary,
+            "remaining photo should still be primary"
+        );
     }
 
     #[test]
@@ -1886,15 +2290,28 @@ mod tests {
         let conn = setup_in_memory_db();
         let record = make_find_record("mushroom.jpg", "2024-05-10");
         let find_id = insert_find_row(&conn, &record).expect("insert find");
-        let primary_id = insert_find_photo(&conn, find_id, "Croatia/Region/2024-05-10/mushroom_1.jpg", true)
-            .expect("insert primary photo");
-        insert_find_photo(&conn, find_id, "Croatia/Region/2024-05-10/mushroom_2.jpg", false)
-            .expect("insert secondary photo");
+        let primary_id = insert_find_photo(
+            &conn,
+            find_id,
+            "Croatia/Region/2024-05-10/mushroom_1.jpg",
+            true,
+        )
+        .expect("insert primary photo");
+        insert_find_photo(
+            &conn,
+            find_id,
+            "Croatia/Region/2024-05-10/mushroom_2.jpg",
+            false,
+        )
+        .expect("insert secondary photo");
 
         let result = do_delete_find_photo(&conn, primary_id).expect("delete primary");
 
         assert_eq!(result.photos.len(), 1, "one photo should remain");
-        assert!(result.photos[0].is_primary, "remaining photo should be promoted to primary");
+        assert!(
+            result.photos[0].is_primary,
+            "remaining photo should be promoted to primary"
+        );
     }
 
     #[test]
@@ -1902,14 +2319,23 @@ mod tests {
         let conn = setup_in_memory_db();
         let record = make_find_record("mushroom.jpg", "2024-05-10");
         let find_id = insert_find_row(&conn, &record).expect("insert find");
-        let only_id = insert_find_photo(&conn, find_id, "Croatia/Region/2024-05-10/mushroom_1.jpg", true)
-            .expect("insert only photo");
+        let only_id = insert_find_photo(
+            &conn,
+            find_id,
+            "Croatia/Region/2024-05-10/mushroom_1.jpg",
+            true,
+        )
+        .expect("insert only photo");
 
         let result = do_delete_find_photo(&conn, only_id).expect("delete only photo");
 
         // Find should still exist
         let find_count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM finds WHERE id = ?1", params![find_id], |row| row.get(0))
+            .query_row(
+                "SELECT COUNT(*) FROM finds WHERE id = ?1",
+                params![find_id],
+                |row| row.get(0),
+            )
             .unwrap();
         assert_eq!(find_count, 1, "find should still exist");
         assert!(result.photos.is_empty(), "photos should be empty");
@@ -1920,17 +2346,36 @@ mod tests {
         let conn = setup_in_memory_db();
         let record = make_find_record("mushroom.jpg", "2024-05-10");
         let find_id = insert_find_row(&conn, &record).expect("insert find");
-        let primary_id = insert_find_photo(&conn, find_id, "Croatia/Region/2024-05-10/mushroom_1.jpg", true)
-            .expect("insert primary photo");
-        let secondary_id = insert_find_photo(&conn, find_id, "Croatia/Region/2024-05-10/mushroom_2.jpg", false)
-            .expect("insert secondary photo");
-        insert_find_photo(&conn, find_id, "Croatia/Region/2024-05-10/mushroom_3.jpg", false)
-            .expect("insert third photo");
+        let primary_id = insert_find_photo(
+            &conn,
+            find_id,
+            "Croatia/Region/2024-05-10/mushroom_1.jpg",
+            true,
+        )
+        .expect("insert primary photo");
+        let secondary_id = insert_find_photo(
+            &conn,
+            find_id,
+            "Croatia/Region/2024-05-10/mushroom_2.jpg",
+            false,
+        )
+        .expect("insert secondary photo");
+        insert_find_photo(
+            &conn,
+            find_id,
+            "Croatia/Region/2024-05-10/mushroom_3.jpg",
+            false,
+        )
+        .expect("insert third photo");
 
-        let result = do_bulk_delete_find_photos(&conn, &[primary_id, secondary_id]).expect("bulk delete");
+        let result =
+            do_bulk_delete_find_photos(&conn, &[primary_id, secondary_id]).expect("bulk delete");
 
         assert_eq!(result.photos.len(), 1, "one photo should remain");
-        assert!(result.photos[0].is_primary, "remaining photo should be promoted to primary");
+        assert!(
+            result.photos[0].is_primary,
+            "remaining photo should be promoted to primary"
+        );
     }
 
     #[test]
@@ -1938,7 +2383,10 @@ mod tests {
         let conn = setup_in_memory_db();
         let updated_at = "2026-05-12T00:00:00Z".to_string();
         let tags_json = serde_json::to_string(&Vec::<String>::new()).unwrap();
-        let synonyms = vec!["Boletus reticulatus".to_string(), "Boletus aestivalis".to_string()];
+        let synonyms = vec![
+            "Boletus reticulatus".to_string(),
+            "Boletus aestivalis".to_string(),
+        ];
         let other_names = vec!["vrganj".to_string(), "pravi vrganj".to_string()];
         let synonyms_json = serde_json::to_string(&synonyms).unwrap();
         let other_names_json = serde_json::to_string(&other_names).unwrap();
@@ -1949,16 +2397,21 @@ mod tests {
             rusqlite::params!["Boletus *edulis*", None::<i64>, tags_json, updated_at, None::<String>, None::<String>, None::<String>, None::<String>, synonyms_json, other_names_json],
         ).expect("insert species profile");
 
-        let row: (Option<String>, Option<String>) = conn.query_row(
-            "SELECT synonyms, other_names FROM species_profiles WHERE species_name = ?1",
-            rusqlite::params!["Boletus *edulis*"],
-            |r| Ok((r.get(0)?, r.get(1)?)),
-        ).expect("query profile");
+        let row: (Option<String>, Option<String>) = conn
+            .query_row(
+                "SELECT synonyms, other_names FROM species_profiles WHERE species_name = ?1",
+                rusqlite::params!["Boletus *edulis*"],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .expect("query profile");
 
         let got_synonyms: Vec<String> = serde_json::from_str(&row.0.unwrap()).unwrap();
         let got_other_names: Vec<String> = serde_json::from_str(&row.1.unwrap()).unwrap();
 
         assert_eq!(got_synonyms, synonyms, "synonyms round-trip must match");
-        assert_eq!(got_other_names, other_names, "other_names round-trip must match");
+        assert_eq!(
+            got_other_names, other_names,
+            "other_names round-trip must match"
+        );
     }
 }

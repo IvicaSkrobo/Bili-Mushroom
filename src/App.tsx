@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BookOpen, Loader2, Sprout } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { loadStoragePath } from '@/lib/storage';
-import { initializeDatabase, DatabaseInitError } from '@/lib/db';
+import { cleanupInternalRecords, initializeDatabase, DatabaseInitError } from '@/lib/db';
 import { FirstRunDialog } from '@/components/dialogs/FirstRunDialog';
 import { MigrationErrorDialog } from '@/components/dialogs/MigrationErrorDialog';
 import { AutoImportDialog } from '@/components/dialogs/AutoImportDialog';
@@ -234,8 +234,10 @@ export default function App() {
       return () => { cancelled = true; };
     }
 
+    const startedAt = performance.now();
     loadStoragePath().then((path) => {
       if (cancelled) return;
+      console.info(`[startup] loadStoragePath completed in ${Math.round(performance.now() - startedAt)}ms`);
       if (path) setStoragePath(path);
       setStoragePathLoaded(true);
     }).catch((err) => {
@@ -251,8 +253,17 @@ export default function App() {
   useEffect(() => {
     if (!storagePath) return;
     let cancelled = false;
+    const startedAt = performance.now();
     initializeDatabase(storagePath)
-      .then(() => { if (!cancelled) setDbReady(true); })
+      .then(() => {
+        if (!cancelled) {
+          console.info(`[startup] initializeDatabase completed in ${Math.round(performance.now() - startedAt)}ms`);
+          setDbReady(true);
+          cleanupInternalRecords(storagePath).catch((err) => {
+            console.warn('Background library cleanup failed', err);
+          });
+        }
+      })
       .catch((err) => {
         if (!cancelled) {
           // Preserve root cause — DatabaseInitError wraps the Rust error in .cause

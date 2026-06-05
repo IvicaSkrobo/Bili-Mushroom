@@ -17,6 +17,26 @@ vi.mock('@tauri-apps/plugin-opener', () => ({
   openUrl: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('@tauri-apps/api/app', () => ({
+  getVersion: vi.fn().mockResolvedValue('0.0.0-test'),
+}));
+
+function summarizeMockFinds(finds: Array<Record<string, any>>) {
+  const bySpecies = new Map<string, Array<Record<string, any>>>();
+  for (const find of finds) {
+    const name = String(find.species_name ?? '(unnamed)');
+    bySpecies.set(name, [...(bySpecies.get(name) ?? []), find]);
+  }
+  return Array.from(bySpecies.entries()).map(([species_name, speciesFinds]) => ({
+    species_name,
+    find_count: speciesFinds.length,
+    photo_count: speciesFinds.reduce((sum, find) => sum + (find.photo_count ?? find.photos?.length ?? 0), 0),
+    favorite_count: speciesFinds.filter((find) => find.is_favorite).length,
+    latest_date: speciesFinds.map((find) => find.date_found).filter(Boolean).sort().at(-1) ?? null,
+    representative_find: speciesFinds[0] ?? null,
+  }));
+}
+
 // ---------------------------------------------------------------------------
 // @tauri-apps/api/core mock — invoke dispatch table
 // Tests can override individual handlers by mutating invokeHandlers.
@@ -24,8 +44,16 @@ vi.mock('@tauri-apps/plugin-opener', () => ({
 
 export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
   parse_exif: (_args: unknown) => ({ date: null, lat: null, lng: null }),
+  load_saved_storage_path: (_args: unknown) => null,
+  initialize_database: (_args: unknown) => undefined,
   import_find: (_args: unknown) => ({ imported: [], skipped: [] }),
   get_finds: (_args: unknown) => [],
+  get_collection_folders: (args: unknown) => summarizeMockFinds(invokeHandlers.get_finds(args) as Array<Record<string, any>>),
+  get_species_finds: (args: unknown) => {
+    const speciesName = (args as { speciesName?: string })?.speciesName;
+    return (invokeHandlers.get_finds(args) as Array<Record<string, any>>)
+      .filter((find) => !speciesName || find.species_name === speciesName);
+  },
   update_find: (_args: unknown) => ({
     id: 1,
     original_filename: 'shroom.jpg',
@@ -54,6 +82,7 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
   upsert_species_note: (_args: unknown) => undefined,
   upsert_species_profile: (_args: unknown) => undefined,
   bulk_rename_species: (_args: unknown) => undefined,
+  rename_species_folder: (_args: unknown) => undefined,
   set_find_favorite: (_args: unknown) => ({
     id: 1,
     original_filename: 'shroom.jpg',
@@ -143,6 +172,14 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
     photos: [],
   }),
   cleanup_internal_records: (_args: unknown) => 0,
+  audit_photo_library: (_args: unknown) => ({
+    db_photo_rows: 0,
+    db_distinct_photo_paths: 0,
+    filesystem_images: 0,
+    missing_db_photo_paths: [],
+    orphan_filesystem_images: [],
+    duplicate_photo_paths: [],
+  }),
   quit_app: (_args: unknown) => undefined,
   fetch_tile: async (_args: { url: string }) => {
     // 1x1 transparent PNG data URI for tests
@@ -155,6 +192,8 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
   clear_tile_cache: async (_args: { storagePath?: string | null }) => undefined,
   set_cache_max: async (_args: { maxBytes: number }) => undefined,
   get_cache_max_bytes: async () => 200 * 1024 * 1024,
+  check_app_update: async (_args: unknown) => null,
+  install_app_update: async (_args: unknown) => false,
   get_zones: (_args: unknown) => [],
   upsert_zone: (args: unknown) => {
     const payload = (args as { payload: Record<string, unknown> }).payload;

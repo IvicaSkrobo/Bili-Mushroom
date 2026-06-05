@@ -11,6 +11,7 @@ vi.mock('@/lib/db');
 describe('App', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(dbLib.cleanupInternalRecords).mockResolvedValue(0);
     // App guards on __TAURI_INTERNALS__ to avoid running in plain browser
     Object.defineProperty(window, '__TAURI_INTERNALS__', {
       value: {},

@@ -1,8 +1,8 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  getFinds, updateFind, deleteFind, getFindPhotos, getSpeciesNotes, upsertSpeciesNote,
+  getFinds, getCollectionFolders, getSpeciesFinds, updateFind, deleteFind, getFindPhotos, getSpeciesNotes, upsertSpeciesNote,
   getSpeciesProfiles, upsertSpeciesProfile, getSpeciesRecipes, upsertSpeciesRecipe, deleteSpeciesRecipe,
-  bulkRenameSpecies, moveFindToFolder, setFindFavorite, addFindPhotos, createFind,
+  bulkRenameSpecies, renameSpeciesFolder, moveFindToFolder, setFindFavorite, addFindPhotos, createFind,
   deleteFindPhoto, bulkDeleteFindPhotos,
   FINDS_QUERY_KEY, SPECIES_NOTES_QUERY_KEY, SPECIES_PROFILES_QUERY_KEY, SPECIES_RECIPES_QUERY_KEY,
   type Find, type FindSearchFilters, type UpdateFindPayload, type CreateFindPayload,
@@ -32,6 +32,41 @@ export function useInfiniteFinds(filters?: FindSearchFilters, pageSize = 200) {
     getNextPageParam: (lastPage, allPages) =>
       lastPage.length === pageSize ? allPages.length : undefined,
     enabled: !!storagePath,
+  });
+}
+
+export function useInfiniteCollectionFolders(filters?: FindSearchFilters, pageSize = 200) {
+  const storagePath = useAppStore((s) => s.storagePath);
+  return useInfiniteQuery({
+    queryKey: [FINDS_QUERY_KEY, storagePath, 'folders', filters ?? null, pageSize],
+    queryFn: ({ pageParam }) =>
+      getCollectionFolders(storagePath!, {
+        ...filters,
+        limit: pageSize,
+        offset: pageParam * pageSize,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length === pageSize ? allPages.length : undefined,
+    enabled: !!storagePath,
+  });
+}
+
+export function useInfiniteSpeciesFinds(speciesName: string | null, filters?: FindSearchFilters, pageSize = 100) {
+  const storagePath = useAppStore((s) => s.storagePath);
+  return useInfiniteQuery({
+    queryKey: [FINDS_QUERY_KEY, storagePath, 'species-finds', speciesName, filters ?? null, pageSize],
+    queryFn: ({ pageParam }) =>
+      getSpeciesFinds(storagePath!, speciesName!, {
+        ...filters,
+        photosMode: 'primary',
+        limit: pageSize,
+        offset: pageParam * pageSize,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length === pageSize ? allPages.length : undefined,
+    enabled: !!storagePath && !!speciesName,
   });
 }
 
@@ -139,6 +174,20 @@ export function useBulkRenameSpecies() {
   return useMutation({
     mutationFn: ({ findIds, newSpeciesName }: { findIds: number[]; newSpeciesName: string }) =>
       bulkRenameSpecies(storagePath!, findIds, newSpeciesName),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
+      qc.invalidateQueries({ queryKey: [SPECIES_NOTES_QUERY_KEY, storagePath] });
+      qc.invalidateQueries({ queryKey: [SPECIES_PROFILES_QUERY_KEY, storagePath] });
+    },
+  });
+}
+
+export function useRenameSpeciesFolder() {
+  const storagePath = useAppStore((s) => s.storagePath);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ oldSpeciesName, newSpeciesName }: { oldSpeciesName: string; newSpeciesName: string }) =>
+      renameSpeciesFolder(storagePath!, oldSpeciesName, newSpeciesName),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
       qc.invalidateQueries({ queryKey: [SPECIES_NOTES_QUERY_KEY, storagePath] });

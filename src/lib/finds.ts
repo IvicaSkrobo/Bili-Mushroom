@@ -69,6 +69,15 @@ export interface FindSearchFilters {
   offset?: number;
 }
 
+export interface SpeciesFolderSummary {
+  species_name: string;
+  find_count: number;
+  photo_count: number;
+  favorite_count: number;
+  latest_date: string | null;
+  representative_find: Find | null;
+}
+
 export function getFindPhotoCount(find: Pick<Find, 'photos' | 'photo_count'>): number {
   return find.photo_count ?? find.photos.length;
 }
@@ -84,6 +93,21 @@ export interface ImportProgress {
   current: number;
   total: number;
   filename: string;
+}
+
+export interface DuplicatePhotoPath {
+  photo_path: string;
+  count: number;
+  find_ids: number[];
+}
+
+export interface PhotoLibraryAudit {
+  db_photo_rows: number;
+  db_distinct_photo_paths: number;
+  filesystem_images: number;
+  missing_db_photo_paths: string[];
+  orphan_filesystem_images: string[];
+  duplicate_photo_paths: DuplicatePhotoPath[];
 }
 
 export interface SpeciesProfile {
@@ -164,6 +188,21 @@ export async function importFind(
  */
 export async function getFinds(storagePath: string, filters?: FindSearchFilters): Promise<Find[]> {
   return invoke<Find[]>('get_finds', filters ? { storagePath, filters } : { storagePath });
+}
+
+export async function getCollectionFolders(
+  storagePath: string,
+  filters?: FindSearchFilters,
+): Promise<SpeciesFolderSummary[]> {
+  return invoke<SpeciesFolderSummary[]>('get_collection_folders', filters ? { storagePath, filters } : { storagePath });
+}
+
+export async function getSpeciesFinds(
+  storagePath: string,
+  speciesName: string,
+  filters?: FindSearchFilters,
+): Promise<Find[]> {
+  return invoke<Find[]>('get_species_finds', filters ? { storagePath, speciesName, filters } : { storagePath, speciesName });
 }
 
 // ---------------------------------------------------------------------------
@@ -345,6 +384,14 @@ export async function bulkRenameSpecies(
   return invoke<void>('bulk_rename_species', { storagePath, findIds, newSpeciesName });
 }
 
+export async function renameSpeciesFolder(
+  storagePath: string,
+  oldSpeciesName: string,
+  newSpeciesName: string,
+): Promise<void> {
+  return invoke<void>('rename_species_folder', { storagePath, oldSpeciesName, newSpeciesName });
+}
+
 export async function setFindFavorite(
   storagePath: string,
   findId: number,
@@ -456,4 +503,8 @@ export async function editSourcePhotoImage(
     rotateDegrees,
     crop: crop ?? null,
   });
+}
+
+export async function auditPhotoLibrary(storagePath: string): Promise<PhotoLibraryAudit> {
+  return invoke<PhotoLibraryAudit>('audit_photo_library', { storagePath });
 }

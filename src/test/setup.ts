@@ -12,4 +12,5 @@ import './tauri-mocks';
 
 beforeEach(() => {
   cleanup();
+  window.localStorage.clear();
 });

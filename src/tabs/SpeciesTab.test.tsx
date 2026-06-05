@@ -73,6 +73,11 @@ vi.mock('@/hooks/useFinds', () => ({
       { species_name: 'Boletus edulis', notes: 'Best after steady rain.' },
     ],
   }),
+  useUpsertSpeciesNote: () => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
   useSpeciesProfiles: () => ({
     data: [
       { species_name: 'Boletus edulis', cover_photo_id: 2, tags: ['confirmed', 'oak'] },

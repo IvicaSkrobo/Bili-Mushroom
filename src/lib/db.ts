@@ -10,18 +10,20 @@ export class DatabaseInitError extends Error {
 /**
  * Eagerly initialise the database for the given storage folder.
  *
- * Migrations now run inside the Rust open_db() call, so there is nothing
- * the frontend needs to do except trigger an IPC round-trip that causes
- * open_db() to execute. get_finds is the lightest read command available.
+ * Migrations run inside the Rust open_db() call. Use a dedicated lightweight
+ * command here so startup does not block on loading the user's collection.
  *
  * Throws DatabaseInitError when the Rust command fails (e.g. storage path
  * is unreadable, disk full, corrupt DB file).
  */
 export async function initializeDatabase(storageFolderPath: string): Promise<void> {
   try {
-    await invoke('get_finds', { storagePath: storageFolderPath });
-    await invoke('cleanup_internal_records', { storagePath: storageFolderPath });
+    await invoke('initialize_database', { storagePath: storageFolderPath });
   } catch (err) {
     throw new DatabaseInitError('Failed to initialise database', err);
   }
+}
+
+export async function cleanupInternalRecords(storageFolderPath: string): Promise<number> {
+  return invoke<number>('cleanup_internal_records', { storagePath: storageFolderPath });
 }

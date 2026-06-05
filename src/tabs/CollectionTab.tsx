@@ -14,20 +14,22 @@ import { FolderEditDialog } from '@/components/finds/FolderEditDialog';
 import { DeleteFindDialog } from '@/components/finds/DeleteFindDialog';
 import { BulkDeleteDialog } from '@/components/finds/BulkDeleteDialog';
 import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
-import { useInfiniteFinds, useFindPhotos, useSpeciesNotes, useSpeciesProfiles, useUpsertSpeciesNote, useUpsertSpeciesProfile, useBulkRenameSpecies, useSetFindFavorite, useDeleteFindPhoto } from '@/hooks/useFinds';
+import { useInfiniteCollectionFolders, useInfiniteSpeciesFinds, useFindPhotos, useSpeciesNotes, useSpeciesProfiles, useUpsertSpeciesNote, useUpsertSpeciesProfile, useBulkRenameSpecies, useSetFindFavorite, useDeleteFindPhoto } from '@/hooks/useFinds';
 import { usePhotoThumbnailSrc } from '@/hooks/usePhotoThumbnail';
 import { useAppStore } from '@/stores/appStore';
 import { useT, tFindsCount } from '@/i18n/index';
-import type { Find, SpeciesProfile } from '@/lib/finds';
+import type { Find, FindSearchFilters, SpeciesFolderSummary, SpeciesProfile } from '@/lib/finds';
 import { getFindPhotoCount, openSpeciesFolder, SUPPORTED_EXTENSIONS } from '@/lib/finds';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 import { renderSpeciesName, plainSpeciesName, normalizeCommonName, compareSpeciesNames } from '@/lib/speciesName';
 import { formatDisplayDate } from '@/lib/dateFormat';
 
 const DATE_SEARCH_AUTO_EXPAND_LIMIT = 80;
-const COLLAPSED_SPECIES_ROW_ESTIMATE = 116;
-const OPEN_SPECIES_ROW_ESTIMATE = 280;
+const COLLAPSED_SPECIES_ROW_ESTIMATE = 210;
+const OPEN_SPECIES_ROW_ESTIMATE = 520;
 const COLLECTION_FIND_PAGE_SIZE = 200;
+const COLLECTION_VIRTUALIZATION_THRESHOLD = 50;
+const SPECIES_FIND_PAGE_SIZE = 100;
 
 function normalizeDateQuery(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, '');
@@ -429,7 +431,6 @@ const FindRow = memo(function FindRow({
 interface SpeciesFolderProps {
   index: number;
   virtualIndex: number;
-  virtualStart: number;
   isOpen: boolean;
   isJumpTarget: boolean;
   measureElement: (element: HTMLDivElement | null) => void;
@@ -439,7 +440,6 @@ interface SpeciesFolderProps {
 const SpeciesFolder = memo(function SpeciesFolder({
   index,
   virtualIndex,
-  virtualStart,
   isOpen,
   isJumpTarget,
   measureElement,
@@ -458,16 +458,104 @@ const SpeciesFolder = memo(function SpeciesFolder({
       }`}
       style={{
         animationDelay: `${Math.min(index * 30, 300)}ms`,
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        transform: `translateY(${virtualStart}px)`,
-        contentVisibility: 'auto',
-        containIntrinsicSize: isOpen ? `${OPEN_SPECIES_ROW_ESTIMATE}px` : `${COLLAPSED_SPECIES_ROW_ESTIMATE}px`,
+        marginBottom: 8,
       }}
     >
       {children}
+    </div>
+  );
+});
+
+interface SpeciesFindRowsProps {
+  speciesName: string;
+  filters: FindSearchFilters;
+  initialFinds?: Find[];
+  lang: string;
+  t: CollectionT;
+  speciesProfilesByName: Map<string, SpeciesProfile>;
+  selectMode: boolean;
+  selectedIds: Set<number>;
+  expandedFinds: Set<number>;
+  onToggleSelect: (id: number) => void;
+  onOpenLightbox: (speciesFinds: Find[], findId: number, photoIndex: number) => void;
+  onSetEditing: (find: Find) => void;
+  onSetDeleting: (find: Find) => void;
+  onToggleFindExpand: (id: number) => void;
+  onViewOnMap: (find: Find) => void;
+}
+
+const SpeciesFindRows = memo(function SpeciesFindRows({
+  speciesName,
+  filters,
+  initialFinds = [],
+  lang,
+  t,
+  speciesProfilesByName,
+  selectMode,
+  selectedIds,
+  expandedFinds,
+  onToggleSelect,
+  onOpenLightbox,
+  onSetEditing,
+  onSetDeleting,
+  onToggleFindExpand,
+  onViewOnMap,
+}: SpeciesFindRowsProps) {
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteSpeciesFinds(speciesName, filters, SPECIES_FIND_PAGE_SIZE);
+  const speciesFinds = useMemo(() => {
+    const loaded = data?.pages.flat() ?? [];
+    return loaded.length > 0 ? loaded : initialFinds;
+  }, [data, initialFinds]);
+
+  if (isLoading && speciesFinds.length === 0) {
+    return <p className="text-xs text-muted-foreground">{t('collection.loading')}</p>;
+  }
+  if (isError) {
+    return <p className="text-xs text-destructive">{String(error)}</p>;
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      {speciesFinds.map((find, findIndex) => (
+        <FindRow
+          key={find.id}
+          find={find}
+          index={findIndex}
+          speciesFinds={speciesFinds}
+          lang={lang}
+          t={t}
+          speciesProfilesByName={speciesProfilesByName}
+          selectMode={selectMode}
+          selectedIds={selectedIds}
+          isExpanded={expandedFinds.has(find.id)}
+          onToggleSelect={onToggleSelect}
+          onOpenLightbox={onOpenLightbox}
+          onSetEditing={onSetEditing}
+          onSetDeleting={onSetDeleting}
+          onToggleFindExpand={onToggleFindExpand}
+          onViewOnMap={onViewOnMap}
+        />
+      ))}
+      {hasNextPage && (
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          onClick={() => void fetchNextPage()}
+          disabled={isFetchingNextPage}
+          className="self-center"
+        >
+          {isFetchingNextPage ? t('collection.loading') : t('collection.loadMore')}
+        </Button>
+      )}
     </div>
   );
 });
@@ -502,7 +590,6 @@ export default function CollectionTab() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [locationSearch, setLocationSearch] = useState('');
-  const [focusedSpeciesFilter, setFocusedSpeciesFilter] = useState<string | null>(null);
   const [dateFilterMode, setDateFilterMode] = useState<'exact' | 'range' | 'month' | 'year'>('exact');
   const [dateSearch, setDateSearch] = useState('');
   const [dateSearchEnd, setDateSearchEnd] = useState('');
@@ -564,15 +651,20 @@ export default function CollectionTab() {
   }, [dateFilterMode, debouncedDateSearch, debouncedDateSearchEnd, debouncedLocationSearch, debouncedMonthSearch, debouncedSearch, debouncedYearSearch, favoritesOnly]);
 
   const {
-    data: findPages,
+    data: folderPages,
     isLoading,
     isError,
     error,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useInfiniteFinds(collectionFindFilters, COLLECTION_FIND_PAGE_SIZE);
-  const finds = useMemo(() => findPages?.pages.flat() ?? [], [findPages]);
+  } = useInfiniteCollectionFolders(collectionFindFilters, COLLECTION_FIND_PAGE_SIZE);
+  const folderSummaries = useMemo(() => folderPages?.pages.flat() ?? [], [folderPages]);
+  const representativeFinds = useMemo(
+    () => folderSummaries.map((summary) => summary.representative_find).filter((find): find is Find => Boolean(find)),
+    [folderSummaries],
+  );
+  const finds = representativeFinds;
 
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
 
@@ -715,52 +807,29 @@ export default function CollectionTab() {
     setEditingFindId(null);
   }, [editingFindId, finds, setEditingFindId]);
 
-  const allGroups = useMemo(() => {
-    const map = new Map<string, Find[]>();
-    for (const f of finds ?? []) {
-      const key = f.species_name || '(unnamed)';
-      if (isInternalLibraryName(key)) continue;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(f);
-    }
-    return Array.from(map.entries()).sort((a, b) => compareSpeciesNames(a[0], b[0]));
-  }, [finds]);
-
-  const groups = useMemo(
-    () => favoritesOnly
-      ? allGroups
-        .map(([name, speciesFinds]) => [name, speciesFinds.filter((find) => find.is_favorite)] as [string, Find[]])
-        .filter(([, speciesFinds]) => speciesFinds.length > 0)
-      : allGroups,
-    [allGroups, favoritesOnly],
+  const allGroups = useMemo(
+    () => folderSummaries
+      .filter((summary) => !isInternalLibraryName(summary.species_name))
+      .map((summary) => [summary.species_name, summary] as [string, SpeciesFolderSummary]),
+    [folderSummaries],
   );
 
-  const dateLookupByFindId = useMemo(() => {
-    const lookup = new Map<number, { dateVariants: string[]; monthVariants: string[] }>();
-    for (const find of finds ?? []) {
-      if (!find.date_found) continue;
-      lookup.set(find.id, {
-        dateVariants: dateVariants(find.date_found),
-        monthVariants: monthVariants(find.date_found),
-      });
-    }
-    return lookup;
-  }, [finds]);
+  const groups = allGroups;
 
   useEffect(() => {
-    if (!selectedCollectionSpecies || allGroups.length === 0) return;
+    if (!selectedCollectionSpecies) return;
 
     const rawTarget = selectedCollectionSpecies.trim();
     const plainTarget = plainSpeciesName(rawTarget).toLowerCase();
-    const resolvedSpecies = allGroups.find(([name]) => name === rawTarget)?.[0]
+    const matchedSpecies = allGroups.find(([name]) => name === rawTarget)?.[0]
       ?? allGroups.find(([name]) => plainSpeciesName(name).toLowerCase() === plainTarget)?.[0]
       ?? allGroups.find(([name]) => plainTarget.startsWith(plainSpeciesName(name).toLowerCase()))?.[0]
-      ?? rawTarget;
+      ?? null;
+    const resolvedSpecies = matchedSpecies ?? rawTarget;
 
     setExpanded(new Set([resolvedSpecies]));
     setExpandedFinds(new Set());
-    setFocusedSpeciesFilter(null);
-    setSearch('');
+    setSearch((current) => (current === rawTarget ? current : rawTarget));
     setLocationSearch('');
     setDateSearch('');
     setDateSearchEnd('');
@@ -772,58 +841,26 @@ export default function CollectionTab() {
     setMoveTarget('');
     setMoveDropdownOpen(false);
     setJumpTargetSpecies(resolvedSpecies);
-    setSelectedCollectionSpecies(null);
+
+    if (matchedSpecies) {
+      setSelectedCollectionSpecies(null);
+    }
 
     const timer = window.setTimeout(() => setJumpTargetSpecies(null), 2200);
     return () => window.clearTimeout(timer);
   }, [allGroups, selectedCollectionSpecies, setSelectedCollectionSpecies]);
 
-  const speciesFilteredGroups = useMemo(() => {
-    if (focusedSpeciesFilter) {
-      const plainFocused = plainSpeciesName(focusedSpeciesFilter).toLowerCase();
-      return groups.filter(([name]) => (
-        name === focusedSpeciesFilter ||
-        plainSpeciesName(name).toLowerCase() === plainFocused
-      ));
-    }
-    if (!deferredSearch.trim()) return groups;
-    const q = plainSpeciesName(deferredSearch).trim().toLowerCase();
-    return groups.filter(([name]) => plainSpeciesName(name).toLowerCase().startsWith(q));
-  }, [deferredSearch, focusedSpeciesFilter, groups]);
-  const filteredGroups = useMemo(() => {
-    const matchesDateFilter = (find: Find) => {
-      if (!find.date_found) return false;
-      if (dateFilterMode === 'exact') {
-        const lookup = dateLookupByFindId.get(find.id);
-        return lookup ? matchesDateVariants(lookup.dateVariants, deferredDateSearch) : matchesSmartDate(find.date_found, deferredDateSearch);
-      }
-      if (dateFilterMode === 'range') {
-        if (!deferredDateSearch && !deferredDateSearchEnd) return true;
-        const start = parseCompleteDateQuery(deferredDateSearch);
-        const end = parseCompleteDateQuery(deferredDateSearchEnd);
-        if (start && find.date_found < start) return false;
-        if (end && find.date_found > end) return false;
-        const lookup = dateLookupByFindId.get(find.id);
-        if (!start && deferredDateSearch && !(lookup ? matchesDateVariants(lookup.dateVariants, deferredDateSearch) : matchesSmartDate(find.date_found, deferredDateSearch))) return false;
-        if (!end && deferredDateSearchEnd && !(lookup ? matchesDateVariants(lookup.dateVariants, deferredDateSearchEnd) : matchesSmartDate(find.date_found, deferredDateSearchEnd))) return false;
-        return true;
-      }
-      if (dateFilterMode === 'month') {
-        const lookup = dateLookupByFindId.get(find.id);
-        return lookup ? matchesDateVariants(lookup.monthVariants, deferredMonthSearch) : matchesSmartMonth(find.date_found, deferredMonthSearch);
-      }
-      return deferredYearSearch.trim() ? find.date_found.startsWith(deferredYearSearch.trim()) : true;
-    };
-    const hasDateFilter =
-      (dateFilterMode === 'exact' && deferredDateSearch) ||
-      (dateFilterMode === 'range' && (deferredDateSearch || deferredDateSearchEnd)) ||
-      (dateFilterMode === 'month' && deferredMonthSearch) ||
-      (dateFilterMode === 'year' && deferredYearSearch.trim());
-    if (!hasDateFilter) return speciesFilteredGroups;
-    return speciesFilteredGroups
-      .map(([name, speciesFinds]) => [name, speciesFinds.filter(matchesDateFilter)] as [string, Find[]])
-      .filter(([, speciesFinds]) => speciesFinds.length > 0);
-  }, [dateFilterMode, dateLookupByFindId, deferredDateSearch, deferredDateSearchEnd, deferredMonthSearch, deferredYearSearch, speciesFilteredGroups]);
+  const filteredGroups = groups;
+  const shouldVirtualizeSpeciesFolders = filteredGroups.length > COLLECTION_VIRTUALIZATION_THRESHOLD;
+  const filteredGroupKey = useMemo(
+    () => filteredGroups.map(([name]) => name).join('\u001f'),
+    [filteredGroups],
+  );
+
+  useEffect(() => {
+    if (!contentScrollElement) return;
+    contentScrollElement.scrollTop = 0;
+  }, [contentScrollElement, filteredGroupKey]);
 
   const speciesNames = useMemo(
     () => groups.map(([name]) => name).filter((n) => n !== '(unnamed)'),
@@ -843,7 +880,7 @@ export default function CollectionTab() {
     (dateFilterMode === 'month' && monthSearch.length > 0) ||
     (dateFilterMode === 'year' && yearSearch.trim().length > 0);
   const filteredFindCount = useMemo(
-    () => filteredGroups.reduce((sum, [, speciesFinds]) => sum + speciesFinds.length, 0),
+    () => filteredGroups.reduce((sum, [, summary]) => sum + summary.find_count, 0),
     [filteredGroups],
   );
   const autoExpandDateResults = isDateSearching && filteredFindCount <= DATE_SEARCH_AUTO_EXPAND_LIMIT;
@@ -853,7 +890,7 @@ export default function CollectionTab() {
     return (isOpen ? OPEN_SPECIES_ROW_ESTIMATE : COLLAPSED_SPECIES_ROW_ESTIMATE) + 8;
   };
   const speciesFolderVirtualizer = useVirtualizer({
-    count: filteredGroups.length,
+    count: shouldVirtualizeSpeciesFolders ? filteredGroups.length : 0,
     getScrollElement: () => contentScrollElement,
     estimateSize: estimateSpeciesFolderSize,
     getItemKey: (index) => filteredGroups[index]?.[0] ?? index,
@@ -863,7 +900,7 @@ export default function CollectionTab() {
   });
   const virtualSpeciesFolders = speciesFolderVirtualizer.getVirtualItems();
   const renderedSpeciesFolders = useMemo(() => {
-    if (virtualSpeciesFolders.length > 0) return virtualSpeciesFolders;
+    if (shouldVirtualizeSpeciesFolders && virtualSpeciesFolders.length > 0) return virtualSpeciesFolders;
     let start = 0;
     return filteredGroups.map(([speciesName], index) => {
       const size = estimateSpeciesFolderSize(index);
@@ -871,7 +908,20 @@ export default function CollectionTab() {
       start += size;
       return row;
     });
-  }, [filteredGroups, virtualSpeciesFolders]);
+  }, [filteredGroups, shouldVirtualizeSpeciesFolders, virtualSpeciesFolders]);
+  const speciesFoldersTotalSize = shouldVirtualizeSpeciesFolders
+    ? speciesFolderVirtualizer.getTotalSize()
+    : renderedSpeciesFolders.at(-1)
+      ? renderedSpeciesFolders.at(-1)!.start + renderedSpeciesFolders.at(-1)!.size
+      : 0;
+  const firstRenderedSpeciesFolder = renderedSpeciesFolders[0];
+  const lastRenderedSpeciesFolder = renderedSpeciesFolders.at(-1);
+  const virtualTopSpacer = shouldVirtualizeSpeciesFolders
+    ? firstRenderedSpeciesFolder?.start ?? 0
+    : 0;
+  const virtualBottomSpacer = shouldVirtualizeSpeciesFolders && lastRenderedSpeciesFolder
+    ? Math.max(0, speciesFoldersTotalSize - lastRenderedSpeciesFolder.start - lastRenderedSpeciesFolder.size)
+    : 0;
   useEffect(() => {
     if (!contentScrollElement || !hasNextPage || isFetchingNextPage) return;
 
@@ -1017,7 +1067,6 @@ export default function CollectionTab() {
                 type="text"
                 value={search}
                 onChange={(e) => {
-                  setFocusedSpeciesFilter(null);
                   setSearch(e.target.value);
                 }}
                 placeholder={t('species.search')}
@@ -1027,7 +1076,6 @@ export default function CollectionTab() {
                 <button
                   type="button"
                   onClick={() => {
-                    setFocusedSpeciesFilter(null);
                     setSearch('');
                   }}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
@@ -1263,38 +1311,30 @@ export default function CollectionTab() {
         {!isLoading && !isError && filteredGroups.length > 0 && (
           <>
             <div
-              className="relative w-full"
-              style={{ height: `${speciesFolderVirtualizer.getTotalSize()}px` }}
+              className="w-full"
             >
+              {virtualTopSpacer > 0 && (
+                <div aria-hidden="true" style={{ height: virtualTopSpacer }} />
+              )}
               {renderedSpeciesFolders.map((virtualRow) => {
               const group = filteredGroups[virtualRow.index];
               if (!group) return null;
-              const [speciesName, speciesFinds] = group;
+              const [speciesName, summary] = group;
               const idx = virtualRow.index;
           const isOpen = autoExpandDateResults || expanded.has(speciesName);
           const canToggleFolder = !autoExpandDateResults;
           const profile = speciesProfilesByName.get(speciesName) ?? null;
           const commonName = normalizeCommonName(profile?.common_name, speciesName);
-          const coverPhotoId = profile?.cover_photo_id ?? null;
-          const representativePhoto = speciesFinds
-            .flatMap((find) => find.photos)
-            .find((photo) => photo.id === coverPhotoId) ?? speciesFinds[0]?.photos[0] ?? null;
+          const representativeFind = summary.representative_find;
+          const representativePhoto = representativeFind?.photos[0] ?? null;
           const isJumpTarget = speciesName === jumpTargetSpecies;
-          const speciesFavoriteCount = speciesFinds.filter((find) => find.is_favorite).length;
-
-          const repFind = representativePhoto
-            ? speciesFinds.find((f) => f.photos.some((p) => p.id === representativePhoto.id)) ?? null
-            : null;
-          const repPhotoIdx = repFind
-            ? repFind.photos.findIndex((p) => p.id === representativePhoto?.id)
-            : 0;
+          const speciesFavoriteCount = summary.favorite_count;
 
           return (
             <SpeciesFolder
               key={speciesName}
               index={idx}
               virtualIndex={virtualRow.index}
-              virtualStart={virtualRow.start}
               isOpen={isOpen}
               isJumpTarget={isJumpTarget}
               measureElement={speciesFolderVirtualizer.measureElement}
@@ -1308,7 +1348,7 @@ export default function CollectionTab() {
                     className="flex-shrink-0 overflow-hidden rounded-sm h-11 w-11 focus:outline-none focus:ring-2 focus:ring-ring/40"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (repFind) openLightbox(speciesFinds, repFind.id, repPhotoIdx >= 0 ? repPhotoIdx : 0);
+                      if (representativeFind) openLightbox([representativeFind], representativeFind.id, 0);
                     }}
                     title={t('collection.openPhoto')}
                   >
@@ -1351,9 +1391,9 @@ export default function CollectionTab() {
                       </p>
                     )}
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      {tFindsCount(speciesFinds.length, lang)}
+                      {tFindsCount(summary.find_count, lang)}
                       {' · '}
-                      {(() => { const n = speciesFinds.reduce((sum, find) => sum + getFindPhotoCount(find), 0); return `${n} ${n === 1 ? t('collection.photoUnit.one') : t('collection.photoUnit.many')}`; })()}
+                      {summary.photo_count} {summary.photo_count === 1 ? t('collection.photoUnit.one') : t('collection.photoUnit.many')}
                     </p>
                     <div className="mt-1">
                       <SpeciesMetadataBadges
@@ -1362,33 +1402,6 @@ export default function CollectionTab() {
                         hideUnknown={false}
                       />
                     </div>
-                    {(() => {
-                      const profile = speciesProfilesByName.get(speciesName);
-                      const otherNames = profile?.other_names ?? [];
-                      const synonyms = profile?.synonyms ?? [];
-                      const hasNames = otherNames.length > 0 || synonyms.length > 0;
-                      if (!hasNames) return null;
-                      const title = [
-                        synonyms.length ? `${t('species.synonyms')}: ${synonyms.join(' · ')}` : '',
-                        otherNames.length ? `${t('species.otherNames')}: ${otherNames.join(' · ')}` : '',
-                      ].filter(Boolean).join(' | ');
-                      return (
-                        <div className="mt-0.5 flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground/65" title={title}>
-                          {synonyms.length > 0 && (
-                            <span className="min-w-0 truncate">
-                              <span className="font-semibold text-muted-foreground/80">{t('species.synonyms')}:</span>{' '}
-                              <span className="italic">{synonyms.join(', ')}</span>
-                            </span>
-                          )}
-                          {otherNames.length > 0 && (
-                            <span className="min-w-0 truncate">
-                              <span className="font-semibold text-muted-foreground/80">{t('species.otherNames')}:</span>{' '}
-                              {otherNames.join(', ')}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })()}
                   </div>
                 </button>
 
@@ -1505,33 +1518,31 @@ export default function CollectionTab() {
                     </span>
                     <div className="h-px flex-1 bg-border/40" />
                   </div>
-                  <div className="flex flex-col gap-2">
-                    {speciesFinds.map((find, findIndex) => (
-                      <FindRow
-                        key={find.id}
-                        find={find}
-                        index={findIndex}
-                        speciesFinds={speciesFinds}
-                        lang={lang}
-                        t={t}
-                        speciesProfilesByName={speciesProfilesByName}
-                        selectMode={selectMode}
-                        selectedIds={selectedIds}
-                        isExpanded={expandedFinds.has(find.id)}
-                        onToggleSelect={toggleSelect}
-                        onOpenLightbox={openLightbox}
-                        onSetEditing={setEditing}
-                        onSetDeleting={setDeleting}
-                        onToggleFindExpand={toggleFindExpand}
-                        onViewOnMap={handleViewFindOnMap}
-                      />
-                    ))}
-                  </div>
+                  <SpeciesFindRows
+                    speciesName={speciesName}
+                    filters={collectionFindFilters}
+                    initialFinds={representativeFind ? [representativeFind] : []}
+                    lang={lang}
+                    t={t}
+                    speciesProfilesByName={speciesProfilesByName}
+                    selectMode={selectMode}
+                    selectedIds={selectedIds}
+                    expandedFinds={expandedFinds}
+                    onToggleSelect={toggleSelect}
+                    onOpenLightbox={openLightbox}
+                    onSetEditing={setEditing}
+                    onSetDeleting={setDeleting}
+                    onToggleFindExpand={toggleFindExpand}
+                    onViewOnMap={handleViewFindOnMap}
+                  />
                 </div>
               )}
             </SpeciesFolder>
           );
             })}
+              {virtualBottomSpacer > 0 && (
+                <div aria-hidden="true" style={{ height: virtualBottomSpacer }} />
+              )}
             </div>
             {hasNextPage && (
               <div className="flex justify-center pt-3">
@@ -1546,7 +1557,7 @@ export default function CollectionTab() {
                 </Button>
               </div>
             )}
-            {!hasNextPage && finds.length > COLLECTION_FIND_PAGE_SIZE && (
+            {!hasNextPage && folderSummaries.length > COLLECTION_FIND_PAGE_SIZE && (
               <p className="pt-3 text-center text-[11px] text-muted-foreground/60">
                 {t('collection.allLoaded')}
               </p>
@@ -1566,7 +1577,11 @@ export default function CollectionTab() {
       />
       <FolderEditDialog
         speciesName={folderEditing}
-        finds={folderEditing ? (filteredGroups.find(([name]) => name === folderEditing)?.[1] ?? groups.find(([name]) => name === folderEditing)?.[1] ?? []) : []}
+        finds={folderEditing
+          ? [filteredGroups.find(([name]) => name === folderEditing)?.[1]?.representative_find
+            ?? groups.find(([name]) => name === folderEditing)?.[1]?.representative_find]
+            .filter((find): find is Find => Boolean(find))
+          : []}
         onOpenChange={(open) => !open && setFolderEditing(null)}
         speciesProfile={folderEditing ? speciesProfilesByName.get(folderEditing) : undefined}
         speciesNote={folderEditing ? (speciesNotesData?.find((n) => n.species_name === folderEditing)?.notes ?? '') : ''}

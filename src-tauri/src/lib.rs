@@ -8,11 +8,18 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_updater::Builder::new().pubkey(UPDATER_PUBLIC_KEY).build())
+        .plugin(
+            tauri_plugin_updater::Builder::new()
+                .pubkey(UPDATER_PUBLIC_KEY)
+                .build(),
+        )
         .invoke_handler(tauri::generate_handler![
             commands::exif::parse_exif,
+            commands::import::initialize_database,
             commands::import::import_find,
             commands::import::get_finds,
+            commands::import::get_collection_folders,
+            commands::import::get_species_finds,
             commands::import::update_find,
             commands::finds::delete_find,
             commands::finds::get_find_photos,
@@ -27,6 +34,7 @@ pub fn run() {
             commands::finds::trash_source_file,
             commands::finds::quit_app,
             commands::finds::bulk_rename_species,
+            commands::finds::rename_species_folder,
             commands::finds::set_find_favorite,
             commands::finds::move_find_files,
             commands::finds::open_find_folder,
@@ -38,6 +46,7 @@ pub fn run() {
             commands::finds::edit_find_photo_image,
             commands::finds::edit_source_photo_image,
             commands::finds::prune_missing_photos,
+            commands::finds::audit_photo_library,
             commands::finds::create_find,
             commands::tile_proxy::fetch_tile,
             commands::tile_proxy::get_tile_cache_stats,
@@ -53,6 +62,7 @@ pub fn run() {
             commands::stats::get_calendar,
             commands::stats::get_species_stats,
             commands::stats::read_photos_as_base64,
+            commands::storage::load_saved_storage_path,
             commands::updater::check_app_update,
             commands::updater::install_app_update,
         ]);
@@ -89,7 +99,10 @@ mod smoke {
                 |r| r.get(0),
             )
             .expect("query find_photos");
-        assert_eq!(photos_exists, 1, "find_photos table must exist after open_db");
+        assert_eq!(
+            photos_exists, 1,
+            "find_photos table must exist after open_db"
+        );
 
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
@@ -103,7 +116,10 @@ mod smoke {
                 |r| r.get(0),
             )
             .expect("query species_profiles.edibility");
-        assert_eq!(edibility_exists, 1, "species_profiles.edibility must exist after open_db");
+        assert_eq!(
+            edibility_exists, 1,
+            "species_profiles.edibility must exist after open_db"
+        );
 
         let protected_exists: i64 = conn
             .query_row(
@@ -112,7 +128,10 @@ mod smoke {
                 |r| r.get(0),
             )
             .expect("query species_profiles.protected_status");
-        assert_eq!(protected_exists, 1, "species_profiles.protected_status must exist after open_db");
+        assert_eq!(
+            protected_exists, 1,
+            "species_profiles.protected_status must exist after open_db"
+        );
 
         let synonyms_exists: i64 = conn
             .query_row(
@@ -121,7 +140,10 @@ mod smoke {
                 |r| r.get(0),
             )
             .expect("query species_profiles.synonyms");
-        assert_eq!(synonyms_exists, 1, "species_profiles.synonyms must exist after open_db");
+        assert_eq!(
+            synonyms_exists, 1,
+            "species_profiles.synonyms must exist after open_db"
+        );
 
         let other_names_exists: i64 = conn
             .query_row(
@@ -130,7 +152,10 @@ mod smoke {
                 |r| r.get(0),
             )
             .expect("query species_profiles.other_names");
-        assert_eq!(other_names_exists, 1, "species_profiles.other_names must exist after open_db");
+        assert_eq!(
+            other_names_exists, 1,
+            "species_profiles.other_names must exist after open_db"
+        );
 
         let description_exists: i64 = conn
             .query_row(
@@ -139,7 +164,10 @@ mod smoke {
                 |r| r.get(0),
             )
             .expect("query species_profiles.description");
-        assert_eq!(description_exists, 1, "species_profiles.description must exist after open_db");
+        assert_eq!(
+            description_exists, 1,
+            "species_profiles.description must exist after open_db"
+        );
 
         let common_name_exists: i64 = conn
             .query_row(
@@ -148,7 +176,10 @@ mod smoke {
                 |r| r.get(0),
             )
             .expect("query species_profiles.common_name");
-        assert_eq!(common_name_exists, 1, "species_profiles.common_name must exist after open_db");
+        assert_eq!(
+            common_name_exists, 1,
+            "species_profiles.common_name must exist after open_db"
+        );
 
         let recipes_exists: i64 = conn
             .query_row(
@@ -157,8 +188,10 @@ mod smoke {
                 |r| r.get(0),
             )
             .expect("query species_recipes");
-        assert_eq!(recipes_exists, 1, "species_recipes table must exist after open_db");
-
+        assert_eq!(
+            recipes_exists, 1,
+            "species_recipes table must exist after open_db"
+        );
     }
 
     #[test]

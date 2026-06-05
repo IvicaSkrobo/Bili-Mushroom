@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useBulkRenameSpecies } from '@/hooks/useFinds';
+import { useRenameSpeciesFolder } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { openSpeciesFolder } from '@/lib/finds';
 import { FolderOpen, X, Plus } from 'lucide-react';
@@ -37,10 +37,10 @@ interface FolderEditDialogProps {
   ) => void | Promise<void>;
 }
 
-export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProfile, speciesNote, onSave }: FolderEditDialogProps) {
+export function FolderEditDialog({ speciesName, onOpenChange, speciesProfile, speciesNote, onSave }: FolderEditDialogProps) {
   const storagePath = useAppStore((s) => s.storagePath);
   const t = useT();
-  const bulkRename = useBulkRenameSpecies();
+  const renameFolder = useRenameSpeciesFolder();
 
   const [speciesNameInput, setSpeciesNameInput] = useState('');
   const [commonNameInput, setCommonNameInput] = useState('');
@@ -81,8 +81,8 @@ export function FolderEditDialog({ speciesName, finds, onOpenChange, speciesProf
       // Step 1: Rename species if changed
       if (speciesNameInput.trim() !== speciesName && speciesNameInput.trim() !== '') {
         await new Promise<void>((resolve, reject) => {
-          bulkRename.mutate(
-            { findIds: finds.map((f) => f.id), newSpeciesName: speciesNameInput.trim() },
+          renameFolder.mutate(
+            { oldSpeciesName: speciesName, newSpeciesName: speciesNameInput.trim() },
             { onSuccess: () => resolve(), onError: (e) => reject(e) },
           );
         });

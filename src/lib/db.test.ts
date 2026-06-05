@@ -8,20 +8,20 @@ describe('db', () => {
     vi.clearAllMocks();
   });
 
-  it('initializeDatabase resolves when get_finds invoke succeeds', async () => {
-    invokeHandlers['get_finds'] = (_args: unknown) => [];
+  it('initializeDatabase resolves when initialize_database invoke succeeds', async () => {
+    invokeHandlers['initialize_database'] = (_args: unknown) => undefined;
     await expect(initializeDatabase('/some/path')).resolves.toBeUndefined();
   });
 
   it('initializeDatabase throws DatabaseInitError when invoke rejects', async () => {
-    invokeHandlers['get_finds'] = (_args: unknown) => {
+    invokeHandlers['initialize_database'] = (_args: unknown) => {
       throw new Error('open_db failed');
     };
     await expect(initializeDatabase('/bad/path')).rejects.toThrow(DatabaseInitError);
   });
 
   it('initializeDatabase error message contains Failed to initialise database', async () => {
-    invokeHandlers['get_finds'] = (_args: unknown) => {
+    invokeHandlers['initialize_database'] = (_args: unknown) => {
       throw new Error('disk error');
     };
     await expect(initializeDatabase('/bad/path2')).rejects.toThrow(
@@ -31,9 +31,9 @@ describe('db', () => {
 
   it('initializeDatabase passes storagePath as the storagePath arg to invoke', async () => {
     const { invoke } = await import('@tauri-apps/api/core');
-    invokeHandlers['get_finds'] = (_args: unknown) => [];
+    invokeHandlers['initialize_database'] = (_args: unknown) => undefined;
     await initializeDatabase('/my/lib');
-    expect(vi.mocked(invoke)).toHaveBeenCalledWith('get_finds', {
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith('initialize_database', {
       storagePath: '/my/lib',
     });
   });

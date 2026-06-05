@@ -3,6 +3,7 @@ pub mod finds;
 pub mod import;
 pub mod path_builder;
 pub mod stats;
+pub mod storage;
 pub mod tile_cache_db;
 pub mod tile_proxy;
 pub mod updater;
