@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { GiscusPanel } from './GiscusPanel';
-import { downloadCountFrom, funding, ideas, release } from './siteData';
+import { downloadCountFrom, donateUrl as sitedonateUrl, funding, ideas, release } from './siteData';
 
 type Lang = 'en' | 'hr';
 
@@ -86,7 +86,7 @@ type VisibleIdea = {
   url: string;
 };
 
-const configuredDonateUrl = import.meta.env.VITE_DONATE_URL as string | undefined;
+const configuredDonateUrl = sitedonateUrl || (import.meta.env.VITE_DONATE_URL as string | undefined);
 const ideaSubmitUrl =
   'https://github.com/IvicaSkrobo/Bili-Mushroom/issues/new?template=feature_idea.yml&labels=idea';
 const ideasListUrl = 'https://github.com/IvicaSkrobo/Bili-Mushroom/issues?q=is%3Aissue%20label%3Aidea';
