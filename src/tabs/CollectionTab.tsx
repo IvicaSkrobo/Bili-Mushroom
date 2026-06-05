@@ -14,7 +14,7 @@ import { FolderEditDialog } from '@/components/finds/FolderEditDialog';
 import { DeleteFindDialog } from '@/components/finds/DeleteFindDialog';
 import { BulkDeleteDialog } from '@/components/finds/BulkDeleteDialog';
 import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
-import { useFinds, useFindPhotos, useSpeciesNotes, useSpeciesProfiles, useUpsertSpeciesNote, useUpsertSpeciesProfile, useBulkRenameSpecies, useSetFindFavorite, useDeleteFindPhoto } from '@/hooks/useFinds';
+import { useInfiniteFinds, useFindPhotos, useSpeciesNotes, useSpeciesProfiles, useUpsertSpeciesNote, useUpsertSpeciesProfile, useBulkRenameSpecies, useSetFindFavorite, useDeleteFindPhoto } from '@/hooks/useFinds';
 import { usePhotoThumbnailSrc } from '@/hooks/usePhotoThumbnail';
 import { useAppStore } from '@/stores/appStore';
 import { useT, tFindsCount } from '@/i18n/index';
@@ -27,6 +27,7 @@ import { formatDisplayDate } from '@/lib/dateFormat';
 const DATE_SEARCH_AUTO_EXPAND_LIMIT = 80;
 const COLLAPSED_SPECIES_ROW_ESTIMATE = 116;
 const OPEN_SPECIES_ROW_ESTIMATE = 280;
+const COLLECTION_FIND_PAGE_SIZE = 200;
 
 function normalizeDateQuery(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, '');
@@ -531,9 +532,7 @@ export default function CollectionTab() {
       dateEnd?: string;
       datePrefix?: string;
       photosMode: 'primary';
-      limit: number;
-      offset: number;
-    } = { photosMode: 'primary', limit: 1000, offset: 0 };
+    } = { photosMode: 'primary' };
     const speciesQuery = plainSpeciesName(debouncedSearch).trim();
     const locationQuery = debouncedLocationSearch.trim();
     if (speciesQuery) filters.speciesQuery = speciesQuery;
@@ -564,7 +563,16 @@ export default function CollectionTab() {
     return filters;
   }, [dateFilterMode, debouncedDateSearch, debouncedDateSearchEnd, debouncedLocationSearch, debouncedMonthSearch, debouncedSearch, debouncedYearSearch, favoritesOnly]);
 
-  const { data: finds, isLoading, isError, error } = useFinds(collectionFindFilters);
+  const {
+    data: findPages,
+    isLoading,
+    isError,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteFinds(collectionFindFilters, COLLECTION_FIND_PAGE_SIZE);
+  const finds = useMemo(() => findPages?.pages.flat() ?? [], [findPages]);
 
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
 
@@ -864,6 +872,21 @@ export default function CollectionTab() {
       return row;
     });
   }, [filteredGroups, virtualSpeciesFolders]);
+  useEffect(() => {
+    if (!contentScrollElement || !hasNextPage || isFetchingNextPage) return;
+
+    const maybeFetchNextPage = () => {
+      const { scrollTop, clientHeight, scrollHeight } = contentScrollElement;
+      const hasScrollableContent = scrollHeight > clientHeight + 200;
+      if (hasScrollableContent && scrollTop + clientHeight >= scrollHeight - 900) {
+        void fetchNextPage();
+      }
+    };
+
+    maybeFetchNextPage();
+    contentScrollElement.addEventListener('scroll', maybeFetchNextPage, { passive: true });
+    return () => contentScrollElement.removeEventListener('scroll', maybeFetchNextPage);
+  }, [contentScrollElement, fetchNextPage, hasNextPage, isFetchingNextPage, filteredGroups.length]);
   const clearDateSearch = () => {
     setDateSearch('');
     setDateSearchEnd('');
@@ -1238,11 +1261,12 @@ export default function CollectionTab() {
 
         {/* Species folders */}
         {!isLoading && !isError && filteredGroups.length > 0 && (
-          <div
-            className="relative w-full"
-            style={{ height: `${speciesFolderVirtualizer.getTotalSize()}px` }}
-          >
-            {renderedSpeciesFolders.map((virtualRow) => {
+          <>
+            <div
+              className="relative w-full"
+              style={{ height: `${speciesFolderVirtualizer.getTotalSize()}px` }}
+            >
+              {renderedSpeciesFolders.map((virtualRow) => {
               const group = filteredGroups[virtualRow.index];
               if (!group) return null;
               const [speciesName, speciesFinds] = group;
@@ -1507,8 +1531,27 @@ export default function CollectionTab() {
               )}
             </SpeciesFolder>
           );
-          })}
-        </div>
+            })}
+            </div>
+            {hasNextPage && (
+              <div className="flex justify-center pt-3">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => void fetchNextPage()}
+                  disabled={isFetchingNextPage}
+                >
+                  {isFetchingNextPage ? t('collection.loading') : t('collection.loadMore')}
+                </Button>
+              </div>
+            )}
+            {!hasNextPage && finds.length > COLLECTION_FIND_PAGE_SIZE && (
+              <p className="pt-3 text-center text-[11px] text-muted-foreground/60">
+                {t('collection.allLoaded')}
+              </p>
+            )}
+          </>
         )}
       </div>
 

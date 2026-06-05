@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getFinds, updateFind, deleteFind, getFindPhotos, getSpeciesNotes, upsertSpeciesNote,
   getSpeciesProfiles, upsertSpeciesProfile, getSpeciesRecipes, upsertSpeciesRecipe, deleteSpeciesRecipe,
@@ -14,6 +14,23 @@ export function useFinds(filters?: FindSearchFilters) {
   return useQuery<Find[]>({
     queryKey: [FINDS_QUERY_KEY, storagePath, filters ?? null],
     queryFn: () => getFinds(storagePath!, filters),
+    enabled: !!storagePath,
+  });
+}
+
+export function useInfiniteFinds(filters?: FindSearchFilters, pageSize = 200) {
+  const storagePath = useAppStore((s) => s.storagePath);
+  return useInfiniteQuery({
+    queryKey: [FINDS_QUERY_KEY, storagePath, 'infinite', filters ?? null, pageSize],
+    queryFn: ({ pageParam }) =>
+      getFinds(storagePath!, {
+        ...filters,
+        limit: pageSize,
+        offset: pageParam * pageSize,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length === pageSize ? allPages.length : undefined,
     enabled: !!storagePath,
   });
 }
