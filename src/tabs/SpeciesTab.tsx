@@ -7,11 +7,11 @@ import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useFinds, useSpeciesNotes, useUpsertSpeciesNote, useSpeciesProfiles, useUpsertSpeciesProfile, useSpeciesRecipes, useUpsertSpeciesRecipe, useDeleteSpeciesRecipe } from '@/hooks/useFinds';
+import { useInfiniteCollectionFolders, useInfiniteSpeciesFinds, useSpeciesFinds, useSpeciesNotes, useUpsertSpeciesNote, useSpeciesProfiles, useUpsertSpeciesProfile, useSpeciesRecipes, useUpsertSpeciesRecipe, useDeleteSpeciesRecipe } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
 import { isInternalLibraryName } from '@/lib/internalEntries';
-import type { Find, FindPhoto } from '@/lib/finds';
+import type { Find, FindPhoto, SpeciesFolderSummary } from '@/lib/finds';
 import { openSpeciesFolder } from '@/lib/finds';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { EdibilitySelectBadge, ThreatStatusSelectBadge, DistributionSelectBadge } from '@/components/species/StatusSelectBadge';
@@ -19,6 +19,9 @@ import { PhotoLightbox, type LightboxPhoto } from '@/components/finds/PhotoLight
 import { EditFindDialog } from '@/components/finds/EditFindDialog';
 import { renderSpeciesName, plainSpeciesName, normalizeCommonName, compareSpeciesNames } from '@/lib/speciesName';
 import { formatDisplayDate } from '@/lib/dateFormat';
+
+const SPECIES_FOLDER_PAGE_SIZE = 500;
+const SPECIES_DETAIL_PAGE_SIZE = 200;
 
 interface DateSummary {
   date: string;
@@ -195,7 +198,7 @@ function buildSpeciesJournal(speciesName: string, finds: Find[], coverPhotoId: n
   const allPhotos = sortedFinds.flatMap((find) => find.photos.map((photo) => ({ photo, find })));
   const heroPhotoEntry = allPhotos.find((entry) => entry.photo.id === coverPhotoId) ?? allPhotos[0] ?? null;
   const heroPhotoPath = heroPhotoEntry?.photo.photo_path ?? null;
-  const heroPhotoId = heroPhotoEntry?.photo.id ?? null;
+  const heroPhotoId = coverPhotoId ?? heroPhotoEntry?.photo.id ?? null;
 
   const uniqueDates = new Set(sortedFinds.map((find) => find.date_found));
 
@@ -358,6 +361,46 @@ function buildSpeciesJournal(speciesName: string, finds: Find[], coverPhotoId: n
   };
 }
 
+function buildSpeciesJournalPreview(summary: SpeciesFolderSummary, coverPhotoId: number | null): SpeciesJournal {
+  const representativeFind = summary.representative_find;
+  const representativePhoto = representativeFind?.photos.find((photo) => photo.id === coverPhotoId)
+    ?? representativeFind?.photos[0]
+    ?? null;
+
+  return {
+    speciesName: summary.species_name,
+    finds: representativeFind ? [representativeFind] : [],
+    allPhotos: representativePhoto && representativeFind ? [{ photo: representativePhoto, find: representativeFind }] : [],
+    heroPhotoPath: representativePhoto?.photo_path ?? null,
+    heroPhotoId: representativePhoto?.id ?? coverPhotoId,
+    recordedFinds: summary.find_count,
+    observedCountTotalLabel: null,
+    observedCountKnown: false,
+    fruitingBodyAverageLabel: null,
+    fruitingBodyTotalLabel: null,
+    favoriteCount: summary.favorite_count,
+    daysRecorded: 0,
+    firstRecorded: null,
+    lastRecorded: summary.latest_date,
+    strongestYear: null,
+    strongestYearCount: 0,
+    bestMonth: summary.latest_date ? Number.parseInt(summary.latest_date.slice(5, 7), 10) : null,
+    seasonStartMonth: null,
+    seasonEndMonth: null,
+    topSpotLabel: representativeFind ? [representativeFind.country, representativeFind.region, representativeFind.location_note].filter(Boolean).join(' / ') || null : null,
+    topSpotCount: 0,
+    topSpotObservedCountLabel: null,
+    topSpotFavoriteCount: 0,
+    topSpotLastRecorded: summary.latest_date,
+    dateSummaries: [],
+    yearSummaries: summary.latest_date ? [{
+      year: summary.latest_date.slice(0, 4),
+      recordedFinds: summary.find_count,
+      observedCountLabel: null,
+    }] : [],
+  };
+}
+
 function hasOpenModalLayer(): boolean {
   return Boolean(document.querySelector(
     '[data-slot="dialog-content"][data-state="open"], [data-slot="alert-dialog-content"][data-state="open"]',
@@ -384,7 +427,15 @@ export default function SpeciesTab() {
   const setPendingSpeciesSelection = useAppStore((s) => s.setPendingSpeciesSelection);
   const setPendingMapCenter = useAppStore((s) => s.setPendingMapCenter);
   const setPendingMapSpeciesFilter = useAppStore((s) => s.setPendingMapSpeciesFilter);
-  const { data: finds, isLoading, isError, error } = useFinds();
+  const {
+    data: folderPages,
+    isLoading,
+    isError,
+    error,
+    fetchNextPage: fetchNextSpeciesFolderPage,
+    hasNextPage: hasNextSpeciesFolderPage,
+    isFetchingNextPage: isFetchingNextSpeciesFolderPage,
+  } = useInfiniteCollectionFolders(undefined, SPECIES_FOLDER_PAGE_SIZE);
   const { data: speciesNotes } = useSpeciesNotes();
   const upsertSpeciesNote = useUpsertSpeciesNote();
   const { data: speciesProfiles } = useSpeciesProfiles();
@@ -402,6 +453,20 @@ export default function SpeciesTab() {
   const [editingFind, setEditingFind] = useState<Find | null>(null);
   const [detailTab, setDetailTab] = useState<'overview' | 'finds' | 'recipes' | 'description'>('overview');
 
+  const folderSummaries = useMemo(() => folderPages?.pages.flat() ?? [], [folderPages]);
+  const speciesProfilesByName = useMemo(
+    () => new Map((speciesProfiles ?? []).map((profile) => [profile.species_name, profile])),
+    [speciesProfiles],
+  );
+
+  const speciesPreviews = useMemo(() => folderSummaries
+    .filter((summary) => !isInternalLibraryName(summary.species_name))
+    .map((summary) => buildSpeciesJournalPreview(
+      summary,
+      speciesProfilesByName.get(summary.species_name)?.cover_photo_id ?? null,
+    ))
+    .sort((a, b) => compareSpeciesNames(a.speciesName, b.speciesName)), [folderSummaries, speciesProfilesByName]);
+
   const openLightbox = (index: number, fallbackFind: Find | null = null) => {
     setLightboxPhotosOverride(fallbackFind && fallbackFind.photos.length === 0 ? [] : null);
     setLightboxFallbackFind(fallbackFind);
@@ -412,27 +477,38 @@ export default function SpeciesTab() {
   const locale = lang === 'hr' ? 'hr-HR' : 'en-US';
   const today = new Date();
 
-  const speciesJournals = useMemo(() => {
-    const grouped = new Map<string, Find[]>();
-    for (const find of finds ?? []) {
-      if (!find.species_name || isInternalLibraryName(find.species_name)) continue;
-      if (!grouped.has(find.species_name)) grouped.set(find.species_name, []);
-      grouped.get(find.species_name)!.push(find);
-    }
-
-    return Array.from(grouped.entries())
-      .map(([speciesName, speciesFinds]) => {
-        const profile = speciesProfiles?.find((entry) => entry.species_name === speciesName);
-        return buildSpeciesJournal(speciesName, speciesFinds, profile?.cover_photo_id ?? null);
-      })
-      .sort((a, b) => compareSpeciesNames(a.speciesName, b.speciesName));
-  }, [finds, speciesProfiles]);
-
   const filteredSpecies = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return speciesJournals;
-    return speciesJournals.filter((entry) => plainSpeciesName(entry.speciesName).toLowerCase().startsWith(query));
-  }, [search, speciesJournals]);
+    if (!query) return speciesPreviews;
+    return speciesPreviews.filter((entry) => plainSpeciesName(entry.speciesName).toLowerCase().startsWith(query));
+  }, [search, speciesPreviews]);
+
+  const selectedPreview = filteredSpecies.find((entry) => entry.speciesName === selectedSpecies) ?? filteredSpecies[0] ?? null;
+  const {
+    data: selectedFindPages,
+    fetchNextPage: fetchNextSelectedFindPage,
+    hasNextPage: hasNextSelectedFindPage,
+    isFetchingNextPage: isFetchingNextSelectedFindPage,
+  } = useInfiniteSpeciesFinds(selectedPreview?.speciesName ?? null, undefined, SPECIES_DETAIL_PAGE_SIZE);
+  const selectedFinds = useMemo(() => selectedFindPages?.pages.flat() ?? [], [selectedFindPages]);
+  const selectedJournal = useMemo(() => {
+    if (!selectedPreview) return null;
+    if (selectedFinds.length === 0) return selectedPreview;
+    return buildSpeciesJournal(
+      selectedPreview.speciesName,
+      selectedFinds,
+      speciesProfilesByName.get(selectedPreview.speciesName)?.cover_photo_id ?? null,
+    );
+  }, [selectedFinds, selectedPreview, speciesProfilesByName]);
+  const coverPickerFindsQuery = useSpeciesFinds(
+    selectedJournal?.speciesName ?? null,
+    { photosMode: 'all', limit: 2000, offset: 0 },
+    coverPickerOpen,
+  );
+  const coverPickerPhotos = useMemo(
+    () => (coverPickerFindsQuery.data ?? []).flatMap((find) => find.photos.map((photo) => ({ photo, find }))),
+    [coverPickerFindsQuery.data],
+  );
 
   useEffect(() => {
     if (filteredSpecies.length === 0) {
@@ -446,20 +522,34 @@ export default function SpeciesTab() {
   }, [filteredSpecies, selectedSpecies]);
 
   useEffect(() => {
-    if (!pendingSpeciesSelection || speciesJournals.length === 0) return;
+    if (!hasNextSpeciesFolderPage || isFetchingNextSpeciesFolderPage) return;
+    void fetchNextSpeciesFolderPage();
+  }, [fetchNextSpeciesFolderPage, hasNextSpeciesFolderPage, isFetchingNextSpeciesFolderPage]);
+
+  useEffect(() => {
+    if (!hasNextSelectedFindPage || isFetchingNextSelectedFindPage) return;
+    void fetchNextSelectedFindPage();
+  }, [fetchNextSelectedFindPage, hasNextSelectedFindPage, isFetchingNextSelectedFindPage]);
+
+  useEffect(() => {
+    if (!pendingSpeciesSelection || speciesPreviews.length === 0) return;
     const target = pendingSpeciesSelection.trim();
     const plainTarget = plainSpeciesName(target).toLowerCase();
-    const match = speciesJournals.find((entry) => entry.speciesName === target)
-      ?? speciesJournals.find((entry) => plainSpeciesName(entry.speciesName).toLowerCase() === plainTarget)
+    const match = speciesPreviews.find((entry) => entry.speciesName === target)
+      ?? speciesPreviews.find((entry) => plainSpeciesName(entry.speciesName).toLowerCase() === plainTarget)
       ?? null;
     setSearch('');
     if (match) setSelectedSpecies(match.speciesName);
     setPendingSpeciesSelection(null);
-  }, [pendingSpeciesSelection, speciesJournals, setPendingSpeciesSelection]);
+  }, [pendingSpeciesSelection, speciesPreviews, setPendingSpeciesSelection]);
 
-  const selectedJournal = filteredSpecies.find((entry) => entry.speciesName === selectedSpecies) ?? filteredSpecies[0] ?? null;
   const selectedNote = speciesNotes?.find((note) => note.species_name === selectedJournal?.speciesName)?.notes ?? '';
-  const selectedProfile = speciesProfiles?.find((entry) => entry.species_name === selectedJournal?.speciesName) ?? null;
+  const selectedProfile = selectedJournal ? speciesProfilesByName.get(selectedJournal.speciesName) ?? null : null;
+  const currentCoverPhotoId = selectedProfile?.cover_photo_id ?? selectedJournal?.heroPhotoId ?? null;
+  const coverPhotoEntry = coverPickerPhotos.find((entry) => entry.photo.id === currentCoverPhotoId) ?? null;
+  const selectedHeroPhotoPath = coverPhotoEntry?.photo.photo_path ?? selectedJournal?.heroPhotoPath ?? null;
+  const selectedLightboxPhotos = lightboxPhotosOverride
+    ?? (coverPickerPhotos.length > 0 ? coverPickerPhotos : selectedJournal?.allPhotos ?? []);
   const selectedTags = selectedProfile?.tags ?? [];
 
   const [noteInput, setNoteInput] = useState(selectedNote);
@@ -546,7 +636,7 @@ export default function SpeciesTab() {
     setFruitingBodyCountInput(normalized ?? '');
     upsertSpeciesProfile.mutate({
       speciesName: selectedJournal.speciesName,
-      coverPhotoId: selectedJournal.heroPhotoId,
+      coverPhotoId: currentCoverPhotoId,
       tags: selectedTags,
       edibility: edibilityInput === 'unknown' ? null : edibilityInput,
       threatStatus: threatStatusInput === 'unknown' ? null : threatStatusInput,
@@ -581,7 +671,7 @@ export default function SpeciesTab() {
     if (!selectedJournal) return;
     upsertSpeciesProfile.mutate({
       speciesName: selectedJournal.speciesName,
-      coverPhotoId: selectedJournal.heroPhotoId,
+      coverPhotoId: currentCoverPhotoId,
       tags: selectedTags.filter((tag) => tag !== tagToRemove),
       edibility: edibilityInput === 'unknown' ? null : edibilityInput,
       threatStatus: threatStatusInput === 'unknown' ? null : threatStatusInput,
@@ -598,7 +688,7 @@ export default function SpeciesTab() {
     if (!selectedJournal) return;
     upsertSpeciesProfile.mutate({
       speciesName: selectedJournal.speciesName,
-      coverPhotoId: selectedJournal.heroPhotoId,
+      coverPhotoId: currentCoverPhotoId,
       tags: selectedTags,
       edibility: edibilityInput === 'unknown' ? null : edibilityInput,
       threatStatus: threatStatusInput === 'unknown' ? null : threatStatusInput,
@@ -630,7 +720,7 @@ export default function SpeciesTab() {
     if (!selectedJournal) return;
     upsertSpeciesProfile.mutate({
       speciesName: selectedJournal.speciesName,
-      coverPhotoId: selectedJournal.heroPhotoId,
+      coverPhotoId: currentCoverPhotoId,
       tags: selectedTags,
       edibility: newEdibility === 'unknown' ? null : newEdibility,
       threatStatus: newThreatStatus === 'unknown' ? null : newThreatStatus,
@@ -648,7 +738,7 @@ export default function SpeciesTab() {
     const updated = [...selectedSynonyms, value.trim()];
     upsertSpeciesProfile.mutate({
       speciesName: selectedJournal.speciesName,
-      coverPhotoId: selectedJournal.heroPhotoId,
+      coverPhotoId: currentCoverPhotoId,
       tags: selectedTags,
       edibility: edibilityInput === 'unknown' ? null : edibilityInput,
       threatStatus: threatStatusInput === 'unknown' ? null : threatStatusInput,
@@ -666,7 +756,7 @@ export default function SpeciesTab() {
     if (!selectedJournal) return;
     upsertSpeciesProfile.mutate({
       speciesName: selectedJournal.speciesName,
-      coverPhotoId: selectedJournal.heroPhotoId,
+      coverPhotoId: currentCoverPhotoId,
       tags: selectedTags,
       edibility: edibilityInput === 'unknown' ? null : edibilityInput,
       threatStatus: threatStatusInput === 'unknown' ? null : threatStatusInput,
@@ -725,7 +815,7 @@ export default function SpeciesTab() {
     );
   }
 
-  if (!speciesJournals.length) {
+  if (!speciesPreviews.length) {
     return (
       <EmptyState
         icon={BookOpen}
@@ -841,19 +931,19 @@ export default function SpeciesTab() {
             <div className="space-y-6 px-6 py-6">
               <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)]">
                 <Card className="gap-0 self-start overflow-hidden py-0">
-                  {selectedJournal.heroPhotoPath && storagePath ? (
+                  {selectedHeroPhotoPath && storagePath ? (
                     <div className="group relative block w-full">
                       <button
                         type="button"
                         onClick={() => {
-                          const heroIdx = selectedJournal.allPhotos.findIndex((e) => e.photo.id === selectedJournal.heroPhotoId);
+                          const heroIdx = selectedLightboxPhotos.findIndex((e) => e.photo.id === currentCoverPhotoId);
                           openLightbox(heroIdx >= 0 ? heroIdx : 0);
                         }}
                         className="block w-full text-left"
                         aria-label={t('species.viewPhoto')}
                       >
                         <img
-                          src={resolvePhotoSrc(storagePath, selectedJournal.heroPhotoPath, photoAssetVersion)}
+                          src={resolvePhotoSrc(storagePath, selectedHeroPhotoPath, photoAssetVersion)}
                           alt={selectedJournal.speciesName}
                           className="aspect-[5/4] max-h-[320px] w-full bg-black object-contain lg:max-h-[280px] xl:max-h-[320px] cursor-zoom-in"
                         />
@@ -1027,6 +1117,19 @@ export default function SpeciesTab() {
                                   {t('species.favoriteCountLabel', { count: selectedJournal.favoriteCount })}
                                 </Badge>
                               )}
+                              {selectedTags.map((tag) => (
+                                <Badge key={tag} variant="outline" className="gap-1.5 border-secondary/30 bg-secondary/10 text-secondary-foreground">
+                                  <span>{tag}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveTag(tag)}
+                                    className="-mr-0.5 inline-flex h-4 w-4 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-secondary/20 hover:text-foreground"
+                                    aria-label={t('species.removeTag', { tag })}
+                                  >
+                                    {'×'}
+                                  </button>
+                                </Badge>
+                              ))}
                             </div>
                           </div>
                         </CardContent>
@@ -1200,7 +1303,7 @@ export default function SpeciesTab() {
                           {selectedJournal.finds.map((find) => {
                             const primaryPhoto = find.photos.find((p) => p.is_primary) ?? find.photos[0] ?? null;
                             const photoIdx = primaryPhoto
-                              ? selectedJournal.allPhotos.findIndex((e) => e.photo.id === primaryPhoto.id)
+                              ? selectedLightboxPhotos.findIndex((e) => e.photo.id === primaryPhoto.id)
                               : -1;
                             const thumbSrc = primaryPhoto && storagePath
                               ? resolvePhotoSrc(storagePath, primaryPhoto.photo_path, photoAssetVersion)
@@ -1444,13 +1547,15 @@ export default function SpeciesTab() {
           </DialogHeader>
 
           <div className="max-h-[60vh] overflow-y-auto pr-1">
-            {selectedJournal && selectedJournal.allPhotos.length > 0 ? (
+            {coverPickerOpen && coverPickerFindsQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">{t('species.loading')}</p>
+            ) : selectedJournal && (coverPickerPhotos.length > 0 || selectedJournal.allPhotos.length > 0) ? (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                {selectedJournal.allPhotos.map(({ photo, find }) => {
+                {(coverPickerPhotos.length > 0 ? coverPickerPhotos : selectedJournal.allPhotos).map(({ photo, find }) => {
                   const thumbSrc = storagePath
                     ? resolvePhotoSrc(storagePath, photo.photo_path, photoAssetVersion)
                     : '';
-                  const isActive = selectedJournal.heroPhotoId === photo.id;
+                  const isActive = currentCoverPhotoId === photo.id;
 
                   return (
                     <button
@@ -1493,13 +1598,13 @@ export default function SpeciesTab() {
               setLightboxPhotosOverride(null);
             }
           }}
-          photos={lightboxPhotosOverride ?? selectedJournal.allPhotos}
+          photos={selectedLightboxPhotos}
           fallbackFind={lightboxFallbackFind}
           currentIndex={lightboxIndex}
           onIndexChange={setLightboxIndex}
           storagePath={storagePath!}
           onSetAsSpeciesCover={(entry) => handleSelectCover(selectedJournal.speciesName, entry.photo.id)}
-          isCurrentSpeciesCover={(entry) => entry.photo.id === selectedJournal.heroPhotoId}
+          isCurrentSpeciesCover={(entry) => entry.photo.id === currentCoverPhotoId}
           onEditFind={(find) => setEditingFind(find)}
           speciesProfile={selectedProfile ?? undefined}
         />

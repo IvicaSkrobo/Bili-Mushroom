@@ -70,6 +70,15 @@ export function useInfiniteSpeciesFinds(speciesName: string | null, filters?: Fi
   });
 }
 
+export function useSpeciesFinds(speciesName: string | null, filters?: FindSearchFilters, enabled = true) {
+  const storagePath = useAppStore((s) => s.storagePath);
+  return useQuery<Find[]>({
+    queryKey: [FINDS_QUERY_KEY, storagePath, 'species-finds-all', speciesName, filters ?? null],
+    queryFn: () => getSpeciesFinds(storagePath!, speciesName!, filters),
+    enabled: !!storagePath && !!speciesName && enabled,
+  });
+}
+
 export function useFindPhotos(findId: number, enabled = true) {
   const storagePath = useAppStore((s) => s.storagePath);
   return useQuery({

@@ -30,6 +30,10 @@ const OPEN_SPECIES_ROW_ESTIMATE = 520;
 const COLLECTION_FIND_PAGE_SIZE = 200;
 const COLLECTION_VIRTUALIZATION_THRESHOLD = 50;
 const SPECIES_FIND_PAGE_SIZE = 100;
+const FIND_ROW_VIRTUALIZATION_THRESHOLD = 60;
+const FIND_ROW_ESTIMATE = 92;
+const PHOTO_GRID_INITIAL_LIMIT = 30;
+const PHOTO_GRID_INCREMENT = 30;
 
 function normalizeDateQuery(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, '');
@@ -290,9 +294,16 @@ const FindRow = memo(function FindRow({
   const shouldLoadAllPhotos = isExpanded && photoCount > find.photos.length;
   const { data: loadedPhotos } = useFindPhotos(find.id, shouldLoadAllPhotos);
   const rowPhotos = loadedPhotos ?? find.photos;
+  const [visiblePhotoCount, setVisiblePhotoCount] = useState(PHOTO_GRID_INITIAL_LIMIT);
+  const visiblePhotos = rowPhotos.slice(0, visiblePhotoCount);
+  const hiddenPhotoCount = Math.max(0, rowPhotos.length - visiblePhotos.length);
   const lightboxSpeciesFinds = rowPhotos === find.photos
     ? speciesFinds
     : speciesFinds.map((entry) => entry.id === find.id ? { ...entry, photos: rowPhotos } : entry);
+
+  useEffect(() => {
+    setVisiblePhotoCount(PHOTO_GRID_INITIAL_LIMIT);
+  }, [find.id, isExpanded]);
 
   return (
     <div
@@ -391,37 +402,50 @@ const FindRow = memo(function FindRow({
       </div>
 
       {isExpanded && rowPhotos.length > 0 && (
-        <div className="grid grid-cols-8 gap-1 border-t border-border/30 px-3 pb-3 pt-2 sm:grid-cols-10">
-          {rowPhotos.map((photo, photoIdx) => (
-            <div key={photo.id} className="group relative aspect-square overflow-hidden rounded-sm bg-muted flex items-center justify-center">
-              <GalleryHorizontal className="h-4 w-4 text-muted-foreground/20 pointer-events-none" />
-              <button
-                type="button"
-                className="absolute inset-0 w-full h-full"
-                onClick={() => onOpenLightbox(lightboxSpeciesFinds, find.id, photoIdx)}
-              >
-                <PhotoThumbnailImage
-                  photoPath={photo.photo_path}
-                  size={256}
-                  className="h-full w-full object-cover transition-transform duration-150 group-hover:scale-105"
-                />
-              </button>
-              <button
-                type="button"
-                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded p-0.5 text-white hover:bg-black/80 z-10"
-                onClick={(e) => { e.stopPropagation(); onSetEditing(find); }}
-                title={t('collection.editFind')}
-              >
-                <SquarePen className="h-3 w-3" />
-              </button>
-              {selectMode && (
-                <div
-                  className={`absolute inset-0 flex items-center justify-center transition-colors z-10 ${selectedIds.has(find.id) ? 'bg-primary/40' : 'bg-black/0 group-hover:bg-black/20'}`}
-                  onClick={(e) => { e.stopPropagation(); onToggleSelect(find.id); }}
-                />
-              )}
-            </div>
-          ))}
+        <div className="border-t border-border/30 px-3 pb-3 pt-2">
+          <div className="grid grid-cols-8 gap-1 sm:grid-cols-10">
+            {visiblePhotos.map((photo, photoIdx) => (
+              <div key={photo.id} className="group relative aspect-square overflow-hidden rounded-sm bg-muted flex items-center justify-center">
+                <GalleryHorizontal className="h-4 w-4 text-muted-foreground/20 pointer-events-none" />
+                <button
+                  type="button"
+                  className="absolute inset-0 w-full h-full"
+                  onClick={() => onOpenLightbox(lightboxSpeciesFinds, find.id, photoIdx)}
+                >
+                  <PhotoThumbnailImage
+                    photoPath={photo.photo_path}
+                    size={256}
+                    className="h-full w-full object-cover transition-transform duration-150 group-hover:scale-105"
+                  />
+                </button>
+                <button
+                  type="button"
+                  className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded p-0.5 text-white hover:bg-black/80 z-10"
+                  onClick={(e) => { e.stopPropagation(); onSetEditing(find); }}
+                  title={t('collection.editFind')}
+                >
+                  <SquarePen className="h-3 w-3" />
+                </button>
+                {selectMode && (
+                  <div
+                    className={`absolute inset-0 flex items-center justify-center transition-colors z-10 ${selectedIds.has(find.id) ? 'bg-primary/40' : 'bg-black/0 group-hover:bg-black/20'}`}
+                    onClick={(e) => { e.stopPropagation(); onToggleSelect(find.id); }}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+          {hiddenPhotoCount > 0 && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="mt-2 h-7 w-full text-[11px] text-muted-foreground hover:text-primary"
+              onClick={() => setVisiblePhotoCount((count) => count + PHOTO_GRID_INCREMENT)}
+            >
+              {t('collection.loadMore')} ({hiddenPhotoCount})
+            </Button>
+          )}
         </div>
       )}
     </div>
@@ -514,6 +538,38 @@ const SpeciesFindRows = memo(function SpeciesFindRows({
     const loaded = data?.pages.flat() ?? [];
     return loaded.length > 0 ? loaded : initialFinds;
   }, [data, initialFinds]);
+  const [findScrollElement, setFindScrollElement] = useState<HTMLDivElement | null>(null);
+  const shouldVirtualizeFindRows = speciesFinds.length > FIND_ROW_VIRTUALIZATION_THRESHOLD;
+  const findRowVirtualizer = useVirtualizer({
+    count: shouldVirtualizeFindRows ? speciesFinds.length : 0,
+    getScrollElement: () => findScrollElement,
+    estimateSize: () => FIND_ROW_ESTIMATE,
+    getItemKey: (index) => speciesFinds[index]?.id ?? index,
+    initialRect: { width: 1024, height: 520 },
+    measureElement: (element) => element.getBoundingClientRect().height + 8,
+    overscan: 8,
+  });
+  const virtualFindRows = findRowVirtualizer.getVirtualItems();
+  const renderedFindRows = useMemo(() => {
+    if (shouldVirtualizeFindRows && virtualFindRows.length > 0) return virtualFindRows;
+    let start = 0;
+    return speciesFinds.map((find, index) => {
+      const row = { key: find.id, index, start, size: FIND_ROW_ESTIMATE };
+      start += FIND_ROW_ESTIMATE;
+      return row;
+    });
+  }, [shouldVirtualizeFindRows, speciesFinds, virtualFindRows]);
+  const findRowsTotalSize = shouldVirtualizeFindRows
+    ? findRowVirtualizer.getTotalSize()
+    : renderedFindRows.at(-1)
+      ? renderedFindRows.at(-1)!.start + renderedFindRows.at(-1)!.size
+      : 0;
+  const firstRenderedFindRow = renderedFindRows[0];
+  const lastRenderedFindRow = renderedFindRows.at(-1);
+  const findRowsTopSpacer = shouldVirtualizeFindRows ? firstRenderedFindRow?.start ?? 0 : 0;
+  const findRowsBottomSpacer = shouldVirtualizeFindRows && lastRenderedFindRow
+    ? Math.max(0, findRowsTotalSize - lastRenderedFindRow.start - lastRenderedFindRow.size)
+    : 0;
 
   if (isLoading && speciesFinds.length === 0) {
     return <p className="text-xs text-muted-foreground">{t('collection.loading')}</p>;
@@ -524,26 +580,47 @@ const SpeciesFindRows = memo(function SpeciesFindRows({
 
   return (
     <div className="flex flex-col gap-2">
-      {speciesFinds.map((find, findIndex) => (
-        <FindRow
-          key={find.id}
-          find={find}
-          index={findIndex}
-          speciesFinds={speciesFinds}
-          lang={lang}
-          t={t}
-          speciesProfilesByName={speciesProfilesByName}
-          selectMode={selectMode}
-          selectedIds={selectedIds}
-          isExpanded={expandedFinds.has(find.id)}
-          onToggleSelect={onToggleSelect}
-          onOpenLightbox={onOpenLightbox}
-          onSetEditing={onSetEditing}
-          onSetDeleting={onSetDeleting}
-          onToggleFindExpand={onToggleFindExpand}
-          onViewOnMap={onViewOnMap}
-        />
-      ))}
+      <div
+        ref={setFindScrollElement}
+        className={shouldVirtualizeFindRows ? 'max-h-[min(58vh,42rem)] overflow-y-auto pr-1' : ''}
+      >
+        {findRowsTopSpacer > 0 && (
+          <div aria-hidden="true" style={{ height: findRowsTopSpacer }} />
+        )}
+        {renderedFindRows.map((virtualRow) => {
+          const find = speciesFinds[virtualRow.index];
+          if (!find) return null;
+          return (
+            <div
+              key={find.id}
+              ref={shouldVirtualizeFindRows ? findRowVirtualizer.measureElement : undefined}
+              data-index={virtualRow.index}
+              style={{ marginBottom: 8 }}
+            >
+              <FindRow
+                find={find}
+                index={virtualRow.index}
+                speciesFinds={speciesFinds}
+                lang={lang}
+                t={t}
+                speciesProfilesByName={speciesProfilesByName}
+                selectMode={selectMode}
+                selectedIds={selectedIds}
+                isExpanded={expandedFinds.has(find.id)}
+                onToggleSelect={onToggleSelect}
+                onOpenLightbox={onOpenLightbox}
+                onSetEditing={onSetEditing}
+                onSetDeleting={onSetDeleting}
+                onToggleFindExpand={onToggleFindExpand}
+                onViewOnMap={onViewOnMap}
+              />
+            </div>
+          );
+        })}
+        {findRowsBottomSpacer > 0 && (
+          <div aria-hidden="true" style={{ height: findRowsBottomSpacer }} />
+        )}
+      </div>
       {hasNextPage && (
         <Button
           type="button"
