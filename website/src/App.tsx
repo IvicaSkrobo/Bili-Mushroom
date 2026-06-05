@@ -1061,7 +1061,10 @@ export function App() {
                 const issueKey = String(issue.number ?? issue.html_url);
                 const isExpanded = expandedBug === issueKey;
                 const ghStatus = bugStatus(issue, lang);
-                const descPreview = (issue.body ?? '').replace(/[#*_`[\]>]/g, '').trim().slice(0, 120);
+                const intOverride = issueOverrides[issueKey];
+                const displayTitle = intOverride?.title ?? issue.title;
+                const displayDescription = intOverride?.description ?? (issue.body ?? '');
+                const descPreview = displayDescription.replace(/[#*_`[\]>]/g, '').trim().slice(0, 120);
                 return (
                   <div key={issue.html_url} className={`bug-row-wrap${isExpanded ? ' bug-row-wrap-expanded' : ''}`}>
                     <div
@@ -1072,7 +1075,7 @@ export function App() {
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBug(issueKey); } }}
                     >
                       <span className="bug-number">{issue.number ? `#${issue.number}` : '?'}</span>
-                      <strong>{issue.title}</strong>
+                      <strong>{displayTitle}</strong>
                       <span className="bb-row-desc-preview">{descPreview || '—'}</span>
                       <div className="bug-status-cell" data-status={ghStatus.key}>
                         <span className="bug-status bug-status-local">{ghStatus.label}</span>
@@ -1083,23 +1086,8 @@ export function App() {
                     </div>
                     {isExpanded && (
                       <div className="bug-detail">
-                        <div className="bug-edit-summary">
-                          <div>
-                            <label className="bug-detail-label">Synced GitHub issue</label>
-                            <h3>{issue.title}</h3>
-                          </div>
-                          <a className="bug-edit-toggle" href={issue.html_url} target="_blank" rel="noopener noreferrer">
-                            Edit on GitHub <ExternalLink size={12} />
-                          </a>
-                          {issue.body?.trim() ? (
-                            <p className="bug-detail-description">{issue.body}</p>
-                          ) : (
-                            <p className="bug-detail-description bug-detail-description-empty">No description yet.</p>
-                          )}
-                        </div>
-                        <a className="text-link bug-gh-link" href={issue.html_url} target="_blank" rel="noopener noreferrer">
-                          Open synced issue <ExternalLink size={12} />
-                        </a>
+                        {renderIssueEditPanel(issueKey, displayTitle, displayDescription)}
+                        {renderLocalCommentsSection(issueKey)}
                       </div>
                     )}
                   </div>
@@ -1166,7 +1154,9 @@ export function App() {
                   </div>
                   {isExpanded && (
                     <div className="bug-detail">
-                      {renderIssueEditPanel(bugKey, displayTitle, displayDescription)}
+                      {displayDescription.trim() ? (
+                        <p className="bug-detail-description">{displayDescription}</p>
+                      ) : null}
                       {renderLocalCommentsSection(bugKey)}
                       {(bugComments[num] ?? []).filter((comment) => !hiddenGithubComments.includes(String(comment.id))).length > 0 && (
                         <div className="bug-detail-section bug-gh-comments">
