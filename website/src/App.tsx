@@ -351,16 +351,6 @@ function BrandMark() {
   );
 }
 
-const screenshotFiles = ['collection', 'species', 'map', 'find'] as const;
-
-const screenshotSrcMap: Record<string, string> = {
-  collection: './screenshots/screenshot-collection.png',
-  species: './screenshots/species-list.png',
-  map: './screenshots/screenshot-map.png',
-  find: './screenshots/import-find.png',
-};
-
-
 function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
