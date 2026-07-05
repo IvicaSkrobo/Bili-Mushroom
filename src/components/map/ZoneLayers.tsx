@@ -230,7 +230,7 @@ function ZonePickerPopup({
       <p className="px-2.5 pt-2 text-[11px] font-semibold leading-snug text-foreground/80">
         {t('map.zonePickerTitle')}
       </p>
-      <div className="flex flex-col gap-1 px-2 pb-2 pt-1.5">
+      <div className="flex max-h-[240px] flex-col gap-1 overflow-y-auto px-2 pb-2 pt-1.5">
         {zones.map((zone) => {
           const accentColor = zone.zone_type === 'local' ? '#D4512A' : '#2D8C7C';
           return (
