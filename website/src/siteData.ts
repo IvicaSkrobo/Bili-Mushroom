@@ -3,7 +3,7 @@ export const downloadCountFrom = 'v0.2.40';
 export const donateUrl = 'https://ko-fi.com/skroboivica';
 
 export const release = {
-  version: 'v0.2.89',
+  version: 'v0.2.90',
   date: 'May 19, 2026',
   installerUrl: 'https://github.com/IvicaSkrobo/Bili-Mushroom/releases/latest',
   notes: {
