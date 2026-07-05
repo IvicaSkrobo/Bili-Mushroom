@@ -16,7 +16,7 @@ import {
 import { useFinds, useSpeciesProfiles } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { exportToCsv } from '@/lib/exportCsv';
-import { buildSeasonalityInsights, buildSpeciesSpotHint } from '@/lib/insights';
+import { buildSpeciesSpotHint } from '@/lib/insights';
 import { HistoricalComparison } from '@/components/stats/HistoricalComparison';
 import { buildHistoricalComparison } from '@/lib/historicalComparison';
 import { useT } from '@/i18n/index';
@@ -174,10 +174,6 @@ export default function StatsTab() {
       outings: outingCount,
     });
   }, [finds, statsCards?.most_active_month, t]);
-  const seasonalityInsights = useMemo(
-    () => buildSeasonalityInsights(bestMonths, speciesStats, locale, t),
-    [bestMonths, speciesStats, locale],
-  );
   const speciesSpotHint = useMemo(
     () => buildSpeciesSpotHint(speciesStats, topSpots, locale, t),
     [speciesStats, topSpots, locale],
@@ -436,23 +432,6 @@ export default function StatsTab() {
               />
             </div>
           </div>
-
-          {/* Seasonal Insights */}
-          {seasonalityInsights.length > 0 && (
-            <div>
-              <h3 className="text-base font-bold uppercase tracking-[0.12em] text-foreground mb-4">
-                {t('stats.seasonalInsights')}
-              </h3>
-              <div className="grid grid-cols-2 gap-4">
-                {seasonalityInsights.map((insight) => (
-                  <div key={insight.title} className="rounded-lg border border-border/70 bg-card/60 p-4">
-                    <p className="text-sm font-semibold text-primary">{renderMarkedText(insight.title)}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{renderMarkedText(insight.body)}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Hint reminder */}
           {speciesSpotHint && (

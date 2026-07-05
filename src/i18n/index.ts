@@ -465,9 +465,6 @@ const hr: Translations = {
   // stats tab — seasonal calendar & insights
   'stats.yourSeason': 'Sezone',
   'stats.noFindsInMonth': 'Nema nalaza u {month}.',
-  'stats.insightStrong': '{month} je povijesno jak',
-  'stats.insightMostActive': 'Najaktivnije vrste: {species}.',
-  'stats.insightLogged': 'Zabilježeno {count} nalaza u {month}.',
   'stats.spotHint': 'Savjet: {species} je najaktivnija oko {month} — pokušajte {location}.',
 
   // stats tab — historical comparison
@@ -497,7 +494,6 @@ const hr: Translations = {
   'stats.topSpotsEmpty': 'Počni bilježiti gljive da vidiš najbolje lokacije.',
   'stats.bestMonths': 'Najbolji mjeseci',
   'stats.bestMonthsEmpty': 'Najbolji mjeseci prikazat će se ovdje uz više nalaza.',
-  'stats.seasonalInsights': 'Sezonski uvidi',
   'stats.yourSpecies': 'Vrste',
   'stats.firstOuting': 'PRVI IZLAZAK',
   'stats.totalOutings': 'Ukupno izlazaka: {count}',
@@ -1089,9 +1085,6 @@ const en: Translations = {
   // stats tab — seasonal calendar & insights
   'stats.yourSeason': 'Seasons',
   'stats.noFindsInMonth': 'No finds recorded in {month}.',
-  'stats.insightStrong': '{month} is historically strong',
-  'stats.insightMostActive': 'Most active species: {species}.',
-  'stats.insightLogged': 'You logged {count} finds in {month}.',
   'stats.spotHint': 'Hint: {species} peaks around {month} — try {location}.',
 
   // stats tab — historical comparison
@@ -1121,7 +1114,6 @@ const en: Translations = {
   'stats.topSpotsEmpty': 'Start recording mushrooms to see your best locations appear here.',
   'stats.bestMonths': 'Best Months',
   'stats.bestMonthsEmpty': 'Your most active months will appear here as you record more finds.',
-  'stats.seasonalInsights': 'Seasonal Insights',
   'stats.yourSpecies': 'Species',
   'stats.firstOuting': 'FIRST OUTING',
   'stats.totalOutings': 'Total outings: {count}',
