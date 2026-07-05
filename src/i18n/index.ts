@@ -546,6 +546,7 @@ const hr: Translations = {
 
   // import / edit dialogs
   'import.removePhoto': 'Ukloni fotografiju',
+  'import.viewPhoto': 'Pregledaj fotografiju',
   'edit.deletePhoto': 'Obriši fotografiju',
 
   // app shell
@@ -1166,6 +1167,7 @@ const en: Translations = {
 
   // import / edit dialogs
   'import.removePhoto': 'Remove photo',
+  'import.viewPhoto': 'View photo',
   'edit.deletePhoto': 'Delete photo',
 
   // app shell

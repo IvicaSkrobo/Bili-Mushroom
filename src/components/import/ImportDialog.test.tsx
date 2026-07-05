@@ -79,6 +79,39 @@ vi.mock('@/components/finds/EditFindDialog', () => ({
   }),
 }));
 
+// Mock StagedPhotoViewer with a lightweight stand-in exposing an open marker
+// plus next/prev/close controls for interaction assertions.
+vi.mock('./StagedPhotoViewer', () => ({
+  StagedPhotoViewer: ({
+    open,
+    onOpenChange,
+    photos,
+    currentIndex,
+    onIndexChange,
+  }: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    photos: string[];
+    currentIndex: number;
+    onIndexChange: (index: number) => void;
+  }) =>
+    open ? (
+      <div data-testid="staged-photo-viewer">
+        <span data-testid="staged-photo-viewer-index">{currentIndex}</span>
+        <span data-testid="staged-photo-viewer-total">{photos.length}</span>
+        <button type="button" onClick={() => onIndexChange(currentIndex + 1)}>
+          Mock Viewer Next
+        </button>
+        <button type="button" onClick={() => onIndexChange(currentIndex - 1)}>
+          Mock Viewer Prev
+        </button>
+        <button type="button" onClick={() => onOpenChange(false)}>
+          Mock Viewer Close
+        </button>
+      </div>
+    ) : null,
+}));
+
 const { open: mockOpen } = await import('@tauri-apps/plugin-dialog');
 const { readDir: mockReadDir } = await import('@tauri-apps/plugin-fs');
 const geocoding = await import('@/lib/geocoding');
@@ -203,6 +236,70 @@ describe('ImportDialog', () => {
       expect(screen.queryByRole('button', { name: /Clear All/i })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /Remove photo/i })).not.toBeInTheDocument();
     });
+  });
+
+  it('clicking a staged thumbnail opens the StagedPhotoViewer at that index', async () => {
+    vi.mocked(mockOpen).mockResolvedValueOnce(['/photos/shroom.jpg']);
+    renderDialog();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
+    });
+    await waitFor(() => screen.getByRole('button', { name: /Remove photo/i }));
+
+    expect(screen.queryByTestId('staged-photo-viewer')).not.toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /View photo/i }));
+    });
+
+    expect(screen.getByTestId('staged-photo-viewer')).toBeInTheDocument();
+    expect(screen.getByTestId('staged-photo-viewer-index')).toHaveTextContent('0');
+  });
+
+  it('clicking the remove (X) button does not open the viewer and still removes the photo', async () => {
+    vi.mocked(mockOpen).mockResolvedValueOnce(['/photos/shroom.jpg']);
+    renderDialog();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
+    });
+    await waitFor(() => screen.getByRole('button', { name: /Remove photo/i }));
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Remove photo/i }));
+    });
+
+    expect(screen.queryByTestId('staged-photo-viewer')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Remove photo/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /View photo/i })).not.toBeInTheDocument();
+  });
+
+  it('opening and closing the viewer leaves shared metadata fields unchanged', async () => {
+    vi.mocked(mockOpen).mockResolvedValueOnce(['/photos/shroom.jpg']);
+    renderDialog();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
+    });
+    await waitFor(() => screen.getByRole('button', { name: /Remove photo/i }));
+
+    const speciesInput = getSpeciesInput();
+    fireEvent.change(speciesInput, { target: { value: 'Boletus edulis' } });
+    expect(speciesInput.value).toBe('Boletus edulis');
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /View photo/i }));
+    });
+    expect(screen.getByTestId('staged-photo-viewer')).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Mock Viewer Close/i }));
+    });
+
+    expect(screen.queryByTestId('staged-photo-viewer')).not.toBeInTheDocument();
+    expect(getSpeciesInput().value).toBe('Boletus edulis');
+    expect(screen.getByRole('button', { name: /Remove photo/i })).toBeInTheDocument();
   });
 
   it('preserves draft when closed without pressing Cancel', async () => {
