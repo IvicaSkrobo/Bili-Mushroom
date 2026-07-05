@@ -1770,6 +1770,85 @@ mod tests {
     }
 
     #[test]
+    fn test_push_find_search_filters_date_day_month_matches_any_year() {
+        let conn = setup_in_memory_db();
+        insert_find_row(&conn, &make_find_record("a.jpg", "2019-05-20")).expect("insert a");
+        insert_find_row(&conn, &make_find_record("b.jpg", "2024-05-20")).expect("insert b");
+        insert_find_row(&conn, &make_find_record("c.jpg", "2024-05-21")).expect("insert decoy day");
+        insert_find_row(&conn, &make_find_record("d.jpg", "2024-06-20")).expect("insert decoy month");
+
+        let filters = FindSearchFilters {
+            date_day_month: Some("05-20".to_string()),
+            ..Default::default()
+        };
+
+        let mut where_clauses: Vec<String> = Vec::new();
+        let mut query_params: Vec<Box<dyn ToSql>> = Vec::new();
+        push_find_search_filters(&filters, "", &mut where_clauses, &mut query_params, true);
+
+        assert_eq!(
+            where_clauses.len(),
+            1,
+            "expected exactly one WHERE clause for date_day_month"
+        );
+
+        let sql = format!(
+            "SELECT date_found FROM finds WHERE {} ORDER BY date_found",
+            where_clauses.join(" AND ")
+        );
+        let params_refs: Vec<&dyn ToSql> = query_params.iter().map(|p| p.as_ref()).collect();
+        let mut stmt = conn.prepare(&sql).expect("prepare");
+        let dates: Vec<String> = stmt
+            .query_map(params_refs.as_slice(), |row| row.get(0))
+            .expect("query")
+            .collect::<rusqlite::Result<Vec<String>>>()
+            .expect("collect");
+
+        assert_eq!(
+            dates,
+            vec!["2019-05-20".to_string(), "2024-05-20".to_string()],
+            "should match only the two May-20th finds, across any year"
+        );
+    }
+
+    #[test]
+    fn test_push_find_search_filters_date_day_month_ignores_invalid_values() {
+        let filters = FindSearchFilters {
+            date_day_month: Some("invalid".to_string()),
+            ..Default::default()
+        };
+
+        let mut where_clauses: Vec<String> = Vec::new();
+        let mut query_params: Vec<Box<dyn ToSql>> = Vec::new();
+        push_find_search_filters(&filters, "", &mut where_clauses, &mut query_params, true);
+
+        assert!(
+            where_clauses.is_empty(),
+            "invalid date_day_month should not add a WHERE clause"
+        );
+        assert!(query_params.is_empty());
+
+        let empty_filters = FindSearchFilters {
+            date_day_month: Some("".to_string()),
+            ..Default::default()
+        };
+        let mut where_clauses2: Vec<String> = Vec::new();
+        let mut query_params2: Vec<Box<dyn ToSql>> = Vec::new();
+        push_find_search_filters(
+            &empty_filters,
+            "",
+            &mut where_clauses2,
+            &mut query_params2,
+            true,
+        );
+
+        assert!(
+            where_clauses2.is_empty(),
+            "empty date_day_month should not add a WHERE clause"
+        );
+    }
+
+    #[test]
     fn test_remember_source_path_deduplicates_normalized_paths() {
         let mut seen = HashSet::new();
 
