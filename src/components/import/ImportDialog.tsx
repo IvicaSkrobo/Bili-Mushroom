@@ -44,6 +44,8 @@ import { useFinds, useSpeciesNotes, useSpeciesProfiles } from '@/hooks/useFinds'
 import { useT } from '@/i18n/index';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 import { plainSpeciesName } from '@/lib/speciesName';
+import { cn } from '@/lib/utils';
+import { filledClass } from '@/lib/filledFieldStyle';
 
 interface ImportDialogProps {
   open: boolean;
@@ -671,6 +673,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                 suggestions={speciesFolders}
                 showBoldButton
                 label={t('import.latinName')}
+                className={filledClass(sharedName)}
               />
               <div>
                 <label className="text-sm font-medium">{t('import.commonName')}</label>
@@ -687,6 +690,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                     setSharedCommonName(value);
                   }}
                   placeholder={t('import.commonNamePlaceholder')}
+                  className={filledClass(sharedCommonName)}
                 />
               </div>
               <PickLocationButton
@@ -714,6 +718,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                   value={sharedDate}
                   onChange={(value) => { setSharedDate(value); setDateFromExif(false); }}
                   aria-label={t('import.date')}
+                  className={filledClass(sharedDate, 'ui')}
                 />
                 {sharedDate && !datFromExif && (
                   <p className="text-xs text-muted-foreground/60 mt-0.5">Datum nije pronađen u fotografiji — provjeri</p>
@@ -728,6 +733,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                   value={sharedCountry}
                   onChange={(e) => setSharedCountry(e.target.value)}
                   placeholder={t('import.country')}
+                  className={filledClass(sharedCountry, 'ui')}
                 />
               </div>
               <div>
@@ -736,6 +742,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                   value={sharedRegion}
                   onChange={(e) => setSharedRegion(e.target.value)}
                   placeholder={t('import.region')}
+                  className={filledClass(sharedRegion, 'ui')}
                 />
               </div>
               <div className="col-span-2">
@@ -745,6 +752,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                   onChange={setSharedLocationNote}
                   suggestions={locationNoteSuggestions}
                   placeholder={t('import.locationMark')}
+                  inputClassName={filledClass(sharedLocationNote, 'ui')}
                 />
               </div>
             </div>
@@ -755,7 +763,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                   <InfoTooltip text={t('import.observedCountHelp')} />
                 </div>
                 <Input
-                  className="max-w-[220px]"
+                  className={cn('max-w-[220px]', filledClass(sharedObservedRange, 'numeric'))}
                   inputMode="numeric"
                   placeholder="npr. 15 ili 15-20"
                   value={sharedObservedRange}
@@ -772,7 +780,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
               <div>
                 <label className="text-sm font-medium">{t('import.findNotesLabel')}</label>
                 <Textarea
-                  className="mt-1"
+                  className={cn('mt-1', filledClass(sharedFindNotes))}
                   aria-label={t('import.findNotesLabel')}
                   placeholder={t('import.findNotesPlaceholder')}
                   rows={3}
@@ -784,7 +792,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
               <div>
                 <label className="text-sm font-medium">{t('import.speciesNotesLabel')}</label>
                 <Textarea
-                  className="mt-1"
+                  className={cn('mt-1', filledClass(sharedFolderNotes))}
                   aria-label={t('import.speciesNotesLabel')}
                   placeholder={t('import.speciesNotesPlaceholder')}
                   rows={3}
@@ -809,6 +817,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                 rows={2}
                 value={sharedSpeciesDescription}
                 onChange={(e) => setSharedSpeciesDescription(e.target.value)}
+                className={filledClass(sharedSpeciesDescription)}
               />
             </div>
 
