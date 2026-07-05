@@ -84,7 +84,7 @@ export function PhotoLightbox({
   const imageRef = useRef<HTMLImageElement | null>(null);
   const cropDragRef = useRef<{ startX: number; startY: number } | null>(null);
 
-  // Reset zoom/pan and delete confirmation when photo/find changes
+  // Reset zoom/pan and delete confirmation when photo/find changes, or when the lightbox is reopened
   useEffect(() => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
@@ -94,7 +94,7 @@ export function PhotoLightbox({
     setCropSelection(null);
     setPendingRotation(0);
     setPhotoEditError(null);
-  }, [currentIndex, fallbackFind?.id]);
+  }, [currentIndex, fallbackFind?.id, open]);
 
   const handleWheel = (e: React.WheelEvent) => {
     if (!photos[currentIndex]?.photo || cropMode) return;
