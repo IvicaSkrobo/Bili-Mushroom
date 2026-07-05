@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-04-09)
 Phase: 04.2 complete — MAINTENANCE
 Plan: Post-phase maintenance
 Status: Completed planned phase work; maintenance fixes and planning artifacts are synced to the current shipped behavior
-Last activity: 2026-07-05 - Completed quick task 260705-vu3: zone-overlap click picker on the map
+Last activity: 2026-07-05 - Completed quick task 260705-w03: vertical stacking fix for multi-species hover tooltip
 
 Progress: [████████░░] 79%
 
@@ -153,6 +153,7 @@ Recent decisions affecting current work:
 | 260508-wlr location-note-autocomplete | 2026-05-08 | LocationNoteInput component (mirrors SpeciesNameEditor: keyboard nav, 150ms blur delay); wired into CreateFindDialog, EditFindDialog, ImportDialog; 6 Vitest tests. |
 | 260508-wwb per-photo-management | 2026-05-08 | delete_find_photo + bulk_delete_find_photos Rust commands (primary-promotion, disk removal); TS hooks; EditFindDialog photo grid with per-photo X + multi-select + "Delete N"; PhotoLightbox rose delete button; 4 Rust + Vitest tests. |
 | 260705-vu3 kad-se-preklapa-vise-zona-na-karti-klik- | 2026-07-05 | Added zonesContainingPoint(zones, lat, lng) hit-test helper in zones.ts (+ unit tests); ZoneLayers.tsx now hit-tests all displayed zones on click and shows a ZonePickerPopup when 2+ zones overlap at that point, letting the user choose which one to open instead of always opening the topmost. |
+| 260705-w03 popravi-izgled-hover-tooltipa-za-pin-s-v | 2026-07-05 | Multi-species hover tooltip (CollectionPins.tsx) now stacks species names vertically via explicit flex-column instead of relying on implicit div stacking; removed white-space: nowrap on .bili-species-tooltip that was collapsing the layout. |
 | 260509-0fm hide-map-clutter-during-zone-edit | 2026-05-09 | focusFinds computed in FindsMap: local edit → single pin, region edit → species pins; hiddenZoneIds hides all zones during editing; CollectionPins always renders with focusFinds. |
 | 260509-0me collection-pin-labels-zoom-threshold | 2026-05-09 | LABEL_ZOOM_THRESHOLD=13; labels hidden below zoom 13; proximity post-pass in collectionsFromFinds assigns labelText/suppressLabel; mixed-species location shows "N species" on primary pin; 3 new tests. |
 | 260509-0qx observed-count-range-stats | 2026-05-09 | observed_min/max/avg added to SpeciesStatSummary (Rust+TS); per-species sub-query aggregates COALESCE(obs_min,obs_count)/midpoint AVG; SpeciesStatRow shows "3–10 (avg 5.8)" when data present; 3 Rust tests pass. |
