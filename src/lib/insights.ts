@@ -1,9 +1,4 @@
-import type { BestMonth, SpeciesStatSummary, TopSpot } from '@/lib/stats';
-
-export interface SeasonalityInsight {
-  title: string;
-  body: string;
-}
+import type { SpeciesStatSummary, TopSpot } from '@/lib/stats';
 
 type Translator = (key: string, vars?: Record<string, string | number>) => string;
 
@@ -20,43 +15,6 @@ function extractMonthNum(ym: string | null): number | null {
   const [, monthStr] = ym.split('-');
   const month = parseInt(monthStr, 10);
   return Number.isNaN(month) ? null : month;
-}
-
-export function buildSeasonalityInsights(
-  bestMonths: BestMonth[] | undefined,
-  speciesStats: SpeciesStatSummary[] | undefined,
-  locale: string,
-  t: Translator,
-  today: Date = new Date(),
-): SeasonalityInsight[] {
-  if (!bestMonths || bestMonths.length === 0 || !speciesStats || speciesStats.length === 0) return [];
-
-  const currentMonth = today.getMonth() + 1;
-  const nextMonth = currentMonth === 12 ? 1 : currentMonth + 1;
-  const targetMonths = [currentMonth, nextMonth];
-  const monthsByNumber = new Map(bestMonths.map((month) => [month.month_num, month]));
-  const targetBestMonths = targetMonths
-    .map((monthNum) => monthsByNumber.get(monthNum))
-    .filter((month): month is BestMonth => Boolean(month));
-  const insights: SeasonalityInsight[] = [];
-
-  for (const month of targetBestMonths) {
-    const monthLabel = localMonthName(month.month_num, locale);
-    const species = speciesStats
-      .filter((s) => extractMonthNum(s.best_month) === month.month_num)
-      .sort((a, b) => b.find_count - a.find_count)
-      .slice(0, 2)
-      .map((s) => markedSpeciesName(s.species_name));
-
-    insights.push({
-      title: t('stats.insightStrong', { month: monthLabel }),
-      body: species.length > 0
-        ? t('stats.insightMostActive', { species: species.join(' · ') })
-        : t('stats.insightLogged', { count: month.count, month: monthLabel }),
-    });
-  }
-
-  return insights;
 }
 
 export function buildSpeciesSpotHint(
