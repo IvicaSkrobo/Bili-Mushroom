@@ -459,7 +459,16 @@ function CollectionMarker({
     >
       {g.species.length > 1 && !popupOpen && (
         <Tooltip direction="top" offset={[0, -10]} opacity={1} className="bili-species-tooltip">
-          <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: '12px', lineHeight: '1.6' }}>
+          <div
+            style={{
+              fontFamily: 'Manrope, sans-serif',
+              fontSize: '12px',
+              lineHeight: '1.6',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '2px',
+            }}
+          >
             {g.species.map((s) => (
               <div key={s.name}>{plainSpeciesName(s.name)}</div>
             ))}

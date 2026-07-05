@@ -292,7 +292,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: po
   color: #e8dcc8 !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
   padding: 6px 10px !important;
-  white-space: nowrap;
+  white-space: normal;
 }
 .bili-species-tooltip::before {
   border-top-color: rgba(18, 24, 20, 0.92) !important;
