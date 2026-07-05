@@ -22,6 +22,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PostImportReviewDialog } from './PostImportReviewDialog';
+import { StagedPhotoViewer } from './StagedPhotoViewer';
 import { useImportProgress } from './useImportProgress';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
 import { PickLocationButton } from '@/components/map/PickLocationButton';
@@ -248,6 +249,8 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
 
   // All photos for this single find
   const [photos, setPhotos] = useState<string[]>([]);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
@@ -830,14 +833,25 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
               <div className="grid grid-cols-5 gap-1.5 py-1 sm:grid-cols-7 lg:grid-cols-9 xl:grid-cols-10">
                 {photos.map((path, i) => (
                   <div key={path} className="relative group aspect-square rounded-md overflow-hidden bg-muted">
-                    <img
-                      src={convertFileSrc(path)}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
                     <button
                       type="button"
-                      onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}
+                      onClick={() => { setViewerIndex(i); setViewerOpen(true); }}
+                      className="block h-full w-full cursor-zoom-in"
+                      aria-label={t('import.viewPhoto')}
+                      title={t('import.viewPhoto')}
+                    >
+                      <img
+                        src={convertFileSrc(path)}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPhotos((prev) => prev.filter((_, idx) => idx !== i));
+                      }}
                       className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-0.5 text-white"
                       aria-label={t('import.removePhoto')}
                     >
@@ -883,6 +897,14 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
             onOpenChange={setSharedMapOpen}
             initialLatLng={sharedLocation}
             onConfirm={handleSharedMapConfirm}
+          />
+
+          <StagedPhotoViewer
+            open={viewerOpen}
+            onOpenChange={setViewerOpen}
+            photos={photos}
+            currentIndex={viewerIndex}
+            onIndexChange={setViewerIndex}
           />
 
           <DialogFooter className="border-t border-border/60 px-5 py-4">
