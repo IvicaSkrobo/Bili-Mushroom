@@ -1332,6 +1332,7 @@ pub struct FindSearchFilters {
     pub date_start: Option<String>,
     pub date_end: Option<String>,
     pub date_prefix: Option<String>,
+    pub date_day_month: Option<String>,
     pub photos_mode: Option<String>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
@@ -1389,6 +1390,11 @@ fn push_find_search_filters(
         where_clauses.push(format!("{} LIKE ?", col("date_found")));
         query_params.push(Box::new(format!("{}%", date_prefix)));
     }
+
+    if let Some(day_month) = normalized_day_month(filters.date_day_month.as_deref()) {
+        where_clauses.push(format!("substr({}, 6) = ?", col("date_found")));
+        query_params.push(Box::new(day_month));
+    }
 }
 
 fn normalized_like_query(value: Option<&str>) -> Option<String> {
@@ -1421,6 +1427,19 @@ fn normalized_date_prefix(value: Option<&str>) -> Option<String> {
         return None;
     }
     if trimmed.len() <= 10 && trimmed.chars().all(|ch| ch.is_ascii_digit() || ch == '-') {
+        Some(trimmed.to_string())
+    } else {
+        None
+    }
+}
+
+fn normalized_day_month(value: Option<&str>) -> Option<String> {
+    let trimmed = value?.trim();
+    if trimmed.len() == 5
+        && trimmed.chars().nth(2) == Some('-')
+        && trimmed[0..2].chars().all(|c| c.is_ascii_digit())
+        && trimmed[3..5].chars().all(|c| c.is_ascii_digit())
+    {
         Some(trimmed.to_string())
     } else {
         None
