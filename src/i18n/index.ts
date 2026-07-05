@@ -574,6 +574,7 @@ const hr: Translations = {
   'map.zoneNoFindRegion': 'Nema nalaza s koordinatama za stvaranje regionalne zone.',
   'map.zoneCreateLocal': 'Lokalna zona još ne postoji za {name}. Stvoriti je sada?',
   'map.zoneCreateRegion': 'Regionalna zona još ne postoji za {name}. Stvoriti je sada?',
+  'map.zonePickerTitle': 'Više zona na ovom mjestu — odaberi jednu',
 
   // zone editor panel
   'zone.local': 'Lokalna',
@@ -1197,6 +1198,7 @@ const en: Translations = {
   'map.zoneNoFindRegion': 'No mapped finds are available to create a region zone for this species yet.',
   'map.zoneCreateLocal': 'No local zone exists yet for {name}. Create one now?',
   'map.zoneCreateRegion': 'No region zone exists yet for {name}. Create one now?',
+  'map.zonePickerTitle': 'Multiple zones here — choose one to open',
 
   // zone editor panel
   'zone.local': 'Local',

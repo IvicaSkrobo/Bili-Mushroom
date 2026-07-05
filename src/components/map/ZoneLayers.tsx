@@ -1,14 +1,17 @@
-import { type ReactNode, useMemo } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 import L from 'leaflet';
-import { Circle, Polygon, useMap } from 'react-leaflet';
+import { Circle, Polygon, Popup, useMap } from 'react-leaflet';
 import type { Find } from '@/lib/finds';
 import {
   parsePolygonJson,
   visibleZonesForMode,
+  zonesContainingPoint,
   type Zone,
   type ZoneViewMode,
 } from '@/lib/zones';
 import { useAppStore } from '@/stores/appStore';
+import { renderSpeciesName } from '@/lib/speciesName';
+import { useT } from '@/i18n/index';
 
 function getZoneStyle(zoneType: Zone['zone_type'], isSatellite: boolean, active = false) {
   if (zoneType === 'local') {
@@ -89,6 +92,7 @@ export function ZoneLayers({
 }: ZoneLayersProps) {
   const isSatellite = useAppStore((s) => s.mapLayer === 'Satellite');
   const map = useMap();
+  const [pickerState, setPickerState] = useState<{ lat: number; lng: number; zones: Zone[] } | null>(null);
   const visibleZones = useMemo(
     () => {
       const filtered = visibleZonesForMode(zones, mode).filter(
@@ -141,8 +145,14 @@ export function ZoneLayers({
                 eventHandlers={{
                   click: (e) => {
                     L.DomEvent.stopPropagation(e.originalEvent);
-                    map.closePopup();
-                    onEditZone?.(zone);
+                    const { lat, lng } = e.latlng;
+                    const matches = zonesContainingPoint(displayZones, lat, lng);
+                    if (matches.length <= 1) {
+                      map.closePopup();
+                      onEditZone?.(zone);
+                      return;
+                    }
+                    setPickerState({ lat, lng, zones: matches });
                   },
                 }}
               />
@@ -170,8 +180,14 @@ export function ZoneLayers({
                 eventHandlers={{
                   click: (e) => {
                     L.DomEvent.stopPropagation(e.originalEvent);
-                    map.closePopup();
-                    onEditZone?.(zone);
+                    const { lat, lng } = e.latlng;
+                    const matches = zonesContainingPoint(displayZones, lat, lng);
+                    if (matches.length <= 1) {
+                      map.closePopup();
+                      onEditZone?.(zone);
+                      return;
+                    }
+                    setPickerState({ lat, lng, zones: matches });
                   },
                 }}
               />
@@ -181,7 +197,61 @@ export function ZoneLayers({
 
         return null;
       })}
+      {pickerState && (
+        <Popup
+          key={`${pickerState.lat}-${pickerState.lng}`}
+          position={[pickerState.lat, pickerState.lng]}
+          eventHandlers={{ remove: () => setPickerState(null) }}
+        >
+          <ZonePickerPopup
+            zones={pickerState.zones}
+            onSelect={(zone) => {
+              setPickerState(null);
+              map.closePopup();
+              onEditZone?.(zone);
+            }}
+          />
+        </Popup>
+      )}
     </>
+  );
+}
+
+function ZonePickerPopup({
+  zones,
+  onSelect,
+}: {
+  zones: Zone[];
+  onSelect: (zone: Zone) => void;
+}) {
+  const t = useT();
+  return (
+    <div className="w-[220px] overflow-hidden rounded-lg bg-background font-sans shadow-xl ring-1 ring-border/30">
+      <p className="px-2.5 pt-2 text-[11px] font-semibold leading-snug text-foreground/80">
+        {t('map.zonePickerTitle')}
+      </p>
+      <div className="flex flex-col gap-1 px-2 pb-2 pt-1.5">
+        {zones.map((zone) => {
+          const accentColor = zone.zone_type === 'local' ? '#D4512A' : '#2D8C7C';
+          return (
+            <button
+              key={zone.id}
+              type="button"
+              onClick={() => onSelect(zone)}
+              className="flex items-center gap-2 rounded border border-border/60 bg-input px-2 py-1.5 text-left transition-colors hover:bg-secondary"
+              style={{ borderLeftColor: accentColor, borderLeftWidth: '3px' }}
+            >
+              <span className="min-w-0 flex-1 truncate text-[12px] leading-tight text-foreground">
+                {renderSpeciesName(zone.species_name)}
+              </span>
+              <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                {t(zone.zone_type === 'local' ? 'zone.local' : 'zone.region')}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
