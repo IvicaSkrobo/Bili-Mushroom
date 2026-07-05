@@ -152,13 +152,15 @@ interface DatePartsInputProps {
   value: string;
   onChange: (value: string) => void;
   includeDay?: boolean;
+  includeYear?: boolean;
   ariaLabel: string;
   className?: string;
 }
 
-function splitDateParts(value: string, includeDay: boolean): string[] {
+function splitDateParts(value: string, includeDay: boolean, includeYear = true): string[] {
   const parts = value.trim().split(/\D+/).filter(Boolean);
-  if (includeDay) return [parts[0] ?? '', parts[1] ?? '', parts[2] ?? ''];
+  if (includeDay && includeYear) return [parts[0] ?? '', parts[1] ?? '', parts[2] ?? ''];
+  if (includeDay && !includeYear) return [parts[0] ?? '', parts[1] ?? ''];
   return [parts[0] ?? '', parts[1] ?? ''];
 }
 
@@ -166,15 +168,15 @@ function joinDateParts(parts: string[]): string {
   return parts.filter(Boolean).join(' ');
 }
 
-function DatePartsInput({ value, onChange, includeDay = true, ariaLabel, className = '' }: DatePartsInputProps) {
-  const parts = splitDateParts(value, includeDay);
-  const placeholders = includeDay ? ['dd', 'mm', 'yyyy'] : ['mm', 'yyyy'];
-  const widths = includeDay ? ['w-7', 'w-7', 'w-11'] : ['w-7', 'w-11'];
+function DatePartsInput({ value, onChange, includeDay = true, includeYear = true, ariaLabel, className = '' }: DatePartsInputProps) {
+  const parts = splitDateParts(value, includeDay, includeYear);
+  const placeholders = includeDay && includeYear ? ['dd', 'mm', 'yyyy'] : includeDay ? ['dd', 'mm'] : ['mm', 'yyyy'];
+  const widths = includeDay && includeYear ? ['w-7', 'w-7', 'w-11'] : includeDay ? ['w-7', 'w-7'] : ['w-7', 'w-11'];
   const refs = useRef<Array<HTMLInputElement | null>>([]);
 
   const updatePart = (index: number, nextValue: string) => {
     const next = [...parts];
-    next[index] = nextValue.replace(/\D/g, '').slice(0, index === parts.length - 1 ? 4 : 2);
+    next[index] = nextValue.replace(/\D/g, '').slice(0, index === parts.length - 1 && includeYear ? 4 : 2);
     const monthIndex = includeDay ? 1 : 0;
     const dayIndex = includeDay ? 0 : -1;
     const numericValue = Number.parseInt(next[index], 10);
@@ -683,23 +685,26 @@ export default function CollectionTab() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [locationSearch, setLocationSearch] = useState('');
-  const [dateFilterMode, setDateFilterMode] = useState<'exact' | 'range' | 'month' | 'year'>('exact');
+  const [dateFilterMode, setDateFilterMode] = useState<'exact' | 'range' | 'month' | 'year' | 'dayMonth'>('exact');
   const [dateSearch, setDateSearch] = useState('');
   const [dateSearchEnd, setDateSearchEnd] = useState('');
   const [monthSearch, setMonthSearch] = useState('');
   const [yearSearch, setYearSearch] = useState('');
+  const [dayMonthSearch, setDayMonthSearch] = useState('');
   const deferredSearch = useDeferredValue(search);
   const deferredLocationSearch = useDeferredValue(locationSearch);
   const deferredDateSearch = useDeferredValue(dateSearch);
   const deferredDateSearchEnd = useDeferredValue(dateSearchEnd);
   const deferredMonthSearch = useDeferredValue(monthSearch);
   const deferredYearSearch = useDeferredValue(yearSearch);
+  const deferredDayMonthSearch = useDeferredValue(dayMonthSearch);
   const debouncedSearch = useDebouncedValue(deferredSearch, 180);
   const debouncedLocationSearch = useDebouncedValue(deferredLocationSearch, 180);
   const debouncedDateSearch = useDebouncedValue(deferredDateSearch, 180);
   const debouncedDateSearchEnd = useDebouncedValue(deferredDateSearchEnd, 180);
   const debouncedMonthSearch = useDebouncedValue(deferredMonthSearch, 180);
   const debouncedYearSearch = useDebouncedValue(deferredYearSearch, 180);
+  const debouncedDayMonthSearch = useDebouncedValue(deferredDayMonthSearch, 180);
   const [jumpTargetSpecies, setJumpTargetSpecies] = useState<string | null>(null);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
 
@@ -711,6 +716,7 @@ export default function CollectionTab() {
       dateStart?: string;
       dateEnd?: string;
       datePrefix?: string;
+      dateDayMonth?: string;
       photosMode: 'primary';
     } = { photosMode: 'primary' };
     const speciesQuery = plainSpeciesName(debouncedSearch).trim();
@@ -735,13 +741,18 @@ export default function CollectionTab() {
       if (year?.length === 4) {
         filters.datePrefix = month ? `${year}-${month.padStart(2, '0')}` : year;
       }
+    } else if (dateFilterMode === 'dayMonth') {
+      const [day, month] = splitDateParts(debouncedDayMonthSearch, true, false);
+      if (day && month && day.length <= 2 && month.length <= 2) {
+        filters.dateDayMonth = `${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      }
     } else {
       const year = debouncedYearSearch.trim();
       if (/^\d{4}$/.test(year)) filters.datePrefix = year;
     }
 
     return filters;
-  }, [dateFilterMode, debouncedDateSearch, debouncedDateSearchEnd, debouncedLocationSearch, debouncedMonthSearch, debouncedSearch, debouncedYearSearch, favoritesOnly]);
+  }, [dateFilterMode, debouncedDateSearch, debouncedDateSearchEnd, debouncedDayMonthSearch, debouncedLocationSearch, debouncedMonthSearch, debouncedSearch, debouncedYearSearch, favoritesOnly]);
 
   const {
     data: folderPages,
@@ -971,6 +982,7 @@ export default function CollectionTab() {
     (dateFilterMode === 'exact' && dateSearch.length > 0) ||
     (dateFilterMode === 'range' && (dateSearch.length > 0 || dateSearchEnd.length > 0)) ||
     (dateFilterMode === 'month' && monthSearch.length > 0) ||
+    (dateFilterMode === 'dayMonth' && dayMonthSearch.length > 0) ||
     (dateFilterMode === 'year' && yearSearch.trim().length > 0);
   const filteredFindCount = useMemo(
     () => filteredGroups.reduce((sum, [, summary]) => sum + summary.find_count, 0),
@@ -1035,12 +1047,14 @@ export default function CollectionTab() {
     setDateSearchEnd('');
     setMonthSearch('');
     setYearSearch('');
+    setDayMonthSearch('');
   };
   const dateSearchLabel =
     dateFilterMode === 'month' ? monthSearch :
       dateFilterMode === 'year' ? yearSearch :
-        dateFilterMode === 'range' ? [dateSearch, dateSearchEnd].filter(Boolean).join(' - ') :
-          dateSearch;
+        dateFilterMode === 'dayMonth' ? dayMonthSearch :
+          dateFilterMode === 'range' ? [dateSearch, dateSearchEnd].filter(Boolean).join(' - ') :
+            dateSearch;
   const activeSearchLabel = dateSearchLabel || locationSearch || search;
   const favoriteCount = useMemo(
     () => (finds ?? []).filter((find) => find.is_favorite && !isInternalLibraryName(find.species_name)).length,
@@ -1209,7 +1223,7 @@ export default function CollectionTab() {
               <select
                 value={dateFilterMode}
                 onChange={(e) => {
-                  setDateFilterMode(e.target.value as 'exact' | 'range' | 'month' | 'year');
+                  setDateFilterMode(e.target.value as 'exact' | 'range' | 'month' | 'year' | 'dayMonth');
                   clearDateSearch();
                 }}
                 aria-label={t('collection.dateSearchMode')}
@@ -1218,6 +1232,7 @@ export default function CollectionTab() {
                 <option value="exact">{t('collection.dateModeExact')}</option>
                 <option value="range">{t('collection.dateModeRange')}</option>
                 <option value="month">{t('collection.dateModeMonth')}</option>
+                <option value="dayMonth">{t('collection.dateModeDayMonth')}</option>
                 <option value="year">{t('collection.dateModeYear')}</option>
               </select>
               {dateFilterMode === 'exact' && (
@@ -1248,6 +1263,14 @@ export default function CollectionTab() {
                   onChange={setMonthSearch}
                   includeDay={false}
                   aria-label={t('collection.monthSearch')}
+                />
+              )}
+              {dateFilterMode === 'dayMonth' && (
+                <DatePartsInput
+                  value={dayMonthSearch}
+                  onChange={setDayMonthSearch}
+                  includeYear={false}
+                  aria-label={t('collection.dayMonthSearch')}
                 />
               )}
               {dateFilterMode === 'year' && (
