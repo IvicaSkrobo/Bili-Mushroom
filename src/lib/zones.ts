@@ -150,6 +150,12 @@ export function findContainingRegionZone(zones: Zone[], lat: number, lng: number
   return matches[0] ?? null;
 }
 
+export function zonesContainingPoint(zones: Zone[], lat: number, lng: number): Zone[] {
+  return zones
+    .filter((zone) => isPointInsideZone(lat, lng, zone))
+    .sort((a, b) => zoneFootprint(a) - zoneFootprint(b));
+}
+
 function isPointInsideZone(lat: number, lng: number, zone: Zone): boolean {
   if (zone.geometry_type === 'circle') {
     if (zone.center_lat == null || zone.center_lng == null || zone.radius_meters == null) return false;

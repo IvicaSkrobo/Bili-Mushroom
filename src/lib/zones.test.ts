@@ -5,6 +5,7 @@ import {
   pointInPolygon,
   stringifyPolygon,
   summarizeZone,
+  zonesContainingPoint,
   type Zone,
   type ZonePolygonPoint,
   type ZoneType,
@@ -81,6 +82,54 @@ describe('zones polygon helpers', () => {
     expect(summary.finds.map((find) => find.id)).toEqual([1, 2]);
     expect(summary.firstFound).toBe('2026-05-01');
     expect(summary.lastFound).toBe('2026-05-03');
+  });
+});
+
+const circleZone: Zone = {
+  id: 11,
+  species_name: 'Cantharellus cibarius, Lisičica',
+  zone_type: 'local',
+  name: 'Lisičica spot',
+  geometry_type: 'circle',
+  center_lat: 45.1,
+  center_lng: 15.1,
+  radius_meters: 5000,
+  polygon_json: null,
+  source_find_id: null,
+  notes: '',
+  created_at: '2026-05-06T00:00:00Z',
+  updated_at: '2026-05-06T00:00:00Z',
+};
+
+describe('zonesContainingPoint', () => {
+  it('returns all zones containing the point, smallest footprint first', () => {
+    // circleZone footprint: pi * 5000^2 ≈ 78,539,816
+    // polygonZone footprint: ~0.2 * 0.2 = 0.04 (degrees-based area, unit-less but comparable)
+    const matches = zonesContainingPoint([polygonZone, circleZone], 45.1, 15.1);
+    expect(matches.map((zone) => zone.id)).toEqual([polygonZone.id, circleZone.id]);
+  });
+
+  it('returns only the one zone that contains the point when the other does not', () => {
+    // Point inside polygonZone bounds but outside circleZone's 5km radius
+    const farPoint = { lat: 45.15, lng: 15.18 };
+    expect(pointInPolygon(farPoint.lat, farPoint.lng, polygonPoints)).toBe(true);
+
+    const matches = zonesContainingPoint([polygonZone, circleZone], farPoint.lat, farPoint.lng);
+    expect(matches.map((zone) => zone.id)).toEqual([polygonZone.id]);
+  });
+
+  it('returns an empty array when the point is inside no zones', () => {
+    const matches = zonesContainingPoint([polygonZone, circleZone], 46.5, 16.5);
+    expect(matches).toEqual([]);
+  });
+
+  it('does not filter by zone_type — checks both local and region zones regardless of type', () => {
+    expect(polygonZone.zone_type).toBe('region');
+    expect(circleZone.zone_type).toBe('local');
+    const matches = zonesContainingPoint([polygonZone, circleZone], 45.1, 15.1);
+    expect(matches).toHaveLength(2);
+    expect(matches.some((zone) => zone.zone_type === 'region')).toBe(true);
+    expect(matches.some((zone) => zone.zone_type === 'local')).toBe(true);
   });
 });
 
