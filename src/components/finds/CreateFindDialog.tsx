@@ -29,6 +29,7 @@ import { isInternalLibraryName } from '@/lib/internalEntries';
 import { compareSpeciesNames, plainSpeciesName } from '@/lib/speciesName';
 import { cn } from '@/lib/utils';
 import { editSourcePhotoImage, isHeic, parseExif, SUPPORTED_EXTENSIONS } from '@/lib/finds';
+import { filledClass } from '@/lib/filledFieldStyle';
 
 interface FormState {
   species_name: string;
@@ -76,20 +77,6 @@ const BLANK_FORM: FormState = {
   observed_count_range: '',
   species_description: '',
 };
-
-const filledTextClass =
-  'border-primary/65 bg-primary/10 font-serif text-[15px] font-semibold shadow-[inset_3px_0_0_var(--primary)] placeholder:font-sans placeholder:text-muted-foreground/45 dark:bg-primary/12';
-const filledUiTextClass =
-  'border-primary/65 bg-primary/10 font-semibold shadow-[inset_3px_0_0_var(--primary)] placeholder:font-normal placeholder:text-muted-foreground/45 dark:bg-primary/12';
-const filledNumericClass =
-  'border-primary/65 bg-primary/10 font-mono text-[13px] font-semibold shadow-[inset_3px_0_0_var(--primary)] placeholder:font-sans placeholder:text-muted-foreground/45 dark:bg-primary/12';
-
-function filledClass(value: string, variant: 'text' | 'ui' | 'numeric' = 'text') {
-  if (!value.trim()) return undefined;
-  if (variant === 'numeric') return filledNumericClass;
-  if (variant === 'ui') return filledUiTextClass;
-  return filledTextClass;
-}
 
 const CREATE_FIND_DRAFT_KEY = 'bili:create-find-draft';
 
