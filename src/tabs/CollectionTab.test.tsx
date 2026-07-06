@@ -309,7 +309,19 @@ describe('CollectionTab', () => {
   });
 });
 
-describe('date filter modes', () => {
+describe('date filter modes (calendar picker)', () => {
+  // No fake timers here: RTL's waitFor/findBy* poll via real timers, which hangs indefinitely
+  // under vi.useFakeTimers() unless timers are manually advanced. Instead, derive expectations
+  // from the real current date so the calendar (which defaults to "today"'s month) and the
+  // assertions always agree, regardless of when the suite runs.
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const currentMonthPadded = String(currentMonth).padStart(2, '0');
+  const currentMonthLabel = new Intl.DateTimeFormat('en-US', { month: 'long' }).format(now);
+  const next = new Date(currentYear, currentMonth, 1); // JS Date rolls month 12 -> next year's Jan automatically
+  const nextMonthLabel = new Intl.DateTimeFormat('en-US', { month: 'long' }).format(next);
+
   beforeEach(() => {
     useAppStore.setState({
       storagePath: '/storage/test',
@@ -323,7 +335,7 @@ describe('date filter modes', () => {
     invokeHandlers['get_finds'] = () => [find1, find2];
   });
 
-  it('produces dateDayMonth filter (zero-padded) when day+month mode has complete day and month', async () => {
+  it('produces dateDayMonth filter (zero-padded) when a day is picked in day+month mode', async () => {
     const foldersSpy = vi.fn(() => []);
     invokeHandlers['get_collection_folders'] = foldersSpy;
 
@@ -337,15 +349,14 @@ describe('date filter modes', () => {
 
     fireEvent.change(screen.getByLabelText('Date search mode'), { target: { value: 'dayMonth' } });
 
-    const dayInput = screen.getByPlaceholderText('dd');
-    const monthInput = screen.getByPlaceholderText('mm');
-    fireEvent.change(dayInput, { target: { value: '20' } });
-    fireEvent.change(monthInput, { target: { value: '05' } });
+    // Opens the calendar popover, defaulted to the current month.
+    fireEvent.click(await screen.findByRole('button', { name: 'Pick day and month' }));
+    fireEvent.click(await screen.findByRole('button', { name: '20' }));
 
     await waitFor(() => {
       const lastCall = foldersSpy.mock.calls.at(-1)?.[0] as { filters?: Record<string, unknown> } | undefined;
       expect(lastCall?.filters).toEqual(
-        expect.objectContaining({ dateDayMonth: '05-20' }),
+        expect.objectContaining({ dateDayMonth: `${currentMonthPadded}-20` }),
       );
       expect(lastCall?.filters).not.toHaveProperty('dateStart');
       expect(lastCall?.filters).not.toHaveProperty('dateEnd');
@@ -353,7 +364,7 @@ describe('date filter modes', () => {
     });
   });
 
-  it('produces no date filter when day+month mode has incomplete input', async () => {
+  it('produces no date filter when day+month mode has no day picked yet', async () => {
     const foldersSpy = vi.fn(() => []);
     invokeHandlers['get_collection_folders'] = foldersSpy;
 
@@ -366,10 +377,7 @@ describe('date filter modes', () => {
     });
 
     fireEvent.change(screen.getByLabelText('Date search mode'), { target: { value: 'dayMonth' } });
-
-    const dayInput = screen.getByPlaceholderText('dd');
-    fireEvent.change(dayInput, { target: { value: '20' } });
-    // month left empty
+    // Popover never opened, no day picked.
 
     await waitFor(() => {
       const lastCall = foldersSpy.mock.calls.at(-1)?.[0] as { filters?: Record<string, unknown> } | undefined;
@@ -383,7 +391,10 @@ describe('date filter modes', () => {
   // Regression test for collection-search-sort-bugs: parseCompleteDateQuery's compact-digit
   // fallback regex could not disambiguate day vs month when their digit lengths differed (e.g.
   // day=1, month=12), silently producing a wrong ISO date (2026-02-11 instead of 2026-12-01).
-  it('produces the correct exact-mode dateStart/dateEnd when day is a single digit and month is two digits', async () => {
+  // The calendar picker sidesteps the original bug entirely (day/month are structurally distinct
+  // grid cells, never concatenated digits), but this keeps end-to-end coverage on the single-digit
+  // day case going through the same parseCompleteDateQuery path.
+  it('produces the correct exact-mode dateStart/dateEnd when picking day 1 of a month', async () => {
     const foldersSpy = vi.fn(() => []);
     invokeHandlers['get_collection_folders'] = foldersSpy;
 
@@ -395,19 +406,36 @@ describe('date filter modes', () => {
       expect(screen.getByLabelText('Date search mode')).toBeInTheDocument();
     });
 
-    // default mode is 'exact'
-    const dayInput = screen.getByPlaceholderText('dd');
-    const monthInput = screen.getByPlaceholderText('mm');
-    const yearInput = screen.getByPlaceholderText('yyyy');
-    fireEvent.change(dayInput, { target: { value: '1' } });
-    fireEvent.change(monthInput, { target: { value: '12' } });
-    fireEvent.change(yearInput, { target: { value: '2026' } });
+    // default mode is 'exact'; calendar defaults to the current month.
+    fireEvent.click(await screen.findByRole('button', { name: 'Pick date' }));
+    // Day "1" can appear twice (current month's day 1, plus a grayed leading/trailing-month "1"
+    // in the 42-cell grid) — the current month's cell always comes first in DOM order.
+    const dayOneButtons = await screen.findAllByRole('button', { name: '1' });
+    fireEvent.click(dayOneButtons[0]);
 
     await waitFor(() => {
       const lastCall = foldersSpy.mock.calls.at(-1)?.[0] as { filters?: Record<string, unknown> } | undefined;
+      const expected = `${currentYear}-${currentMonthPadded}-01`;
       expect(lastCall?.filters).toEqual(
-        expect.objectContaining({ dateStart: '2026-12-01', dateEnd: '2026-12-01' }),
+        expect.objectContaining({ dateStart: expected, dateEnd: expected }),
       );
+    });
+  });
+
+  it('moves the calendar to the next month when the next-month arrow is clicked', async () => {
+    renderTab();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Filters' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Pick date' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(new RegExp(`^${currentMonthLabel}`))).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next month' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(new RegExp(`^${nextMonthLabel}`))).toBeInTheDocument();
     });
   });
 });

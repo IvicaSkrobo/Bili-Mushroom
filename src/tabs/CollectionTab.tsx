@@ -4,6 +4,7 @@ import { GalleryHorizontal, Plus, ChevronDown, ChevronRight, FolderOpen, Search,
 import { EmptyState } from '@/components/layout/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar, MonthYearPicker } from '@/components/ui/calendar';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
 import { ImportDialog } from '@/components/import/ImportDialog';
@@ -165,15 +166,6 @@ function monthVariants(isoDate: string): string[] {
   ].map(normalizeDateQuery);
 }
 
-interface DatePartsInputProps {
-  value: string;
-  onChange: (value: string) => void;
-  includeDay?: boolean;
-  includeYear?: boolean;
-  ariaLabel: string;
-  className?: string;
-}
-
 function splitDateParts(value: string, includeDay: boolean, includeYear = true): string[] {
   const parts = value.trim().split(/\D+/).filter(Boolean);
   if (includeDay && includeYear) return [parts[0] ?? '', parts[1] ?? '', parts[2] ?? ''];
@@ -185,63 +177,35 @@ function joinDateParts(parts: string[]): string {
   return parts.filter(Boolean).join(' ');
 }
 
-function DatePartsInput({ value, onChange, includeDay = true, includeYear = true, ariaLabel, className = '' }: DatePartsInputProps) {
-  const parts = splitDateParts(value, includeDay, includeYear);
-  const placeholders = includeDay && includeYear ? ['dd', 'mm', 'yyyy'] : includeDay ? ['dd', 'mm'] : ['mm', 'yyyy'];
-  const widths = includeDay && includeYear ? ['w-7', 'w-7', 'w-11'] : includeDay ? ['w-7', 'w-7'] : ['w-7', 'w-11'];
-  const refs = useRef<Array<HTMLInputElement | null>>([]);
+/** Fixed reference year for "day + month, any year" pickers, so Feb 29 is always selectable. */
+const DAY_MONTH_REF_YEAR = 2024;
 
-  const updatePart = (index: number, nextValue: string) => {
-    const next = [...parts];
-    next[index] = nextValue.replace(/\D/g, '').slice(0, index === parts.length - 1 && includeYear ? 4 : 2);
-    const monthIndex = includeDay ? 1 : 0;
-    const dayIndex = includeDay ? 0 : -1;
-    const numericValue = Number.parseInt(next[index], 10);
+function isoFromDateParts(value: string): string | null {
+  const [day, month, year] = value.trim().split(/\s+/).filter(Boolean);
+  if (!day || !month || !year) return null;
+  return `${year.padStart(4, '0')}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+}
 
-    if (index === dayIndex && next[index].length === 2 && (!Number.isInteger(numericValue) || numericValue < 1 || numericValue > 31)) {
-      next[index] = '';
-      onChange(joinDateParts(next));
-      refs.current[index]?.focus();
-      return;
-    }
+function datePartsFromIso(iso: string): string {
+  const [year, month, day] = iso.split('-');
+  return joinDateParts([day, month, year]);
+}
 
-    if (index === monthIndex && next[index].length === 2 && (!Number.isInteger(numericValue) || numericValue < 1 || numericValue > 12)) {
-      next[index] = '';
-      onChange(joinDateParts(next));
-      refs.current[index]?.focus();
-      return;
-    }
+function isoFromDayMonth(value: string): string | null {
+  const [day, month] = value.trim().split(/\s+/).filter(Boolean);
+  if (!day || !month) return null;
+  return `${DAY_MONTH_REF_YEAR}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+}
 
-    onChange(joinDateParts(next));
-    if (index < parts.length - 1 && next[index].length === 2) {
-      refs.current[index + 1]?.focus();
-      refs.current[index + 1]?.select();
-    }
-  };
+function dayMonthFromIso(iso: string): string {
+  const [, month, day] = iso.split('-');
+  return joinDateParts([day, month]);
+}
 
-  return (
-    <div className={`flex h-7 items-center gap-0.5 rounded bg-background/35 px-1 ${className}`} aria-label={ariaLabel}>
-      {placeholders.map((placeholder, index) => (
-        <input
-          key={placeholder}
-          ref={(node) => { refs.current[index] = node; }}
-          type="text"
-          inputMode="numeric"
-          value={parts[index] ?? ''}
-          onChange={(e) => updatePart(index, e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Backspace' && !(parts[index] ?? '') && index > 0) {
-              refs.current[index - 1]?.focus();
-              refs.current[index - 1]?.select();
-            }
-          }}
-          placeholder={placeholder}
-          aria-label={`${ariaLabel} ${placeholder}`}
-          className={`${widths[index]} bg-transparent text-center text-xs text-foreground outline-none placeholder:text-muted-foreground/45`}
-        />
-      ))}
-    </div>
-  );
+function monthYearFromValue(value: string): { month: number; year: number } | null {
+  const [month, year] = value.trim().split(/\s+/).filter(Boolean);
+  if (!month || !year) return null;
+  return { month: Number(month), year: Number(year) };
 }
 
 type CollectionT = ReturnType<typeof useT>;
@@ -1282,42 +1246,110 @@ export default function CollectionTab() {
                     <option value="year">{t('collection.dateModeYear')}</option>
                   </select>
                   {dateFilterMode === 'exact' && (
-                    <DatePartsInput
-                      value={dateSearch}
-                      onChange={setDateSearch}
-                      aria-label={t('collection.dateSearch')}
-                    />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex h-7 items-center gap-1 rounded bg-background/35 px-2 font-mono text-xs text-foreground transition-colors hover:bg-accent/40"
+                        >
+                          {dateSearch ? formatDisplayDate(isoFromDateParts(dateSearch) ?? '', lang) : t('collection.pickDate')}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent>
+                        <Calendar
+                          selected={isoFromDateParts(dateSearch)}
+                          onSelect={(iso) => setDateSearch(datePartsFromIso(iso))}
+                          lang={lang}
+                        />
+                      </PopoverContent>
+                    </Popover>
                   )}
                   {dateFilterMode === 'range' && (
                     <>
-                      <DatePartsInput
-                        value={dateSearch}
-                        onChange={setDateSearch}
-                        aria-label={t('collection.dateSearchFrom')}
-                      />
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label={t('collection.dateSearchFrom')}
+                            className="flex h-7 items-center gap-1 rounded bg-background/35 px-2 font-mono text-xs text-foreground transition-colors hover:bg-accent/40"
+                          >
+                            {dateSearch ? formatDisplayDate(isoFromDateParts(dateSearch) ?? '', lang) : t('collection.pickDate')}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent>
+                          <Calendar
+                            selected={isoFromDateParts(dateSearch)}
+                            onSelect={(iso) => setDateSearch(datePartsFromIso(iso))}
+                            lang={lang}
+                          />
+                        </PopoverContent>
+                      </Popover>
                       <span className="text-muted-foreground/50">-</span>
-                      <DatePartsInput
-                        value={dateSearchEnd}
-                        onChange={setDateSearchEnd}
-                        aria-label={t('collection.dateSearchTo')}
-                      />
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label={t('collection.dateSearchTo')}
+                            className="flex h-7 items-center gap-1 rounded bg-background/35 px-2 font-mono text-xs text-foreground transition-colors hover:bg-accent/40"
+                          >
+                            {dateSearchEnd ? formatDisplayDate(isoFromDateParts(dateSearchEnd) ?? '', lang) : t('collection.pickDate')}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent>
+                          <Calendar
+                            selected={isoFromDateParts(dateSearchEnd)}
+                            onSelect={(iso) => setDateSearchEnd(datePartsFromIso(iso))}
+                            lang={lang}
+                          />
+                        </PopoverContent>
+                      </Popover>
                     </>
                   )}
                   {dateFilterMode === 'month' && (
-                    <DatePartsInput
-                      value={monthSearch}
-                      onChange={setMonthSearch}
-                      includeDay={false}
-                      aria-label={t('collection.monthSearch')}
-                    />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex h-7 items-center gap-1 rounded bg-background/35 px-2 font-mono text-xs text-foreground transition-colors hover:bg-accent/40"
+                        >
+                          {monthYearFromValue(monthSearch)
+                            ? new Intl.DateTimeFormat(lang === 'hr' ? 'hr-HR' : 'en-US', { month: 'long', year: 'numeric' })
+                              .format(new Date(monthYearFromValue(monthSearch)!.year, monthYearFromValue(monthSearch)!.month - 1, 1))
+                            : t('collection.pickMonth')}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent>
+                        <MonthYearPicker
+                          month={monthYearFromValue(monthSearch)?.month ?? null}
+                          year={monthYearFromValue(monthSearch)?.year ?? null}
+                          onSelect={(month, year) => setMonthSearch(joinDateParts([String(month), String(year)]))}
+                          lang={lang}
+                        />
+                      </PopoverContent>
+                    </Popover>
                   )}
                   {dateFilterMode === 'dayMonth' && (
-                    <DatePartsInput
-                      value={dayMonthSearch}
-                      onChange={setDayMonthSearch}
-                      includeYear={false}
-                      aria-label={t('collection.dayMonthSearch')}
-                    />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex h-7 items-center gap-1 rounded bg-background/35 px-2 font-mono text-xs text-foreground transition-colors hover:bg-accent/40"
+                        >
+                          {isoFromDayMonth(dayMonthSearch)
+                            ? new Intl.DateTimeFormat(lang === 'hr' ? 'hr-HR' : 'en-US', { day: 'numeric', month: 'long' })
+                              .format(new Date(`${isoFromDayMonth(dayMonthSearch)}T00:00:00`))
+                            : t('collection.pickDayMonth')}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent>
+                        <Calendar
+                          selected={isoFromDayMonth(dayMonthSearch)}
+                          onSelect={(iso) => setDayMonthSearch(dayMonthFromIso(iso))}
+                          lang={lang}
+                          showYear={false}
+                        />
+                      </PopoverContent>
+                    </Popover>
                   )}
                   {dateFilterMode === 'year' && (
                     <input
