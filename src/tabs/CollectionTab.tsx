@@ -95,6 +95,22 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 }
 
 function parseCompleteDateQuery(query: string): string | null {
+  // Check the raw (not-yet-whitespace-stripped) value first: DatePartsInput (joinDateParts)
+  // always emits day/month/year as separate space-joined tokens, e.g. "1 12 2026". Splitting on
+  // whitespace here preserves the field boundaries the user actually typed. Falling through to
+  // normalizeDateQuery + the compact-digit regex below would concatenate tokens of unknown
+  // length (e.g. "1" + "12" + "2026" -> "1122026") and re-split them ambiguously, silently
+  // misreading day=1/month=12 as day=11/month=02. See collection-search-sort-bugs debug session.
+  const rawParts = query.trim().split(/\s+/).filter(Boolean);
+  if (rawParts.length === 3 && rawParts.every((part) => /^\d{1,4}$/.test(part))) {
+    const [day, month, year] = rawParts;
+    if (year.length !== 4 || day.length > 2 || month.length > 2) return null;
+    const dayNum = Number(day);
+    const monthNum = Number(month);
+    if (dayNum < 1 || dayNum > 31 || monthNum < 1 || monthNum > 12) return null;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
   const q = normalizeDateQuery(query);
   let match = q.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
   if (match) {
@@ -691,6 +707,7 @@ export default function CollectionTab() {
   const [monthSearch, setMonthSearch] = useState('');
   const [yearSearch, setYearSearch] = useState('');
   const [dayMonthSearch, setDayMonthSearch] = useState('');
+  const [speciesSortMode, setSpeciesSortMode] = useState<'recent' | 'alpha'>('recent');
   const deferredSearch = useDeferredValue(search);
   const deferredLocationSearch = useDeferredValue(locationSearch);
   const deferredDateSearch = useDeferredValue(dateSearch);
@@ -918,7 +935,10 @@ export default function CollectionTab() {
     [folderSummaries],
   );
 
-  const groups = allGroups;
+  const groups = useMemo(() => {
+    if (speciesSortMode !== 'alpha') return allGroups;
+    return [...allGroups].sort(([nameA], [nameB]) => compareSpeciesNames(nameA, nameB));
+  }, [allGroups, speciesSortMode]);
 
   useEffect(() => {
     if (!selectedCollectionSpecies) return;
@@ -1298,6 +1318,34 @@ export default function CollectionTab() {
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
+            </div>
+            <div
+              className="flex flex-shrink-0 items-center gap-0.5 rounded-md border border-border bg-input p-0.5"
+              role="group"
+              aria-label={t('collection.sortMode')}
+            >
+              <button
+                type="button"
+                onClick={() => setSpeciesSortMode('recent')}
+                className={`rounded px-2 py-1 text-[11px] font-medium transition-colors ${
+                  speciesSortMode === 'recent'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                }`}
+              >
+                {t('collection.sortRecent')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSpeciesSortMode('alpha')}
+                className={`rounded px-2 py-1 text-[11px] font-medium transition-colors ${
+                  speciesSortMode === 'alpha'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                }`}
+              >
+                {t('collection.sortAlphabetical')}
+              </button>
             </div>
             <Button variant="ghost" size="sm" onClick={enterSelectMode} className="gap-1.5 flex-shrink-0 text-muted-foreground hover:text-foreground">
               <CheckSquare className="h-3.5 w-3.5" />

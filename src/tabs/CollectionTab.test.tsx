@@ -375,4 +375,76 @@ describe('date filter modes', () => {
       expect(lastCall?.filters).not.toHaveProperty('datePrefix');
     });
   });
+
+  // Regression test for collection-search-sort-bugs: parseCompleteDateQuery's compact-digit
+  // fallback regex could not disambiguate day vs month when their digit lengths differed (e.g.
+  // day=1, month=12), silently producing a wrong ISO date (2026-02-11 instead of 2026-12-01).
+  it('produces the correct exact-mode dateStart/dateEnd when day is a single digit and month is two digits', async () => {
+    const foldersSpy = vi.fn(() => []);
+    invokeHandlers['get_collection_folders'] = foldersSpy;
+
+    renderTab();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Date search mode')).toBeInTheDocument();
+    });
+
+    // default mode is 'exact'
+    const dayInput = screen.getByPlaceholderText('dd');
+    const monthInput = screen.getByPlaceholderText('mm');
+    const yearInput = screen.getByPlaceholderText('yyyy');
+    fireEvent.change(dayInput, { target: { value: '1' } });
+    fireEvent.change(monthInput, { target: { value: '12' } });
+    fireEvent.change(yearInput, { target: { value: '2026' } });
+
+    await waitFor(() => {
+      const lastCall = foldersSpy.mock.calls.at(-1)?.[0] as { filters?: Record<string, unknown> } | undefined;
+      expect(lastCall?.filters).toEqual(
+        expect.objectContaining({ dateStart: '2026-12-01', dateEnd: '2026-12-01' }),
+      );
+    });
+  });
+});
+
+describe('species sort mode', () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      storagePath: '/storage/test',
+      dbReady: true,
+      language: 'en',
+      selectedCollectionSpecies: null,
+    });
+    invokeHandlers['get_species_notes'] = () => [];
+    invokeHandlers['get_species_profiles'] = () => [];
+    invokeHandlers['upsert_species_profile'] = () => undefined;
+    invokeHandlers['get_finds'] = () => [find1, find2];
+  });
+
+  it('reorders species folders alphabetically when Alphabetical sort is selected', async () => {
+    // Backend order is latest-date-first (Chanterelle newest, Amanita oldest) — the opposite
+    // of alphabetical order — so this test would fail if the frontend sort toggle were a no-op.
+    invokeHandlers['get_collection_folders'] = () => [
+      { species_name: 'Chanterelle', find_count: 1, photo_count: 1, favorite_count: 0, latest_date: '2024-06-01', representative_find: find2 },
+      { species_name: 'Amanita muscaria', find_count: 1, photo_count: 1, favorite_count: 0, latest_date: '2024-05-10', representative_find: find1 },
+    ];
+
+    renderTab();
+
+    await waitFor(() => {
+      expect(screen.getByText('Chanterelle')).toBeInTheDocument();
+      expect(screen.getByText('Amanita muscaria')).toBeInTheDocument();
+    });
+
+    const getOrderedNames = () =>
+      screen.getAllByText(/Chanterelle|Amanita muscaria/).map((el) => el.textContent);
+
+    // Default sort ('recent') preserves backend order: Chanterelle before Amanita.
+    expect(getOrderedNames()).toEqual(['Chanterelle', 'Amanita muscaria']);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Alphabetical' }));
+
+    await waitFor(() => {
+      expect(getOrderedNames()).toEqual(['Amanita muscaria', 'Chanterelle']);
+    });
+  });
 });
