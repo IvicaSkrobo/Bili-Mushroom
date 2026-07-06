@@ -187,6 +187,56 @@ describe('CollectionTab', () => {
     expect(useAppStore.getState().selectedCollectionSpecies).toBeNull();
   });
 
+  it('opens the requested species when its name contains *markup* asterisks even with a stale search active (regression: open-in-collection-no-op)', async () => {
+    // Species names may contain `*asterisk*` bold/non-bold display markup (see src/lib/speciesName.tsx).
+    // CollectionTab is kept mounted across tab switches via `forceMount` in AppShell.tsx, so its
+    // `search` state can already hold a stale/unrelated value from a previous visit when the
+    // "Otvori u zbirci" jump signal arrives from the Species tab. This mock mirrors the real Rust
+    // `get_collection_folders` filtering behavior: it applies `speciesQuery` as a case-insensitive
+    // substring match against the species name with '*' stripped from BOTH sides (matching the
+    // fixed SQL: LOWER(REPLACE(species_name, '*', '')) LIKE '%<plain query>%'). Without the fix,
+    // the effect fed the RAW markup name into the search filter and the server-side match would
+    // fail even after the stale filter clears, leaving the jump a permanent no-op.
+    const markupFind: Find = {
+      ...find1,
+      id: 3,
+      species_name: '*Vrganj* smrekov',
+    };
+    invokeHandlers['get_finds'] = (args: unknown) => {
+      const filters = (args as { filters?: { speciesQuery?: string } })?.filters;
+      const all = [markupFind, find2];
+      const q = filters?.speciesQuery?.trim().toLowerCase();
+      if (!q) return all;
+      return all.filter((f) => f.species_name.toLowerCase().replace(/\*/g, '').includes(q));
+    };
+
+    // Simulate CollectionTab already mounted with an unrelated, non-matching search active
+    // (e.g. left over from a previous visit) BEFORE the jump signal arrives.
+    renderTab();
+    await waitFor(() => {
+      expect(screen.getAllByText('Boletus edulis').length).toBeGreaterThan(0);
+    });
+    fireEvent.change(screen.getByPlaceholderText('Search species…'), { target: { value: 'something unrelated' } });
+    await waitFor(() => {
+      expect(screen.queryByText('Boletus edulis')).toBeNull();
+    });
+
+    // Now the user clicks "Otvori u zbirci" on the Species tab for the markup-named species.
+    useAppStore.setState({ selectedCollectionSpecies: '*Vrganj* smrekov' });
+
+    // Species names render as split <span> nodes (bold/non-bold via renderSpeciesName), so match
+    // on the search input value (plain, asterisk-stripped) and the folder heading's full text
+    // content rather than a single exact text node.
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Search species…')).toHaveValue('Vrganj smrekov');
+      expect(
+        screen.getAllByText((_, element) => element?.textContent === 'Vrganj smrekov').length,
+      ).toBeGreaterThan(0);
+    });
+
+    expect(useAppStore.getState().selectedCollectionSpecies).toBeNull();
+  });
+
   it('allows setting the representative species photo from the collection lightbox', async () => {
     invokeHandlers['get_finds'] = () => [
       {

@@ -919,10 +919,15 @@ export default function CollectionTab() {
       ?? allGroups.find(([name]) => plainTarget.startsWith(plainSpeciesName(name).toLowerCase()))?.[0]
       ?? null;
     const resolvedSpecies = matchedSpecies ?? rawTarget;
+    // Use the plain (markup-stripped) name for the search box/filter query. The stored species
+    // name may contain `*asterisk*` display markup; feeding that raw into the search filter is
+    // purely cosmetic here since the server-side query already strips '*' before matching, but
+    // showing literal asterisks in the search input would be a confusing artifact.
+    const displayTarget = plainSpeciesName(rawTarget);
 
     setExpanded(new Set([resolvedSpecies]));
     setExpandedFinds(new Set());
-    setSearch((current) => (current === rawTarget ? current : rawTarget));
+    setSearch((current) => (current === displayTarget ? current : displayTarget));
     setLocationSearch('');
     setDateSearch('');
     setDateSearchEnd('');
