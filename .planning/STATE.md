@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-04-09)
 Phase: 04.2 complete — MAINTENANCE
 Plan: Post-phase maintenance
 Status: Completed planned phase work; maintenance fixes and planning artifacts are synced to the current shipped behavior
-Last activity: 2026-07-05 - Completed quick task 260705-wvk: added day+month date search filter (find same time of year across all years)
+Last activity: 2026-07-06 - Completed quick task 260706-b7f: Collection tab defaults to Alphabetical sort
 
 Progress: [████████░░] 79%
 
@@ -180,6 +180,7 @@ Recent decisions affecting current work:
 | 260512-find-row-open-lightbox-or-edit | 2026-05-12 | CollectionTab: find row click always opens lightbox (first photo) or EditFindDialog (no photos); chevron converted to standalone expand button with stopPropagation. SpeciesTab: find row click opens lightbox or EditFindDialog for no-photo finds; EditFindDialog imported + wired; PhotoLightbox onEditFind handler connected. |
 | 260512-map-topo-notes-editor-fixes | 2026-05-12 | LayerSwitcher: replaced OpenTopoMap with ESRI World Topo (elevation contours, more reliable). SpeciesNameEditor: flex→block + overflow-x:auto + scrollbar hidden so long names scroll without escaping bounds. PhotoLightbox: inline notes add/edit with textarea + save/cancel; always shows notes section with Dodaj/Uredi button. |
 | 260512-species-synonyms-other-names | 2026-05-12 | Migration 0018 adds synonyms+other_names TEXT columns to species_profiles. Rust SpeciesProfile extended + upsert/get updated. TS type + upsertSpeciesProfile + hook extended. FolderEditDialog: tag-chip add/remove UI for both fields. CollectionTab: passes synonyms/other_names through onSave + displays in folder header. SpeciesTab: inline add/remove chips for both fields with per-field handlers. i18n: 8 keys (hr+en). Rust roundtrip test + lib.rs user_version bumped to 18. |
+| 260706-b7f collection-alphabetical-default | 2026-07-06 | CollectionTab: speciesSortMode default changed from 'recent' to 'alpha' — Zbirka now opens alphabetically sorted by default; Recent/Alphabetical toggle unchanged and fully functional. Test updated to match new default. |
 
 ### Roadmap Evolution
 

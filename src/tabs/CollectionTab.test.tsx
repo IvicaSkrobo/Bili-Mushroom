@@ -438,13 +438,13 @@ describe('species sort mode', () => {
     const getOrderedNames = () =>
       screen.getAllByText(/Chanterelle|Amanita muscaria/).map((el) => el.textContent);
 
-    // Default sort ('recent') preserves backend order: Chanterelle before Amanita.
-    expect(getOrderedNames()).toEqual(['Chanterelle', 'Amanita muscaria']);
+    // Default sort is now 'alpha': Amanita muscaria before Chanterelle.
+    expect(getOrderedNames()).toEqual(['Amanita muscaria', 'Chanterelle']);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Alphabetical' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Recent' }));
 
     await waitFor(() => {
-      expect(getOrderedNames()).toEqual(['Amanita muscaria', 'Chanterelle']);
+      expect(getOrderedNames()).toEqual(['Chanterelle', 'Amanita muscaria']);
     });
   });
 });

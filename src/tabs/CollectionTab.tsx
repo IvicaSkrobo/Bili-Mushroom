@@ -707,7 +707,7 @@ export default function CollectionTab() {
   const [monthSearch, setMonthSearch] = useState('');
   const [yearSearch, setYearSearch] = useState('');
   const [dayMonthSearch, setDayMonthSearch] = useState('');
-  const [speciesSortMode, setSpeciesSortMode] = useState<'recent' | 'alpha'>('recent');
+  const [speciesSortMode, setSpeciesSortMode] = useState<'recent' | 'alpha'>('alpha');
   const deferredSearch = useDeferredValue(search);
   const deferredLocationSearch = useDeferredValue(locationSearch);
   const deferredDateSearch = useDeferredValue(dateSearch);
