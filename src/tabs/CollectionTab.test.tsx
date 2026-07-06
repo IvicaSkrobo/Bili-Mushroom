@@ -329,6 +329,8 @@ describe('date filter modes', () => {
 
     renderTab();
 
+    fireEvent.click(await screen.findByRole('button', { name: 'Filters' }));
+
     await waitFor(() => {
       expect(screen.getByLabelText('Date search mode')).toBeInTheDocument();
     });
@@ -357,6 +359,8 @@ describe('date filter modes', () => {
 
     renderTab();
 
+    fireEvent.click(await screen.findByRole('button', { name: 'Filters' }));
+
     await waitFor(() => {
       expect(screen.getByLabelText('Date search mode')).toBeInTheDocument();
     });
@@ -384,6 +388,8 @@ describe('date filter modes', () => {
     invokeHandlers['get_collection_folders'] = foldersSpy;
 
     renderTab();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Filters' }));
 
     await waitFor(() => {
       expect(screen.getByLabelText('Date search mode')).toBeInTheDocument();

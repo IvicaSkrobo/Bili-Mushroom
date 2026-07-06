@@ -1,8 +1,9 @@
 import { memo, useState, useMemo, useEffect, useRef, useDeferredValue, useCallback, type ReactNode } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { GalleryHorizontal, Plus, ChevronDown, ChevronRight, FolderOpen, Search, X, CheckSquare, Pencil, Star, SquarePen, Trash2, BookOpen, Map as MapIcon, CalendarDays, MapPin } from 'lucide-react';
+import { GalleryHorizontal, Plus, ChevronDown, ChevronRight, FolderOpen, Search, X, CheckSquare, Pencil, Star, SquarePen, Trash2, BookOpen, Map as MapIcon, CalendarDays, MapPin, SlidersHorizontal } from 'lucide-react';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
 import { ImportDialog } from '@/components/import/ImportDialog';
@@ -1178,7 +1179,7 @@ export default function CollectionTab() {
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-border/60">
+      <div className="flex flex-wrap items-center gap-3 gap-y-2 px-4 pt-4 pb-3 border-b border-border/60">
         {selectMode ? (
           <>
             <span className="flex-1 text-sm text-muted-foreground">
@@ -1217,108 +1218,131 @@ export default function CollectionTab() {
               )}
             </div>
 
-            <div className="relative w-56 flex-shrink-0">
-              <MapPin className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-              <input
-                type="text"
-                value={locationSearch}
-                onChange={(e) => setLocationSearch(e.target.value)}
-                placeholder={t('collection.locationSearch')}
-                aria-label={t('collection.locationSearch')}
-                className="h-9 w-full rounded-md border border-border bg-input pl-8 pr-8 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40 transition-colors"
-              />
-              {isLocationSearching && (
-                <button
-                  type="button"
-                  onClick={() => setLocationSearch('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label={t('collection.clearLocationSearch')}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-
             {/* Toast message */}
             {importMsg && (
               <span className="text-xs font-medium text-primary whitespace-nowrap">{importMsg}</span>
             )}
-            <div className="flex flex-shrink-0 items-center gap-1 rounded-md border border-border bg-input px-1 py-1">
-              <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-              <select
-                value={dateFilterMode}
-                onChange={(e) => {
-                  setDateFilterMode(e.target.value as 'exact' | 'range' | 'month' | 'year' | 'dayMonth');
-                  clearDateSearch();
-                }}
-                aria-label={t('collection.dateSearchMode')}
-                className="h-7 rounded bg-transparent px-1 text-[11px] text-muted-foreground outline-none"
-              >
-                <option value="exact">{t('collection.dateModeExact')}</option>
-                <option value="range">{t('collection.dateModeRange')}</option>
-                <option value="month">{t('collection.dateModeMonth')}</option>
-                <option value="dayMonth">{t('collection.dateModeDayMonth')}</option>
-                <option value="year">{t('collection.dateModeYear')}</option>
-              </select>
-              {dateFilterMode === 'exact' && (
-                <DatePartsInput
-                  value={dateSearch}
-                  onChange={setDateSearch}
-                  aria-label={t('collection.dateSearch')}
-                />
-              )}
-              {dateFilterMode === 'range' && (
-                <>
-                  <DatePartsInput
-                    value={dateSearch}
-                    onChange={setDateSearch}
-                    aria-label={t('collection.dateSearchFrom')}
-                  />
-                  <span className="text-muted-foreground/50">-</span>
-                  <DatePartsInput
-                    value={dateSearchEnd}
-                    onChange={setDateSearchEnd}
-                    aria-label={t('collection.dateSearchTo')}
-                  />
-                </>
-              )}
-              {dateFilterMode === 'month' && (
-                <DatePartsInput
-                  value={monthSearch}
-                  onChange={setMonthSearch}
-                  includeDay={false}
-                  aria-label={t('collection.monthSearch')}
-                />
-              )}
-              {dateFilterMode === 'dayMonth' && (
-                <DatePartsInput
-                  value={dayMonthSearch}
-                  onChange={setDayMonthSearch}
-                  includeYear={false}
-                  aria-label={t('collection.dayMonthSearch')}
-                />
-              )}
-              {dateFilterMode === 'year' && (
-                <input
-                  type="text"
-                  value={yearSearch}
-                  onChange={(e) => setYearSearch(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  placeholder="2026"
-                  aria-label={t('collection.yearSearch')}
-                  className="h-7 w-16 rounded bg-transparent px-1 text-xs text-foreground outline-none"
-                />
-              )}
-              {isDateSearching && (
-                <button
-                  type="button"
-                  onClick={clearDateSearch}
-                  className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label={t('collection.clearDateSearch')}
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={isLocationSearching || isDateSearching ? 'secondary' : 'outline'}
+                  size="sm"
+                  className={`relative gap-1.5 flex-shrink-0 ${isLocationSearching || isDateSearching ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  aria-label={
+                    isLocationSearching || isDateSearching
+                      ? t('collection.filtersActive')
+                      : t('collection.filtersButton')
+                  }
                 >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  {t('collection.filtersButton')}
+                  {(isLocationSearching || isDateSearching) && (
+                    <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-primary" />
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto space-y-2">
+                <div className="relative w-56">
+                  <MapPin className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                  <input
+                    type="text"
+                    value={locationSearch}
+                    onChange={(e) => setLocationSearch(e.target.value)}
+                    placeholder={t('collection.locationSearch')}
+                    aria-label={t('collection.locationSearch')}
+                    className="h-9 w-full rounded-md border border-border bg-input pl-8 pr-8 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40 transition-colors"
+                  />
+                  {isLocationSearching && (
+                    <button
+                      type="button"
+                      onClick={() => setLocationSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label={t('collection.clearLocationSearch')}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-1 rounded-md border border-border bg-input px-1 py-1">
+                  <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+                  <select
+                    value={dateFilterMode}
+                    onChange={(e) => {
+                      setDateFilterMode(e.target.value as 'exact' | 'range' | 'month' | 'year' | 'dayMonth');
+                      clearDateSearch();
+                    }}
+                    aria-label={t('collection.dateSearchMode')}
+                    className="h-7 rounded bg-transparent px-1 text-[11px] text-muted-foreground outline-none"
+                  >
+                    <option value="exact">{t('collection.dateModeExact')}</option>
+                    <option value="range">{t('collection.dateModeRange')}</option>
+                    <option value="month">{t('collection.dateModeMonth')}</option>
+                    <option value="dayMonth">{t('collection.dateModeDayMonth')}</option>
+                    <option value="year">{t('collection.dateModeYear')}</option>
+                  </select>
+                  {dateFilterMode === 'exact' && (
+                    <DatePartsInput
+                      value={dateSearch}
+                      onChange={setDateSearch}
+                      aria-label={t('collection.dateSearch')}
+                    />
+                  )}
+                  {dateFilterMode === 'range' && (
+                    <>
+                      <DatePartsInput
+                        value={dateSearch}
+                        onChange={setDateSearch}
+                        aria-label={t('collection.dateSearchFrom')}
+                      />
+                      <span className="text-muted-foreground/50">-</span>
+                      <DatePartsInput
+                        value={dateSearchEnd}
+                        onChange={setDateSearchEnd}
+                        aria-label={t('collection.dateSearchTo')}
+                      />
+                    </>
+                  )}
+                  {dateFilterMode === 'month' && (
+                    <DatePartsInput
+                      value={monthSearch}
+                      onChange={setMonthSearch}
+                      includeDay={false}
+                      aria-label={t('collection.monthSearch')}
+                    />
+                  )}
+                  {dateFilterMode === 'dayMonth' && (
+                    <DatePartsInput
+                      value={dayMonthSearch}
+                      onChange={setDayMonthSearch}
+                      includeYear={false}
+                      aria-label={t('collection.dayMonthSearch')}
+                    />
+                  )}
+                  {dateFilterMode === 'year' && (
+                    <input
+                      type="text"
+                      value={yearSearch}
+                      onChange={(e) => setYearSearch(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                      placeholder="2026"
+                      aria-label={t('collection.yearSearch')}
+                      className="h-7 w-16 rounded bg-transparent px-1 text-xs text-foreground outline-none"
+                    />
+                  )}
+                  {isDateSearching && (
+                    <button
+                      type="button"
+                      onClick={clearDateSearch}
+                      className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label={t('collection.clearDateSearch')}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+
             <div
               className="flex flex-shrink-0 items-center gap-0.5 rounded-md border border-border bg-input p-0.5"
               role="group"
@@ -1360,19 +1384,21 @@ export default function CollectionTab() {
               <Star className={`h-3.5 w-3.5 ${favoritesOnly ? 'fill-primary' : ''}`} />
               {t('collection.favoritesFilter', { n: favoriteCount })}
             </Button>
-            <Button
-              onClick={() => setCreateFindOpen(true)}
-              size="sm"
-              variant="outline"
-              className="gap-1.5 flex-shrink-0"
-            >
-              <SquarePen className="h-3.5 w-3.5" />
-              {t('collection.newFind')}
-            </Button>
-            <Button onClick={() => setImportOpen(true)} size="sm" className="gap-1.5 flex-shrink-0">
-              <Plus className="h-3.5 w-3.5" />
-              {t('collection.importBtn')}
-            </Button>
+            <div className="ml-auto flex flex-shrink-0 items-center gap-2">
+              <Button
+                onClick={() => setCreateFindOpen(true)}
+                size="sm"
+                variant="outline"
+                className="gap-1.5 flex-shrink-0"
+              >
+                <SquarePen className="h-3.5 w-3.5" />
+                {t('collection.newFind')}
+              </Button>
+              <Button onClick={() => setImportOpen(true)} size="sm" className="gap-1.5 flex-shrink-0">
+                <Plus className="h-3.5 w-3.5" />
+                {t('collection.importBtn')}
+              </Button>
+            </div>
           </>
         )}
       </div>
