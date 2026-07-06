@@ -8,8 +8,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::commands::import::{
-    find_record_from_row, insert_find_photo, insert_find_row, open_db, remember_source_path,
-    upsert_species_common_name, FindPhoto, FindRecord,
+    find_record_from_row, first_gps_coords_from_paths, insert_find_photo, insert_find_row,
+    open_db, remember_source_path, upsert_species_common_name, FindPhoto, FindRecord,
 };
 use crate::commands::path_builder::{
     build_dest_path, next_seq_for_folder, plain_species_name, resolve_location_component,
@@ -1239,6 +1239,19 @@ pub async fn add_find_photos(
 
         insert_find_photo(&conn, find_id, &relative, false)
             .map_err(|e| format!("DB insert photo failed: {}", e))?;
+    }
+
+    // Backfill find lat/lng from the first GPS-tagged newly-added photo, but only if
+    // the find does not already have coordinates. Manual edits (via EditFindDialog)
+    // always win — this UPDATE is a no-op if either lat or lng is already set.
+    if let Some((lat, lng)) = first_gps_coords_from_paths(
+        &source_paths.iter().map(String::as_str).collect::<Vec<_>>(),
+    ) {
+        conn.execute(
+            "UPDATE finds SET lat = ?1, lng = ?2 WHERE id = ?3 AND lat IS NULL AND lng IS NULL",
+            params![lat, lng, find_id],
+        )
+        .map_err(|e| format!("Failed to backfill lat/lng from EXIF: {}", e))?;
     }
 
     // Re-query the full find record with photos
@@ -2556,6 +2569,133 @@ mod tests {
         assert_eq!(
             got_other_names, other_names,
             "other_names round-trip must match"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // add_find_photos lat/lng backfill guard tests
+    // (auto-populate-find-lat-lng-from-photo-exif)
+    // -----------------------------------------------------------------------
+
+    fn make_find_record_with_coords(
+        filename: &str,
+        date: &str,
+        lat: Option<f64>,
+        lng: Option<f64>,
+    ) -> FindRecord {
+        let mut record = make_find_record(filename, date);
+        record.lat = lat;
+        record.lng = lng;
+        record
+    }
+
+    #[test]
+    fn test_backfill_update_sets_lat_lng_when_find_has_none() {
+        let conn = setup_in_memory_db();
+        let record = make_find_record_with_coords("photo.jpg", "2024-05-10", None, None);
+        let find_id = insert_find_row(&conn, &record).expect("insert find");
+
+        let rows_affected = conn
+            .execute(
+                "UPDATE finds SET lat = ?1, lng = ?2 WHERE id = ?3 AND lat IS NULL AND lng IS NULL",
+                rusqlite::params![45.5, 16.0, find_id],
+            )
+            .expect("guarded update should succeed");
+
+        assert_eq!(rows_affected, 1, "should update the single null-coords row");
+
+        let (lat, lng): (Option<f64>, Option<f64>) = conn
+            .query_row(
+                "SELECT lat, lng FROM finds WHERE id = ?1",
+                rusqlite::params![find_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("query find");
+        assert_eq!(lat, Some(45.5));
+        assert_eq!(lng, Some(16.0));
+    }
+
+    #[test]
+    fn test_backfill_update_never_changes_already_set_lat_lng() {
+        let conn = setup_in_memory_db();
+        let record =
+            make_find_record_with_coords("photo.jpg", "2024-05-10", Some(44.0), Some(15.0));
+        let find_id = insert_find_row(&conn, &record).expect("insert find");
+
+        let rows_affected = conn
+            .execute(
+                "UPDATE finds SET lat = ?1, lng = ?2 WHERE id = ?3 AND lat IS NULL AND lng IS NULL",
+                rusqlite::params![45.5, 16.0, find_id],
+            )
+            .expect("guarded update should succeed as a no-op");
+
+        assert_eq!(
+            rows_affected, 0,
+            "guarded update must not touch an already-set find"
+        );
+
+        let (lat, lng): (Option<f64>, Option<f64>) = conn
+            .query_row(
+                "SELECT lat, lng FROM finds WHERE id = ?1",
+                rusqlite::params![find_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("query find");
+        assert_eq!(lat, Some(44.0), "original manual lat must be intact");
+        assert_eq!(lng, Some(15.0), "original manual lng must be intact");
+    }
+
+    #[test]
+    fn test_backfill_sql_guard_only_affects_rows_with_both_lat_and_lng_null() {
+        let conn = setup_in_memory_db();
+
+        let null_coords_record =
+            make_find_record_with_coords("null.jpg", "2024-05-10", None, None);
+        let null_coords_id = insert_find_row(&conn, &null_coords_record).expect("insert find");
+
+        let set_coords_record =
+            make_find_record_with_coords("set.jpg", "2024-05-10", Some(44.0), Some(15.0));
+        let set_coords_id = insert_find_row(&conn, &set_coords_record).expect("insert find");
+
+        let rows_affected_for_set = conn
+            .execute(
+                "UPDATE finds SET lat = ?1, lng = ?2 WHERE id = ?3 AND lat IS NULL AND lng IS NULL",
+                rusqlite::params![50.0, 20.0, set_coords_id],
+            )
+            .expect("guarded update should succeed");
+        assert_eq!(
+            rows_affected_for_set, 0,
+            "0 rows affected when lat/lng already set"
+        );
+
+        let rows_affected_for_null = conn
+            .execute(
+                "UPDATE finds SET lat = ?1, lng = ?2 WHERE id = ?3 AND lat IS NULL AND lng IS NULL",
+                rusqlite::params![50.0, 20.0, null_coords_id],
+            )
+            .expect("guarded update should succeed");
+        assert_eq!(
+            rows_affected_for_null, 1,
+            "1 row affected when both lat/lng are null"
+        );
+    }
+
+    #[test]
+    fn test_first_gps_coords_from_paths_reachable_from_finds_module() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path_a = dir.path().join("a.jpg");
+        let path_b = dir.path().join("b.jpg");
+        std::fs::write(&path_a, b"AAAA").unwrap();
+        std::fs::write(&path_b, b"BBBB").unwrap();
+
+        let path_a_str = path_a.to_string_lossy().to_string();
+        let path_b_str = path_b.to_string_lossy().to_string();
+        let paths = [path_a_str.as_str(), path_b_str.as_str()];
+
+        assert_eq!(
+            first_gps_coords_from_paths(&paths),
+            None,
+            "cross-module import should compile and behave like import.rs's own tests"
         );
     }
 }
