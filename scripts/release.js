@@ -102,7 +102,7 @@ function syncVersions(nextVersion) {
 
   replaceVersionInText(
     cargoLockPath,
-    /(\[\[package\]\]\nname = "gljivobook"\nversion = ")([^"]+)(")/m,
+    /(\[\[package\]\]\r?\nname = "gljivobook"\r?\nversion = ")([^"]+)(")/m,
     nextVersion,
   );
 
