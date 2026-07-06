@@ -308,3 +308,71 @@ describe('CollectionTab', () => {
     expect(invalidateSpy).toBeDefined();
   });
 });
+
+describe('date filter modes', () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      storagePath: '/storage/test',
+      dbReady: true,
+      language: 'en',
+      selectedCollectionSpecies: null,
+    });
+    invokeHandlers['get_species_notes'] = () => [];
+    invokeHandlers['get_species_profiles'] = () => [];
+    invokeHandlers['upsert_species_profile'] = () => undefined;
+    invokeHandlers['get_finds'] = () => [find1, find2];
+  });
+
+  it('produces dateDayMonth filter (zero-padded) when day+month mode has complete day and month', async () => {
+    const foldersSpy = vi.fn(() => []);
+    invokeHandlers['get_collection_folders'] = foldersSpy;
+
+    renderTab();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Date search mode')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('Date search mode'), { target: { value: 'dayMonth' } });
+
+    const dayInput = screen.getByPlaceholderText('dd');
+    const monthInput = screen.getByPlaceholderText('mm');
+    fireEvent.change(dayInput, { target: { value: '20' } });
+    fireEvent.change(monthInput, { target: { value: '05' } });
+
+    await waitFor(() => {
+      const lastCall = foldersSpy.mock.calls.at(-1)?.[0] as { filters?: Record<string, unknown> } | undefined;
+      expect(lastCall?.filters).toEqual(
+        expect.objectContaining({ dateDayMonth: '05-20' }),
+      );
+      expect(lastCall?.filters).not.toHaveProperty('dateStart');
+      expect(lastCall?.filters).not.toHaveProperty('dateEnd');
+      expect(lastCall?.filters).not.toHaveProperty('datePrefix');
+    });
+  });
+
+  it('produces no date filter when day+month mode has incomplete input', async () => {
+    const foldersSpy = vi.fn(() => []);
+    invokeHandlers['get_collection_folders'] = foldersSpy;
+
+    renderTab();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Date search mode')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('Date search mode'), { target: { value: 'dayMonth' } });
+
+    const dayInput = screen.getByPlaceholderText('dd');
+    fireEvent.change(dayInput, { target: { value: '20' } });
+    // month left empty
+
+    await waitFor(() => {
+      const lastCall = foldersSpy.mock.calls.at(-1)?.[0] as { filters?: Record<string, unknown> } | undefined;
+      expect(lastCall?.filters).not.toHaveProperty('dateDayMonth');
+      expect(lastCall?.filters).not.toHaveProperty('dateStart');
+      expect(lastCall?.filters).not.toHaveProperty('dateEnd');
+      expect(lastCall?.filters).not.toHaveProperty('datePrefix');
+    });
+  });
+});

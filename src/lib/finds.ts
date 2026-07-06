@@ -64,6 +64,7 @@ export interface FindSearchFilters {
   dateStart?: string;
   dateEnd?: string;
   datePrefix?: string;
+  dateDayMonth?: string;
   photosMode?: 'all' | 'primary';
   limit?: number;
   offset?: number;
