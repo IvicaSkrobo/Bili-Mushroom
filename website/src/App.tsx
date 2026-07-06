@@ -2,7 +2,6 @@ import {
   BookOpen,
   ChevronDown,
   ChevronRight,
-  ClipboardList,
   Download,
   ExternalLink,
   FolderOpen,
@@ -98,10 +97,10 @@ const bugReportEndpoint = 'https://gljivobook-bug-report.skroboivica.workers.dev
 
 const copy = {
   en: {
-    eyebrow: 'Local-first field journal for Windows',
+    eyebrow: 'Offline field journal for Windows',
     title: 'Gljivobook',
     subtitle: 'Your foraging journal',
-    intro: 'A quiet Windows app for saving mushroom finds, photos, notes, folders, maps, and seasons on your own computer.',
+    intro: 'A Windows app for logging mushroom finds with photos, notes, maps, and species history — all stored locally on your computer.',
     download: 'Download for Windows',
     releaseDetails: 'Release details',
     installerReady: 'Direct installer',
@@ -113,7 +112,7 @@ const copy = {
     support: 'Donate',
     supportHero: 'Donate if you like the app',
     latest: 'Latest release',
-    changelog: 'Small changelog',
+    changelog: 'What\'s new',
     language: 'Hrvatski',
     nav: ['Download', 'Community', 'Donate'],
     theme: 'Theme',
@@ -121,14 +120,14 @@ const copy = {
     pillars: [
       ['Collect', 'Photos, notes, species, dates, and folders stay together.'],
       ['Map', 'Filter your own finds by species, region, date, and zones.'],
-      ['Understand', 'See seasons, outings, locations, and personal species history.'],
+      ['Track', 'See seasons, outings, locations, and personal species history.'],
     ],
-    workflowTitle: 'From find to archive',
-    workflowBody: 'Add a find once, then keep it editable, searchable, mapped, and tied to its folder.',
+    workflowTitle: 'How a find works',
+    workflowBody: 'Add a find once, then keep it editable, searchable, and mapped. Nothing gets lost.',
     workflow: [
       ['Add', 'Import photos or create a manual find.'],
       ['Edit', 'Correct species, date, location, notes, badges, and photos later.'],
-      ['Use', 'Open folders, filter maps, read stats, and export your archive.'],
+      ['Explore', 'Open folders, filter maps, read stats, and export your records.'],
     ],
     speciesTitle: 'Species pages',
     speciesBody: 'Every species in your collection gets its own page — notes, other names, edibility, recipes, best spots, and your personal finds over time.',
@@ -142,12 +141,12 @@ const copy = {
       'Finds, notes, folders, and photos stay on your computer. Core cataloging works without an account or cloud service.',
     responsibilityTitle: 'Shared in good faith',
     responsibilityBody:
-      'Gljivobook was first made to help a fellow forager keep a personal archive, then shared with anyone who may find it useful. I hope you like it. Please keep your own backups: your data stays local and remains yours, and I cannot take responsibility for data loss, damaged files, or decisions made from your records.',
+      'Made for a fellow forager, shared openly. Your data is local and stays yours — please keep your own backups. I cannot take responsibility for data loss, damaged files, or decisions made from your records.',
     communityTitle: 'Join the community',
     communityBody:
       'Ask questions, share your finds, leave release feedback, and suggest features — all through GitHub. Bug reports go directly from the app.',
     bugBoardTitle: 'Bug board',
-    bugBoardBody: 'Unlisted overview of open GitHub bug reports. Bug reporting itself stays inside the app.',
+    bugBoardBody: 'Live overview of open bug reports. To report a bug, use the in-app report button.',
     bugBoardLoading: 'Loading bug reports...',
     bugBoardEmpty: 'No public bug reports yet.',
     bugBoardAction: 'View all bugs',
@@ -157,7 +156,7 @@ const copy = {
     bugStatusFixed: 'Fixed - verify',
     bugStatusVerify: 'Needs verification',
     bugStatusVerified: 'Verified',
-    ideasTitle: 'Ideas users can vote on',
+    ideasTitle: 'Feature ideas',
     ideasBody:
       'Suggest features, vote with reactions, and push strong ideas toward funding goals.',
     ideaFlow: [
@@ -180,15 +179,15 @@ const copy = {
       'Import, manual add, edit details, crop, rotate, and export.',
     ],
     fundingGoalsTitle: 'App ideas that could come next',
-    fundingGoalsBody: 'App features, not website tasks. Amounts are rough priority goals.',
+    fundingGoalsBody: 'App features, not website tasks. Vote or donate to push ideas forward.',
     footer: 'Built for mushroom notes, maps, seasons, and local archives.',
     footerRepo: 'Source and releases',
   },
   hr: {
-    eyebrow: 'Lokalni gljivarski dnevnik za Windows',
+    eyebrow: 'Offline gljivarski dnevnik za Windows',
     title: 'Gljivobook',
     subtitle: 'Tvoj gljivarski dnevnik',
-    intro: 'Mirna Windows aplikacija za nalaze, fotografije, biljeske, foldere, karte i sezone na tvom racunalu.',
+    intro: 'Windows aplikacija za biljeske gljivarskih nalaza s fotografijama, kartama i povijescu vrsta — sve lokalno na tvom racunalu.',
     download: 'Preuzmi za Windows',
     releaseDetails: 'Detalji verzije',
     installerReady: 'Direktni installer',
@@ -200,7 +199,7 @@ const copy = {
     support: 'Doniraj',
     supportHero: 'Doniraj za Gljivobook',
     latest: 'Zadnja verzija',
-    changelog: 'Kratki changelog',
+    changelog: 'Sto je novo',
     language: 'English',
     nav: ['Preuzimanje', 'Zajednica', 'Doniraj'],
     theme: 'Tema',
@@ -208,14 +207,14 @@ const copy = {
     pillars: [
       ['Zbirka', 'Fotografije, biljeske, vrste, datumi i folderi ostaju zajedno.'],
       ['Mapa', 'Filtriraj svoje nalaze po vrsti, regiji, datumu i zonama.'],
-      ['Uvidi', 'Vidi sezone, izlaske, lokacije i povijest svake vrste.'],
+      ['Prati', 'Vidi sezone, izlaske, lokacije i povijest svake vrste.'],
     ],
-    workflowTitle: 'Od nalaza do arhive',
-    workflowBody: 'Unesi nalaz jednom, a kasnije ga mozes urediti, pretraziti, mapirati i otvoriti u folderu.',
+    workflowTitle: 'Kako funkcionira nalaz',
+    workflowBody: 'Unesi nalaz jednom, a zatim ga uredi, pretrazi i mapirati. Nista se ne gubi.',
     workflow: [
       ['Dodaj', 'Uvezi fotografije ili rucno napravi nalaz.'],
       ['Uredi', 'Popravi vrstu, datum, lokaciju, biljeske, badgeve i fotografije.'],
-      ['Koristi', 'Otvori foldere, filtriraj mapu, citaj statistiku i izvezi arhivu.'],
+      ['Istrazuj', 'Otvori foldere, filtriraj mapu, citaj statistiku i izvezi zapise.'],
     ],
     speciesTitle: 'Stranice vrsta',
     speciesBody: 'Svaka vrsta u tvojoj zbirci dobiva svoju stranicu — biljeske, drugi nazivi, jestivost, recepti, najbolja mjesta i tvoji osobni nalazi kroz vrijeme.',
@@ -229,11 +228,11 @@ const copy = {
       'Nalazi, biljeske, mape i fotografije ostaju na tvom racunalu. Osnovno katalogiziranje radi bez racuna i clouda.',
     responsibilityTitle: 'Podijeljeno u dobroj namjeri',
     responsibilityBody:
-      'Gljivobook je prvo napravljen da kolegi olaksa cuvanje osobne gljivarske arhive, a onda smo ga odlucili podijeliti svima koji ga zele koristiti za sebe. Nadam se da ce vam se svidjeti. Svi podaci su lokalni i samo vasi, zato molim cuvajte vlastite backup kopije: ne mogu preuzeti odgovornost za gubitak podataka, ostecene datoteke ili odluke donesene prema vasim zapisima.',
+      'Napravljeno za kolegu gljivara, podijeljeno otvoreno. Tvoji podaci su lokalni i samo tvoji — cuvaj vlastite backup kopije. Ne mogu preuzeti odgovornost za gubitak podataka, ostecene datoteke ili odluke donesene prema tvojim zapisima.',
     communityTitle: 'Pridruzi se zajednici',
     communityBody: 'Postavi pitanje, podijeli nalaz, ostavi komentar na release ili predlozi ideju — sve kroz GitHub. Bugovi se salju direktno iz aplikacije.',
     bugBoardTitle: 'Lista bugova',
-    bugBoardBody: 'Skriveni pregled otvorenih GitHub bug prijava. Sama prijava buga ostaje samo u aplikaciji.',
+    bugBoardBody: 'Pregled otvorenih prijava bugova. Za prijavu greske koristi gumb unutar aplikacije.',
     bugBoardLoading: 'Ucitavam bug prijave...',
     bugBoardEmpty: 'Jos nema javnih bug prijava.',
     bugBoardAction: 'Pogledaj sve bugove',
@@ -243,7 +242,7 @@ const copy = {
     bugStatusFixed: 'Rijeseno - provjeri',
     bugStatusVerify: 'Treba provjeriti',
     bugStatusVerified: 'Potvrdjeno',
-    ideasTitle: 'Ideje za koje korisnici mogu glasati',
+    ideasTitle: 'Ideje za funkcije',
     ideasBody:
       'Predlozi funkciju, drugi glasaju reakcijama, a jake ideje mogu u funding ciljeve.',
     ideaFlow: [
@@ -266,7 +265,7 @@ const copy = {
       'Uvoz, rucni unos, uredjivanje, crop, rotate i export.',
     ],
     fundingGoalsTitle: 'Ideje za aplikaciju koje mogu doci sljedece',
-    fundingGoalsBody: 'Funkcije aplikacije, ne website taskovi. Iznosi su okvirni ciljevi.',
+    fundingGoalsBody: 'Funkcije aplikacije, ne website taskovi. Glasaj ili doniraj da pogutas ideje naprijed.',
     footer: 'Gradeno za gljivarske biljeske, karte, sezone i lokalne arhive.',
     footerRepo: 'Kod i releaseovi',
   },
@@ -544,6 +543,22 @@ export function App() {
       });
     return () => controller.abort();
   }, [showHiddenBugs]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            (entry.target as HTMLElement).dataset.in = 'true';
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.08, rootMargin: '0px 0px -48px 0px' }
+    );
+    document.querySelectorAll('.section, .pillars').forEach(el => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
 
   const effectiveRelease = latestRelease && !isOlderVersion(latestRelease.tag_name, release.version) ? latestRelease : null;
   const releaseVersion = effectiveRelease?.tag_name ?? release.version;
@@ -1312,14 +1327,16 @@ export function App() {
           <div className="hero-visual" aria-label={`${t.title as string} app preview`}>
             <div className="window-shell">
               <div className="window-bar">
-                <span />
-                <span />
-                <span />
                 <strong>{t.title as string}</strong>
+                <div className="window-controls" aria-hidden="true">
+                  <span>─</span>
+                  <span>□</span>
+                  <span className="window-close">✕</span>
+                </div>
               </div>
               <img
-                src="./screenshots/screenshot-map.png"
-                alt={`${t.title as string} map view`}
+                src="./screenshots/complete-species-page.png"
+                alt={`${t.title as string} species view`}
                 width={1192}
                 height={638}
                 className="window-screenshot"
@@ -1371,7 +1388,6 @@ export function App() {
 
         <section className="section workflow-section">
           <div className="workflow-heading">
-            <p className="eyebrow"><ClipboardList size={15} />{lang === 'hr' ? 'Kako radi' : 'How it works'}</p>
             <h2>{t.workflowTitle as string}</h2>
             <p>{t.workflowBody as string}</p>
           </div>
@@ -1476,12 +1492,21 @@ export function App() {
               <a href="https://github.com/IvicaSkrobo/Bili-Mushroom/discussions">GitHub Discussions</a>
             </div>
           </div>
-          <div id="ideas" className="feature-panel">
-            <div className="title-with-icon">
-              <Vote size={24} />
-              <h2>{t.ideasTitle as string}</h2>
-            </div>
-            <p>{t.ideasBody as string}</p>
+        </section>
+
+        <GiscusPanel lang={lang} theme={theme} />
+
+        <section id="support" className="section split">
+          <div>
+            <p className="eyebrow"><Heart size={15} />{t.support as string}</p>
+            <h2>{t.fundingTitle as string}</h2>
+            <p>{t.fundingBody as string}</p>
+            {hasDonateUrl ? (
+              <a className="button secondary" href={donateUrl}>
+                {t.supportHero as string}
+                <ExternalLink size={16} />
+              </a>
+            ) : null}
             <div className="idea-flow" aria-label={lang === 'hr' ? 'Put ideje do funding cilja' : 'Idea to funding flow'}>
               {(t.ideaFlow as [string, string, string][]).map(([step, title, body]) => (
                 <article key={step}>
@@ -1489,15 +1514,6 @@ export function App() {
                   <span>{title}</span>
                   <p>{body}</p>
                 </article>
-              ))}
-            </div>
-            <div className="idea-list">
-              {visibleIdeas.map((idea) => (
-                <a className="idea" href={idea.url} key={idea.title}>
-                  <span>{lang === 'hr' ? idea.titleHr : idea.title}</span>
-                  <strong><Star size={14} /> {idea.votes}</strong>
-                  <em>{lang === 'hr' ? idea.statusHr : idea.status}</em>
-                </a>
               ))}
             </div>
             <div className="link-row compact-links">
@@ -1511,40 +1527,23 @@ export function App() {
               </a>
             </div>
           </div>
+          <div className="funding-card">
+            <h3>{t.fundingGoalsTitle as string}</h3>
+            <p className="funding-note">{t.fundingGoalsBody as string}</p>
+            {funding.map((item) => {
+              const pct = Math.round((item.current / item.goal) * 100);
+              return (
+                <article key={item.title}>
+                  <span className="mono">{pct}%</span>
+                  <h3>{lang === 'hr' ? item.titleHr : item.title}</h3>
+                  <div className="progress" aria-label={`${pct}% funded`}>
+                    <span style={{ width: `${pct}%` }} />
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         </section>
-
-        <GiscusPanel lang={lang} theme={theme} />
-
-        {hasDonateUrl ? (
-          <section id="support" className="section split">
-            <div>
-              <p className="eyebrow"><Heart size={15} />{t.support as string}</p>
-              <h2>{t.fundingTitle as string}</h2>
-              <p>{t.fundingBody as string}</p>
-              <a className="button secondary" href={donateUrl}>
-                {t.supportHero as string}
-                <ExternalLink size={16} />
-              </a>
-            </div>
-            <div className="funding-card">
-              <h3>{t.fundingGoalsTitle as string}</h3>
-              <p className="funding-note">{t.fundingGoalsBody as string}</p>
-              {funding.map((item) => {
-                const pct = Math.round((item.current / item.goal) * 100);
-                return (
-                  <article key={item.title}>
-                    <span className="mono">{pct}%</span>
-                    <h3>{lang === 'hr' ? item.titleHr : item.title}</h3>
-                    <div className="progress" aria-label={`${pct}% funded`}>
-                      <span style={{ width: `${pct}%` }} />
-                    </div>
-                    <p>{`EUR ${item.current} / EUR ${item.goal}`}</p>
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-        ) : null}
       </main>
 
       <footer>

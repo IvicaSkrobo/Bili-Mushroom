@@ -1506,7 +1506,7 @@ dependencies = [
 
 [[package]]
 name = "gljivobook"
-version = "0.2.104"
+version = "0.2.105"
 dependencies = [
  "base64 0.22.1",
  "chrono",
