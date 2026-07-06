@@ -1,6 +1,6 @@
 {
   "productName": "Gljivobook",
-  "version": "0.2.110",
+  "version": "0.2.111",
   "identifier": "hr.biligrupa.bilimushroom",
   "build": {
     "frontendDist": "../dist",

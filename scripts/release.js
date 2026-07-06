@@ -12,8 +12,9 @@ const pkgLockPath = path.join(root, 'package-lock.json');
 const tauriConfPath = path.join(root, 'src-tauri', 'tauri.conf.json');
 const cargoTomlPath = path.join(root, 'src-tauri', 'Cargo.toml');
 const cargoLockPath = path.join(root, 'src-tauri', 'Cargo.lock');
+const websiteReleasePath = path.join(root, 'website', 'src', 'siteData.ts');
 
-const VERSION_FILES = [pkgPath, pkgLockPath, tauriConfPath, cargoTomlPath, cargoLockPath];
+const VERSION_FILES = [pkgPath, pkgLockPath, tauriConfPath, cargoTomlPath, cargoLockPath, websiteReleasePath];
 
 function run(cmd, options = {}) {
   execSync(cmd, {
@@ -104,6 +105,14 @@ function syncVersions(nextVersion) {
     /(\[\[package\]\]\nname = "gljivobook"\nversion = ")([^"]+)(")/m,
     nextVersion,
   );
+
+  if (fs.existsSync(websiteReleasePath)) {
+    replaceVersionInText(
+      websiteReleasePath,
+      /(version:\s*'v)([^']+)(')/m,
+      nextVersion,
+    );
+  }
 }
 
 function printUsage() {
@@ -144,7 +153,7 @@ function main() {
   run('npm run build');
   run('cargo check --manifest-path src-tauri/Cargo.toml --offline');
 
-  run(`git add "${pkgPath}" "${pkgLockPath}" "${tauriConfPath}" "${cargoTomlPath}" "${cargoLockPath}"`);
+  run(`git add "${pkgPath}" "${pkgLockPath}" "${tauriConfPath}" "${cargoTomlPath}" "${cargoLockPath}" "${websiteReleasePath}"`);
   run(`git commit --no-verify -m "Release v${nextVersion}"`);
   run(`git tag -a ${tagName} -m "Release ${tagName}"`);
 
