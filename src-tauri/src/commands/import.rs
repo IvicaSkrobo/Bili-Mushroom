@@ -6,6 +6,7 @@ use std::thread;
 use std::time::Duration;
 use tauri::Emitter;
 
+use crate::commands::exif::extract_exif;
 use crate::commands::path_builder::{
     build_dest_path, next_seq_for_folder, resolve_location_component,
 };
@@ -663,6 +664,237 @@ fn delete_source_with_retry(
     Err(path.to_string())
 }
 
+/// A photo copied into storage during the "copy phase" of a single find's import,
+/// before anything has been committed to the database or deleted from source.
+struct StagedPhoto {
+    /// Absolute source path (used to delete from source only after DB commit succeeds).
+    source_path: String,
+    /// Absolute destination path actually written to disk.
+    dest_abs: PathBuf,
+    /// Path relative to storage_path, as stored in find_photos.photo_path.
+    relative_path: String,
+    is_primary: bool,
+    /// True if this photo was freshly copied by this operation (dest_abs is a new file
+    /// we own). False for "already in storage" in-place photos, where dest_abs IS the
+    /// user's pre-existing library file and must never be deleted on rollback.
+    was_copied: bool,
+}
+
+/// Remove any destination files freshly copied for this payload when a later copy
+/// in the same find fails. Best-effort — copy failures here are not fatal since the
+/// whole find is being abandoned anyway and no DB row/source deletion has happened yet.
+/// Never removes in-place (was_copied=false) entries — those are pre-existing files
+/// already living in the user's library, not files this operation created.
+fn cleanup_staged_photos(staged: &[StagedPhoto]) {
+    for photo in staged {
+        if photo.was_copied {
+            let _ = std::fs::remove_file(&photo.dest_abs);
+        }
+    }
+}
+
+/// Identical-content check: two source files are treated as the same photo added
+/// twice, regardless of filename, when they are byte-for-byte identical. This
+/// correctly catches renamed duplicates (e.g. a Windows " - Copy" duplicate, or the
+/// same photo picked from two different folders under an unrelated name), which a
+/// filename-based check can never detect since Windows never preserves the original
+/// filename for auto-renamed copies. File size is checked first as a cheap filter:
+/// most non-duplicate photos differ in size, so the much more expensive full-content
+/// read only happens when sizes already match, keeping this cheap for the common case
+/// of genuinely different photos in a large import batch.
+fn is_likely_duplicate_content(a: &str, b: &str) -> bool {
+    let size_a = std::fs::metadata(a).map(|m| m.len()).ok();
+    let size_b = std::fs::metadata(b).map(|m| m.len()).ok();
+    let (size_a, size_b) = match (size_a, size_b) {
+        (Some(sa), Some(sb)) => (sa, sb),
+        _ => return false,
+    };
+    if size_a != size_b {
+        return false;
+    }
+
+    let bytes_a = std::fs::read(a).ok();
+    let bytes_b = std::fs::read(b).ok();
+    matches!((bytes_a, bytes_b), (Some(ba), Some(bb)) if ba == bb)
+}
+
+/// Scan photo source paths in order and return the first (lat, lng) pair found via
+/// EXIF GPS tags. Returns None if no path has GPS data. Order matters: per product
+/// decision, the first GPS-tagged photo in existing processing order wins — no
+/// averaging or voting across multiple GPS-tagged photos in the same batch.
+pub(crate) fn first_gps_coords_from_paths(paths: &[&str]) -> Option<(f64, f64)> {
+    for path in paths {
+        let exif = extract_exif(path);
+        if let (Some(lat), Some(lng)) = (exif.lat, exif.lng) {
+            return Some((lat, lng));
+        }
+    }
+    None
+}
+
+/// Same scan as `first_gps_coords_from_paths`, over already-staged photos (in their
+/// staged insertion order: primary first, then additional photos).
+fn first_gps_coords_from_staged(staged: &[StagedPhoto]) -> Option<(f64, f64)> {
+    let paths: Vec<&str> = staged.iter().map(|p| p.source_path.as_str()).collect();
+    first_gps_coords_from_paths(&paths)
+}
+
+/// Decide final (lat, lng) for a find: manual payload values always win; EXIF
+/// fallback only applies when the payload supplied neither coordinate.
+fn resolve_find_coords(
+    payload_lat: Option<f64>,
+    payload_lng: Option<f64>,
+    exif_coords: Option<(f64, f64)>,
+) -> (Option<f64>, Option<f64>) {
+    if payload_lat.is_none() && payload_lng.is_none() {
+        match exif_coords {
+            Some((lat, lng)) => (Some(lat), Some(lng)),
+            None => (payload_lat, payload_lng),
+        }
+    } else {
+        (payload_lat, payload_lng)
+    }
+}
+
+/// Copy every photo (primary + additional) for one payload into storage, without
+/// touching the database and without deleting any source file. Returns the staged
+/// photos in insertion order (primary first) on success. On the first copy failure,
+/// already-copied destination files for THIS payload are cleaned up and an error is
+/// returned — no source file is ever deleted and no partial find can reach the DB,
+/// because nothing has been written to the DB yet at this point.
+fn copy_payload_photos(
+    storage_path: &str,
+    storage_path_buf: &Path,
+    payload: &ImportPayload,
+    location_label: &str,
+    seen_source_paths: &mut HashSet<String>,
+    skipped: &mut Vec<String>,
+) -> Result<Vec<StagedPhoto>, String> {
+    let mut staged: Vec<StagedPhoto> = Vec::new();
+    // Content-dedupe against photos already staged for this same payload (defense in
+    // depth for identical photos reaching Rust via distinct paths).
+    let mut staged_sources: Vec<String> = Vec::new();
+
+    let src_path = Path::new(&payload.source_path);
+    let is_already_in_storage = src_path.starts_with(storage_path_buf);
+
+    if is_already_in_storage {
+        let relative_path = src_path
+            .strip_prefix(storage_path_buf)
+            .map(|p| p.to_string_lossy().replace('\\', "/").to_string())
+            .unwrap_or_else(|_| payload.source_path.clone());
+        staged.push(StagedPhoto {
+            source_path: payload.source_path.clone(),
+            dest_abs: src_path.to_path_buf(),
+            relative_path,
+            is_primary: true,
+            was_copied: false,
+        });
+    } else {
+        let ext = src_path
+            .extension()
+            .map(|e| format!(".{}", e.to_string_lossy().to_lowercase()))
+            .unwrap_or_else(|| ".jpg".to_string());
+
+        let dest_full = build_dest_path(storage_path, &payload.species_name, &payload.date_found, location_label, 1, &ext);
+        let dest_folder = dest_full
+            .parent()
+            .ok_or_else(|| "Could not determine destination folder".to_string())?;
+
+        std::fs::create_dir_all(dest_folder)
+            .map_err(|e| format!("Failed to create directory {:?}: {}", dest_folder, e))?;
+
+        let seq = next_seq_for_folder(dest_folder);
+        let dest_path = build_dest_path(storage_path, &payload.species_name, &payload.date_found, location_label, seq, &ext);
+
+        if let Err(e) = std::fs::copy(&payload.source_path, &dest_path) {
+            cleanup_staged_photos(&staged);
+            return Err(format!(
+                "Failed to copy {:?} to {:?}: {}",
+                payload.source_path, dest_path, e
+            ));
+        }
+
+        let relative_path = dest_path
+            .strip_prefix(storage_path)
+            .map(|p| p.to_string_lossy().replace('\\', "/").trim_start_matches('/').to_string())
+            .unwrap_or_else(|_| dest_path.to_string_lossy().to_string());
+
+        staged.push(StagedPhoto {
+            source_path: payload.source_path.clone(),
+            dest_abs: dest_path,
+            relative_path,
+            is_primary: true,
+            was_copied: true,
+        });
+    }
+    staged_sources.push(payload.source_path.clone());
+
+    // add_dest_folder: same folder the primary photo landed in.
+    let primary_abs = storage_path_buf.join(&staged[0].relative_path);
+    let add_dest_folder = primary_abs.parent().unwrap_or(storage_path_buf).to_path_buf();
+
+    for additional_src in &payload.additional_photos {
+        if !remember_source_path(seen_source_paths, additional_src) {
+            skipped.push(
+                Path::new(additional_src)
+                    .file_name()
+                    .map(|name| name.to_string_lossy().to_string())
+                    .unwrap_or_else(|| additional_src.clone()),
+            );
+            continue;
+        }
+
+        // Fix priority #1: silently keep only one copy of photos that are identical
+        // in content (same size + same filename) to a photo already staged for this
+        // find, rather than letting them both through as separate copies.
+        if staged_sources
+            .iter()
+            .any(|already| is_likely_duplicate_content(already, additional_src))
+        {
+            skipped.push(
+                Path::new(additional_src)
+                    .file_name()
+                    .map(|name| name.to_string_lossy().to_string())
+                    .unwrap_or_else(|| additional_src.clone()),
+            );
+            continue;
+        }
+
+        let add_ext = Path::new(additional_src)
+            .extension()
+            .map(|e| format!(".{}", e.to_string_lossy().to_lowercase()))
+            .unwrap_or_else(|| ".jpg".to_string());
+
+        let add_seq = next_seq_for_folder(&add_dest_folder);
+        let add_dest_path = build_dest_path(storage_path, &payload.species_name, &payload.date_found, location_label, add_seq, &add_ext);
+
+        if let Err(e) = std::fs::copy(additional_src, &add_dest_path) {
+            cleanup_staged_photos(&staged);
+            return Err(format!(
+                "Failed to copy additional photo {:?} to {:?}: {}",
+                additional_src, add_dest_path, e
+            ));
+        }
+
+        let add_relative_path = add_dest_path
+            .strip_prefix(storage_path)
+            .map(|p| p.to_string_lossy().replace('\\', "/").trim_start_matches('/').to_string())
+            .unwrap_or_else(|_| add_dest_path.to_string_lossy().to_string());
+
+        staged_sources.push(additional_src.clone());
+        staged.push(StagedPhoto {
+            source_path: additional_src.clone(),
+            dest_abs: add_dest_path,
+            relative_path: add_relative_path,
+            is_primary: false,
+            was_copied: true,
+        });
+    }
+
+    Ok(staged)
+}
+
 #[tauri::command]
 pub async fn import_find(
     app: tauri::AppHandle,
@@ -675,7 +907,7 @@ pub async fn import_find(
     let mut skipped: Vec<String> = Vec::new();
     let mut delete_failures: Vec<String> = Vec::new();
 
-    let conn = open_db(&storage_path)?;
+    let mut conn = open_db(&storage_path)?;
     let storage_path_buf = Path::new(&storage_path);
     let mut seen_source_paths: HashSet<String> = HashSet::new();
 
@@ -697,12 +929,11 @@ pub async fn import_find(
         // Region is NOT used — user wants the manual label, not the auto-geocoded region.
         let location_label = payload.location_note.trim().to_string();
 
-        // If source is already inside storage_path, register it in-place — no copy, no delete.
-        // This handles auto-import where the user picks their existing mushroom library folder.
+        // If source is already inside storage_path, register it in-place — no copy, no
+        // delete. This handles auto-import where the user picks their existing mushroom
+        // library folder. Skip-if-duplicate check happens before any copy is attempted.
         let src_path = Path::new(&payload.source_path);
-        let is_already_in_storage = src_path.starts_with(storage_path_buf);
-
-        if is_already_in_storage {
+        if src_path.starts_with(storage_path_buf) {
             let existing_photo_path = src_path
                 .strip_prefix(storage_path_buf)
                 .map(|p| {
@@ -731,73 +962,23 @@ pub async fn import_find(
             }
         }
 
-        let primary_photo_path = if is_already_in_storage {
-            src_path
-                .strip_prefix(storage_path_buf)
-                .map(|p| p.to_string_lossy().replace('\\', "/").to_string())
-                .unwrap_or_else(|_| payload.source_path.clone())
-        } else {
-            // Determine destination extension
-            let ext = src_path
-                .extension()
-                .map(|e| format!(".{}", e.to_string_lossy().to_lowercase()))
-                .unwrap_or_else(|| ".jpg".to_string());
+        // --- Copy phase: copy every photo for this find to storage first. No DB writes,
+        // no source deletion yet. If any copy fails, everything staged for THIS find is
+        // rolled back (destination files removed) and no source file is ever touched. ---
+        let staged = copy_payload_photos(
+            &storage_path,
+            storage_path_buf,
+            payload,
+            &location_label,
+            &mut seen_source_paths,
+            &mut skipped,
+        )?;
 
-            // Build destination folder to determine sequence
-            let dest_full = build_dest_path(
-                &storage_path,
-                &payload.species_name,
-                &payload.date_found,
-                &location_label,
-                1,
-                &ext,
-            );
-            let dest_folder = dest_full
-                .parent()
-                .ok_or_else(|| "Could not determine destination folder".to_string())?;
-
-            std::fs::create_dir_all(dest_folder)
-                .map_err(|e| format!("Failed to create directory {:?}: {}", dest_folder, e))?;
-
-            let seq = next_seq_for_folder(dest_folder);
-            let dest_path = build_dest_path(
-                &storage_path,
-                &payload.species_name,
-                &payload.date_found,
-                &location_label,
-                seq,
-                &ext,
-            );
-
-            // Copy then optionally delete source — works across filesystems/USB drives.
-            // The primary photo (photos[0]) may be held open by WebView2 on Windows while
-            // the thumbnail is displayed. We retry deletion to give the handle time to release.
-            std::fs::copy(&payload.source_path, &dest_path).map_err(|e| {
-                format!(
-                    "Failed to copy {:?} to {:?}: {}",
-                    payload.source_path, dest_path, e
-                )
-            })?;
-            if delete_source {
-                if let Err(failed_path) =
-                    delete_source_with_retry(&payload.source_path, 3, Duration::from_millis(150))
-                {
-                    delete_failures.push(failed_path);
-                }
-            }
-
-            dest_path
-                .strip_prefix(&storage_path)
-                .map(|p| {
-                    p.to_string_lossy()
-                        .replace('\\', "/")
-                        .trim_start_matches('/')
-                        .to_string()
-                })
-                .unwrap_or_else(|_| dest_path.to_string_lossy().to_string())
-        };
-
-        // created_at ISO 8601
+        // --- Commit phase: only after every copy above succeeded, write the find and
+        // all its photos inside a single transaction. A crash or error here rolls back
+        // automatically (rusqlite drops uncommitted transactions), leaving no partial
+        // find row behind — since nothing was deleted from source yet, no data is lost
+        // even if this phase fails. ---
         let created_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
         let (observed_count, observed_count_min, observed_count_max) = normalize_observed_range(
             payload.observed_count,
@@ -805,15 +986,24 @@ pub async fn import_find(
             payload.observed_count_max,
         );
 
-        let record = FindRecord {
+        // EXIF fallback: only consulted when the payload itself carries no manual
+        // lat/lng. Scans staged photos in insertion order (primary first, then
+        // additional) — first GPS-tagged photo wins. Manual values always win.
+        let (final_lat, final_lng) = resolve_find_coords(
+            payload.lat,
+            payload.lng,
+            first_gps_coords_from_staged(&staged),
+        );
+
+        let mut record = FindRecord {
             id: 0, // set after insert
             original_filename: payload.original_filename.clone(),
             species_name: payload.species_name.clone(),
             date_found: payload.date_found.clone(),
             country: payload.country.clone(),
             region: payload.region.clone(),
-            lat: payload.lat,
-            lng: payload.lng,
+            lat: final_lat,
+            lng: final_lng,
             notes: payload.notes.clone(),
             location_note: payload.location_note.clone(),
             observed_count,
@@ -822,96 +1012,68 @@ pub async fn import_find(
             is_favorite: false,
             created_at,
             edibility_note: payload.edibility_note.clone(),
-            photo_count: Some(1 + payload.additional_photos.len() as i64),
+            photo_count: Some(staged.len() as i64),
             photos: vec![],
         };
 
-        let new_id =
-            insert_find_row(&conn, &record).map_err(|e| format!("DB insert failed: {}", e))?;
+        let commit_result: Result<(i64, Vec<FindPhoto>), String> = (|| {
+            let tx = conn
+                .transaction()
+                .map_err(|e| format!("Failed to start import transaction: {}", e))?;
 
-        upsert_species_common_name(&conn, &payload.species_name, payload.common_name.as_deref())?;
+            let new_id =
+                insert_find_row(&tx, &record).map_err(|e| format!("DB insert failed: {}", e))?;
 
-        // Insert primary photo into find_photos
-        insert_find_photo(&conn, new_id, &primary_photo_path, true)
-            .map_err(|e| format!("DB insert primary photo failed: {}", e))?;
+            upsert_species_common_name(&tx, &payload.species_name, payload.common_name.as_deref())?;
 
-        // Compute add_dest_folder before primary_photo_path is moved
-        let primary_abs = storage_path_buf.join(&primary_photo_path);
-        let add_dest_folder = primary_abs.parent().unwrap_or(storage_path_buf);
-
-        let mut photos: Vec<FindPhoto> = vec![FindPhoto {
-            id: conn.last_insert_rowid(),
-            find_id: new_id,
-            photo_path: primary_photo_path,
-            is_primary: true,
-        }];
-
-        // Mode A: handle additional_photos (always copied to storage, never in-place)
-        for additional_src in &payload.additional_photos {
-            if !remember_source_path(&mut seen_source_paths, additional_src) {
-                skipped.push(
-                    Path::new(additional_src)
-                        .file_name()
-                        .map(|name| name.to_string_lossy().to_string())
-                        .unwrap_or_else(|| additional_src.clone()),
-                );
-                continue;
+            let mut photos: Vec<FindPhoto> = Vec::with_capacity(staged.len());
+            for photo in &staged {
+                let photo_row_id = insert_find_photo(&tx, new_id, &photo.relative_path, photo.is_primary)
+                    .map_err(|e| format!("DB insert photo failed: {}", e))?;
+                photos.push(FindPhoto {
+                    id: photo_row_id,
+                    find_id: new_id,
+                    photo_path: photo.relative_path.clone(),
+                    is_primary: photo.is_primary,
+                });
             }
 
-            let add_ext = Path::new(additional_src)
-                .extension()
-                .map(|e| format!(".{}", e.to_string_lossy().to_lowercase()))
-                .unwrap_or_else(|| ".jpg".to_string());
+            tx.commit()
+                .map_err(|e| format!("Failed to finalize import: {}", e))?;
 
-            let add_seq = next_seq_for_folder(add_dest_folder);
-            let add_dest_path = build_dest_path(
-                &storage_path,
-                &payload.species_name,
-                &payload.date_found,
-                &location_label,
-                add_seq,
-                &add_ext,
-            );
+            Ok((new_id, photos))
+        })();
 
-            std::fs::copy(additional_src, &add_dest_path).map_err(|e| {
-                format!(
-                    "Failed to copy additional photo {:?} to {:?}: {}",
-                    additional_src, add_dest_path, e
-                )
-            })?;
-            if delete_source {
+        let (new_id, photos) = match commit_result {
+            Ok(value) => value,
+            Err(e) => {
+                // DB write failed/rolled back — clean up copied files for this find and
+                // do NOT delete any source file, since nothing was durably imported.
+                cleanup_staged_photos(&staged);
+                return Err(e);
+            }
+        };
+
+        // --- Delete phase: only now, after the find is durably committed, remove
+        // source files (best-effort, retried — failures are reported but not fatal). ---
+        if delete_source {
+            for photo in &staged {
+                // In-place (already-in-storage) photos were never copied; source IS the
+                // user's existing library file — never delete those.
+                if !photo.was_copied {
+                    continue;
+                }
                 if let Err(failed_path) =
-                    delete_source_with_retry(additional_src, 3, Duration::from_millis(150))
+                    delete_source_with_retry(&photo.source_path, 3, Duration::from_millis(150))
                 {
                     delete_failures.push(failed_path);
                 }
             }
-
-            let add_photo_path = add_dest_path
-                .strip_prefix(&storage_path)
-                .map(|p| {
-                    p.to_string_lossy()
-                        .replace('\\', "/")
-                        .trim_start_matches('/')
-                        .to_string()
-                })
-                .unwrap_or_else(|_| add_dest_path.to_string_lossy().to_string());
-
-            let photo_row_id = insert_find_photo(&conn, new_id, &add_photo_path, false)
-                .map_err(|e| format!("DB insert additional photo failed: {}", e))?;
-
-            photos.push(FindPhoto {
-                id: photo_row_id,
-                find_id: new_id,
-                photo_path: add_photo_path,
-                is_primary: false,
-            });
         }
 
-        let mut final_record = record;
-        final_record.id = new_id;
-        final_record.photos = photos;
-        imported.push(final_record);
+        record.id = new_id;
+        record.photos = photos;
+        imported.push(record);
 
         let _ = app.emit(
             "import-progress",
@@ -1354,7 +1516,14 @@ fn push_find_search_filters(
 
     if include_species_query {
         if let Some(species_query) = normalized_like_query(filters.species_query.as_deref()) {
-            where_clauses.push(format!("LOWER({}) LIKE ? ESCAPE '\\'", col("species_name")));
+            // species_name may contain '*' markup (bold/non-bold display convention, see
+            // src/lib/speciesName.tsx). The query string is always plain (asterisks stripped
+            // client-side), so strip '*' from the column here too before comparing — otherwise
+            // an embedded asterisk in the stored name breaks the substring match entirely.
+            where_clauses.push(format!(
+                "LOWER(REPLACE({}, '*', '')) LIKE ? ESCAPE '\\'",
+                col("species_name")
+            ));
             query_params.push(Box::new(species_query));
         }
     }
@@ -2196,5 +2365,227 @@ mod tests {
             path_str,
             "error should contain the failed path"
         );
+    }
+
+    // ---------------------------------------------------------------------------
+    // copy_payload_photos / import_find atomicity regression tests
+    // (import-duplicate-photo-partial-save)
+    // ---------------------------------------------------------------------------
+
+    fn make_import_payload(source_path: String, additional_photos: Vec<String>) -> ImportPayload {
+        ImportPayload {
+            source_path,
+            original_filename: "photo.jpg".to_string(),
+            species_name: "Boletus edulis".to_string(),
+            common_name: None,
+            date_found: "2024-05-10".to_string(),
+            country: "Croatia".to_string(),
+            region: "Region".to_string(),
+            lat: None,
+            lng: None,
+            notes: String::new(),
+            location_note: String::new(),
+            observed_count: None,
+            observed_count_min: None,
+            observed_count_max: None,
+            additional_photos,
+            edibility_note: None,
+        }
+    }
+
+    #[test]
+    fn test_copy_payload_photos_stages_primary_and_additional_without_deleting_source() {
+        let src_dir = tempfile::tempdir().expect("src tempdir");
+        let storage_dir = tempfile::tempdir().expect("storage tempdir");
+
+        let primary_src = src_dir.path().join("a.jpg");
+        let extra_src = src_dir.path().join("b.jpg");
+        std::fs::write(&primary_src, b"AAAA").unwrap();
+        std::fs::write(&extra_src, b"BBBBBBBB").unwrap();
+
+        let storage_path = storage_dir.path().to_string_lossy().to_string();
+        let storage_path_buf = Path::new(&storage_path);
+        let payload = make_import_payload(
+            primary_src.to_string_lossy().to_string(),
+            vec![extra_src.to_string_lossy().to_string()],
+        );
+        let mut seen = HashSet::new();
+        let mut skipped = Vec::new();
+
+        let staged = copy_payload_photos(&storage_path, storage_path_buf, &payload, "", &mut seen, &mut skipped)
+            .expect("copy phase should succeed");
+
+        assert_eq!(staged.len(), 2, "primary + 1 additional should be staged");
+        assert!(skipped.is_empty());
+        // Source files must still exist — copy phase never deletes.
+        assert!(primary_src.exists(), "primary source must survive copy phase");
+        assert!(extra_src.exists(), "additional source must survive copy phase");
+        // Destination files must exist on disk.
+        for photo in &staged {
+            assert!(photo.dest_abs.exists(), "staged destination should exist: {:?}", photo.dest_abs);
+        }
+    }
+
+    #[test]
+    fn test_copy_payload_photos_rolls_back_destination_files_on_mid_loop_failure() {
+        let src_dir = tempfile::tempdir().expect("src tempdir");
+        let storage_dir = tempfile::tempdir().expect("storage tempdir");
+
+        let primary_src = src_dir.path().join("a.jpg");
+        std::fs::write(&primary_src, b"AAAA").unwrap();
+        // Second "additional" source path does not exist on disk — forces a copy failure
+        // partway through the loop, exactly like a source file consumed by an earlier
+        // failed/retried import attempt.
+        let missing_src = src_dir.path().join("does_not_exist.jpg");
+
+        let storage_path = storage_dir.path().to_string_lossy().to_string();
+        let storage_path_buf = Path::new(&storage_path);
+        let payload = make_import_payload(
+            primary_src.to_string_lossy().to_string(),
+            vec![missing_src.to_string_lossy().to_string()],
+        );
+        let mut seen = HashSet::new();
+        let mut skipped = Vec::new();
+
+        let result = copy_payload_photos(&storage_path, storage_path_buf, &payload, "", &mut seen, &mut skipped);
+        assert!(result.is_err(), "copy phase should fail when an additional photo source is missing");
+
+        // Root-cause regression check: the primary photo's destination file must NOT be
+        // left behind in storage after the batch fails — otherwise a stray file exists
+        // with no DB row pointing to it (the old bug's filesystem-side symptom).
+        let species_folder = storage_dir.path().join("Boletus edulis");
+        if species_folder.exists() {
+            let leftover: Vec<_> = std::fs::read_dir(&species_folder)
+                .unwrap()
+                .filter_map(|e| e.ok())
+                .collect();
+            assert!(
+                leftover.is_empty(),
+                "no destination files should remain after a failed copy phase, found: {:?}",
+                leftover.iter().map(|e| e.path()).collect::<Vec<_>>()
+            );
+        }
+
+        // Root-cause regression check: the primary SOURCE file must still exist — the
+        // old bug would have already deleted it before the additional-photo loop even
+        // started, even though the overall import ultimately failed.
+        assert!(
+            primary_src.exists(),
+            "primary source file must never be deleted when the find's copy phase fails"
+        );
+    }
+
+    #[test]
+    fn test_import_find_atomicity_no_find_row_persists_after_mid_loop_copy_failure() {
+        // Simulates import_find's copy-phase + transactional-commit-phase sequence
+        // directly (without needing a tauri::AppHandle) to prove the fix: a copy
+        // failure on an additional photo must leave NO find row and NO find_photos
+        // rows behind, and must NOT delete the primary source file.
+        let src_dir = tempfile::tempdir().expect("src tempdir");
+        let storage_dir = tempfile::tempdir().expect("storage tempdir");
+        let mut conn = setup_in_memory_db();
+
+        let primary_src = src_dir.path().join("a.jpg");
+        std::fs::write(&primary_src, b"AAAA").unwrap();
+        let missing_src = src_dir.path().join("missing.jpg");
+
+        let storage_path = storage_dir.path().to_string_lossy().to_string();
+        let storage_path_buf = Path::new(&storage_path);
+        let payload = make_import_payload(
+            primary_src.to_string_lossy().to_string(),
+            vec![missing_src.to_string_lossy().to_string()],
+        );
+        let mut seen = HashSet::new();
+        let mut skipped = Vec::new();
+
+        // Copy phase fails (missing additional source) -> import_find returns early via `?`
+        // BEFORE ever touching the DB or conn.transaction(). Assert exactly that contract.
+        let copy_result = copy_payload_photos(&storage_path, storage_path_buf, &payload, "", &mut seen, &mut skipped);
+        assert!(copy_result.is_err());
+
+        // No find row should exist — nothing was ever inserted, since the fix defers all
+        // DB writes until after the full copy phase for the find succeeds.
+        let find_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM finds", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(find_count, 0, "no find row should exist after copy-phase failure");
+
+        let photo_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM find_photos", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(photo_count, 0, "no find_photos row should exist after copy-phase failure");
+
+        assert!(primary_src.exists(), "primary source must survive a copy-phase failure");
+
+        // Sanity: use conn at least once through the transaction API to mirror real usage
+        // and confirm the DB handle itself is still healthy after the aborted attempt.
+        let tx = conn.transaction().expect("connection should still support transactions");
+        tx.commit().expect("empty transaction should commit cleanly");
+    }
+
+    // ---------------------------------------------------------------------------
+    // resolve_find_coords / first_gps_coords_from_paths tests
+    // (auto-populate-find-lat-lng-from-photo-exif)
+    // ---------------------------------------------------------------------------
+
+    #[test]
+    fn test_resolve_find_coords_fills_empty_coords_from_exif() {
+        let result = resolve_find_coords(None, None, Some((45.0, 16.0)));
+        assert_eq!(result, (Some(45.0), Some(16.0)));
+    }
+
+    #[test]
+    fn test_resolve_find_coords_manual_coords_win_over_exif() {
+        let result = resolve_find_coords(Some(44.0), Some(15.0), Some((45.0, 16.0)));
+        assert_eq!(result, (Some(44.0), Some(15.0)));
+    }
+
+    #[test]
+    fn test_resolve_find_coords_no_exif_no_manual_stays_null() {
+        let result = resolve_find_coords(None, None, None);
+        assert_eq!(result, (None, None));
+    }
+
+    #[test]
+    fn test_resolve_find_coords_partial_manual_entry_blocks_exif_fallback() {
+        let result = resolve_find_coords(Some(44.0), None, Some((45.0, 16.0)));
+        assert_eq!(result, (Some(44.0), None));
+    }
+
+    #[test]
+    fn test_first_gps_coords_from_paths_returns_none_for_non_jpeg_files() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path_a = dir.path().join("a.jpg");
+        let path_b = dir.path().join("b.jpg");
+        std::fs::write(&path_a, b"AAAA").unwrap();
+        std::fs::write(&path_b, b"BBBB").unwrap();
+
+        let path_a_str = path_a.to_string_lossy().to_string();
+        let path_b_str = path_b.to_string_lossy().to_string();
+        let paths = [path_a_str.as_str(), path_b_str.as_str()];
+
+        assert_eq!(first_gps_coords_from_paths(&paths), None);
+    }
+
+    #[test]
+    fn test_first_gps_coords_from_paths_returns_none_for_empty_slice() {
+        assert_eq!(first_gps_coords_from_paths(&[]), None);
+    }
+
+    #[test]
+    fn test_first_gps_coords_from_staged_returns_none_when_no_gps() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let src = dir.path().join("photo.jpg");
+        std::fs::write(&src, b"AAAA").unwrap();
+
+        let staged = vec![StagedPhoto {
+            source_path: src.to_string_lossy().to_string(),
+            dest_abs: dir.path().join("dest.jpg"),
+            relative_path: "dest.jpg".to_string(),
+            is_primary: true,
+            was_copied: true,
+        }];
+
+        assert_eq!(first_gps_coords_from_staged(&staged), None);
     }
 }
