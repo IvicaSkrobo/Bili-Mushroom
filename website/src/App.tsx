@@ -11,7 +11,6 @@ import {
   Moon,
   ShieldCheck,
   Sprout,
-  Star,
   AlertCircle,
   Trash2,
   Sun,
@@ -21,7 +20,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { GiscusPanel } from './GiscusPanel';
-import { downloadCountFrom, donateUrl as sitedonateUrl, funding, ideas, release } from './siteData';
+import { downloadCountFrom, donateUrl as sitedonateUrl, funding, release } from './siteData';
 
 type Lang = 'en' | 'hr';
 
@@ -72,15 +71,6 @@ type LocalComment = {
 type LocalIssueEdit = {
   title: string;
   description: string;
-};
-
-type VisibleIdea = {
-  title: string;
-  titleHr: string;
-  votes: number;
-  status: string;
-  statusHr: string;
-  url: string;
 };
 
 const configuredDonateUrl = sitedonateUrl || (import.meta.env.VITE_DONATE_URL as string | undefined);
@@ -372,7 +362,6 @@ export function App() {
   const lang = getLang();
   const t = copy[lang];
   const [latestRelease, setLatestRelease] = useState<RemoteRelease | null>(null);
-  const [remoteIdeas, setRemoteIdeas] = useState<RemoteIssue[]>([]);
   const [remoteBugs, setRemoteBugs] = useState<RemoteIssue[]>([]);
   const [remoteInternalIssues, setRemoteInternalIssues] = useState<RemoteIssue[]>([]);
   const [remoteBugsLoading, setRemoteBugsLoading] = useState(false);
@@ -485,22 +474,6 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const controller = new AbortController();
-    fetch('https://api.github.com/repos/IvicaSkrobo/Bili-Mushroom/issues?state=open&labels=idea&per_page=10', {
-      signal: controller.signal,
-      headers: { Accept: 'application/vnd.github+json' },
-    })
-      .then((response) => (response.ok ? response.json() : []))
-      .then((data: RemoteIssue[]) => {
-        setRemoteIdeas(data.filter((issue) => !issue.pull_request));
-      })
-      .catch(() => {
-        // Local idea fallback keeps the page useful before GitHub labels are set up.
-      });
-    return () => controller.abort();
-  }, []);
-
-  useEffect(() => {
     if (!showHiddenBugs) {
       setRemoteBugs([]);
       setRemoteInternalIssues([]);
@@ -587,19 +560,6 @@ export function App() {
     .map((target, index) => ({ item: navLabels[index], target }))
     .filter(({ item }) => Boolean(item))
     .filter(({ target }) => target !== 'support' || hasDonateUrl);
-  const visibleIdeas: VisibleIdea[] = remoteIdeas.length
-    ? remoteIdeas.map((idea) => ({
-        title: idea.title,
-        titleHr: idea.title,
-        votes: idea.reactions?.total_count ?? idea.comments,
-        status: 'GitHub',
-        statusHr: 'GitHub',
-        url: idea.html_url,
-      }))
-    : ideas.map((idea) => ({
-        ...idea,
-        url: 'https://github.com/IvicaSkrobo/Bili-Mushroom/issues',
-      }));
   const websiteBugCanSubmit =
     websiteBugForm.title.trim().length >= 4 && websiteBugForm.description.trim().length >= 10;
 
