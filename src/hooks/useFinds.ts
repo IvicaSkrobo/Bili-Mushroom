@@ -7,6 +7,7 @@ import {
   FINDS_QUERY_KEY, SPECIES_NOTES_QUERY_KEY, SPECIES_PROFILES_QUERY_KEY, SPECIES_RECIPES_QUERY_KEY,
   type Find, type FindSearchFilters, type UpdateFindPayload, type CreateFindPayload,
 } from '@/lib/finds';
+import { SAMPLES_QUERY_KEY } from '@/lib/samples';
 import { useAppStore } from '@/stores/appStore';
 
 export function useFinds(filters?: FindSearchFilters, enabled = true) {
@@ -104,10 +105,18 @@ export function useDeleteFind() {
   const storagePath = useAppStore((s) => s.storagePath);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ findId, deleteFiles }: { findId: number; deleteFiles: boolean }) =>
-      deleteFind(storagePath!, findId, deleteFiles),
+    mutationFn: ({
+      findId,
+      deleteFiles,
+      deleteSampleFolder,
+    }: {
+      findId: number;
+      deleteFiles: boolean;
+      deleteSampleFolder?: boolean;
+    }) => deleteFind(storagePath!, findId, deleteFiles, deleteSampleFolder ?? false),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
+      qc.invalidateQueries({ queryKey: [SAMPLES_QUERY_KEY, storagePath] });
     },
   });
 }
@@ -187,6 +196,7 @@ export function useBulkRenameSpecies() {
       qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
       qc.invalidateQueries({ queryKey: [SPECIES_NOTES_QUERY_KEY, storagePath] });
       qc.invalidateQueries({ queryKey: [SPECIES_PROFILES_QUERY_KEY, storagePath] });
+      qc.invalidateQueries({ queryKey: [SAMPLES_QUERY_KEY, storagePath] });
     },
   });
 }

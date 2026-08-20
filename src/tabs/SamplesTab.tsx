@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useState } from 'react';
-import { FlaskConical, FolderOpen, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { FlaskConical, FolderOpen, Printer, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useT } from '@/i18n/index';
@@ -8,6 +8,7 @@ import { usePhotoThumbnailSrc } from '@/hooks/usePhotoThumbnail';
 import { renderSpeciesName, plainSpeciesName } from '@/lib/speciesName';
 import { formatDisplayDate } from '@/lib/dateFormat';
 import { openSampleFolder, type Sample } from '@/lib/samples';
+import { exportSampleLabels } from '@/lib/exportSampleLabels';
 import {
   useDeleteSample,
   useSamples,
@@ -42,6 +43,8 @@ export default function SamplesTab() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [exportingLabels, setExportingLabels] = useState(false);
+  const [labelsSavedPath, setLabelsSavedPath] = useState<string | null>(null);
 
   const samples = useMemo(() => samplesQuery.data ?? [], [samplesQuery.data]);
 
@@ -102,6 +105,30 @@ export default function SamplesTab() {
     });
   };
 
+  // Prints whatever the list currently shows, so the search box doubles as the filter
+  // for which labels you need.
+  const handleExportLabels = async () => {
+    if (filtered.length === 0) return;
+    setExportingLabels(true);
+    setActionError(null);
+    setLabelsSavedPath(null);
+    try {
+      const path = await exportSampleLabels(filtered, {
+        title: t('samples.labelsTitle'),
+        determiner: t('samples.labelDet'),
+        finder: t('samples.labelLeg'),
+        storage: t('samples.storageLocation'),
+        preservation: t('samples.preservation'),
+        defaultFileName: 'etikete-uzorci.pdf',
+      });
+      if (path) setLabelsSavedPath(path);
+    } catch (error) {
+      setActionError(String(error));
+    } finally {
+      setExportingLabels(false);
+    }
+  };
+
   const handleOpenFolder = async () => {
     if (!storagePath || !selected) return;
     setActionError(null);
@@ -144,9 +171,26 @@ export default function SamplesTab() {
               className="h-9 pl-8"
             />
           </div>
-          <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">
-            {t('samples.count', { n: filtered.length })}
-          </p>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">
+              {t('samples.count', { n: filtered.length })}
+            </p>
+            <button
+              type="button"
+              onClick={handleExportLabels}
+              disabled={exportingLabels || filtered.length === 0}
+              title={t('samples.labelsHelp')}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-input px-2 py-1 text-[11px] text-foreground transition-colors hover:border-primary/50 hover:text-primary disabled:opacity-50"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              {exportingLabels ? t('samples.labelsWorking') : t('samples.labels')}
+            </button>
+          </div>
+          {labelsSavedPath && (
+            <p className="mt-1 truncate font-mono text-[10px] text-muted-foreground/70" title={labelsSavedPath}>
+              {labelsSavedPath}
+            </p>
+          )}
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">

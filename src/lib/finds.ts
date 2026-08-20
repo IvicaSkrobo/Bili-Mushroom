@@ -259,8 +259,9 @@ export async function deleteFind(
   storagePath: string,
   findId: number,
   deleteFiles: boolean,
+  deleteSampleFolder = false,
 ): Promise<void> {
-  return invoke<void>('delete_find', { storagePath, findId, deleteFiles });
+  return invoke<void>('delete_find', { storagePath, findId, deleteFiles, deleteSampleFolder });
 }
 
 /**

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSampleForFind } from '@/hooks/useSamples';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import {
   AlertDialog,
@@ -31,12 +32,15 @@ export function DeleteFindDialog({ find, onOpenChange }: DeleteFindDialogProps) 
   const [mode, setMode] = useState<DeleteMode>('record');
   const [destFolder, setDestFolder] = useState<string | null>(null);
   const [pickingFolder, setPickingFolder] = useState(false);
+  const [deleteSampleFolder, setDeleteSampleFolder] = useState(false);
+  const linkedSample = useSampleForFind(find?.id ?? null);
   const deleteMutation = useDeleteFind();
   const moveMutation = useMoveFindToFolder();
 
   useEffect(() => {
     setMode('record');
     setDestFolder(null);
+    setDeleteSampleFolder(false);
   }, [find]);
 
   async function handlePickFolder() {
@@ -59,7 +63,11 @@ export function DeleteFindDialog({ find, onOpenChange }: DeleteFindDialogProps) 
       );
     } else {
       deleteMutation.mutate(
-        { findId: find.id, deleteFiles: mode === 'files' },
+        {
+          findId: find.id,
+          deleteFiles: mode === 'files',
+          deleteSampleFolder: deleteSampleFolder && Boolean(linkedSample.data),
+        },
         {
           onSuccess: () => {
             toast.success(mode === 'files' ? t('delete.successFiles') : t('delete.successRecord'));
@@ -106,6 +114,26 @@ export function DeleteFindDialog({ find, onOpenChange }: DeleteFindDialogProps) 
             <Label htmlFor="delete-move-files">{t('delete.moveFiles')}</Label>
           </div>
         </RadioGroup>
+
+        {linkedSample.data && (
+          <div className="rounded-md border border-amber-500/35 bg-amber-500/5 px-3 py-2.5">
+            <p className="text-sm font-medium text-foreground">
+              {t('delete.sampleLinked', { label: linkedSample.data.label })}
+            </p>
+            <label className="mt-2 flex items-start gap-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                checked={deleteSampleFolder}
+                onChange={(e) => setDeleteSampleFolder(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-primary"
+              />
+              <span>{t('delete.sampleDeleteFolder')}</span>
+            </label>
+            <p className="mt-1 pl-6 text-xs text-muted-foreground">
+              {deleteSampleFolder ? t('delete.sampleFolderGoes') : t('delete.sampleFolderKept')}
+            </p>
+          </div>
+        )}
 
         {mode === 'move' && (
           <div className="flex items-center gap-2 pl-1">

@@ -723,10 +723,14 @@ pub async fn quit_app() {
 }
 
 #[tauri::command]
+/// `delete_sample_folder` controls whether a linked sample's folder goes too. It defaults
+/// to keeping the folder: it holds the specimen's data sheet and photos, so destroying it
+/// has to be asked for explicitly.
 pub async fn delete_find(
     storage_path: String,
     find_id: i64,
     delete_files: bool,
+    delete_sample_folder: Option<bool>,
 ) -> Result<(), String> {
     let conn = open_db(&storage_path)?;
     conn.execute_batch("PRAGMA foreign_keys = ON;")
@@ -750,10 +754,15 @@ pub async fn delete_find(
         }
     }
 
-    // The register entry goes with the find, but the sample folder never does: the app
-    // only ever removes the record. Note the photos hard-linked into that folder survive
-    // even a delete_files run, because the link keeps the inode alive.
-    crate::commands::samples::remove_sample_for_find(&conn, &storage_path, find_id, false)?;
+    // The register entry always goes with the find -- it points at a row that is about
+    // to disappear. The folder only goes when the caller explicitly asked, because the
+    // photos hard-linked into it otherwise survive even a delete_files run.
+    crate::commands::samples::remove_sample_for_find(
+        &conn,
+        &storage_path,
+        find_id,
+        delete_sample_folder.unwrap_or(false),
+    )?;
 
     conn.execute("DELETE FROM finds WHERE id = ?1", params![find_id])
         .map_err(|e| format!("DB delete failed: {}", e))?;
