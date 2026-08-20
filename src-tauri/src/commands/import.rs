@@ -3429,6 +3429,97 @@ mod tests {
     }
 
     #[test]
+    fn migration_backup_retention_keeps_only_the_three_newest() {
+        let backups = [
+            (PathBuf::from("backup-1.db"), 1),
+            (PathBuf::from("backup-2.db"), 1),
+            (PathBuf::from("backup-3.db"), 1),
+            (PathBuf::from("backup-4.db"), 1),
+        ];
+
+        assert_eq!(
+            backups_to_discard(&backups),
+            vec![PathBuf::from("backup-1.db")]
+        );
+    }
+
+    #[test]
+    fn migration_backup_retention_respects_budget_and_always_keeps_newest() {
+        let four_hundred_mb = 400 * 1024 * 1024;
+        let backups = [
+            (PathBuf::from("backup-1.db"), four_hundred_mb),
+            (PathBuf::from("backup-2.db"), four_hundred_mb),
+            (PathBuf::from("backup-3.db"), four_hundred_mb),
+        ];
+        assert_eq!(
+            backups_to_discard(&backups),
+            vec![PathBuf::from("backup-1.db")],
+            "the two newest copies fit within 1 GB, while all three do not"
+        );
+
+        let oversized_newest = [
+            (PathBuf::from("old.db"), 1),
+            (
+                PathBuf::from("newest.db"),
+                MIGRATION_BACKUP_BUDGET_BYTES + 1,
+            ),
+        ];
+        assert_eq!(
+            backups_to_discard(&oversized_newest),
+            vec![PathBuf::from("old.db")],
+            "the newest usable copy survives even when it alone exceeds the budget"
+        );
+    }
+
+    #[test]
+    fn space_reclamation_never_sacrifices_the_newest_existing_backup() {
+        let backups = vec![
+            PathBuf::from("oldest.db"),
+            PathBuf::from("middle.db"),
+            PathBuf::from("newest.db"),
+        ];
+        assert_eq!(backups_expendable_for_space(&backups), &backups[..2]);
+        assert!(backups_expendable_for_space(&backups[2..]).is_empty());
+    }
+
+    #[test]
+    fn pruning_migration_backups_ignores_unrelated_files() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let backup_dir = dir.path();
+        let migration_names = [
+            "bili-mushroom-v22-20260101-000000.000.db",
+            "bili-mushroom-v23-20260201-000000.000.db",
+            "bili-mushroom-v24-20260301-000000.000.db",
+            "bili-mushroom-v25-20260401-000000.000.db",
+        ];
+        for name in migration_names {
+            std::fs::write(backup_dir.join(name), b"backup").expect("write migration backup");
+        }
+        let unrelated = backup_dir.join("manual-library-copy.db");
+        std::fs::write(&unrelated, b"manual copy").expect("write unrelated backup");
+
+        prune_migration_backups(backup_dir);
+
+        assert!(!backup_dir.join(migration_names[0]).exists());
+        for name in &migration_names[1..] {
+            assert!(backup_dir.join(name).exists(), "{name} should be retained");
+        }
+        assert!(
+            unrelated.exists(),
+            "retention must never touch unrelated files"
+        );
+    }
+
+    #[test]
+    fn verify_backup_rejects_a_corrupt_database_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let corrupt = dir.path().join("corrupt.db");
+        std::fs::write(&corrupt, b"this is not a SQLite database").expect("write corrupt fixture");
+
+        assert!(verify_backup(&corrupt).is_err());
+    }
+
+    #[test]
     fn migrate_db_repairs_missing_species_cover_photo_id_at_current_version() {
         let conn = setup_in_memory_db();
         conn.execute_batch(
