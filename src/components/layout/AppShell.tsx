@@ -26,7 +26,9 @@ const ReportBugDialog = lazy(() =>
 
 const BUG_REPORT_ENABLED = isBugReportConfigured();
 
-const TAB_VALUES: Tab[] = ['collection', 'samples', 'species', 'map', 'stats'];
+// Uzorci sits last: it is the sparsest screen, so it should not push the tabs the
+// user reaches for every session further to the right.
+const TAB_VALUES: Tab[] = ['collection', 'species', 'map', 'stats', 'samples'];
 const TAB_KEYS: Record<Tab, string> = {
   collection: 'nav.collection',
   samples: 'nav.samples',
