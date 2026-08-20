@@ -120,6 +120,7 @@ const MIGRATION_0019: &str =
 const MIGRATION_0020: &str = include_str!("../../migrations/0020_species_profile_description.sql");
 const MIGRATION_0021: &str = include_str!("../../migrations/0021_species_recipes.sql");
 const MIGRATION_0022: &str = include_str!("../../migrations/0022_species_profile_common_name.sql");
+const MIGRATION_0023: &str = include_str!("../../migrations/0023_species_profile_habitat.sql");
 
 fn normalize_observed_range(
     observed_count: Option<i64>,
@@ -461,6 +462,21 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
         conn.execute_batch("PRAGMA user_version = 22")
             .map_err(|e| format!("Failed to set user_version=22: {}", e))?;
     }
+    if version < 23 {
+        let habitat_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('species_profiles') WHERE name = 'habitat'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        if habitat_exists == 0 {
+            conn.execute_batch(MIGRATION_0023)
+                .map_err(|e| format!("Migration 0023 failed: {}", e))?;
+        }
+        conn.execute_batch("PRAGMA user_version = 23")
+            .map_err(|e| format!("Failed to set user_version=23: {}", e))?;
+    }
     // Repair development/local databases whose user_version advanced before
     // these metadata columns were present. This is idempotent and keeps
     // synonyms/local names saveable without touching stored values.
@@ -486,6 +502,18 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
     if other_names_exists == 0 {
         conn.execute_batch("ALTER TABLE species_profiles ADD COLUMN other_names TEXT")
             .map_err(|e| format!("Repair species_profiles.other_names failed: {}", e))?;
+    }
+
+    let habitat_exists: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('species_profiles') WHERE name = 'habitat'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
+    if habitat_exists == 0 {
+        conn.execute_batch("ALTER TABLE species_profiles ADD COLUMN habitat TEXT")
+            .map_err(|e| format!("Repair species_profiles.habitat failed: {}", e))?;
     }
 
     Ok(())

@@ -565,6 +565,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
           sharedSpeciesProfile?.other_names ?? [],
           sharedSpeciesProfile?.fruiting_body_count_override ?? null,
           sharedSpeciesDescription.trim() || sharedSpeciesProfile?.description || sharedSpeciesProfile?.edibility_note || null,
+          sharedSpeciesProfile?.habitat ?? null,
         );
         qc.invalidateQueries({ queryKey: [SPECIES_PROFILES_QUERY_KEY, storagePath] });
       }

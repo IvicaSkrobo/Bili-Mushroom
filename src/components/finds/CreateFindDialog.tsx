@@ -780,6 +780,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
           otherNames: speciesProfile?.other_names ?? [],
           fruitingBodyCountOverride: speciesProfile?.fruiting_body_count_override ?? null,
           description: form.species_description.trim(),
+          habitat: speciesProfile?.habitat ?? null,
         });
       }
 

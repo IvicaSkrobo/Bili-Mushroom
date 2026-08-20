@@ -122,6 +122,7 @@ pub struct SpeciesProfile {
     pub distribution: Option<String>,
     pub edibility_note: Option<String>,
     pub description: Option<String>,
+    pub habitat: Option<String>,
     pub synonyms: Vec<String>,
     pub other_names: Vec<String>,
     pub fruiting_body_count_override: Option<String>,
@@ -324,7 +325,7 @@ pub async fn get_species_notes(storage_path: String) -> Result<Vec<SpeciesNote>,
 pub async fn get_species_profiles(storage_path: String) -> Result<Vec<SpeciesProfile>, String> {
     let conn = open_db(&storage_path)?;
     let mut stmt = conn
-        .prepare("SELECT species_name, common_name, cover_photo_id, tags_json, edibility, threat_status, distribution, edibility_note, description, synonyms, other_names, fruiting_body_count_override FROM species_profiles ORDER BY species_name")
+        .prepare("SELECT species_name, common_name, cover_photo_id, tags_json, edibility, threat_status, distribution, edibility_note, description, synonyms, other_names, fruiting_body_count_override, habitat FROM species_profiles ORDER BY species_name")
         .map_err(|e| e.to_string())?;
     let profiles = stmt
         .query_map([], |row| {
@@ -341,6 +342,7 @@ pub async fn get_species_profiles(storage_path: String) -> Result<Vec<SpeciesPro
                 distribution: row.get(6)?,
                 edibility_note: row.get(7)?,
                 description: row.get(8)?,
+                habitat: row.get(12)?,
                 synonyms: synonyms_json
                     .as_deref()
                     .and_then(|s| serde_json::from_str(s).ok())
@@ -373,6 +375,7 @@ pub async fn upsert_species_profile(
     other_names: Vec<String>,
     fruiting_body_count_override: Option<String>,
     description: Option<String>,
+    habitat: Option<String>,
 ) -> Result<(), String> {
     let conn = open_db(&storage_path)?;
     let updated_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
@@ -383,8 +386,8 @@ pub async fn upsert_species_profile(
     let other_names_json = serde_json::to_string(&other_names)
         .map_err(|e| format!("Failed to encode other_names: {}", e))?;
     conn.execute(
-        "INSERT INTO species_profiles (species_name, common_name, cover_photo_id, tags_json, updated_at, edibility, threat_status, distribution, edibility_note, synonyms, other_names, fruiting_body_count_override, description)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+        "INSERT INTO species_profiles (species_name, common_name, cover_photo_id, tags_json, updated_at, edibility, threat_status, distribution, edibility_note, synonyms, other_names, fruiting_body_count_override, description, habitat)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
          ON CONFLICT(species_name) DO UPDATE SET
            common_name = COALESCE(excluded.common_name, species_profiles.common_name),
            cover_photo_id = excluded.cover_photo_id,
@@ -397,8 +400,9 @@ pub async fn upsert_species_profile(
            synonyms = excluded.synonyms,
            other_names = excluded.other_names,
            fruiting_body_count_override = excluded.fruiting_body_count_override,
-           description = excluded.description",
-        params![species_name, common_name, cover_photo_id, tags_json, updated_at, edibility, threat_status, distribution, edibility_note, synonyms_json, other_names_json, fruiting_body_count_override, description],
+           description = excluded.description,
+           habitat = excluded.habitat",
+        params![species_name, common_name, cover_photo_id, tags_json, updated_at, edibility, threat_status, distribution, edibility_note, synonyms_json, other_names_json, fruiting_body_count_override, description, habitat],
     )
     .map_err(|e| format!("Upsert species profile failed: {}", e))?;
     Ok(())

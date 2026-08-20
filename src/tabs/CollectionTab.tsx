@@ -1082,6 +1082,7 @@ export default function CollectionTab() {
       otherNames,
       fruitingBodyCountOverride: existingProfile?.fruiting_body_count_override ?? null,
       description: existingProfile?.description ?? null,
+      habitat: existingProfile?.habitat ?? null,
     });
     await upsertNote.mutateAsync({ speciesName: newName, notes: note ?? '' });
   };
@@ -1126,6 +1127,7 @@ export default function CollectionTab() {
       otherNames: existingProfile?.other_names ?? [],
       fruitingBodyCountOverride: existingProfile?.fruiting_body_count_override ?? null,
       description: existingProfile?.description ?? existingProfile?.edibility_note ?? null,
+      habitat: existingProfile?.habitat ?? null,
     });
   };
 

@@ -127,6 +127,7 @@ export interface SpeciesProfile {
   distribution?: string | null;
   edibility_note?: string | null;
   description?: string | null;
+  habitat?: string | null;
   synonyms?: string[];
   other_names?: string[];
   fruiting_body_count_override?: string | null;
@@ -310,6 +311,7 @@ export async function upsertSpeciesProfile(
   otherNames?: string[],
   fruitingBodyCountOverride?: string | null,
   description?: string | null,
+  habitat?: string | null,
 ): Promise<void> {
   return invoke<void>('upsert_species_profile', {
     storagePath,
@@ -325,6 +327,7 @@ export async function upsertSpeciesProfile(
     otherNames: otherNames ?? [],
     fruitingBodyCountOverride: fruitingBodyCountOverride ?? null,
     description: description ?? null,
+    habitat: habitat ?? null,
   });
 }
 

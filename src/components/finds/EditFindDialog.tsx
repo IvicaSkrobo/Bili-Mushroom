@@ -311,6 +311,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
               otherNames: speciesProfile?.other_names ?? [],
               fruitingBodyCountOverride: speciesProfile?.fruiting_body_count_override ?? null,
               description: form.species_description.trim() || null,
+              habitat: speciesProfile?.habitat ?? null,
             });
           }
           onOpenChange(false);
