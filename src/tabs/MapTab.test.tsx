@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
 vi.mock('@/components/map/FindsMap', () => ({
@@ -7,8 +7,11 @@ vi.mock('@/components/map/FindsMap', () => ({
   ),
 }));
 
+const mapPointsRef = {
+  current: { data: [] as never[], error: null as Error | null, isLoading: false },
+};
 vi.mock('@/hooks/useFinds', () => ({
-  useMapPoints: () => ({ data: [], isLoading: false }),
+  useMapPoints: () => mapPointsRef.current,
 }));
 
 vi.mock('@/hooks/useZones', () => ({
@@ -26,6 +29,11 @@ vi.mock('@/stores/appStore', () => ({
 import MapTab from './MapTab';
 
 describe('MapTab', () => {
+  beforeEach(() => {
+    storagePathRef.current = null;
+    mapPointsRef.current = { data: [], error: null, isLoading: false };
+  });
+
   it('renders the "select a storage folder" hint when storagePath is null', () => {
     storagePathRef.current = null;
     render(<MapTab />);
@@ -38,5 +46,20 @@ describe('MapTab', () => {
     render(<MapTab />);
     const map = screen.getByTestId('finds-map');
     expect(map).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('distinguishes a failed map query from a successfully empty map', () => {
+    storagePathRef.current = '/tmp/storage';
+    mapPointsRef.current = {
+      data: [],
+      error: new Error('unknown command get_map_points'),
+      isLoading: false,
+    };
+
+    render(<MapTab />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/could not be loaded/i);
+    expect(screen.getByTestId('finds-map')).toBeInTheDocument();
   });
 });
