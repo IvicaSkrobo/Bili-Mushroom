@@ -99,7 +99,7 @@ export function AppShell() {
   }
 
   return (
-    <div className="relative flex h-screen w-screen flex-col bg-background">
+    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-background">
       {/* Header */}
       <header className="relative flex h-16 flex-shrink-0 items-center justify-between border-b border-border/70 bg-card/55 px-6 backdrop-blur-md">
         <div className="flex items-baseline gap-2">
@@ -243,12 +243,12 @@ export function AppShell() {
             <SpeciesTab />
           </Suspense>
         </TabsContent>
-        <TabsContent value="map" className="flex-1 min-h-0">
+        <TabsContent value="map" className="flex-1 min-h-0 overflow-hidden">
           <Suspense fallback={<div className="h-full w-full animate-pulse bg-card/20" />}>
             <MapTab />
           </Suspense>
         </TabsContent>
-        <TabsContent value="samples" className="flex-1 min-h-0">
+        <TabsContent value="samples" className="flex-1 min-h-0 overflow-hidden">
           <Suspense fallback={<div className="h-full w-full animate-pulse bg-card/20" />}>
             <SamplesTab />
           </Suspense>
