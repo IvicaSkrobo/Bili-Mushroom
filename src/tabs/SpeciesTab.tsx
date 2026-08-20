@@ -479,7 +479,7 @@ export default function SpeciesTab() {
   const [lightboxPhotosOverride, setLightboxPhotosOverride] = useState<LightboxPhoto[] | null>(null);
   const [lightboxFallbackFind, setLightboxFallbackFind] = useState<Find | null>(null);
   const [editingFind, setEditingFind] = useState<Find | null>(null);
-  const [detailTab, setDetailTab] = useState<'overview' | 'finds' | 'recipes' | 'description'>('overview');
+  const [detailTab, setDetailTab] = useState<'overview' | 'finds' | 'recipes' | 'description' | 'habitat'>('overview');
   const [speciesListScrollElement, setSpeciesListScrollElement] = useState<HTMLDivElement | null>(null);
   const [selectedFindScrollElement, setSelectedFindScrollElement] = useState<HTMLDivElement | null>(null);
   const [coverPickerScrollElement, setCoverPickerScrollElement] = useState<HTMLDivElement | null>(null);
@@ -718,6 +718,7 @@ export default function SpeciesTab() {
 
   const [noteInput, setNoteInput] = useState(selectedNote);
   const [speciesDescriptionInput, setSpeciesDescriptionInput] = useState(selectedProfile?.description ?? selectedProfile?.edibility_note ?? '');
+  const [speciesHabitatInput, setSpeciesHabitatInput] = useState(selectedProfile?.habitat ?? '');
   const [edibilityInput, setEdibilityInput] = useState(selectedProfile?.edibility ?? 'unknown');
   const [threatStatusInput, setThreatStatusInput] = useState(selectedProfile?.threat_status ?? 'unknown');
   const [distributionInput, setDistributionInput] = useState(selectedProfile?.distribution ?? 'unknown');
@@ -733,6 +734,7 @@ export default function SpeciesTab() {
   useEffect(() => {
     setNoteInput(selectedNote);
     setSpeciesDescriptionInput(selectedProfile?.description ?? selectedProfile?.edibility_note ?? '');
+    setSpeciesHabitatInput(selectedProfile?.habitat ?? '');
     setEdibilityInput(selectedProfile?.edibility ?? 'unknown');
     setThreatStatusInput(selectedProfile?.threat_status ?? 'unknown');
     setDistributionInput(selectedProfile?.distribution ?? 'unknown');
@@ -786,6 +788,7 @@ export default function SpeciesTab() {
   }, [selectedRecipes]);
 
   const profileDescription = speciesDescriptionInput.trim() || null;
+  const profileHabitat = speciesHabitatInput.trim() || null;
   const legacyEdibilityNote = selectedProfile?.edibility_note ?? null;
 
   const handleSaveFruitingBodyCountOverride = (value = fruitingBodyCountInput) => {
@@ -810,6 +813,7 @@ export default function SpeciesTab() {
       otherNames: selectedOtherNames,
       fruitingBodyCountOverride: normalized,
       description: profileDescription,
+      habitat: profileHabitat,
     });
   };
 
@@ -827,6 +831,7 @@ export default function SpeciesTab() {
       otherNames: existingProfile?.other_names ?? [],
       fruitingBodyCountOverride: existingProfile?.fruiting_body_count_override ?? null,
       description: existingProfile?.description ?? existingProfile?.edibility_note ?? null,
+      habitat: existingProfile?.habitat ?? null,
     });
     setCoverPickerOpen(false);
   };
@@ -845,6 +850,7 @@ export default function SpeciesTab() {
       otherNames: selectedOtherNames,
       fruitingBodyCountOverride: selectedFruitingBodyCountOverride,
       description: profileDescription,
+      habitat: profileHabitat,
     });
   };
 
@@ -862,6 +868,25 @@ export default function SpeciesTab() {
       otherNames: selectedOtherNames,
       fruitingBodyCountOverride: selectedFruitingBodyCountOverride,
       description: profileDescription,
+      habitat: profileHabitat,
+    });
+  };
+
+  const handleSaveSpeciesHabitat = () => {
+    if (!selectedJournal) return;
+    upsertSpeciesProfile.mutate({
+      speciesName: selectedJournal.speciesName,
+      coverPhotoId: currentCoverPhotoId,
+      tags: selectedTags,
+      edibility: edibilityInput === 'unknown' ? null : edibilityInput,
+      threatStatus: threatStatusInput === 'unknown' ? null : threatStatusInput,
+      distribution: distributionInput === 'unknown' ? null : distributionInput,
+      edibilityNote: legacyEdibilityNote,
+      synonyms: selectedSynonyms,
+      otherNames: selectedOtherNames,
+      fruitingBodyCountOverride: selectedFruitingBodyCountOverride,
+      description: profileDescription,
+      habitat: profileHabitat,
     });
   };
 
@@ -894,6 +919,7 @@ export default function SpeciesTab() {
       otherNames: selectedOtherNames,
       fruitingBodyCountOverride: selectedFruitingBodyCountOverride,
       description: profileDescription,
+      habitat: profileHabitat,
     });
   };
 
@@ -912,6 +938,7 @@ export default function SpeciesTab() {
       otherNames: selectedOtherNames,
       fruitingBodyCountOverride: selectedFruitingBodyCountOverride,
       description: profileDescription,
+      habitat: profileHabitat,
     });
     setSynonymsInput('');
   };
@@ -930,6 +957,7 @@ export default function SpeciesTab() {
       otherNames: selectedOtherNames,
       fruitingBodyCountOverride: selectedFruitingBodyCountOverride,
       description: profileDescription,
+      habitat: profileHabitat,
     });
   };
 
@@ -1198,7 +1226,7 @@ export default function SpeciesTab() {
                 <div>
                   {/* Detail tab strip */}
                   <div className="mb-6 flex border-b border-border/50">
-                    {(['overview', 'finds', 'recipes', 'description'] as const).map((tab) => (
+                    {(['overview', 'finds', 'recipes', 'description', 'habitat'] as const).map((tab) => (
                       <button
                         key={tab}
                         type="button"
@@ -1213,7 +1241,8 @@ export default function SpeciesTab() {
                         {tab === 'overview' ? t('species.tabOverview')
                           : tab === 'finds' ? t('species.tabFinds')
                           : tab === 'recipes' ? t('species.tabRecipes')
-                          : t('species.tabDescription')}
+                          : tab === 'description' ? t('species.tabDescription')
+                          : t('species.tabHabitat')}
                         {tab === 'finds' && (
                           <span className="rounded-full bg-muted px-1.5 text-[10px] font-mono font-normal text-muted-foreground">
                             {selectedJournal.recordedFinds}
@@ -1709,6 +1738,35 @@ export default function SpeciesTab() {
                           }}
                           rows={4}
                           placeholder={t('edit.speciesDescriptionPlaceholder')}
+                          className="w-full resize-none overflow-hidden rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
+                        />
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Habitat tab */}
+                  {detailTab === 'habitat' && (
+                    <Card className="gap-0 py-5">
+                      <CardContent className="space-y-4 px-5">
+                        <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                          {t('species.tabHabitat')}
+                        </h3>
+                        <textarea
+                          value={speciesHabitatInput}
+                          onChange={(e) => {
+                            setSpeciesHabitatInput(e.target.value);
+                            e.target.style.height = 'auto';
+                            e.target.style.height = `${e.target.scrollHeight}px`;
+                          }}
+                          onBlur={handleSaveSpeciesHabitat}
+                          ref={(el) => {
+                            if (el) {
+                              el.style.height = 'auto';
+                              el.style.height = `${el.scrollHeight}px`;
+                            }
+                          }}
+                          rows={4}
+                          placeholder={t('edit.speciesHabitatPlaceholder')}
                           className="w-full resize-none overflow-hidden rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
                         />
                       </CardContent>

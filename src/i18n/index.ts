@@ -169,6 +169,7 @@ const hr: Translations = {
   'species.tabFinds': 'Nalazi',
   'species.tabRecipes': 'Recepti',
   'species.tabDescription': 'Opis',
+  'species.tabHabitat': 'Stanište',
 
   // import dialog
   'import.title': 'Uvezi fotografije',
@@ -258,6 +259,7 @@ const hr: Translations = {
   'edit.edibilityNoteHelp': 'Opći opis vrste. Nije vezan uz jestivost.',
   'edit.speciesDescription': 'Opis vrste',
   'edit.speciesDescriptionPlaceholder': 'Opis staništa, izgleda, mirisa, sličnih vrsta...',
+  'edit.speciesHabitatPlaceholder': 'Tip šume, drveće domaćini, tlo, nadmorska visina, sezona...',
   'edit.speciesDescriptionHelp': 'Opći opis vrste. Sprema se na vrstu, ne samo na ovaj nalaz.',
   'edit.cancel': 'Odustani',
   'edit.save': 'Spremi',
@@ -800,6 +802,7 @@ const en: Translations = {
   'species.tabFinds': 'Finds',
   'species.tabRecipes': 'Recipes',
   'species.tabDescription': 'Description',
+  'species.tabHabitat': 'Habitat',
 
   // import dialog
   'import.title': 'Import Photos',
@@ -889,6 +892,7 @@ const en: Translations = {
   'edit.edibilityNoteHelp': 'General species description. Not tied to edibility.',
   'edit.speciesDescription': 'Species description',
   'edit.speciesDescriptionPlaceholder': 'Habitat, appearance, smell, similar species...',
+  'edit.speciesHabitatPlaceholder': 'Forest type, host trees, soil, altitude, season...',
   'edit.speciesDescriptionHelp': 'General species description. Saved on the species, not only this find.',
   'edit.cancel': 'Cancel',
   'edit.save': 'Save',
