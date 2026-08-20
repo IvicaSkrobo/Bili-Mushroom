@@ -69,15 +69,28 @@ registered find keeps its number and just re-syncs), `update_sample`, `delete_sa
 - `npx vitest run` — 324 passed, 13 failed; the same 13 pre-existing failures.
 - Not yet exercised against the live DB — needs an app restart and a find to be ticked.
 
-## Known gaps / follow-ups
+## Gaps closed in follow-up (commit da163af)
 
-- **Species rename**: `samples.species_name` is not updated by bulk rename, so a renamed
-  species keeps its old label and folder. Needs handling, including the number collision
-  when two species merge (per-species numbering makes this possible).
-- **Import dialog** has no "Izuzet uzorak" checkbox yet — only the two find dialogs.
-- **Deleting a find** leaves its sample row pointing at a missing find; the join then
-  drops it from the register silently. Should cascade or warn.
+- **Species rename now follows.** `relocate_samples_for_finds` moves each affected sample
+  to the new species name, keeping its number when that number is free there and
+  renumbering only on collision — possible precisely because numbering is per species, so
+  merging two species can bring two `1/2026` together. The folder moves with it and the
+  data sheet is rewritten.
+- **Deleting a find no longer orphans the register entry.** Both delete paths
+  (`delete_find` and `move_find_files`) drop the sample row.
+- **Import dialog has the "Izuzet uzorak" checkbox**, draft-persisted, registering every
+  imported find after the import succeeds.
+- **Removal is explained in the UI and never touches the folder.** The confirm step
+  states: only the register entry is deleted; find, photos and folder stay; the number is
+  not reused. Per the user's instruction the app now never deletes a sample folder on any
+  path — including a delete-files run, where hard-linked photos survive in the sample
+  folder because the link keeps the inode alive.
+
+## Remaining follow-ups
+
 - **Labels (etikete)**: printable PDF labels are the natural next step — the app already
   bundles `@react-pdf/renderer`.
 - Backing up or cloud-syncing the storage folder will duplicate hard-linked photos
   (most sync tools do not preserve links).
+- Re-registering a find that was removed from the register mints a **new** number and
+  folder; the earlier folder stays on disk as an orphan by design.
