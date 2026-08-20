@@ -1341,18 +1341,184 @@ pub async fn import_find(
     payloads: Vec<ImportPayload>,
     delete_source: bool,
 ) -> Result<ImportSummary, String> {
-    let total = payloads.len();
-    let mut imported: Vec<FindRecord> = Vec::new();
-    let mut skipped: Vec<String> = Vec::new();
-    let mut delete_failures: Vec<String> = Vec::new();
+    tauri::async_runtime::spawn_blocking(move || {
+        let total = payloads.len();
+        let mut imported: Vec<FindRecord> = Vec::new();
+        let mut skipped: Vec<String> = Vec::new();
+        let mut delete_failures: Vec<String> = Vec::new();
 
-    let mut conn = open_db(&storage_path)?;
-    let storage_path_buf = Path::new(&storage_path);
-    let mut seen_source_paths: HashSet<String> = HashSet::new();
+        let mut conn = open_db(&storage_path)?;
+        let storage_path_buf = Path::new(&storage_path);
+        let mut seen_source_paths: HashSet<String> = HashSet::new();
 
-    for (i, payload) in payloads.iter().enumerate() {
-        if !remember_source_path(&mut seen_source_paths, &payload.source_path) {
-            skipped.push(payload.original_filename.clone());
+        for (i, payload) in payloads.iter().enumerate() {
+            if !remember_source_path(&mut seen_source_paths, &payload.source_path) {
+                skipped.push(payload.original_filename.clone());
+                let _ = app.emit(
+                    "import-progress",
+                    ImportProgress {
+                        current: i + 1,
+                        total,
+                        filename: payload.original_filename.clone(),
+                    },
+                );
+                continue;
+            }
+
+            // Location label for filename: only location_note (user-entered "oznaka").
+            // Region is NOT used — user wants the manual label, not the auto-geocoded region.
+            let location_label = payload.location_note.trim().to_string();
+
+            // If source is already inside storage_path, register it in-place — no copy, no
+            // delete. This handles auto-import where the user picks their existing mushroom
+            // library folder. Skip-if-duplicate check happens before any copy is attempted.
+            let src_path = Path::new(&payload.source_path);
+            if src_path.starts_with(storage_path_buf) {
+                let existing_photo_path = src_path
+                    .strip_prefix(storage_path_buf)
+                    .map(|p| {
+                        p.to_string_lossy()
+                            .replace('\\', "/")
+                            .trim_start_matches('/')
+                            .to_string()
+                    })
+                    .unwrap_or_else(|_| payload.source_path.clone());
+
+                match has_existing_photo_path(&conn, &existing_photo_path) {
+                    Ok(true) => {
+                        skipped.push(payload.original_filename.clone());
+                        let _ = app.emit(
+                            "import-progress",
+                            ImportProgress {
+                                current: i + 1,
+                                total,
+                                filename: payload.original_filename.clone(),
+                            },
+                        );
+                        continue;
+                    }
+                    Ok(false) => {}
+                    Err(e) => return Err(format!("Duplicate check failed: {}", e)),
+                }
+            }
+
+            // --- Copy phase: copy every photo for this find to storage first. No DB writes,
+            // no source deletion yet. If any copy fails, everything staged for THIS find is
+            // rolled back (destination files removed) and no source file is ever touched. ---
+            let staged = copy_payload_photos(
+                &storage_path,
+                storage_path_buf,
+                payload,
+                &location_label,
+                &mut seen_source_paths,
+                &mut skipped,
+            )?;
+
+            // --- Commit phase: only after every copy above succeeded, write the find and
+            // all its photos inside a single transaction. A crash or error here rolls back
+            // automatically (rusqlite drops uncommitted transactions), leaving no partial
+            // find row behind — since nothing was deleted from source yet, no data is lost
+            // even if this phase fails. ---
+            let created_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+            let (observed_count, observed_count_min, observed_count_max) = normalize_observed_range(
+                payload.observed_count,
+                payload.observed_count_min,
+                payload.observed_count_max,
+            );
+
+            // EXIF fallback: only consulted when the payload itself carries no manual
+            // lat/lng. Scans staged photos in insertion order (primary first, then
+            // additional) — first GPS-tagged photo wins. Manual values always win.
+            let (final_lat, final_lng) = resolve_find_coords(
+                payload.lat,
+                payload.lng,
+                first_gps_coords_from_staged(&staged),
+            );
+
+            let mut record = FindRecord {
+                id: 0, // set after insert
+                original_filename: payload.original_filename.clone(),
+                species_name: payload.species_name.clone(),
+                date_found: payload.date_found.clone(),
+                country: payload.country.clone(),
+                region: payload.region.clone(),
+                lat: final_lat,
+                lng: final_lng,
+                notes: payload.notes.clone(),
+                location_note: payload.location_note.clone(),
+                observed_count,
+                observed_count_min,
+                observed_count_max,
+                is_favorite: false,
+                created_at,
+                edibility_note: payload.edibility_note.clone(),
+                weather: payload.weather.clone(),
+                determiner: payload.determiner.clone(),
+                finder: payload.finder.clone(),
+                photo_count: Some(staged.len() as i64),
+                photos: vec![],
+            };
+
+            let commit_result: Result<(i64, Vec<FindPhoto>), String> = (|| {
+                let tx = conn
+                    .transaction()
+                    .map_err(|e| format!("Failed to start import transaction: {}", e))?;
+
+                let new_id =
+                    insert_find_row(&tx, &record).map_err(|e| format!("DB insert failed: {}", e))?;
+
+                upsert_species_common_name(&tx, &payload.species_name, payload.common_name.as_deref())?;
+
+                let mut photos: Vec<FindPhoto> = Vec::with_capacity(staged.len());
+                for photo in &staged {
+                    let photo_row_id =
+                        insert_find_photo(&tx, new_id, &photo.relative_path, photo.is_primary)
+                            .map_err(|e| format!("DB insert photo failed: {}", e))?;
+                    photos.push(FindPhoto {
+                        id: photo_row_id,
+                        find_id: new_id,
+                        photo_path: photo.relative_path.clone(),
+                        is_primary: photo.is_primary,
+                    });
+                }
+
+                tx.commit()
+                    .map_err(|e| format!("Failed to finalize import: {}", e))?;
+
+                Ok((new_id, photos))
+            })();
+
+            let (new_id, photos) = match commit_result {
+                Ok(value) => value,
+                Err(e) => {
+                    // DB write failed/rolled back — clean up copied files for this find and
+                    // do NOT delete any source file, since nothing was durably imported.
+                    cleanup_staged_photos(&staged);
+                    return Err(e);
+                }
+            };
+
+            // --- Delete phase: only now, after the find is durably committed, remove
+            // source files (best-effort, retried — failures are reported but not fatal). ---
+            if delete_source {
+                for photo in &staged {
+                    // In-place (already-in-storage) photos were never copied; source IS the
+                    // user's existing library file — never delete those.
+                    if !photo.was_copied {
+                        continue;
+                    }
+                    if let Err(failed_path) =
+                        delete_source_with_retry(&photo.source_path, 3, Duration::from_millis(150))
+                    {
+                        delete_failures.push(failed_path);
+                    }
+                }
+            }
+
+            record.id = new_id;
+            record.photos = photos;
+            imported.push(record);
+
             let _ = app.emit(
                 "import-progress",
                 ImportProgress {
@@ -1361,178 +1527,16 @@ pub async fn import_find(
                     filename: payload.original_filename.clone(),
                 },
             );
-            continue;
         }
 
-        // Location label for filename: only location_note (user-entered "oznaka").
-        // Region is NOT used — user wants the manual label, not the auto-geocoded region.
-        let location_label = payload.location_note.trim().to_string();
-
-        // If source is already inside storage_path, register it in-place — no copy, no
-        // delete. This handles auto-import where the user picks their existing mushroom
-        // library folder. Skip-if-duplicate check happens before any copy is attempted.
-        let src_path = Path::new(&payload.source_path);
-        if src_path.starts_with(storage_path_buf) {
-            let existing_photo_path = src_path
-                .strip_prefix(storage_path_buf)
-                .map(|p| {
-                    p.to_string_lossy()
-                        .replace('\\', "/")
-                        .trim_start_matches('/')
-                        .to_string()
-                })
-                .unwrap_or_else(|_| payload.source_path.clone());
-
-            match has_existing_photo_path(&conn, &existing_photo_path) {
-                Ok(true) => {
-                    skipped.push(payload.original_filename.clone());
-                    let _ = app.emit(
-                        "import-progress",
-                        ImportProgress {
-                            current: i + 1,
-                            total,
-                            filename: payload.original_filename.clone(),
-                        },
-                    );
-                    continue;
-                }
-                Ok(false) => {}
-                Err(e) => return Err(format!("Duplicate check failed: {}", e)),
-            }
-        }
-
-        // --- Copy phase: copy every photo for this find to storage first. No DB writes,
-        // no source deletion yet. If any copy fails, everything staged for THIS find is
-        // rolled back (destination files removed) and no source file is ever touched. ---
-        let staged = copy_payload_photos(
-            &storage_path,
-            storage_path_buf,
-            payload,
-            &location_label,
-            &mut seen_source_paths,
-            &mut skipped,
-        )?;
-
-        // --- Commit phase: only after every copy above succeeded, write the find and
-        // all its photos inside a single transaction. A crash or error here rolls back
-        // automatically (rusqlite drops uncommitted transactions), leaving no partial
-        // find row behind — since nothing was deleted from source yet, no data is lost
-        // even if this phase fails. ---
-        let created_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-        let (observed_count, observed_count_min, observed_count_max) = normalize_observed_range(
-            payload.observed_count,
-            payload.observed_count_min,
-            payload.observed_count_max,
-        );
-
-        // EXIF fallback: only consulted when the payload itself carries no manual
-        // lat/lng. Scans staged photos in insertion order (primary first, then
-        // additional) — first GPS-tagged photo wins. Manual values always win.
-        let (final_lat, final_lng) = resolve_find_coords(
-            payload.lat,
-            payload.lng,
-            first_gps_coords_from_staged(&staged),
-        );
-
-        let mut record = FindRecord {
-            id: 0, // set after insert
-            original_filename: payload.original_filename.clone(),
-            species_name: payload.species_name.clone(),
-            date_found: payload.date_found.clone(),
-            country: payload.country.clone(),
-            region: payload.region.clone(),
-            lat: final_lat,
-            lng: final_lng,
-            notes: payload.notes.clone(),
-            location_note: payload.location_note.clone(),
-            observed_count,
-            observed_count_min,
-            observed_count_max,
-            is_favorite: false,
-            created_at,
-            edibility_note: payload.edibility_note.clone(),
-            weather: payload.weather.clone(),
-            determiner: payload.determiner.clone(),
-            finder: payload.finder.clone(),
-            photo_count: Some(staged.len() as i64),
-            photos: vec![],
-        };
-
-        let commit_result: Result<(i64, Vec<FindPhoto>), String> = (|| {
-            let tx = conn
-                .transaction()
-                .map_err(|e| format!("Failed to start import transaction: {}", e))?;
-
-            let new_id =
-                insert_find_row(&tx, &record).map_err(|e| format!("DB insert failed: {}", e))?;
-
-            upsert_species_common_name(&tx, &payload.species_name, payload.common_name.as_deref())?;
-
-            let mut photos: Vec<FindPhoto> = Vec::with_capacity(staged.len());
-            for photo in &staged {
-                let photo_row_id =
-                    insert_find_photo(&tx, new_id, &photo.relative_path, photo.is_primary)
-                        .map_err(|e| format!("DB insert photo failed: {}", e))?;
-                photos.push(FindPhoto {
-                    id: photo_row_id,
-                    find_id: new_id,
-                    photo_path: photo.relative_path.clone(),
-                    is_primary: photo.is_primary,
-                });
-            }
-
-            tx.commit()
-                .map_err(|e| format!("Failed to finalize import: {}", e))?;
-
-            Ok((new_id, photos))
-        })();
-
-        let (new_id, photos) = match commit_result {
-            Ok(value) => value,
-            Err(e) => {
-                // DB write failed/rolled back — clean up copied files for this find and
-                // do NOT delete any source file, since nothing was durably imported.
-                cleanup_staged_photos(&staged);
-                return Err(e);
-            }
-        };
-
-        // --- Delete phase: only now, after the find is durably committed, remove
-        // source files (best-effort, retried — failures are reported but not fatal). ---
-        if delete_source {
-            for photo in &staged {
-                // In-place (already-in-storage) photos were never copied; source IS the
-                // user's existing library file — never delete those.
-                if !photo.was_copied {
-                    continue;
-                }
-                if let Err(failed_path) =
-                    delete_source_with_retry(&photo.source_path, 3, Duration::from_millis(150))
-                {
-                    delete_failures.push(failed_path);
-                }
-            }
-        }
-
-        record.id = new_id;
-        record.photos = photos;
-        imported.push(record);
-
-        let _ = app.emit(
-            "import-progress",
-            ImportProgress {
-                current: i + 1,
-                total,
-                filename: payload.original_filename.clone(),
-            },
-        );
-    }
-
-    Ok(ImportSummary {
-        imported,
-        skipped,
-        delete_failures,
+        Ok(ImportSummary {
+            imported,
+            skipped,
+            delete_failures,
+        })
     })
+    .await
+    .map_err(|e| format!("Import worker failed: {e}"))?
 }
 
 #[tauri::command]
@@ -2590,93 +2594,97 @@ pub async fn update_find(
     storage_path: String,
     payload: UpdateFindPayload,
 ) -> Result<FindRecord, String> {
-    let mut conn = open_db(&storage_path)?;
-    let (observed_count, observed_count_min, observed_count_max) = normalize_observed_range(
-        payload.observed_count,
-        payload.observed_count_min,
-        payload.observed_count_max,
-    );
-    let tx = conn
-        .transaction()
-        .map_err(|e| format!("Failed to start update transaction: {}", e))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut conn = open_db(&storage_path)?;
+        let (observed_count, observed_count_min, observed_count_max) = normalize_observed_range(
+            payload.observed_count,
+            payload.observed_count_min,
+            payload.observed_count_max,
+        );
+        let tx = conn
+            .transaction()
+            .map_err(|e| format!("Failed to start update transaction: {}", e))?;
 
-    let old_species_name: String = tx
-        .query_row(
-            "SELECT species_name FROM finds WHERE id = ?1",
-            params![payload.id],
-            |row| row.get(0),
-        )
-        .map_err(|e| format!("Failed to read current species name: {}", e))?;
-
-    if old_species_name != payload.species_name {
-        move_find_photos_to_species_folder(&tx, &storage_path, payload.id, &payload.species_name)?;
-    }
-
-    let rows_affected = tx
-        .execute(
-            "UPDATE finds SET species_name=?1, date_found=?2, country=?3, region=?4, lat=?5, lng=?6, notes=?7, location_note=?8, observed_count=?9, observed_count_min=?10, observed_count_max=?11, edibility_note=?12, weather=?13, determiner=?14, finder=?15 WHERE id=?16",
-            params![
-                payload.species_name,
-                payload.date_found,
-                payload.country,
-                payload.region,
-                payload.lat,
-                payload.lng,
-                payload.notes,
-                payload.location_note,
-                observed_count,
-                observed_count_min,
-                observed_count_max,
-                payload.edibility_note,
-                payload.weather,
-                payload.determiner,
-                payload.finder,
-                payload.id,
-            ],
-        )
-        .map_err(|e| format!("Update failed: {}", e))?;
-
-    if rows_affected == 0 {
-        return Err("find not found".into());
-    }
-
-    upsert_species_common_name(&tx, &payload.species_name, payload.common_name.as_deref())?;
-
-    let mut record = tx
-        .query_row(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather, determiner, finder FROM finds WHERE id = ?1",
-            params![payload.id],
-            |row| find_record_from_row(row),
-        )
-        .map_err(|e| format!("Failed to read updated record: {}", e))?;
-
-    // Fetch photos for the updated record
-    let photos: Vec<FindPhoto> = {
-        let mut stmt = tx
-            .prepare(
-                "SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
+        let old_species_name: String = tx
+            .query_row(
+                "SELECT species_name FROM finds WHERE id = ?1",
+                params![payload.id],
+                |row| row.get(0),
             )
-            .map_err(|e| e.to_string())?;
-        let rows = stmt
-            .query_map(params![payload.id], |row| {
-                Ok(FindPhoto {
-                    id: row.get(0)?,
-                    find_id: row.get(1)?,
-                    photo_path: row.get(2)?,
-                    is_primary: row.get::<_, i64>(3)? == 1,
-                })
-            })
-            .map_err(|e| e.to_string())?;
-        let collected = rows
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())?;
-        collected
-    };
+            .map_err(|e| format!("Failed to read current species name: {}", e))?;
 
-    tx.commit()
-        .map_err(|e| format!("Failed to finalize update: {}", e))?;
-    record.photos = photos;
-    Ok(record)
+        if old_species_name != payload.species_name {
+            move_find_photos_to_species_folder(&tx, &storage_path, payload.id, &payload.species_name)?;
+        }
+
+        let rows_affected = tx
+            .execute(
+                "UPDATE finds SET species_name=?1, date_found=?2, country=?3, region=?4, lat=?5, lng=?6, notes=?7, location_note=?8, observed_count=?9, observed_count_min=?10, observed_count_max=?11, edibility_note=?12, weather=?13, determiner=?14, finder=?15 WHERE id=?16",
+                params![
+                    payload.species_name,
+                    payload.date_found,
+                    payload.country,
+                    payload.region,
+                    payload.lat,
+                    payload.lng,
+                    payload.notes,
+                    payload.location_note,
+                    observed_count,
+                    observed_count_min,
+                    observed_count_max,
+                    payload.edibility_note,
+                    payload.weather,
+                    payload.determiner,
+                    payload.finder,
+                    payload.id,
+                ],
+            )
+            .map_err(|e| format!("Update failed: {}", e))?;
+
+        if rows_affected == 0 {
+            return Err("find not found".into());
+        }
+
+        upsert_species_common_name(&tx, &payload.species_name, payload.common_name.as_deref())?;
+
+        let mut record = tx
+            .query_row(
+                "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather, determiner, finder FROM finds WHERE id = ?1",
+                params![payload.id],
+                |row| find_record_from_row(row),
+            )
+            .map_err(|e| format!("Failed to read updated record: {}", e))?;
+
+        // Fetch photos for the updated record
+        let photos: Vec<FindPhoto> = {
+            let mut stmt = tx
+                .prepare(
+                    "SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
+                )
+                .map_err(|e| e.to_string())?;
+            let rows = stmt
+                .query_map(params![payload.id], |row| {
+                    Ok(FindPhoto {
+                        id: row.get(0)?,
+                        find_id: row.get(1)?,
+                        photo_path: row.get(2)?,
+                        is_primary: row.get::<_, i64>(3)? == 1,
+                    })
+                })
+                .map_err(|e| e.to_string())?;
+            let collected = rows
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
+            collected
+        };
+
+        tx.commit()
+            .map_err(|e| format!("Failed to finalize update: {}", e))?;
+        record.photos = photos;
+        Ok(record)
+    })
+    .await
+    .map_err(|e| format!("Update find worker failed: {e}"))?
 }
 
 fn move_find_photos_to_species_folder(

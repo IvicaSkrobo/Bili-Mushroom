@@ -48,67 +48,71 @@ pub async fn create_find(
     storage_path: String,
     payload: CreateFindPayload,
 ) -> Result<FindRecord, String> {
-    if payload.species_name.trim().is_empty() {
-        return Err("species_name cannot be empty".into());
-    }
-    let inserted_species_name = payload.species_name.trim().to_string();
+    tauri::async_runtime::spawn_blocking(move || {
+        if payload.species_name.trim().is_empty() {
+            return Err("species_name cannot be empty".into());
+        }
+        let inserted_species_name = payload.species_name.trim().to_string();
 
-    let conn = open_db(&storage_path)?;
+        let conn = open_db(&storage_path)?;
 
-    let (observed_count, observed_count_min, observed_count_max) =
-        crate::commands::import::normalize_observed_range_pub(
-            payload.observed_count,
-            payload.observed_count_min,
-            payload.observed_count_max,
-        );
+        let (observed_count, observed_count_min, observed_count_max) =
+            crate::commands::import::normalize_observed_range_pub(
+                payload.observed_count,
+                payload.observed_count_min,
+                payload.observed_count_max,
+            );
 
-    let created_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+        let created_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
 
-    let record = FindRecord {
-        id: 0,
-        original_filename: String::new(),
-        species_name: inserted_species_name.clone(),
-        date_found: payload.date_found,
-        country: payload.country,
-        region: payload.region,
-        location_note: payload.location_note,
-        lat: payload.lat,
-        lng: payload.lng,
-        notes: payload.notes,
-        observed_count,
-        observed_count_min,
-        observed_count_max,
-        is_favorite: false,
-        created_at,
-        edibility_note: payload.edibility_note,
-        weather: payload.weather,
-        determiner: payload.determiner,
-        finder: payload.finder,
-        photo_count: Some(0),
-        photos: vec![],
-    };
+        let record = FindRecord {
+            id: 0,
+            original_filename: String::new(),
+            species_name: inserted_species_name.clone(),
+            date_found: payload.date_found,
+            country: payload.country,
+            region: payload.region,
+            location_note: payload.location_note,
+            lat: payload.lat,
+            lng: payload.lng,
+            notes: payload.notes,
+            observed_count,
+            observed_count_min,
+            observed_count_max,
+            is_favorite: false,
+            created_at,
+            edibility_note: payload.edibility_note,
+            weather: payload.weather,
+            determiner: payload.determiner,
+            finder: payload.finder,
+            photo_count: Some(0),
+            photos: vec![],
+        };
 
-    let new_id =
-        insert_find_row(&conn, &record).map_err(|e| format!("Failed to insert find: {}", e))?;
+        let new_id =
+            insert_find_row(&conn, &record).map_err(|e| format!("Failed to insert find: {}", e))?;
 
-    upsert_species_common_name(
-        &conn,
-        &inserted_species_name,
-        payload.common_name.as_deref(),
-    )?;
+        upsert_species_common_name(
+            &conn,
+            &inserted_species_name,
+            payload.common_name.as_deref(),
+        )?;
 
-    let mut inserted = conn
-        .query_row(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather, determiner, finder FROM finds WHERE id = ?1",
-            params![new_id],
-            |row| find_record_from_row(row),
-        )
-        .map_err(|e| format!("Failed to read inserted find: {}", e))?;
+        let mut inserted = conn
+            .query_row(
+                "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather, determiner, finder FROM finds WHERE id = ?1",
+                params![new_id],
+                |row| find_record_from_row(row),
+            )
+            .map_err(|e| format!("Failed to read inserted find: {}", e))?;
 
-    // No photo rows were inserted — explicitly set to empty
-    inserted.photos = vec![];
+        // No photo rows were inserted — explicitly set to empty
+        inserted.photos = vec![];
 
-    Ok(inserted)
+        Ok(inserted)
+    })
+    .await
+    .map_err(|e| format!("Create find worker failed: {e}"))?
 }
 
 const INTERNAL_SPECIES_FILTER: &str =
@@ -516,35 +520,39 @@ pub async fn upsert_species_profile(
     description: Option<String>,
     habitat: Option<String>,
 ) -> Result<(), String> {
-    let conn = open_db(&storage_path)?;
-    let updated_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-    let tags_json = serde_json::to_string(&tags)
-        .map_err(|e| format!("Failed to encode species tags: {}", e))?;
-    let synonyms_json = serde_json::to_string(&synonyms)
-        .map_err(|e| format!("Failed to encode synonyms: {}", e))?;
-    let other_names_json = serde_json::to_string(&other_names)
-        .map_err(|e| format!("Failed to encode other_names: {}", e))?;
-    conn.execute(
-        "INSERT INTO species_profiles (species_name, common_name, cover_photo_id, tags_json, updated_at, edibility, threat_status, distribution, edibility_note, synonyms, other_names, fruiting_body_count_override, description, habitat)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
-         ON CONFLICT(species_name) DO UPDATE SET
-           common_name = COALESCE(excluded.common_name, species_profiles.common_name),
-           cover_photo_id = excluded.cover_photo_id,
-           tags_json = excluded.tags_json,
-           updated_at = excluded.updated_at,
-           edibility = excluded.edibility,
-           threat_status = excluded.threat_status,
-           distribution = excluded.distribution,
-           edibility_note = excluded.edibility_note,
-           synonyms = excluded.synonyms,
-           other_names = excluded.other_names,
-           fruiting_body_count_override = excluded.fruiting_body_count_override,
-           description = excluded.description,
-           habitat = excluded.habitat",
-        params![species_name, common_name, cover_photo_id, tags_json, updated_at, edibility, threat_status, distribution, edibility_note, synonyms_json, other_names_json, fruiting_body_count_override, description, habitat],
-    )
-    .map_err(|e| format!("Upsert species profile failed: {}", e))?;
-    Ok(())
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        let updated_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+        let tags_json = serde_json::to_string(&tags)
+            .map_err(|e| format!("Failed to encode species tags: {}", e))?;
+        let synonyms_json = serde_json::to_string(&synonyms)
+            .map_err(|e| format!("Failed to encode synonyms: {}", e))?;
+        let other_names_json = serde_json::to_string(&other_names)
+            .map_err(|e| format!("Failed to encode other_names: {}", e))?;
+        conn.execute(
+            "INSERT INTO species_profiles (species_name, common_name, cover_photo_id, tags_json, updated_at, edibility, threat_status, distribution, edibility_note, synonyms, other_names, fruiting_body_count_override, description, habitat)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+             ON CONFLICT(species_name) DO UPDATE SET
+               common_name = COALESCE(excluded.common_name, species_profiles.common_name),
+               cover_photo_id = excluded.cover_photo_id,
+               tags_json = excluded.tags_json,
+               updated_at = excluded.updated_at,
+               edibility = excluded.edibility,
+               threat_status = excluded.threat_status,
+               distribution = excluded.distribution,
+               edibility_note = excluded.edibility_note,
+               synonyms = excluded.synonyms,
+               other_names = excluded.other_names,
+               fruiting_body_count_override = excluded.fruiting_body_count_override,
+               description = excluded.description,
+               habitat = excluded.habitat",
+            params![species_name, common_name, cover_photo_id, tags_json, updated_at, edibility, threat_status, distribution, edibility_note, synonyms_json, other_names_json, fruiting_body_count_override, description, habitat],
+        )
+        .map_err(|e| format!("Upsert species profile failed: {}", e))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Species profile worker failed: {e}"))?
 }
 
 /// A partial edit to a species profile: every field left unset stays untouched.
@@ -764,50 +772,58 @@ pub async fn upsert_species_recipe(
     title: String,
     notes: String,
 ) -> Result<SpeciesRecipe, String> {
-    let conn = open_db(&storage_path)?;
-    let now = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-    let recipe_id = match id {
-        Some(existing_id) => {
-            conn.execute(
-                "UPDATE species_recipes SET species_name = ?1, title = ?2, notes = ?3, updated_at = ?4 WHERE id = ?5",
-                params![species_name, title, notes, now, existing_id],
-            )
-            .map_err(|e| format!("Update species recipe failed: {}", e))?;
-            existing_id
-        }
-        None => {
-            conn.execute(
-                "INSERT INTO species_recipes (species_name, title, notes, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)",
-                params![species_name, title, notes, now],
-            )
-            .map_err(|e| format!("Insert species recipe failed: {}", e))?;
-            conn.last_insert_rowid()
-        }
-    };
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        let now = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+        let recipe_id = match id {
+            Some(existing_id) => {
+                conn.execute(
+                    "UPDATE species_recipes SET species_name = ?1, title = ?2, notes = ?3, updated_at = ?4 WHERE id = ?5",
+                    params![species_name, title, notes, now, existing_id],
+                )
+                .map_err(|e| format!("Update species recipe failed: {}", e))?;
+                existing_id
+            }
+            None => {
+                conn.execute(
+                    "INSERT INTO species_recipes (species_name, title, notes, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)",
+                    params![species_name, title, notes, now],
+                )
+                .map_err(|e| format!("Insert species recipe failed: {}", e))?;
+                conn.last_insert_rowid()
+            }
+        };
 
-    conn.query_row(
-        "SELECT id, species_name, title, notes, created_at, updated_at FROM species_recipes WHERE id = ?1",
-        params![recipe_id],
-        |row| {
-            Ok(SpeciesRecipe {
-                id: row.get(0)?,
-                species_name: row.get(1)?,
-                title: row.get(2)?,
-                notes: row.get(3)?,
-                created_at: row.get(4)?,
-                updated_at: row.get(5)?,
-            })
-        },
-    )
-    .map_err(|e| format!("Read species recipe failed: {}", e))
+        conn.query_row(
+            "SELECT id, species_name, title, notes, created_at, updated_at FROM species_recipes WHERE id = ?1",
+            params![recipe_id],
+            |row| {
+                Ok(SpeciesRecipe {
+                    id: row.get(0)?,
+                    species_name: row.get(1)?,
+                    title: row.get(2)?,
+                    notes: row.get(3)?,
+                    created_at: row.get(4)?,
+                    updated_at: row.get(5)?,
+                })
+            },
+        )
+        .map_err(|e| format!("Read species recipe failed: {}", e))
+    })
+    .await
+    .map_err(|e| format!("Species recipe worker failed: {e}"))?
 }
 
 #[tauri::command]
 pub async fn delete_species_recipe(storage_path: String, id: i64) -> Result<(), String> {
-    let conn = open_db(&storage_path)?;
-    conn.execute("DELETE FROM species_recipes WHERE id = ?1", params![id])
-        .map_err(|e| format!("Delete species recipe failed: {}", e))?;
-    Ok(())
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        conn.execute("DELETE FROM species_recipes WHERE id = ?1", params![id])
+            .map_err(|e| format!("Delete species recipe failed: {}", e))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Species recipe delete worker failed: {e}"))?
 }
 
 #[tauri::command]
@@ -816,15 +832,19 @@ pub async fn upsert_species_note(
     species_name: String,
     notes: String,
 ) -> Result<(), String> {
-    let conn = open_db(&storage_path)?;
-    let updated_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-    conn.execute(
-        "INSERT INTO species_notes (species_name, notes, updated_at) VALUES (?1, ?2, ?3)
-         ON CONFLICT(species_name) DO UPDATE SET notes=excluded.notes, updated_at=excluded.updated_at",
-        params![species_name, notes, updated_at],
-    )
-    .map_err(|e| format!("Upsert species note failed: {}", e))?;
-    Ok(())
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        let updated_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+        conn.execute(
+            "INSERT INTO species_notes (species_name, notes, updated_at) VALUES (?1, ?2, ?3)
+             ON CONFLICT(species_name) DO UPDATE SET notes=excluded.notes, updated_at=excluded.updated_at",
+            params![species_name, notes, updated_at],
+        )
+        .map_err(|e| format!("Upsert species note failed: {}", e))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Species note worker failed: {e}"))?
 }
 
 /// Move all photo files for a find to a different folder, then delete the DB record.
@@ -835,40 +855,44 @@ pub async fn move_find_files(
     find_id: i64,
     dest_folder: String,
 ) -> Result<(), String> {
-    let conn = open_db(&storage_path)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
 
-    let mut stmt = conn
-        .prepare("SELECT photo_path FROM find_photos WHERE find_id = ?1")
-        .map_err(|e| e.to_string())?;
-    let paths: Vec<String> = stmt
-        .query_map(params![find_id], |row| row.get(0))
-        .map_err(|e| e.to_string())?
-        .filter_map(|r| r.ok())
-        .collect();
+        let mut stmt = conn
+            .prepare("SELECT photo_path FROM find_photos WHERE find_id = ?1")
+            .map_err(|e| e.to_string())?;
+        let paths: Vec<String> = stmt
+            .query_map(params![find_id], |row| row.get(0))
+            .map_err(|e| e.to_string())?
+            .filter_map(|r| r.ok())
+            .collect();
 
-    for rel_path in &paths {
-        let abs_src = format!("{}/{}", storage_path, rel_path);
-        let filename = std::path::Path::new(rel_path.as_str())
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or(rel_path.as_str());
-        let abs_dest = format!("{}/{}", dest_folder, filename);
-        // Try rename first; fall back to copy+delete for cross-device moves
-        if std::fs::rename(&abs_src, &abs_dest).is_err() {
-            std::fs::copy(&abs_src, &abs_dest)
-                .map_err(|e| format!("Failed to copy '{}': {}", abs_src, e))?;
-            std::fs::remove_file(&abs_src)
-                .map_err(|e| format!("Copied '{}' but could not remove source: {}", abs_src, e))?;
+        for rel_path in &paths {
+            let abs_src = format!("{}/{}", storage_path, rel_path);
+            let filename = std::path::Path::new(rel_path.as_str())
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or(rel_path.as_str());
+            let abs_dest = format!("{}/{}", dest_folder, filename);
+            // Try rename first; fall back to copy+delete for cross-device moves
+            if std::fs::rename(&abs_src, &abs_dest).is_err() {
+                std::fs::copy(&abs_src, &abs_dest)
+                    .map_err(|e| format!("Failed to copy '{}': {}", abs_src, e))?;
+                std::fs::remove_file(&abs_src)
+                    .map_err(|e| format!("Copied '{}' but could not remove source: {}", abs_src, e))?;
+            }
         }
-    }
 
-    conn.execute_batch("PRAGMA foreign_keys = ON;")
-        .map_err(|e| e.to_string())?;
-    crate::commands::samples::remove_sample_for_find(&conn, &storage_path, find_id, false)?;
-    conn.execute("DELETE FROM finds WHERE id = ?1", params![find_id])
-        .map_err(|e| format!("DB delete failed: {}", e))?;
+        conn.execute_batch("PRAGMA foreign_keys = ON;")
+            .map_err(|e| e.to_string())?;
+        crate::commands::samples::remove_sample_for_find(&conn, &storage_path, find_id, false)?;
+        conn.execute("DELETE FROM finds WHERE id = ?1", params![find_id])
+            .map_err(|e| format!("DB delete failed: {}", e))?;
 
-    Ok(())
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Move find files worker failed: {e}"))?
 }
 
 #[tauri::command]
@@ -877,158 +901,170 @@ pub async fn open_find_folder(
     find_id: i64,
     scope: Option<String>,
 ) -> Result<(), String> {
-    let conn = open_db(&storage_path)?;
-    let species_name: String = conn
-        .query_row(
-            "SELECT species_name FROM finds WHERE id = ?1",
-            params![find_id],
-            |row| row.get(0),
-        )
-        .map_err(|e| format!("Could not locate this find: {}", e))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        let species_name: String = conn
+            .query_row(
+                "SELECT species_name FROM finds WHERE id = ?1",
+                params![find_id],
+                |row| row.get(0),
+            )
+            .map_err(|e| format!("Could not locate this find: {}", e))?;
 
-    let photo_path_result: Result<String, _> = conn
-        .query_row(
-            "SELECT photo_path FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC LIMIT 1",
-            params![find_id],
-            |row| row.get(0),
-        );
+        let photo_path_result: Result<String, _> = conn
+            .query_row(
+                "SELECT photo_path FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC LIMIT 1",
+                params![find_id],
+                |row| row.get(0),
+            );
 
-    let preferred_scope = scope.as_deref().unwrap_or("species");
-    let species_folder = Path::new(&storage_path).join(resolve_location_component(
-        &plain_species_name(&species_name),
-        "unknown_species",
-    ));
-    let folder_path = if preferred_scope == "photo" {
-        // If the find has no photos, fall back to the species folder instead of erroring
-        if let Ok(photo_path) = photo_path_result {
+        let preferred_scope = scope.as_deref().unwrap_or("species");
+        let species_folder = Path::new(&storage_path).join(resolve_location_component(
+            &plain_species_name(&species_name),
+            "unknown_species",
+        ));
+        let folder_path = if preferred_scope == "photo" {
+            // If the find has no photos, fall back to the species folder instead of erroring
+            if let Ok(photo_path) = photo_path_result {
+                let absolute_photo_path = Path::new(&storage_path).join(&photo_path);
+                absolute_photo_path
+                    .parent()
+                    .map(PathBuf::from)
+                    .ok_or_else(|| {
+                        "Could not determine the containing folder for this find.".to_string()
+                    })?
+            } else {
+                // No photos — fall back to species folder (create on demand if needed)
+                if !species_folder.exists() {
+                    let _ = std::fs::create_dir_all(&species_folder);
+                }
+                species_folder
+            }
+        } else if species_folder.exists() {
+            species_folder
+        } else {
+            let photo_path = photo_path_result.map_err(|e| {
+                format!(
+                    "Could not locate the species folder or a photo for this find: {}",
+                    e
+                )
+            })?;
             let absolute_photo_path = Path::new(&storage_path).join(&photo_path);
             absolute_photo_path
                 .parent()
                 .map(PathBuf::from)
-                .ok_or_else(|| {
-                    "Could not determine the containing folder for this find.".to_string()
-                })?
-        } else {
-            // No photos — fall back to species folder (create on demand if needed)
-            if !species_folder.exists() {
-                let _ = std::fs::create_dir_all(&species_folder);
-            }
-            species_folder
-        }
-    } else if species_folder.exists() {
-        species_folder
-    } else {
-        let photo_path = photo_path_result.map_err(|e| {
-            format!(
-                "Could not locate the species folder or a photo for this find: {}",
-                e
-            )
-        })?;
-        let absolute_photo_path = Path::new(&storage_path).join(&photo_path);
-        absolute_photo_path
-            .parent()
-            .map(PathBuf::from)
-            .ok_or_else(|| "Could not determine the containing folder for this find.".to_string())?
-    };
+                .ok_or_else(|| "Could not determine the containing folder for this find.".to_string())?
+        };
 
-    #[cfg(target_os = "windows")]
-    let mut command = {
-        let mut cmd = Command::new("explorer");
-        cmd.arg(&folder_path);
-        cmd
-    };
+        #[cfg(target_os = "windows")]
+        let mut command = {
+            let mut cmd = Command::new("explorer");
+            cmd.arg(&folder_path);
+            cmd
+        };
 
-    #[cfg(target_os = "macos")]
-    let mut command = {
-        let mut cmd = Command::new("open");
-        cmd.arg(&folder_path);
-        cmd
-    };
+        #[cfg(target_os = "macos")]
+        let mut command = {
+            let mut cmd = Command::new("open");
+            cmd.arg(&folder_path);
+            cmd
+        };
 
-    #[cfg(all(unix, not(target_os = "macos")))]
-    let mut command = {
-        let mut cmd = Command::new("xdg-open");
-        cmd.arg(&folder_path);
-        cmd
-    };
+        #[cfg(all(unix, not(target_os = "macos")))]
+        let mut command = {
+            let mut cmd = Command::new("xdg-open");
+            cmd.arg(&folder_path);
+            cmd
+        };
 
-    command
-        .spawn()
-        .map_err(|e| format!("Failed to open folder: {}", e))?;
+        command
+            .spawn()
+            .map_err(|e| format!("Failed to open folder: {}", e))?;
 
-    Ok(())
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Open find folder worker failed: {e}"))?
 }
 
 #[tauri::command]
 pub async fn open_species_folder(storage_path: String, species_name: String) -> Result<(), String> {
-    let species_folder = Path::new(&storage_path).join(resolve_location_component(
-        &plain_species_name(&species_name),
-        "unknown_species",
-    ));
+    tauri::async_runtime::spawn_blocking(move || {
+        let species_folder = Path::new(&storage_path).join(resolve_location_component(
+            &plain_species_name(&species_name),
+            "unknown_species",
+        ));
 
-    let folder_path = if species_folder.exists() {
-        species_folder
-    } else {
-        let conn = open_db(&storage_path)?;
-        let photo_path_result: Result<String, _> = conn.query_row(
-            "SELECT fp.photo_path
-             FROM finds f
-             JOIN find_photos fp ON fp.find_id = f.id
-             WHERE f.species_name = ?1
-             ORDER BY fp.is_primary DESC, fp.id ASC
-             LIMIT 1",
-            params![species_name],
-            |row| row.get(0),
-        );
-
-        if let Ok(photo_path) = photo_path_result {
-            let absolute_photo_path = Path::new(&storage_path).join(&photo_path);
-            absolute_photo_path
-                .parent()
-                .map(PathBuf::from)
-                .ok_or_else(|| {
-                    "Could not determine the species folder from its photos.".to_string()
-                })?
-        } else {
-            std::fs::create_dir_all(&species_folder)
-                .map_err(|e| format!("Could not create species folder: {}", e))?;
+        let folder_path = if species_folder.exists() {
             species_folder
-        }
-    };
+        } else {
+            let conn = open_db(&storage_path)?;
+            let photo_path_result: Result<String, _> = conn.query_row(
+                "SELECT fp.photo_path
+                 FROM finds f
+                 JOIN find_photos fp ON fp.find_id = f.id
+                 WHERE f.species_name = ?1
+                 ORDER BY fp.is_primary DESC, fp.id ASC
+                 LIMIT 1",
+                params![species_name],
+                |row| row.get(0),
+            );
 
-    #[cfg(target_os = "windows")]
-    let mut command = {
-        let mut cmd = Command::new("explorer");
-        cmd.arg(&folder_path);
-        cmd
-    };
+            if let Ok(photo_path) = photo_path_result {
+                let absolute_photo_path = Path::new(&storage_path).join(&photo_path);
+                absolute_photo_path
+                    .parent()
+                    .map(PathBuf::from)
+                    .ok_or_else(|| {
+                        "Could not determine the species folder from its photos.".to_string()
+                    })?
+            } else {
+                std::fs::create_dir_all(&species_folder)
+                    .map_err(|e| format!("Could not create species folder: {}", e))?;
+                species_folder
+            }
+        };
 
-    #[cfg(target_os = "macos")]
-    let mut command = {
-        let mut cmd = Command::new("open");
-        cmd.arg(&folder_path);
-        cmd
-    };
+        #[cfg(target_os = "windows")]
+        let mut command = {
+            let mut cmd = Command::new("explorer");
+            cmd.arg(&folder_path);
+            cmd
+        };
 
-    #[cfg(all(unix, not(target_os = "macos")))]
-    let mut command = {
-        let mut cmd = Command::new("xdg-open");
-        cmd.arg(&folder_path);
-        cmd
-    };
+        #[cfg(target_os = "macos")]
+        let mut command = {
+            let mut cmd = Command::new("open");
+            cmd.arg(&folder_path);
+            cmd
+        };
 
-    command
-        .spawn()
-        .map_err(|e| format!("Failed to open species folder: {}", e))?;
+        #[cfg(all(unix, not(target_os = "macos")))]
+        let mut command = {
+            let mut cmd = Command::new("xdg-open");
+            cmd.arg(&folder_path);
+            cmd
+        };
 
-    Ok(())
+        command
+            .spawn()
+            .map_err(|e| format!("Failed to open species folder: {}", e))?;
+
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Open species folder worker failed: {e}"))?
 }
 
 /// Move a file to the system Recycle Bin. Used by the import dialog's
 /// "delete source" trash button to remove the original before or instead of importing.
 #[tauri::command]
 pub async fn trash_source_file(path: String) -> Result<(), String> {
-    trash::delete(&path).map_err(|e| format!("Failed to trash '{}': {}", path, e))
+    tauri::async_runtime::spawn_blocking(move || {
+        trash::delete(&path).map_err(|e| format!("Failed to trash '{}': {}", path, e))
+    })
+    .await
+    .map_err(|e| format!("Trash worker failed: {e}"))?
 }
 
 /// Terminate the process immediately. Used by the DB error dialog's Quit button.
@@ -1048,65 +1084,73 @@ pub async fn delete_find(
     delete_files: bool,
     delete_sample_folder: Option<bool>,
 ) -> Result<(), String> {
-    let conn = open_db(&storage_path)?;
-    conn.execute_batch("PRAGMA foreign_keys = ON;")
-        .map_err(|e| e.to_string())?;
-
-    if delete_files {
-        let mut stmt = conn
-            .prepare("SELECT photo_path FROM find_photos WHERE find_id = ?1")
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        conn.execute_batch("PRAGMA foreign_keys = ON;")
             .map_err(|e| e.to_string())?;
-        let paths: Vec<String> = stmt
-            .query_map(params![find_id], |row| row.get(0))
-            .map_err(|e| e.to_string())?
-            .filter_map(|r| r.ok())
-            .collect();
 
-        for rel_path in &paths {
-            let abs_path = format!("{}/{}", storage_path, rel_path);
-            if let Err(e) = trash::delete(&abs_path) {
-                eprintln!("trash::delete failed for {}: {}", abs_path, e);
+        if delete_files {
+            let mut stmt = conn
+                .prepare("SELECT photo_path FROM find_photos WHERE find_id = ?1")
+                .map_err(|e| e.to_string())?;
+            let paths: Vec<String> = stmt
+                .query_map(params![find_id], |row| row.get(0))
+                .map_err(|e| e.to_string())?
+                .filter_map(|r| r.ok())
+                .collect();
+
+            for rel_path in &paths {
+                let abs_path = format!("{}/{}", storage_path, rel_path);
+                if let Err(e) = trash::delete(&abs_path) {
+                    eprintln!("trash::delete failed for {}: {}", abs_path, e);
+                }
             }
         }
-    }
 
-    // The register entry always goes with the find -- it points at a row that is about
-    // to disappear. The folder only goes when the caller explicitly asked, because the
-    // photos hard-linked into it otherwise survive even a delete_files run.
-    crate::commands::samples::remove_sample_for_find(
-        &conn,
-        &storage_path,
-        find_id,
-        delete_sample_folder.unwrap_or(false),
-    )?;
+        // The register entry always goes with the find -- it points at a row that is about
+        // to disappear. The folder only goes when the caller explicitly asked, because the
+        // photos hard-linked into it otherwise survive even a delete_files run.
+        crate::commands::samples::remove_sample_for_find(
+            &conn,
+            &storage_path,
+            find_id,
+            delete_sample_folder.unwrap_or(false),
+        )?;
 
-    conn.execute("DELETE FROM finds WHERE id = ?1", params![find_id])
-        .map_err(|e| format!("DB delete failed: {}", e))?;
+        conn.execute("DELETE FROM finds WHERE id = ?1", params![find_id])
+            .map_err(|e| format!("DB delete failed: {}", e))?;
 
-    Ok(())
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Delete find worker failed: {e}"))?
 }
 
 #[tauri::command]
 pub async fn get_find_photos(storage_path: String, find_id: i64) -> Result<Vec<FindPhoto>, String> {
-    let conn = open_db(&storage_path)?;
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
-        )
-        .map_err(|e| e.to_string())?;
-    let photos = stmt
-        .query_map(params![find_id], |row| {
-            Ok(FindPhoto {
-                id: row.get(0)?,
-                find_id: row.get(1)?,
-                photo_path: row.get(2)?,
-                is_primary: row.get::<_, i64>(3)? == 1,
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
+            )
+            .map_err(|e| e.to_string())?;
+        let photos = stmt
+            .query_map(params![find_id], |row| {
+                Ok(FindPhoto {
+                    id: row.get(0)?,
+                    find_id: row.get(1)?,
+                    photo_path: row.get(2)?,
+                    is_primary: row.get::<_, i64>(3)? == 1,
+                })
             })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
-    Ok(photos)
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        Ok(photos)
+    })
+    .await
+    .map_err(|e| format!("Find photos worker failed: {e}"))?
 }
 
 #[tauri::command]
@@ -1115,179 +1159,183 @@ pub async fn bulk_rename_species(
     find_ids: Vec<i64>,
     new_species_name: String,
 ) -> Result<(), String> {
-    if find_ids.is_empty() {
-        return Ok(());
-    }
-    let new_species_name = new_species_name.trim().to_string();
-    if new_species_name.is_empty() {
-        return Err("new species name cannot be empty".into());
-    }
+    tauri::async_runtime::spawn_blocking(move || {
+        if find_ids.is_empty() {
+            return Ok(());
+        }
+        let new_species_name = new_species_name.trim().to_string();
+        if new_species_name.is_empty() {
+            return Err("new species name cannot be empty".into());
+        }
 
-    let mut conn = open_db(&storage_path)?;
-    let tx = conn.transaction().map_err(|e| e.to_string())?;
+        let mut conn = open_db(&storage_path)?;
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
 
-    let mut photo_rows: Vec<(i64, String)> = Vec::new();
-    let mut old_species_names: Vec<String> = Vec::new();
-    for find_id in &find_ids {
-        let species_name: String = tx
-            .query_row(
-                "SELECT species_name FROM finds WHERE id = ?1",
-                params![find_id],
-                |row| row.get(0),
-            )
-            .map_err(|e| format!("Failed to read species for id {}: {}", find_id, e))?;
-        old_species_names.push(species_name);
+        let mut photo_rows: Vec<(i64, String)> = Vec::new();
+        let mut old_species_names: Vec<String> = Vec::new();
+        for find_id in &find_ids {
+            let species_name: String = tx
+                .query_row(
+                    "SELECT species_name FROM finds WHERE id = ?1",
+                    params![find_id],
+                    |row| row.get(0),
+                )
+                .map_err(|e| format!("Failed to read species for id {}: {}", find_id, e))?;
+            old_species_names.push(species_name);
 
-        let mut stmt = tx
-            .prepare(
-                "SELECT id, photo_path FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
-            )
-            .map_err(|e| e.to_string())?;
-        let rows = stmt
-            .query_map(params![find_id], |row| {
-                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+            let mut stmt = tx
+                .prepare(
+                    "SELECT id, photo_path FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
+                )
+                .map_err(|e| e.to_string())?;
+            let rows = stmt
+                .query_map(params![find_id], |row| {
+                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+                })
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
+            photo_rows.extend(rows);
+        }
+
+        let target_folder = Path::new(&storage_path).join(resolve_location_component(
+            &plain_species_name(&new_species_name),
+            "unknown_species",
+        ));
+        let mut old_folders: Vec<PathBuf> = old_species_names
+            .iter()
+            .map(|name| {
+                Path::new(&storage_path).join(resolve_location_component(
+                    &plain_species_name(name),
+                    "unknown_species",
+                ))
             })
-            .map_err(|e| e.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())?;
-        photo_rows.extend(rows);
-    }
+            .collect();
+        old_folders.sort();
+        old_folders.dedup();
 
-    let target_folder = Path::new(&storage_path).join(resolve_location_component(
-        &plain_species_name(&new_species_name),
-        "unknown_species",
-    ));
-    let mut old_folders: Vec<PathBuf> = old_species_names
-        .iter()
-        .map(|name| {
-            Path::new(&storage_path).join(resolve_location_component(
-                &plain_species_name(name),
-                "unknown_species",
-            ))
-        })
-        .collect();
-    old_folders.sort();
-    old_folders.dedup();
+        let renamed_whole_folder =
+            if old_folders.len() == 1 && old_folders[0].exists() && !target_folder.exists() {
+                std::fs::rename(&old_folders[0], &target_folder).is_ok()
+            } else {
+                false
+            };
 
-    let renamed_whole_folder =
-        if old_folders.len() == 1 && old_folders[0].exists() && !target_folder.exists() {
-            std::fs::rename(&old_folders[0], &target_folder).is_ok()
-        } else {
-            false
-        };
+        if !renamed_whole_folder {
+            std::fs::create_dir_all(&target_folder).map_err(|e| {
+                format!(
+                    "Failed to create target folder '{}': {}",
+                    target_folder.display(),
+                    e
+                )
+            })?;
+        }
 
-    if !renamed_whole_folder {
-        std::fs::create_dir_all(&target_folder).map_err(|e| {
-            format!(
-                "Failed to create target folder '{}': {}",
-                target_folder.display(),
-                e
-            )
-        })?;
-    }
+        for (photo_id, photo_path) in &photo_rows {
+            // Normalize DB-stored forward slashes to the OS separator so the
+            // path comparison below works correctly on Windows (mixed separators
+            // would make source_abs != target_abs even for the same file).
+            let normalized_photo_path = photo_path.replace('/', std::path::MAIN_SEPARATOR_STR);
+            let source_abs = Path::new(&storage_path).join(&normalized_photo_path);
+            let filename = source_abs
+                .file_name()
+                .ok_or_else(|| format!("Photo path has no filename: {}", source_abs.display()))?;
+            let mut target_abs = target_folder.join(filename);
 
-    for (photo_id, photo_path) in &photo_rows {
-        // Normalize DB-stored forward slashes to the OS separator so the
-        // path comparison below works correctly on Windows (mixed separators
-        // would make source_abs != target_abs even for the same file).
-        let normalized_photo_path = photo_path.replace('/', std::path::MAIN_SEPARATOR_STR);
-        let source_abs = Path::new(&storage_path).join(&normalized_photo_path);
-        let filename = source_abs
-            .file_name()
-            .ok_or_else(|| format!("Photo path has no filename: {}", source_abs.display()))?;
-        let mut target_abs = target_folder.join(filename);
-
-        if source_abs != target_abs && !renamed_whole_folder {
-            if source_abs.exists() {
-                target_abs = unique_destination_path(&target_abs);
-                std::fs::create_dir_all(target_abs.parent().ok_or_else(|| {
-                    format!("Target path has no parent: {}", target_abs.display())
-                })?)
-                .map_err(|e| {
-                    format!(
-                        "Failed to prepare target folder for '{}': {}",
-                        target_abs.display(),
-                        e
-                    )
-                })?;
-                std::fs::rename(&source_abs, &target_abs)
-                    .or_else(|_| {
-                        std::fs::copy(&source_abs, &target_abs)?;
-                        std::fs::remove_file(&source_abs)
-                    })
+            if source_abs != target_abs && !renamed_whole_folder {
+                if source_abs.exists() {
+                    target_abs = unique_destination_path(&target_abs);
+                    std::fs::create_dir_all(target_abs.parent().ok_or_else(|| {
+                        format!("Target path has no parent: {}", target_abs.display())
+                    })?)
                     .map_err(|e| {
                         format!(
-                            "Failed to move '{}' to '{}': {}",
-                            source_abs.display(),
+                            "Failed to prepare target folder for '{}': {}",
                             target_abs.display(),
                             e
                         )
                     })?;
+                    std::fs::rename(&source_abs, &target_abs)
+                        .or_else(|_| {
+                            std::fs::copy(&source_abs, &target_abs)?;
+                            std::fs::remove_file(&source_abs)
+                        })
+                        .map_err(|e| {
+                            format!(
+                                "Failed to move '{}' to '{}': {}",
+                                source_abs.display(),
+                                target_abs.display(),
+                                e
+                            )
+                        })?;
+                }
+                // Update DB path regardless — heals stale paths from partial earlier renames
             }
-            // Update DB path regardless — heals stale paths from partial earlier renames
+
+            let relative = target_abs
+                .strip_prefix(&storage_path)
+                .map(|p| {
+                    p.to_string_lossy()
+                        .replace('\\', "/")
+                        .trim_start_matches('/')
+                        .to_string()
+                })
+                .unwrap_or_else(|_| target_abs.to_string_lossy().replace('\\', "/"));
+            tx.execute(
+                "UPDATE find_photos SET photo_path = ?1 WHERE id = ?2",
+                params![relative, photo_id],
+            )
+            .map_err(|e| format!("Failed to update photo path for photo {}: {}", photo_id, e))?;
         }
 
-        let relative = target_abs
-            .strip_prefix(&storage_path)
-            .map(|p| {
-                p.to_string_lossy()
-                    .replace('\\', "/")
-                    .trim_start_matches('/')
-                    .to_string()
-            })
-            .unwrap_or_else(|_| target_abs.to_string_lossy().replace('\\', "/"));
-        tx.execute(
-            "UPDATE find_photos SET photo_path = ?1 WHERE id = ?2",
-            params![relative, photo_id],
-        )
-        .map_err(|e| format!("Failed to update photo path for photo {}: {}", photo_id, e))?;
-    }
+        for find_id in &find_ids {
+            tx.execute(
+                "UPDATE finds SET species_name = ?1 WHERE id = ?2",
+                params![new_species_name, find_id],
+            )
+            .map_err(|e| format!("Bulk rename failed for id {}: {}", find_id, e))?;
+        }
 
-    for find_id in &find_ids {
-        tx.execute(
-            "UPDATE finds SET species_name = ?1 WHERE id = ?2",
-            params![new_species_name, find_id],
-        )
-        .map_err(|e| format!("Bulk rename failed for id {}: {}", find_id, e))?;
-    }
+        for old_species_name in &old_species_names {
+            tx.execute(
+                "UPDATE zones SET species_name = ?1 WHERE species_name = ?2",
+                params![new_species_name, old_species_name],
+            )
+            .map_err(|e| format!("Zone rename failed for '{}': {}", old_species_name, e))?;
+            tx.execute(
+                "UPDATE species_notes SET species_name = ?1 WHERE species_name = ?2 AND NOT EXISTS (SELECT 1 FROM species_notes WHERE species_name = ?1)",
+                params![new_species_name, old_species_name],
+            )
+            .map_err(|e| format!("Species note rename failed for '{}': {}", old_species_name, e))?;
+            tx.execute(
+                "UPDATE species_profiles SET species_name = ?1 WHERE species_name = ?2 AND NOT EXISTS (SELECT 1 FROM species_profiles WHERE species_name = ?1)",
+                params![new_species_name, old_species_name],
+            )
+            .map_err(|e| format!("Species profile rename failed for '{}': {}", old_species_name, e))?;
+        }
 
-    for old_species_name in &old_species_names {
-        tx.execute(
-            "UPDATE zones SET species_name = ?1 WHERE species_name = ?2",
-            params![new_species_name, old_species_name],
-        )
-        .map_err(|e| format!("Zone rename failed for '{}': {}", old_species_name, e))?;
-        tx.execute(
-            "UPDATE species_notes SET species_name = ?1 WHERE species_name = ?2 AND NOT EXISTS (SELECT 1 FROM species_notes WHERE species_name = ?1)",
-            params![new_species_name, old_species_name],
-        )
-        .map_err(|e| format!("Species note rename failed for '{}': {}", old_species_name, e))?;
-        tx.execute(
-            "UPDATE species_profiles SET species_name = ?1 WHERE species_name = ?2 AND NOT EXISTS (SELECT 1 FROM species_profiles WHERE species_name = ?1)",
-            params![new_species_name, old_species_name],
-        )
-        .map_err(|e| format!("Species profile rename failed for '{}': {}", old_species_name, e))?;
-    }
+        tx.commit().map_err(|e| e.to_string())?;
 
-    tx.commit().map_err(|e| e.to_string())?;
+        // After the commit so the helper sees the updated photo paths and species names.
+        crate::commands::samples::relocate_samples_for_finds(
+            &conn,
+            &storage_path,
+            &find_ids,
+            &new_species_name,
+        )?;
 
-    // After the commit so the helper sees the updated photo paths and species names.
-    crate::commands::samples::relocate_samples_for_finds(
-        &conn,
-        &storage_path,
-        &find_ids,
-        &new_species_name,
-    )?;
+        for old_species_name in &old_species_names {
+            let old_folder = Path::new(&storage_path).join(resolve_location_component(
+                &plain_species_name(&old_species_name),
+                "unknown_species",
+            ));
+            remove_empty_dir_if_possible(&old_folder);
+        }
 
-    for old_species_name in &old_species_names {
-        let old_folder = Path::new(&storage_path).join(resolve_location_component(
-            &plain_species_name(&old_species_name),
-            "unknown_species",
-        ));
-        remove_empty_dir_if_possible(&old_folder);
-    }
-
-    Ok(())
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Bulk rename worker failed: {e}"))?
 }
 
 #[tauri::command]
@@ -1305,8 +1353,10 @@ pub async fn rename_species_folder(
         return Ok(());
     }
 
-    let find_ids: Vec<i64> = {
-        let conn = open_db(&storage_path)?;
+    // Only the id lookup blocks here; the rename it delegates to offloads its own work.
+    let lookup_storage_path = storage_path.clone();
+    let find_ids: Vec<i64> = tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&lookup_storage_path)?;
         let mut stmt = conn
             .prepare("SELECT id FROM finds WHERE species_name = ?1 ORDER BY id ASC")
             .map_err(|e| e.to_string())?;
@@ -1315,8 +1365,10 @@ pub async fn rename_species_folder(
             .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
-        ids
-    };
+        Ok::<Vec<i64>, String>(ids)
+    })
+    .await
+    .map_err(|e| format!("Species folder rename worker failed: {e}"))??;
 
     bulk_rename_species(storage_path, find_ids, new_species_name).await
 }
@@ -1412,89 +1464,97 @@ pub async fn set_find_favorite(
     find_id: i64,
     is_favorite: bool,
 ) -> Result<FindRecord, String> {
-    let conn = open_db(&storage_path)?;
-    let favorite_value = if is_favorite { 1i64 } else { 0i64 };
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        let favorite_value = if is_favorite { 1i64 } else { 0i64 };
 
-    let rows_affected = conn
-        .execute(
-            "UPDATE finds SET is_favorite = ?1 WHERE id = ?2",
-            params![favorite_value, find_id],
-        )
-        .map_err(|e| format!("Favorite update failed: {}", e))?;
+        let rows_affected = conn
+            .execute(
+                "UPDATE finds SET is_favorite = ?1 WHERE id = ?2",
+                params![favorite_value, find_id],
+            )
+            .map_err(|e| format!("Favorite update failed: {}", e))?;
 
-    if rows_affected == 0 {
-        return Err("find not found".into());
-    }
+        if rows_affected == 0 {
+            return Err("find not found".into());
+        }
 
-    let mut record = conn
-        .query_row(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather, determiner, finder FROM finds WHERE id = ?1",
-            params![find_id],
-            |row| crate::commands::import::find_record_from_row(row),
-        )
-        .map_err(|e| format!("Failed to read updated favorite record: {}", e))?;
+        let mut record = conn
+            .query_row(
+                "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather, determiner, finder FROM finds WHERE id = ?1",
+                params![find_id],
+                |row| crate::commands::import::find_record_from_row(row),
+            )
+            .map_err(|e| format!("Failed to read updated favorite record: {}", e))?;
 
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
-        )
-        .map_err(|e| e.to_string())?;
-    let photos: Vec<FindPhoto> = stmt
-        .query_map(params![find_id], |row| {
-            Ok(FindPhoto {
-                id: row.get(0)?,
-                find_id: row.get(1)?,
-                photo_path: row.get(2)?,
-                is_primary: row.get::<_, i64>(3)? == 1,
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
+            )
+            .map_err(|e| e.to_string())?;
+        let photos: Vec<FindPhoto> = stmt
+            .query_map(params![find_id], |row| {
+                Ok(FindPhoto {
+                    id: row.get(0)?,
+                    find_id: row.get(1)?,
+                    photo_path: row.get(2)?,
+                    is_primary: row.get::<_, i64>(3)? == 1,
+                })
             })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
-    record.photos = photos;
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        record.photos = photos;
 
-    Ok(record)
+        Ok(record)
+    })
+    .await
+    .map_err(|e| format!("Favorite worker failed: {e}"))?
 }
 
 #[tauri::command]
 pub async fn cleanup_internal_records(storage_path: String) -> Result<i64, String> {
-    let mut conn = open_db(&storage_path)?;
-    conn.execute_batch("PRAGMA foreign_keys = ON;")
-        .map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut conn = open_db(&storage_path)?;
+        conn.execute_batch("PRAGMA foreign_keys = ON;")
+            .map_err(|e| e.to_string())?;
 
-    let stale_count: i64 = conn
-        .query_row(
+        let stale_count: i64 = conn
+            .query_row(
+                &format!(
+                    "SELECT COUNT(*) FROM finds WHERE {}",
+                    INTERNAL_SPECIES_FILTER
+                ),
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|e| format!("Failed to count internal finds: {}", e))?;
+        if stale_count > 0 {
+            backup_db_before_destructive_change(&storage_path, "cleanup-internal-records")?;
+        }
+
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+        let deleted_finds =
+            tx.execute(
+                &format!("DELETE FROM finds WHERE {}", INTERNAL_SPECIES_FILTER),
+                [],
+            )
+            .map_err(|e| format!("Failed to delete internal finds: {}", e))? as i64;
+
+        tx.execute(
             &format!(
-                "SELECT COUNT(*) FROM finds WHERE {}",
+                "DELETE FROM species_notes WHERE {}",
                 INTERNAL_SPECIES_FILTER
             ),
             [],
-            |row| row.get(0),
         )
-        .map_err(|e| format!("Failed to count internal finds: {}", e))?;
-    if stale_count > 0 {
-        backup_db_before_destructive_change(&storage_path, "cleanup-internal-records")?;
-    }
+        .map_err(|e| format!("Failed to delete internal species notes: {}", e))?;
 
-    let tx = conn.transaction().map_err(|e| e.to_string())?;
-    let deleted_finds =
-        tx.execute(
-            &format!("DELETE FROM finds WHERE {}", INTERNAL_SPECIES_FILTER),
-            [],
-        )
-        .map_err(|e| format!("Failed to delete internal finds: {}", e))? as i64;
-
-    tx.execute(
-        &format!(
-            "DELETE FROM species_notes WHERE {}",
-            INTERNAL_SPECIES_FILTER
-        ),
-        [],
-    )
-    .map_err(|e| format!("Failed to delete internal species notes: {}", e))?;
-
-    tx.commit().map_err(|e| e.to_string())?;
-    Ok(deleted_finds)
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(deleted_finds)
+    })
+    .await
+    .map_err(|e| format!("Library cleanup worker failed: {e}"))?
 }
 
 #[tauri::command]
@@ -1503,143 +1563,147 @@ pub async fn add_find_photos(
     find_id: i64,
     source_paths: Vec<String>,
 ) -> Result<FindRecord, String> {
-    let conn = open_db(&storage_path)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
 
-    // Fetch the find record to get species_name, date_found, location_note
-    let (species_name, date_found, location_note): (String, String, String) = conn
-        .query_row(
-            "SELECT species_name, date_found, location_note FROM finds WHERE id = ?1",
-            params![find_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-        )
-        .map_err(|e| format!("Could not locate find {}: {}", find_id, e))?;
+        // Fetch the find record to get species_name, date_found, location_note
+        let (species_name, date_found, location_note): (String, String, String) = conn
+            .query_row(
+                "SELECT species_name, date_found, location_note FROM finds WHERE id = ?1",
+                params![find_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .map_err(|e| format!("Could not locate find {}: {}", find_id, e))?;
 
-    let location_label = location_note.trim().to_string();
+        let location_label = location_note.trim().to_string();
 
-    // Determine dest folder from the first existing photo's parent directory
-    let first_photo_path: Option<String> = conn
-        .query_row(
-            "SELECT photo_path FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC LIMIT 1",
-            params![find_id],
-            |row| row.get(0),
-        )
-        .ok();
+        // Determine dest folder from the first existing photo's parent directory
+        let first_photo_path: Option<String> = conn
+            .query_row(
+                "SELECT photo_path FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC LIMIT 1",
+                params![find_id],
+                |row| row.get(0),
+            )
+            .ok();
 
-    let dest_folder: std::path::PathBuf = if let Some(ref rel_path) = first_photo_path {
-        let abs = std::path::Path::new(&storage_path).join(rel_path);
-        abs.parent()
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(|| std::path::Path::new(&storage_path).to_path_buf())
-    } else {
-        // No existing photos — derive folder the same way as import
-        let probe = build_dest_path(
-            &storage_path,
-            &species_name,
-            &date_found,
-            &location_label,
-            1,
-            ".jpg",
-        );
-        probe
-            .parent()
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(|| std::path::Path::new(&storage_path).to_path_buf())
-    };
+        let dest_folder: std::path::PathBuf = if let Some(ref rel_path) = first_photo_path {
+            let abs = std::path::Path::new(&storage_path).join(rel_path);
+            abs.parent()
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|| std::path::Path::new(&storage_path).to_path_buf())
+        } else {
+            // No existing photos — derive folder the same way as import
+            let probe = build_dest_path(
+                &storage_path,
+                &species_name,
+                &date_found,
+                &location_label,
+                1,
+                ".jpg",
+            );
+            probe
+                .parent()
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|| std::path::Path::new(&storage_path).to_path_buf())
+        };
 
-    std::fs::create_dir_all(&dest_folder).map_err(|e| {
-        format!(
-            "Failed to create destination folder '{}': {}",
-            dest_folder.display(),
-            e
-        )
-    })?;
-
-    let mut seen_source_paths: HashSet<String> = HashSet::new();
-    for source_path in &source_paths {
-        if !remember_source_path(&mut seen_source_paths, source_path) {
-            continue;
-        }
-
-        let ext = std::path::Path::new(source_path)
-            .extension()
-            .map(|e| format!(".{}", e.to_string_lossy().to_lowercase()))
-            .unwrap_or_else(|| ".jpg".to_string());
-
-        let seq = next_seq_for_folder(&dest_folder);
-        let dest_path = build_dest_path(
-            &storage_path,
-            &species_name,
-            &date_found,
-            &location_label,
-            seq,
-            &ext,
-        );
-
-        std::fs::copy(source_path, &dest_path).map_err(|e| {
+        std::fs::create_dir_all(&dest_folder).map_err(|e| {
             format!(
-                "Failed to copy '{}' to '{}': {}",
-                source_path,
-                dest_path.display(),
+                "Failed to create destination folder '{}': {}",
+                dest_folder.display(),
                 e
             )
         })?;
 
-        let relative = dest_path
-            .strip_prefix(&storage_path)
-            .map(|p| {
-                p.to_string_lossy()
-                    .replace('\\', "/")
-                    .trim_start_matches('/')
-                    .to_string()
+        let mut seen_source_paths: HashSet<String> = HashSet::new();
+        for source_path in &source_paths {
+            if !remember_source_path(&mut seen_source_paths, source_path) {
+                continue;
+            }
+
+            let ext = std::path::Path::new(source_path)
+                .extension()
+                .map(|e| format!(".{}", e.to_string_lossy().to_lowercase()))
+                .unwrap_or_else(|| ".jpg".to_string());
+
+            let seq = next_seq_for_folder(&dest_folder);
+            let dest_path = build_dest_path(
+                &storage_path,
+                &species_name,
+                &date_found,
+                &location_label,
+                seq,
+                &ext,
+            );
+
+            std::fs::copy(source_path, &dest_path).map_err(|e| {
+                format!(
+                    "Failed to copy '{}' to '{}': {}",
+                    source_path,
+                    dest_path.display(),
+                    e
+                )
+            })?;
+
+            let relative = dest_path
+                .strip_prefix(&storage_path)
+                .map(|p| {
+                    p.to_string_lossy()
+                        .replace('\\', "/")
+                        .trim_start_matches('/')
+                        .to_string()
+                })
+                .unwrap_or_else(|_| dest_path.to_string_lossy().replace('\\', "/"));
+
+            insert_find_photo(&conn, find_id, &relative, false)
+                .map_err(|e| format!("DB insert photo failed: {}", e))?;
+        }
+
+        // Backfill find lat/lng from the first GPS-tagged newly-added photo, but only if
+        // the find does not already have coordinates. Manual edits (via EditFindDialog)
+        // always win — this UPDATE is a no-op if either lat or lng is already set.
+        if let Some((lat, lng)) = first_gps_coords_from_paths(
+            &source_paths.iter().map(String::as_str).collect::<Vec<_>>(),
+        ) {
+            conn.execute(
+                "UPDATE finds SET lat = ?1, lng = ?2 WHERE id = ?3 AND lat IS NULL AND lng IS NULL",
+                params![lat, lng, find_id],
+            )
+            .map_err(|e| format!("Failed to backfill lat/lng from EXIF: {}", e))?;
+        }
+
+        // Re-query the full find record with photos
+        let mut record = conn
+            .query_row(
+                "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather, determiner, finder FROM finds WHERE id = ?1",
+                params![find_id],
+                |row| crate::commands::import::find_record_from_row(row),
+            )
+            .map_err(|e| format!("Failed to read updated find record: {}", e))?;
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
+            )
+            .map_err(|e| e.to_string())?;
+        let photos: Vec<FindPhoto> = stmt
+            .query_map(params![find_id], |row| {
+                Ok(FindPhoto {
+                    id: row.get(0)?,
+                    find_id: row.get(1)?,
+                    photo_path: row.get(2)?,
+                    is_primary: row.get::<_, i64>(3)? == 1,
+                })
             })
-            .unwrap_or_else(|_| dest_path.to_string_lossy().replace('\\', "/"));
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        record.photos = photos;
 
-        insert_find_photo(&conn, find_id, &relative, false)
-            .map_err(|e| format!("DB insert photo failed: {}", e))?;
-    }
-
-    // Backfill find lat/lng from the first GPS-tagged newly-added photo, but only if
-    // the find does not already have coordinates. Manual edits (via EditFindDialog)
-    // always win — this UPDATE is a no-op if either lat or lng is already set.
-    if let Some((lat, lng)) = first_gps_coords_from_paths(
-        &source_paths.iter().map(String::as_str).collect::<Vec<_>>(),
-    ) {
-        conn.execute(
-            "UPDATE finds SET lat = ?1, lng = ?2 WHERE id = ?3 AND lat IS NULL AND lng IS NULL",
-            params![lat, lng, find_id],
-        )
-        .map_err(|e| format!("Failed to backfill lat/lng from EXIF: {}", e))?;
-    }
-
-    // Re-query the full find record with photos
-    let mut record = conn
-        .query_row(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather, determiner, finder FROM finds WHERE id = ?1",
-            params![find_id],
-            |row| crate::commands::import::find_record_from_row(row),
-        )
-        .map_err(|e| format!("Failed to read updated find record: {}", e))?;
-
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
-        )
-        .map_err(|e| e.to_string())?;
-    let photos: Vec<FindPhoto> = stmt
-        .query_map(params![find_id], |row| {
-            Ok(FindPhoto {
-                id: row.get(0)?,
-                find_id: row.get(1)?,
-                photo_path: row.get(2)?,
-                is_primary: row.get::<_, i64>(3)? == 1,
-            })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
-    record.photos = photos;
-
-    Ok(record)
+        Ok(record)
+    })
+    .await
+    .map_err(|e| format!("Add photos worker failed: {e}"))?
 }
 
 // ---------------------------------------------------------------------------
@@ -1653,83 +1717,87 @@ pub async fn delete_find_photo(
     delete_file: bool,
     permanent_delete: Option<bool>,
 ) -> Result<FindRecord, String> {
-    let conn = open_db(&storage_path)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
 
-    // 1. Look up the photo row
-    let (find_id, photo_path, is_primary): (i64, String, bool) = conn
-        .query_row(
-            "SELECT find_id, photo_path, is_primary FROM find_photos WHERE id = ?1",
-            params![photo_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get::<_, i64>(2)? == 1)),
-        )
-        .map_err(|_| "photo not found".to_string())?;
-
-    // 2. Optionally remove the file from disk. The UI exposes this as an
-    // explicit checkbox so users can see whether deletion is permanent.
-    if delete_file {
-        let abs_path = format!("{}/{}", storage_path, photo_path);
-        if permanent_delete.unwrap_or(false) {
-            if let Err(e) = std::fs::remove_file(&abs_path) {
-                if e.kind() != std::io::ErrorKind::NotFound {
-                    eprintln!("remove_file failed for {}: {}", abs_path, e);
-                }
-            }
-        } else if let Err(e) = trash::delete(&abs_path) {
-            eprintln!("trash::delete failed for {}: {}", abs_path, e);
-        }
-    }
-
-    // 3. Delete the photo row
-    conn.execute("DELETE FROM find_photos WHERE id = ?1", params![photo_id])
-        .map_err(|e| format!("DB delete failed: {}", e))?;
-
-    // 4. Primary promotion
-    if is_primary {
-        let remaining: i64 = conn
+        // 1. Look up the photo row
+        let (find_id, photo_path, is_primary): (i64, String, bool) = conn
             .query_row(
-                "SELECT COUNT(*) FROM find_photos WHERE find_id = ?1",
-                params![find_id],
-                |row| row.get(0),
+                "SELECT find_id, photo_path, is_primary FROM find_photos WHERE id = ?1",
+                params![photo_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get::<_, i64>(2)? == 1)),
             )
-            .unwrap_or(0);
-        if remaining > 0 {
-            conn.execute(
-                "UPDATE find_photos SET is_primary = 1 WHERE id = (SELECT id FROM find_photos WHERE find_id = ?1 ORDER BY id ASC LIMIT 1)",
-                params![find_id],
-            )
-            .map_err(|e| format!("Primary promotion failed: {}", e))?;
+            .map_err(|_| "photo not found".to_string())?;
+
+        // 2. Optionally remove the file from disk. The UI exposes this as an
+        // explicit checkbox so users can see whether deletion is permanent.
+        if delete_file {
+            let abs_path = format!("{}/{}", storage_path, photo_path);
+            if permanent_delete.unwrap_or(false) {
+                if let Err(e) = std::fs::remove_file(&abs_path) {
+                    if e.kind() != std::io::ErrorKind::NotFound {
+                        eprintln!("remove_file failed for {}: {}", abs_path, e);
+                    }
+                }
+            } else if let Err(e) = trash::delete(&abs_path) {
+                eprintln!("trash::delete failed for {}: {}", abs_path, e);
+            }
         }
-    }
 
-    // 5. Re-query full FindRecord
-    let mut record = conn
-        .query_row(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather, determiner, finder FROM finds WHERE id = ?1",
-            params![find_id],
-            |row| crate::commands::import::find_record_from_row(row),
-        )
-        .map_err(|e| format!("Failed to read updated find record: {}", e))?;
+        // 3. Delete the photo row
+        conn.execute("DELETE FROM find_photos WHERE id = ?1", params![photo_id])
+            .map_err(|e| format!("DB delete failed: {}", e))?;
 
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
-        )
-        .map_err(|e| e.to_string())?;
-    let photos: Vec<FindPhoto> = stmt
-        .query_map(params![find_id], |row| {
-            Ok(FindPhoto {
-                id: row.get(0)?,
-                find_id: row.get(1)?,
-                photo_path: row.get(2)?,
-                is_primary: row.get::<_, i64>(3)? == 1,
+        // 4. Primary promotion
+        if is_primary {
+            let remaining: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM find_photos WHERE find_id = ?1",
+                    params![find_id],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+            if remaining > 0 {
+                conn.execute(
+                    "UPDATE find_photos SET is_primary = 1 WHERE id = (SELECT id FROM find_photos WHERE find_id = ?1 ORDER BY id ASC LIMIT 1)",
+                    params![find_id],
+                )
+                .map_err(|e| format!("Primary promotion failed: {}", e))?;
+            }
+        }
+
+        // 5. Re-query full FindRecord
+        let mut record = conn
+            .query_row(
+                "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather, determiner, finder FROM finds WHERE id = ?1",
+                params![find_id],
+                |row| crate::commands::import::find_record_from_row(row),
+            )
+            .map_err(|e| format!("Failed to read updated find record: {}", e))?;
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
+            )
+            .map_err(|e| e.to_string())?;
+        let photos: Vec<FindPhoto> = stmt
+            .query_map(params![find_id], |row| {
+                Ok(FindPhoto {
+                    id: row.get(0)?,
+                    find_id: row.get(1)?,
+                    photo_path: row.get(2)?,
+                    is_primary: row.get::<_, i64>(3)? == 1,
+                })
             })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
-    record.photos = photos;
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        record.photos = photos;
 
-    Ok(record)
+        Ok(record)
+    })
+    .await
+    .map_err(|e| format!("Delete photo worker failed: {e}"))?
 }
 
 // ---------------------------------------------------------------------------
@@ -1743,117 +1811,121 @@ pub async fn bulk_delete_find_photos(
     delete_files: bool,
     permanent_delete: Option<bool>,
 ) -> Result<FindRecord, String> {
-    if photo_ids.is_empty() {
-        return Err("no photo_ids provided".into());
-    }
+    tauri::async_runtime::spawn_blocking(move || {
+        if photo_ids.is_empty() {
+            return Err("no photo_ids provided".into());
+        }
 
-    let conn = open_db(&storage_path)?;
+        let conn = open_db(&storage_path)?;
 
-    // Get find_id from first photo (all must belong to same find)
-    let find_id: i64 = conn
-        .query_row(
-            "SELECT find_id FROM find_photos WHERE id = ?1",
-            params![photo_ids[0]],
-            |row| row.get(0),
-        )
-        .map_err(|_| "photo not found".to_string())?;
-
-    // Validate: all photo_ids must belong to the same find
-    for &photo_id in &photo_ids[1..] {
-        let other_find_id: i64 = conn
+        // Get find_id from first photo (all must belong to same find)
+        let find_id: i64 = conn
             .query_row(
                 "SELECT find_id FROM find_photos WHERE id = ?1",
-                params![photo_id],
+                params![photo_ids[0]],
                 |row| row.get(0),
             )
-            .map_err(|_| format!("photo {} not found", photo_id))?;
-        if other_find_id != find_id {
-            return Err(format!(
-                "photo {} belongs to find {} but expected find {}",
-                photo_id, other_find_id, find_id
-            ));
-        }
-    }
+            .map_err(|_| "photo not found".to_string())?;
 
-    let mut any_primary_deleted = false;
-
-    for &photo_id in &photo_ids {
-        let row: Option<(String, bool)> = conn
-            .query_row(
-                "SELECT photo_path, is_primary FROM find_photos WHERE id = ?1",
-                params![photo_id],
-                |row| Ok((row.get(0)?, row.get::<_, i64>(1)? == 1)),
-            )
-            .ok();
-
-        if let Some((photo_path, is_primary)) = row {
-            if is_primary {
-                any_primary_deleted = true;
+        // Validate: all photo_ids must belong to the same find
+        for &photo_id in &photo_ids[1..] {
+            let other_find_id: i64 = conn
+                .query_row(
+                    "SELECT find_id FROM find_photos WHERE id = ?1",
+                    params![photo_id],
+                    |row| row.get(0),
+                )
+                .map_err(|_| format!("photo {} not found", photo_id))?;
+            if other_find_id != find_id {
+                return Err(format!(
+                    "photo {} belongs to find {} but expected find {}",
+                    photo_id, other_find_id, find_id
+                ));
             }
-            if delete_files {
-                let abs_path = format!("{}/{}", storage_path, photo_path);
-                if permanent_delete.unwrap_or(false) {
-                    if let Err(e) = std::fs::remove_file(&abs_path) {
-                        if e.kind() != std::io::ErrorKind::NotFound {
-                            eprintln!("remove_file failed for {}: {}", abs_path, e);
-                        }
-                    }
-                } else if let Err(e) = trash::delete(&abs_path) {
-                    eprintln!("trash::delete failed for {}: {}", abs_path, e);
+        }
+
+        let mut any_primary_deleted = false;
+
+        for &photo_id in &photo_ids {
+            let row: Option<(String, bool)> = conn
+                .query_row(
+                    "SELECT photo_path, is_primary FROM find_photos WHERE id = ?1",
+                    params![photo_id],
+                    |row| Ok((row.get(0)?, row.get::<_, i64>(1)? == 1)),
+                )
+                .ok();
+
+            if let Some((photo_path, is_primary)) = row {
+                if is_primary {
+                    any_primary_deleted = true;
                 }
+                if delete_files {
+                    let abs_path = format!("{}/{}", storage_path, photo_path);
+                    if permanent_delete.unwrap_or(false) {
+                        if let Err(e) = std::fs::remove_file(&abs_path) {
+                            if e.kind() != std::io::ErrorKind::NotFound {
+                                eprintln!("remove_file failed for {}: {}", abs_path, e);
+                            }
+                        }
+                    } else if let Err(e) = trash::delete(&abs_path) {
+                        eprintln!("trash::delete failed for {}: {}", abs_path, e);
+                    }
+                }
+                conn.execute("DELETE FROM find_photos WHERE id = ?1", params![photo_id])
+                    .map_err(|e| format!("DB delete failed for photo {}: {}", photo_id, e))?;
             }
-            conn.execute("DELETE FROM find_photos WHERE id = ?1", params![photo_id])
-                .map_err(|e| format!("DB delete failed for photo {}: {}", photo_id, e))?;
         }
-    }
 
-    // Promote if needed
-    if any_primary_deleted {
-        let remaining: i64 = conn
+        // Promote if needed
+        if any_primary_deleted {
+            let remaining: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM find_photos WHERE find_id = ?1",
+                    params![find_id],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+            if remaining > 0 {
+                conn.execute(
+                    "UPDATE find_photos SET is_primary = 1 WHERE id = (SELECT id FROM find_photos WHERE find_id = ?1 ORDER BY id ASC LIMIT 1)",
+                    params![find_id],
+                )
+                .map_err(|e| format!("Primary promotion failed: {}", e))?;
+            }
+        }
+
+        // Re-query full FindRecord
+        let mut record = conn
             .query_row(
-                "SELECT COUNT(*) FROM find_photos WHERE find_id = ?1",
+                "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather, determiner, finder FROM finds WHERE id = ?1",
                 params![find_id],
-                |row| row.get(0),
+                |row| crate::commands::import::find_record_from_row(row),
             )
-            .unwrap_or(0);
-        if remaining > 0 {
-            conn.execute(
-                "UPDATE find_photos SET is_primary = 1 WHERE id = (SELECT id FROM find_photos WHERE find_id = ?1 ORDER BY id ASC LIMIT 1)",
-                params![find_id],
+            .map_err(|e| format!("Failed to read updated find record: {}", e))?;
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
             )
-            .map_err(|e| format!("Primary promotion failed: {}", e))?;
-        }
-    }
-
-    // Re-query full FindRecord
-    let mut record = conn
-        .query_row(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather, determiner, finder FROM finds WHERE id = ?1",
-            params![find_id],
-            |row| crate::commands::import::find_record_from_row(row),
-        )
-        .map_err(|e| format!("Failed to read updated find record: {}", e))?;
-
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, find_id, photo_path, is_primary FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
-        )
-        .map_err(|e| e.to_string())?;
-    let photos: Vec<FindPhoto> = stmt
-        .query_map(params![find_id], |row| {
-            Ok(FindPhoto {
-                id: row.get(0)?,
-                find_id: row.get(1)?,
-                photo_path: row.get(2)?,
-                is_primary: row.get::<_, i64>(3)? == 1,
+            .map_err(|e| e.to_string())?;
+        let photos: Vec<FindPhoto> = stmt
+            .query_map(params![find_id], |row| {
+                Ok(FindPhoto {
+                    id: row.get(0)?,
+                    find_id: row.get(1)?,
+                    photo_path: row.get(2)?,
+                    is_primary: row.get::<_, i64>(3)? == 1,
+                })
             })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
-    record.photos = photos;
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        record.photos = photos;
 
-    Ok(record)
+        Ok(record)
+    })
+    .await
+    .map_err(|e| format!("Bulk photo delete worker failed: {e}"))?
 }
 
 #[tauri::command]
@@ -2010,80 +2082,84 @@ pub async fn edit_source_photo_image(
 /// Returns the number of photo rows deleted.
 #[tauri::command]
 pub async fn prune_missing_photos(storage_path: String) -> Result<u32, String> {
-    let conn = open_db(&storage_path)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
 
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, find_id, photo_path, is_primary FROM find_photos ORDER BY find_id, is_primary DESC, id ASC",
-        )
-        .map_err(|e| e.to_string())?;
-    let rows: Vec<(i64, i64, String, bool)> = stmt
-        .query_map([], |row| {
-            Ok((
-                row.get::<_, i64>(0)?,
-                row.get::<_, i64>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, i64>(3)? == 1,
-            ))
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
-    drop(stmt);
-
-    let missing_photo_ids: Vec<i64> = rows
-        .iter()
-        .filter_map(|(photo_id, _, photo_path, _)| {
-            let abs = Path::new(&storage_path)
-                .join(photo_path.replace('/', std::path::MAIN_SEPARATOR_STR));
-            if abs.exists() {
-                None
-            } else {
-                Some(*photo_id)
-            }
-        })
-        .collect();
-
-    if missing_photo_ids.is_empty() {
-        return Ok(0);
-    }
-
-    backup_db_before_destructive_change(&storage_path, "prune-missing-photos")?;
-
-    let missing_photo_ids: HashSet<i64> = missing_photo_ids.into_iter().collect();
-    let mut deleted: u32 = 0;
-    let mut primaries_deleted: std::collections::HashSet<i64> = Default::default();
-
-    for (photo_id, find_id, _photo_path, is_primary) in &rows {
-        if missing_photo_ids.contains(photo_id) {
-            conn.execute("DELETE FROM find_photos WHERE id = ?1", params![photo_id])
-                .map_err(|e| format!("delete failed: {}", e))?;
-            if *is_primary {
-                primaries_deleted.insert(*find_id);
-            }
-            deleted += 1;
-        }
-    }
-
-    // Promote a new primary for any find whose primary was deleted
-    for find_id in primaries_deleted {
-        let remaining: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM find_photos WHERE find_id = ?1",
-                params![find_id],
-                |row| row.get(0),
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, find_id, photo_path, is_primary FROM find_photos ORDER BY find_id, is_primary DESC, id ASC",
             )
-            .unwrap_or(0);
-        if remaining > 0 {
-            conn.execute(
-                "UPDATE find_photos SET is_primary = 1 WHERE id = (SELECT id FROM find_photos WHERE find_id = ?1 ORDER BY id ASC LIMIT 1)",
-                params![find_id],
-            )
-            .map_err(|e| format!("Primary promotion failed: {}", e))?;
-        }
-    }
+            .map_err(|e| e.to_string())?;
+        let rows: Vec<(i64, i64, String, bool)> = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)? == 1,
+                ))
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        drop(stmt);
 
-    Ok(deleted)
+        let missing_photo_ids: Vec<i64> = rows
+            .iter()
+            .filter_map(|(photo_id, _, photo_path, _)| {
+                let abs = Path::new(&storage_path)
+                    .join(photo_path.replace('/', std::path::MAIN_SEPARATOR_STR));
+                if abs.exists() {
+                    None
+                } else {
+                    Some(*photo_id)
+                }
+            })
+            .collect();
+
+        if missing_photo_ids.is_empty() {
+            return Ok(0);
+        }
+
+        backup_db_before_destructive_change(&storage_path, "prune-missing-photos")?;
+
+        let missing_photo_ids: HashSet<i64> = missing_photo_ids.into_iter().collect();
+        let mut deleted: u32 = 0;
+        let mut primaries_deleted: std::collections::HashSet<i64> = Default::default();
+
+        for (photo_id, find_id, _photo_path, is_primary) in &rows {
+            if missing_photo_ids.contains(photo_id) {
+                conn.execute("DELETE FROM find_photos WHERE id = ?1", params![photo_id])
+                    .map_err(|e| format!("delete failed: {}", e))?;
+                if *is_primary {
+                    primaries_deleted.insert(*find_id);
+                }
+                deleted += 1;
+            }
+        }
+
+        // Promote a new primary for any find whose primary was deleted
+        for find_id in primaries_deleted {
+            let remaining: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM find_photos WHERE find_id = ?1",
+                    params![find_id],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+            if remaining > 0 {
+                conn.execute(
+                    "UPDATE find_photos SET is_primary = 1 WHERE id = (SELECT id FROM find_photos WHERE find_id = ?1 ORDER BY id ASC LIMIT 1)",
+                    params![find_id],
+                )
+                .map_err(|e| format!("Primary promotion failed: {}", e))?;
+            }
+        }
+
+        Ok(deleted)
+    })
+    .await
+    .map_err(|e| format!("Prune photos worker failed: {e}"))?
 }
 
 #[derive(serde::Serialize, Debug)]
@@ -2101,86 +2177,90 @@ pub struct DuplicatePhotoCleanupSummary {
 pub async fn cleanup_duplicate_photo_rows(
     storage_path: String,
 ) -> Result<DuplicatePhotoCleanupSummary, String> {
-    let mut conn = open_db(&storage_path)?;
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, find_id, photo_path, is_primary
-             FROM find_photos
-             ORDER BY find_id, photo_path, is_primary DESC, id ASC",
-        )
-        .map_err(|e| e.to_string())?;
-    let rows: Vec<(i64, i64, String, bool)> = stmt
-        .query_map([], |row| {
-            Ok((
-                row.get::<_, i64>(0)?,
-                row.get::<_, i64>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, i64>(3)? == 1,
-            ))
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut conn = open_db(&storage_path)?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, find_id, photo_path, is_primary
+                 FROM find_photos
+                 ORDER BY find_id, photo_path, is_primary DESC, id ASC",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows: Vec<(i64, i64, String, bool)> = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)? == 1,
+                ))
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        drop(stmt);
+
+        let mut seen: HashSet<(i64, String)> = HashSet::new();
+        let mut delete_ids = Vec::new();
+        let mut affected_find_ids: HashSet<i64> = HashSet::new();
+
+        for (photo_id, find_id, photo_path, _is_primary) in &rows {
+            let key = (*find_id, photo_path.replace('\\', "/"));
+            if seen.insert(key) {
+                continue;
+            }
+            delete_ids.push(*photo_id);
+            affected_find_ids.insert(*find_id);
+        }
+
+        if delete_ids.is_empty() {
+            return Ok(DuplicatePhotoCleanupSummary {
+                deleted_rows: 0,
+                affected_find_ids: Vec::new(),
+                backup_path: None,
+            });
+        }
+
+        let backup_path = backup_db_before_destructive_change(&storage_path, "cleanup-duplicate-photo-rows")?;
+        let tx = conn
+            .transaction()
+            .map_err(|e| format!("Failed to start duplicate cleanup transaction: {}", e))?;
+
+        for photo_id in &delete_ids {
+            tx.execute("DELETE FROM find_photos WHERE id = ?1", params![photo_id])
+                .map_err(|e| format!("Duplicate photo row delete failed: {}", e))?;
+        }
+
+        let mut affected_find_ids: Vec<i64> = affected_find_ids.into_iter().collect();
+        affected_find_ids.sort_unstable();
+        for find_id in &affected_find_ids {
+            let primary_id: Option<i64> = tx
+                .query_row(
+                    "SELECT id FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC LIMIT 1",
+                    params![find_id],
+                    |row| row.get(0),
+                )
+                .ok();
+            if let Some(primary_id) = primary_id {
+                tx.execute(
+                    "UPDATE find_photos SET is_primary = CASE WHEN id = ?1 THEN 1 ELSE 0 END WHERE find_id = ?2",
+                    params![primary_id, find_id],
+                )
+                .map_err(|e| format!("Primary repair failed: {}", e))?;
+            }
+        }
+
+        tx.commit()
+            .map_err(|e| format!("Failed to commit duplicate cleanup: {}", e))?;
+
+        Ok(DuplicatePhotoCleanupSummary {
+            deleted_rows: delete_ids.len() as u32,
+            affected_find_ids,
+            backup_path,
         })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
-    drop(stmt);
-
-    let mut seen: HashSet<(i64, String)> = HashSet::new();
-    let mut delete_ids = Vec::new();
-    let mut affected_find_ids: HashSet<i64> = HashSet::new();
-
-    for (photo_id, find_id, photo_path, _is_primary) in &rows {
-        let key = (*find_id, photo_path.replace('\\', "/"));
-        if seen.insert(key) {
-            continue;
-        }
-        delete_ids.push(*photo_id);
-        affected_find_ids.insert(*find_id);
-    }
-
-    if delete_ids.is_empty() {
-        return Ok(DuplicatePhotoCleanupSummary {
-            deleted_rows: 0,
-            affected_find_ids: Vec::new(),
-            backup_path: None,
-        });
-    }
-
-    let backup_path = backup_db_before_destructive_change(&storage_path, "cleanup-duplicate-photo-rows")?;
-    let tx = conn
-        .transaction()
-        .map_err(|e| format!("Failed to start duplicate cleanup transaction: {}", e))?;
-
-    for photo_id in &delete_ids {
-        tx.execute("DELETE FROM find_photos WHERE id = ?1", params![photo_id])
-            .map_err(|e| format!("Duplicate photo row delete failed: {}", e))?;
-    }
-
-    let mut affected_find_ids: Vec<i64> = affected_find_ids.into_iter().collect();
-    affected_find_ids.sort_unstable();
-    for find_id in &affected_find_ids {
-        let primary_id: Option<i64> = tx
-            .query_row(
-                "SELECT id FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC LIMIT 1",
-                params![find_id],
-                |row| row.get(0),
-            )
-            .ok();
-        if let Some(primary_id) = primary_id {
-            tx.execute(
-                "UPDATE find_photos SET is_primary = CASE WHEN id = ?1 THEN 1 ELSE 0 END WHERE find_id = ?2",
-                params![primary_id, find_id],
-            )
-            .map_err(|e| format!("Primary repair failed: {}", e))?;
-        }
-    }
-
-    tx.commit()
-        .map_err(|e| format!("Failed to commit duplicate cleanup: {}", e))?;
-
-    Ok(DuplicatePhotoCleanupSummary {
-        deleted_rows: delete_ids.len() as u32,
-        affected_find_ids,
-        backup_path,
     })
+    .await
+    .map_err(|e| format!("Duplicate photo cleanup worker failed: {e}"))?
 }
 
 #[derive(serde::Serialize, Debug)]
@@ -2247,76 +2327,80 @@ fn collect_library_images(
 
 #[tauri::command]
 pub async fn audit_photo_library(storage_path: String) -> Result<PhotoLibraryAudit, String> {
-    let conn = open_db(&storage_path)?;
-    let storage_root = Path::new(&storage_path);
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        let storage_root = Path::new(&storage_path);
 
-    let mut stmt = conn
-        .prepare("SELECT find_id, photo_path FROM find_photos ORDER BY find_id, id")
-        .map_err(|e| e.to_string())?;
-    let rows: Vec<(i64, String)> = stmt
-        .query_map([], |row| {
-            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
-    drop(stmt);
-
-    let mut db_paths: Vec<String> = rows
-        .iter()
-        .map(|(_, path)| path.replace('\\', "/"))
-        .collect();
-    db_paths.sort();
-    let db_photo_rows = db_paths.len() as u32;
-    let db_path_set: HashSet<String> = db_paths.iter().cloned().collect();
-
-    let mut filesystem_images = Vec::new();
-    collect_library_images(storage_root, storage_root, &mut filesystem_images)?;
-    filesystem_images.sort();
-    let fs_path_set: HashSet<String> = filesystem_images.iter().cloned().collect();
-
-    let mut missing_db_photo_paths: Vec<String> =
-        db_path_set.difference(&fs_path_set).cloned().collect();
-    missing_db_photo_paths.sort();
-
-    let mut orphan_filesystem_images: Vec<String> =
-        fs_path_set.difference(&db_path_set).cloned().collect();
-    orphan_filesystem_images.sort();
-
-    let mut duplicates_stmt = conn
-        .prepare(
-            "SELECT photo_path, COUNT(*) AS duplicate_count, GROUP_CONCAT(find_id) AS find_ids
-             FROM find_photos
-             GROUP BY photo_path
-             HAVING duplicate_count > 1
-             ORDER BY duplicate_count DESC, photo_path",
-        )
-        .map_err(|e| e.to_string())?;
-    let duplicate_photo_paths = duplicates_stmt
-        .query_map([], |row| {
-            let find_ids_csv: String = row.get(2)?;
-            let find_ids = find_ids_csv
-                .split(',')
-                .filter_map(|value| value.parse::<i64>().ok())
-                .collect();
-            Ok(DuplicatePhotoPath {
-                photo_path: row.get(0)?,
-                count: row.get::<_, i64>(1)? as u32,
-                find_ids,
+        let mut stmt = conn
+            .prepare("SELECT find_id, photo_path FROM find_photos ORDER BY find_id, id")
+            .map_err(|e| e.to_string())?;
+        let rows: Vec<(i64, String)> = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
             })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        drop(stmt);
 
-    Ok(PhotoLibraryAudit {
-        db_photo_rows,
-        db_distinct_photo_paths: db_path_set.len() as u32,
-        filesystem_images: filesystem_images.len() as u32,
-        missing_db_photo_paths,
-        orphan_filesystem_images,
-        duplicate_photo_paths,
+        let mut db_paths: Vec<String> = rows
+            .iter()
+            .map(|(_, path)| path.replace('\\', "/"))
+            .collect();
+        db_paths.sort();
+        let db_photo_rows = db_paths.len() as u32;
+        let db_path_set: HashSet<String> = db_paths.iter().cloned().collect();
+
+        let mut filesystem_images = Vec::new();
+        collect_library_images(storage_root, storage_root, &mut filesystem_images)?;
+        filesystem_images.sort();
+        let fs_path_set: HashSet<String> = filesystem_images.iter().cloned().collect();
+
+        let mut missing_db_photo_paths: Vec<String> =
+            db_path_set.difference(&fs_path_set).cloned().collect();
+        missing_db_photo_paths.sort();
+
+        let mut orphan_filesystem_images: Vec<String> =
+            fs_path_set.difference(&db_path_set).cloned().collect();
+        orphan_filesystem_images.sort();
+
+        let mut duplicates_stmt = conn
+            .prepare(
+                "SELECT photo_path, COUNT(*) AS duplicate_count, GROUP_CONCAT(find_id) AS find_ids
+                 FROM find_photos
+                 GROUP BY photo_path
+                 HAVING duplicate_count > 1
+                 ORDER BY duplicate_count DESC, photo_path",
+            )
+            .map_err(|e| e.to_string())?;
+        let duplicate_photo_paths = duplicates_stmt
+            .query_map([], |row| {
+                let find_ids_csv: String = row.get(2)?;
+                let find_ids = find_ids_csv
+                    .split(',')
+                    .filter_map(|value| value.parse::<i64>().ok())
+                    .collect();
+                Ok(DuplicatePhotoPath {
+                    photo_path: row.get(0)?,
+                    count: row.get::<_, i64>(1)? as u32,
+                    find_ids,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        Ok(PhotoLibraryAudit {
+            db_photo_rows,
+            db_distinct_photo_paths: db_path_set.len() as u32,
+            filesystem_images: filesystem_images.len() as u32,
+            missing_db_photo_paths,
+            orphan_filesystem_images,
+            duplicate_photo_paths,
+        })
     })
+    .await
+    .map_err(|e| format!("Photo library audit worker failed: {e}"))?
 }
 
 #[cfg(test)]
