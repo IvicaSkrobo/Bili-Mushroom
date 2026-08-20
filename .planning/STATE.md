@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-04-09)
 Phase: 04.2 complete — MAINTENANCE
 Plan: Post-phase maintenance
 Status: Completed planned phase work; maintenance fixes and planning artifacts are synced to the current shipped behavior
-Last activity: 2026-08-20 - Completed quick task 260820-tca: manual weather field on finds
+Last activity: 2026-08-20 - Completed quick task 260820-tn3: determinator + nalaznik fields on finds
 
 Progress: [████████░░] 79%
 
@@ -185,6 +185,7 @@ Recent decisions affecting current work:
 | 260706-p4x collection-calendar-date-picker | 2026-07-06 | New src/components/ui/calendar.tsx: Calendar (day-grid, prev/next month, showYear=false locks to fixed leap-year 2024 ref for day+month-any-year mode) + MonthYearPicker (12-month grid, prev/next year). CollectionTab: removed DatePartsInput digit-typing component; exact/range/month/dayMonth filter modes now open these calendar pickers via Popover triggers instead of typing dd/mm/yyyy. i18n: pickDate/pickMonth/pickDayMonth (hr+en). Tests rewritten for calendar interaction. |
 | 260820-sw7 species-habitat-field | 2026-08-20 | species_profiles gains a `habitat` TEXT column (migration 0023 + idempotent repair block). Threaded through get/upsert_species_profile, finds.ts, useFinds.ts, and every existing upsert call site (CollectionTab, Create/EditFindDialog, ImportDialog) so unrelated writes preserve it. SpeciesTab: new "Stanište" tab beside "Opis" with an auto-growing textarea saving on blur. i18n: species.tabHabitat + edit.speciesHabitatPlaceholder (hr+en). |
 | 260820-tca find-weather-field | 2026-08-20 | finds gains a `weather` TEXT column (migration 0024 + repair block), carried through create_find/update_find/import payloads and every find SELECT. Manual free-text weather input added to CreateFindDialog (draft-persisted), EditFindDialog, ImportDialog shared header, and inline add/edit in PhotoLightbox. Displayed in the lightbox metadata panel, on FindCard when set, and as a new CSV export column. Lightbox note/location saves now pass weather through so they can't wipe it. i18n: edit.weather, edit.weatherPlaceholder, lightbox.weather/noWeather/addWeather/editWeather (hr+en). |
+| 260820-tn3 find-determiner-finder | 2026-08-20 | finds gains `determiner` + `finder` TEXT columns (migration 0025 + per-column repair blocks), carried through create_find/update_find/import payloads and every find SELECT. Determinator sits immediately before Nalaznik in CreateFindDialog, EditFindDialog, ImportDialog shared header, and a combined inline editor in PhotoLightbox. Shown in the lightbox metadata panel, on FindCard when set, and as two new CSV columns. All four lightbox save paths now pass weather/determiner/finder through so none can wipe the others. i18n: edit.determiner/finder(+Placeholder), lightbox.people/noPeople/addPeople/editPeople (hr+en). |
 
 ### Roadmap Evolution
 
