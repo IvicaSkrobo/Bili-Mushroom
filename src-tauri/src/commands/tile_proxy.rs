@@ -18,7 +18,7 @@ const ALLOWED_PREFIXES: &[&str] = &[
     "https://c.tile.opentopomap.org/",
 ];
 
-const DEFAULT_MAX_BYTES: i64 = 200 * 1024 * 1024;
+const DEFAULT_MAX_BYTES: i64 = 500 * 1024 * 1024;
 
 #[derive(Serialize)]
 pub struct TileCacheStats {
@@ -47,11 +47,28 @@ fn hex_lower(bytes: &[u8]) -> String {
 
 fn open_conn(storage_path: &str) -> Result<Connection, String> {
     let db_path = PathBuf::from(storage_path).join("bili-tile-cache.db");
-    let conn = Connection::open(&db_path)
-        .map_err(|e| format!("Failed to open tile cache DB at {}: {}", db_path.display(), e))?;
+    let conn = Connection::open(&db_path).map_err(|e| {
+        format!(
+            "Failed to open tile cache DB at {}: {}",
+            db_path.display(),
+            e
+        )
+    })?;
     conn.execute_batch(include_str!("../../migrations/0006_tile_cache.sql"))
         .map_err(|e| format!("Tile cache migration failed: {}", e))?;
     Ok(conn)
+}
+
+fn cache_max_bytes(conn: &Connection) -> i64 {
+    conn.query_row(
+        "SELECT value FROM tile_cache_settings WHERE key = 'max_bytes'",
+        [],
+        |r| r.get::<_, String>(0),
+    )
+    .ok()
+    .and_then(|value| value.parse::<i64>().ok())
+    .filter(|value| *value > 0)
+    .unwrap_or(DEFAULT_MAX_BYTES)
 }
 
 fn cache_base_dir<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
@@ -72,7 +89,9 @@ fn cache_dir<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
 fn legacy_cache_dirs(storage_path: &str) -> Vec<PathBuf> {
     vec![
         PathBuf::from(storage_path).join("tile-cache"),
-        PathBuf::from(storage_path).join(".bili-cache").join("tiles"),
+        PathBuf::from(storage_path)
+            .join(".bili-cache")
+            .join("tiles"),
     ]
 }
 
@@ -84,7 +103,11 @@ fn mime_from_ext(ext: &str) -> &'static str {
 }
 
 fn ext_from_mime(mime: &str) -> &'static str {
-    if mime.contains("jpeg") || mime.contains("jpg") { "jpg" } else { "png" }
+    if mime.contains("jpeg") || mime.contains("jpg") {
+        "jpg"
+    } else {
+        "png"
+    }
 }
 
 fn encode_data_uri(bytes: &[u8], mime: &str) -> String {
@@ -100,7 +123,9 @@ fn try_cache_hit(conn: &Connection, tile_key: &str) -> Result<Option<String>, St
             |r| r.get(0),
         )
         .ok();
-    let Some(file_path) = row else { return Ok(None); };
+    let Some(file_path) = row else {
+        return Ok(None);
+    };
     let bytes = match std::fs::read(&file_path) {
         Ok(b) => b,
         Err(_) => return Ok(None),
@@ -114,10 +139,7 @@ fn try_cache_hit(conn: &Connection, tile_key: &str) -> Result<Option<String>, St
 }
 
 #[tauri::command]
-pub async fn fetch_tile(
-    app: tauri::AppHandle,
-    url: String,
-) -> Result<String, String> {
+pub async fn fetch_tile(app: tauri::AppHandle, url: String) -> Result<String, String> {
     fetch_tile_inner(&app, url).await
 }
 
@@ -168,7 +190,8 @@ async fn fetch_tile_inner<R: Runtime>(
             bytes.len() as i64,
         )
         .map_err(|e| e.to_string())?;
-        tile_cache_db::evict_if_over_limit(&conn, DEFAULT_MAX_BYTES).map_err(|e| e.to_string())?;
+        let max_bytes = cache_max_bytes(&conn);
+        tile_cache_db::evict_if_over_limit(&conn, max_bytes).map_err(|e| e.to_string())?;
     }
 
     Ok(encode_data_uri(&bytes, &content_type))
@@ -179,14 +202,19 @@ pub fn get_tile_cache_stats(app: tauri::AppHandle) -> Result<TileCacheStats, Str
     get_tile_cache_stats_inner(&app)
 }
 
-fn get_tile_cache_stats_inner<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<TileCacheStats, String> {
+fn get_tile_cache_stats_inner<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Result<TileCacheStats, String> {
     let _dir = cache_dir(app)?;
     let metadata_dir = cache_metadata_dir(app)?;
     std::fs::create_dir_all(&metadata_dir).map_err(|e| e.to_string())?;
     let conn = open_conn(&metadata_dir.to_string_lossy())?;
     let size_bytes = tile_cache_db::total_cache_size(&conn).map_err(|e| e.to_string())?;
     let tile_count = tile_cache_db::tile_count(&conn).map_err(|e| e.to_string())?;
-    Ok(TileCacheStats { size_bytes, tile_count })
+    Ok(TileCacheStats {
+        size_bytes,
+        tile_count,
+    })
 }
 
 #[tauri::command]
@@ -226,6 +254,7 @@ pub fn set_cache_max(app: tauri::AppHandle, max_bytes: i64) -> Result<(), String
         rusqlite::params![max_bytes.to_string()],
     )
     .map_err(|e| e.to_string())?;
+    tile_cache_db::evict_if_over_limit(&conn, max_bytes).map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -234,17 +263,7 @@ pub fn get_cache_max_bytes(app: tauri::AppHandle) -> Result<i64, String> {
     let metadata_dir = cache_metadata_dir(&app)?;
     std::fs::create_dir_all(&metadata_dir).map_err(|e| e.to_string())?;
     let conn = open_conn(&metadata_dir.to_string_lossy())?;
-    let val: Option<String> = conn
-        .query_row(
-            "SELECT value FROM tile_cache_settings WHERE key = 'max_bytes'",
-            [],
-            |r| r.get(0),
-        )
-        .ok();
-    match val {
-        Some(v) => v.parse::<i64>().map_err(|e| e.to_string()),
-        None => Ok(DEFAULT_MAX_BYTES),
-    }
+    Ok(cache_max_bytes(&conn))
 }
 
 #[cfg(test)]
@@ -302,6 +321,20 @@ mod tests {
         assert!(validate_url("https://c.tile.opentopomap.org/10/550/335.png").is_ok());
     }
 
+    #[test]
+    fn configured_cache_limit_overrides_default() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = seed_cache_db(dir.path());
+        assert_eq!(cache_max_bytes(&conn), 500 * 1024 * 1024);
+
+        conn.execute(
+            "INSERT INTO tile_cache_settings (key, value) VALUES ('max_bytes', ?1)",
+            rusqlite::params![(750_i64 * 1024 * 1024).to_string()],
+        )
+        .unwrap();
+        assert_eq!(cache_max_bytes(&conn), 750 * 1024 * 1024);
+    }
+
     #[tokio::test]
     async fn cache_hit_returns_data_uri_without_network() {
         let _guard = cache_env_lock().lock().unwrap();
@@ -338,7 +371,9 @@ mod tests {
         std::env::set_var("BILI_APP_CACHE_DIR", dir.path().join("app-cache"));
         let app = tauri::test::mock_app();
         let handle = app.handle().clone();
-        let err = fetch_tile_inner(&handle, "https://evil.example.com/x.png".into()).await.unwrap_err();
+        let err = fetch_tile_inner(&handle, "https://evil.example.com/x.png".into())
+            .await
+            .unwrap_err();
         assert!(err.contains("invalid tile url"));
     }
 

@@ -21,7 +21,7 @@ export async function clearTileCache(storagePath?: string | null): Promise<void>
   });
 }
 
-export const DEFAULT_CACHE_MAX_BYTES = 200 * 1024 * 1024; // 200 MB
+export const DEFAULT_CACHE_MAX_BYTES = 500 * 1024 * 1024; // 500 MB
 
 export async function getCacheMaxBytes(): Promise<number> {
   try {

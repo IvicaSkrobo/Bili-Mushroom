@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { formatMb } from './tileCache';
+import { DEFAULT_CACHE_MAX_BYTES, formatMb } from './tileCache';
 
 describe('formatMb', () => {
+  it('defaults to a 500 MB map cache', () => {
+    expect(DEFAULT_CACHE_MAX_BYTES).toBe(500 * 1024 * 1024);
+  });
   it('returns "0 MB" for 0 bytes', () => {
     expect(formatMb(0)).toBe('0 MB');
   });

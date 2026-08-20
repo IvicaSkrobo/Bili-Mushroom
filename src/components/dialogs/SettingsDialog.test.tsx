@@ -11,6 +11,8 @@ vi.mock('@/lib/tileCache', async () => {
   return {
     ...actual,
     getTileCacheStats: vi.fn().mockResolvedValue({ sizeBytes: 44040192, tileCount: 5 }),
+    getCacheMaxBytes: vi.fn().mockResolvedValue(500 * 1024 * 1024),
+    setCacheMax: vi.fn().mockResolvedValue(undefined),
     clearTileCache: vi.fn().mockResolvedValue(undefined),
   };
 });
@@ -49,7 +51,11 @@ vi.mock('@/lib/storage', () => ({
 
 // Mock i18n
 vi.mock('@/i18n/index', () => ({
-  useT: () => (key: string) => key,
+  useT: () => (key: string, vars?: Record<string, string | number>) => {
+    if (key === 'settings.cacheUsage') return `${vars?.used} of ${vars?.limit}`;
+    if (key === 'settings.cacheUsagePercent') return `Map cache ${vars?.percent}% used`;
+    return key;
+  },
 }));
 
 // Mock Tabs so all tab panels render unconditionally in jsdom
@@ -79,20 +85,46 @@ describe('SettingsDialog', () => {
     vi.clearAllMocks();
     tileCacheMock = await import('@/lib/tileCache');
     vi.mocked(tileCacheMock.getTileCacheStats).mockResolvedValue({ sizeBytes: 44040192, tileCount: 5 });
+    vi.mocked(tileCacheMock.getCacheMaxBytes).mockResolvedValue(500 * 1024 * 1024);
+    vi.mocked(tileCacheMock.setCacheMax).mockResolvedValue(undefined);
     vi.mocked(tileCacheMock.clearTileCache).mockResolvedValue(undefined);
   });
 
-  it('displays the Map Cache section heading', () => {
+  it('displays the Map Cache section heading', async () => {
     renderDialog();
     expect(screen.getByText('settings.mapCache')).toBeTruthy();
+    await screen.findByTestId('tile-cache-size');
   });
 
-  it('shows formatted cache size after mount', async () => {
+  it('shows used cache and configured limit after mount', async () => {
     renderDialog();
     await waitFor(() => {
       const el = screen.getByTestId('tile-cache-size');
-      expect(el.textContent).toBe('42 MB');
+      expect(el.textContent).toBe('42 MB of 500 MB');
     });
+  });
+
+  it('stores a changed limit and refreshes usage so immediate eviction is visible', async () => {
+    renderDialog();
+    const input = await screen.findByLabelText('settings.maxCacheSize');
+    fireEvent.change(input, { target: { value: '750' } });
+    fireEvent.blur(input);
+
+    await waitFor(() => {
+      expect(tileCacheMock.setCacheMax).toHaveBeenCalledWith(750 * 1024 * 1024);
+      expect(vi.mocked(tileCacheMock.getTileCacheStats).mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  it('explains automatic cleanup only when cache is near the limit', async () => {
+    vi.mocked(tileCacheMock.getTileCacheStats).mockResolvedValue({
+      sizeBytes: 475 * 1024 * 1024,
+      tileCount: 5000,
+    });
+    renderDialog();
+
+    expect(await screen.findByText('settings.cacheNearLimit')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '95');
   });
 
   it('opens confirm dialog when Clear tile cache clicked', async () => {

@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { invoke } from '@tauri-apps/api/core';
@@ -18,7 +19,7 @@ import { useAppStore } from '@/stores/appStore';
 import { pickAndSaveStoragePath, clearStoragePath } from '@/lib/storage';
 import { useT } from '@/i18n/index';
 import type { Lang } from '@/i18n/index';
-import { getTileCacheStats, clearTileCache, getCacheMaxBytes, setCacheMax, formatMb, type TileCacheStats } from '@/lib/tileCache';
+import { DEFAULT_CACHE_MAX_BYTES, getTileCacheStats, clearTileCache, getCacheMaxBytes, setCacheMax, formatMb, type TileCacheStats } from '@/lib/tileCache';
 import { APP_VERSION } from '@/lib/appMeta';
 import { resetHiddenLocationSuggestions } from '@/components/finds/LocationNoteInput';
 import { WEBSITE_URL } from '@/lib/externalLinks';
@@ -48,7 +49,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const [pruneResult, setPruneResult] = useState<number | null>(null);
   const [suggestionsReset, setSuggestionsReset] = useState(false);
   const [stats, setStats] = useState<TileCacheStats>({ sizeBytes: 0, tileCount: 0 });
-  const [cacheMaxMb, setCacheMaxMb] = useState<string>('200');
+  const [cacheMaxMb, setCacheMaxMb] = useState<string>(String(DEFAULT_CACHE_MAX_BYTES / (1024 * 1024)));
 
   useEffect(() => {
     if (!open) return;
@@ -56,15 +57,23 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     getCacheMaxBytes().then((b) => setCacheMaxMb(String(Math.round(b / (1024 * 1024))))).catch(() => {});
   }, [open]);
 
-  function handleCacheMaxBlur() {
+  async function handleCacheMaxBlur() {
     const mb = parseInt(cacheMaxMb, 10);
-    if (!Number.isFinite(mb) || mb < 50) {
-      setCacheMaxMb('50');
-      setCacheMax(50 * 1024 * 1024).catch(() => {});
-    } else {
-      setCacheMax(mb * 1024 * 1024).catch(() => {});
+    const normalizedMb = !Number.isFinite(mb) || mb < 50 ? 50 : mb;
+    setCacheMaxMb(String(normalizedMb));
+    try {
+      await setCacheMax(normalizedMb * 1024 * 1024);
+      setStats(await getTileCacheStats());
+    } catch {
+      // Keep map settings non-blocking; the stored value is reloaded next time the dialog opens.
     }
   }
+
+  const parsedCacheMaxMb = parseInt(cacheMaxMb, 10);
+  const cacheMaxBytes = Number.isFinite(parsedCacheMaxMb) && parsedCacheMaxMb > 0
+    ? parsedCacheMaxMb * 1024 * 1024
+    : DEFAULT_CACHE_MAX_BYTES;
+  const cacheUsagePercent = Math.min(100, Math.round((stats.sizeBytes / cacheMaxBytes) * 100));
 
   async function handleClear() {
     await clearTileCache(storagePath);
@@ -217,12 +226,23 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
 
           <TabsContent value="map" className="space-y-3 pt-3">
             <h3 className="text-sm font-medium">{t('settings.mapCache')}</h3>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4">
               <Label>{t('settings.tileCacheSize')}</Label>
               <span className="text-sm text-muted-foreground" data-testid="tile-cache-size">
-                {formatMb(stats.sizeBytes)}
+                {t('settings.cacheUsage', {
+                  used: formatMb(stats.sizeBytes),
+                  limit: formatMb(cacheMaxBytes),
+                })}
               </span>
             </div>
+            <Progress
+              value={cacheUsagePercent}
+              aria-label={t('settings.cacheUsagePercent', { percent: cacheUsagePercent })}
+              className="h-1.5"
+            />
+            {cacheUsagePercent >= 85 && (
+              <p className="text-xs text-primary/80">{t('settings.cacheNearLimit')}</p>
+            )}
             <div className="flex items-center justify-between">
               <Label htmlFor="max-cache-size">{t('settings.maxCacheSize')}</Label>
               <div className="flex items-center gap-2">
