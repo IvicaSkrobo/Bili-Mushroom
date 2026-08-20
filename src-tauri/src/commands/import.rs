@@ -671,11 +671,78 @@ pub(crate) fn open_db(storage_path: &str) -> Result<Connection, String> {
         .lock()
         .map_err(|_| "Database initialization lock was poisoned".to_string())?;
     if !initialized_paths.contains(&db_path) {
+        backup_before_migration(&conn, storage_path)?;
         migrate_db(&conn)?;
         ensure_performance_indexes(&conn)?;
         initialized_paths.insert(db_path);
     }
     Ok(conn)
+}
+
+/// How many pre-migration backups to keep before the oldest is discarded.
+const MIGRATION_BACKUPS_KEPT: usize = 5;
+
+/// Copies the database aside before a migration changes it.
+///
+/// Only runs when there is something to migrate, so ordinary launches pay nothing, and
+/// never for a brand-new database, which has nothing to lose. A failure here aborts the
+/// migration rather than proceeding unprotected: the user can free disk space and
+/// reopen, which is recoverable, whereas an interrupted migration without a copy is not.
+fn backup_before_migration(conn: &Connection, storage_path: &str) -> Result<(), String> {
+    let version: i64 = conn
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .unwrap_or(0);
+    if version == 0 || version >= CURRENT_SCHEMA_VERSION {
+        return Ok(());
+    }
+
+    let backup_dir = Path::new(storage_path).join(".bili-cache").join("backups");
+    std::fs::create_dir_all(&backup_dir)
+        .map_err(|e| format!("Failed to create the database backup folder: {e}"))?;
+
+    let stamp = Utc::now().format("%Y%m%d-%H%M%S");
+    let target = backup_dir.join(format!("bili-mushroom-v{version}-{stamp}.db"));
+    let target_str = target
+        .to_str()
+        .ok_or_else(|| "Database backup path is not valid UTF-8".to_string())?;
+
+    // VACUUM INTO writes a consistent, self-contained copy through SQLite itself. A file
+    // copy would be unsafe here, especially once the database runs in WAL mode, because
+    // recent pages can still live in the -wal sidecar.
+    conn.execute("VACUUM INTO ?1", params![target_str])
+        .map_err(|e| {
+            format!(
+                "Could not back up the database before migrating from version {version}: {e}. \
+                 The library was left untouched — free some disk space and reopen the app."
+            )
+        })?;
+
+    prune_migration_backups(&backup_dir);
+    Ok(())
+}
+
+/// Keeps the newest backups and drops the rest. Names embed a sortable timestamp, so
+/// lexical order is chronological. Failures are ignored: a stale backup is harmless.
+fn prune_migration_backups(backup_dir: &Path) {
+    let Ok(entries) = std::fs::read_dir(backup_dir) else {
+        return;
+    };
+    let mut backups: Vec<PathBuf> = entries
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with("bili-mushroom-v") && name.ends_with(".db"))
+        })
+        .collect();
+    if backups.len() <= MIGRATION_BACKUPS_KEPT {
+        return;
+    }
+    backups.sort();
+    for stale in &backups[..backups.len() - MIGRATION_BACKUPS_KEPT] {
+        let _ = std::fs::remove_file(stale);
+    }
 }
 
 #[tauri::command]
@@ -3106,6 +3173,97 @@ mod tests {
         assert_eq!(
             table_exists, 1,
             "find_photos table must exist after migration 0003"
+        );
+    }
+
+    #[test]
+    fn opening_an_older_database_backs_it_up_before_migrating() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_str().expect("storage path");
+
+        // A library still on an older schema, holding a find worth protecting.
+        {
+            let conn = Connection::open(format!("{storage_path}/bili-mushroom.db"))
+                .expect("create legacy database");
+            for migration in [
+                MIGRATION_0001,
+                MIGRATION_0002,
+                MIGRATION_0003,
+                MIGRATION_0004,
+                MIGRATION_0005,
+                MIGRATION_0006,
+                MIGRATION_0007,
+                MIGRATION_0008,
+                MIGRATION_0009,
+                MIGRATION_0010,
+                MIGRATION_0011,
+                MIGRATION_0012,
+                MIGRATION_0013,
+                MIGRATION_0014,
+                MIGRATION_0015,
+                MIGRATION_0016,
+            ] {
+                conn.execute_batch(migration).expect("apply migration");
+            }
+            conn.execute_batch("PRAGMA user_version = 16")
+                .expect("mark the legacy version");
+            // Raw insert: the shared helper writes columns that later migrations add.
+            conn.execute(
+                "INSERT INTO finds (original_filename, species_name, date_found, country, region, notes, location_note, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![
+                    "legacy.jpg",
+                    "Boletus edulis",
+                    "2024-05-10",
+                    "Croatia",
+                    "Istria",
+                    "",
+                    "",
+                    "2024-05-10T10:00:00Z"
+                ],
+            )
+            .expect("insert a find worth protecting");
+        }
+
+        let conn = open_db(storage_path).expect("open and migrate the legacy database");
+        assert_eq!(
+            conn.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
+                .expect("read migrated version"),
+            CURRENT_SCHEMA_VERSION,
+            "opening the library must bring it to the current schema"
+        );
+
+        let backups: Vec<PathBuf> = std::fs::read_dir(dir.path().join(".bili-cache").join("backups"))
+            .expect("backup folder exists")
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.path())
+            .collect();
+        assert_eq!(backups.len(), 1, "exactly one pre-migration backup expected");
+
+        let backup = Connection::open(&backups[0]).expect("open the backup");
+        let backed_up_version: i64 = backup
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .expect("read backup version");
+        assert_eq!(
+            backed_up_version, 16,
+            "the backup must capture the database as it was before migrating"
+        );
+        let finds: i64 = backup
+            .query_row("SELECT COUNT(*) FROM finds", [], |row| row.get(0))
+            .expect("count finds in the backup");
+        assert_eq!(finds, 1, "the backup must contain the user's data");
+    }
+
+    #[test]
+    fn opening_a_brand_new_database_writes_no_backup() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_str().expect("storage path");
+
+        open_db(storage_path).expect("create a fresh database");
+
+        assert!(
+            !dir.path().join(".bili-cache").join("backups").exists(),
+            "a database with nothing in it yet has nothing to back up"
         );
     }
 
