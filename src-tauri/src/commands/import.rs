@@ -726,10 +726,8 @@ fn backup_before_migration(conn: &Connection, storage_path: &str) -> Result<(), 
     // replacement exists and has been checked.
     if free_space_bytes(&backup_dir).is_some_and(|free| free < needed) {
         let existing = migration_backups(&backup_dir);
-        if existing.len() > 1 {
-            for stale in &existing[..existing.len() - 1] {
-                let _ = std::fs::remove_file(stale);
-            }
+        for stale in backups_expendable_for_space(&existing) {
+            let _ = std::fs::remove_file(stale);
         }
     }
 
@@ -811,25 +809,53 @@ fn migration_backups(backup_dir: &Path) -> Vec<PathBuf> {
 /// Trims to the newest few and to a total size budget. The newest copy always survives,
 /// however large it is, and only files matching the migration prefix are considered.
 fn prune_migration_backups(backup_dir: &Path) {
-    let backups = migration_backups(backup_dir);
+    let backups: Vec<(PathBuf, u64)> = migration_backups(backup_dir)
+        .into_iter()
+        .map(|path| {
+            let size = std::fs::metadata(&path).map(|meta| meta.len()).unwrap_or(0);
+            (path, size)
+        })
+        .collect();
+    for path in backups_to_discard(&backups) {
+        let _ = std::fs::remove_file(path);
+    }
+}
+
+/// Decides which backups to discard, given `(path, size)` pairs oldest first.
+///
+/// Kept separate from the filesystem so the rules can be exercised directly: the newest
+/// copy always survives however large it is, then up to [`MIGRATION_BACKUPS_KEPT`] more
+/// while they fit inside [`MIGRATION_BACKUP_BUDGET_BYTES`].
+fn backups_to_discard(backups: &[(PathBuf, u64)]) -> Vec<PathBuf> {
     if backups.len() <= 1 {
-        return;
+        return Vec::new();
     }
 
+    let mut discard = Vec::new();
     let mut kept_bytes = 0u64;
     let mut kept = 0usize;
     // Walk newest first so the copies that survive are the recent ones.
-    for path in backups.iter().rev() {
-        let size = std::fs::metadata(path).map(|meta| meta.len()).unwrap_or(0);
+    for (path, size) in backups.iter().rev() {
         let is_newest = kept == 0;
         let within_count = kept < MIGRATION_BACKUPS_KEPT;
-        let within_budget = kept_bytes.saturating_add(size) <= MIGRATION_BACKUP_BUDGET_BYTES;
+        let within_budget = kept_bytes.saturating_add(*size) <= MIGRATION_BACKUP_BUDGET_BYTES;
         if is_newest || (within_count && within_budget) {
             kept += 1;
-            kept_bytes = kept_bytes.saturating_add(size);
+            kept_bytes = kept_bytes.saturating_add(*size);
         } else {
-            let _ = std::fs::remove_file(path);
+            discard.push(path.clone());
         }
+    }
+    discard
+}
+
+/// The backups that may be sacrificed to make room for a new one: everything except the
+/// newest, which stays until its replacement exists and has passed its check.
+fn backups_expendable_for_space(backups: &[PathBuf]) -> &[PathBuf] {
+    if backups.len() <= 1 {
+        &[]
+    } else {
+        &backups[..backups.len() - 1]
     }
 }
 

@@ -290,7 +290,6 @@ mod tests {
         }
     }
 
-    use super::*;
     use std::sync::{Mutex, OnceLock};
 
     const TILE_CACHE_SQL: &str = "
