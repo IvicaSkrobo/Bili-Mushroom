@@ -72,3 +72,6 @@ graphify-out/
 
 # GSD transient run logs
 .planning/logs/
+
+# TypeScript incremental build metadata
+*.tsbuildinfo

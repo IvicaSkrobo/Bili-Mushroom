@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Find } from './finds';
+import type { MapPoint } from './finds';
 
 export type ZoneType = 'local' | 'region';
 export type ZoneGeometryType = 'circle' | 'polygon';
@@ -52,7 +52,7 @@ export interface UpsertZonePayload {
 }
 
 export interface ZoneSummary {
-  finds: Find[];
+  finds: MapPoint[];
   firstFound: string | null;
   lastFound: string | null;
 }
@@ -103,7 +103,7 @@ export function distanceMeters(
   return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-export function summarizeZone(zone: Zone, finds: Find[]): ZoneSummary {
+export function summarizeZone(zone: Zone, finds: MapPoint[]): ZoneSummary {
   const zoneFinds = finds
     .filter((find) => find.species_name === zone.species_name)
     .filter((find) => find.lat != null && find.lng != null)
@@ -117,7 +117,7 @@ export function summarizeZone(zone: Zone, finds: Find[]): ZoneSummary {
   };
 }
 
-export function isFindInsideZone(find: Find, zone: Zone): boolean {
+export function isFindInsideZone(find: MapPoint, zone: Zone): boolean {
   if (find.lat == null || find.lng == null) return false;
   if (zone.geometry_type === 'circle') {
     if (zone.center_lat == null || zone.center_lng == null || zone.radius_meters == null) {

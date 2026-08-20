@@ -10,7 +10,7 @@ import {
   type ZonePolygonPoint,
   type ZoneType,
 } from './zones';
-import type { Find } from './finds';
+import type { MapPoint } from './finds';
 
 const polygonPoints: [number, number][] = [
   [45.0, 15.0],
@@ -35,20 +35,15 @@ const polygonZone: Zone = {
   updated_at: '2026-05-06T00:00:00Z',
 };
 
-const insideFind: Find = {
+const insideFind: MapPoint = {
   id: 1,
   species_name: 'Boletus edulis, Vrganj',
   date_found: '2026-05-01',
-  country: 'Croatia',
-  region: 'Gorski kotar',
   location_note: '',
   lat: 45.1,
   lng: 15.1,
   notes: '',
-  created_at: '2026-05-01T00:00:00Z',
-  updated_at: '2026-05-01T00:00:00Z',
   photos: [],
-  is_favorite: false,
 };
 
 describe('zones polygon helpers', () => {

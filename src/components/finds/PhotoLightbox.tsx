@@ -7,7 +7,6 @@ import {
   DialogPortal,
 } from '@/components/ui/dialog';
 import { Dialog as DialogPrimitive } from 'radix-ui';
-import { Button } from '@/components/ui/button';
 import { editFindPhotoImage, FINDS_QUERY_KEY, isHeic, type Find, type FindPhoto, type SpeciesProfile } from '@/lib/finds';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { useT } from '@/i18n/index';
@@ -666,6 +665,9 @@ export function PhotoLightbox({
                             observed_count: find.observed_count ?? null,
                             observed_count_min: find.observed_count_min ?? null,
                             observed_count_max: find.observed_count_max ?? null,
+            // update_find rewrites every column, so omitting this wiped the stored
+            // edibility note on every lightbox edit.
+            edibility_note: find.edibility_note ?? null,
                           });
                           setEditingNotes(false);
                         }}
@@ -737,6 +739,9 @@ export function PhotoLightbox({
                             observed_count: find.observed_count ?? null,
                             observed_count_min: find.observed_count_min ?? null,
                             observed_count_max: find.observed_count_max ?? null,
+                            // update_find rewrites every column, so omitting this wiped
+                            // the stored edibility note on every lightbox edit.
+                            edibility_note: find.edibility_note ?? null,
                           });
                           setEditingWeather(false);
                         }}
@@ -819,6 +824,9 @@ export function PhotoLightbox({
                             observed_count: find.observed_count ?? null,
                             observed_count_min: find.observed_count_min ?? null,
                             observed_count_max: find.observed_count_max ?? null,
+                            // update_find rewrites every column, so omitting this wiped
+                            // the stored edibility note on every lightbox edit.
+                            edibility_note: find.edibility_note ?? null,
                           });
                           setEditingPeople(false);
                         }}
@@ -979,6 +987,9 @@ export function PhotoLightbox({
             observed_count: find.observed_count ?? null,
             observed_count_min: find.observed_count_min ?? null,
             observed_count_max: find.observed_count_max ?? null,
+                            // update_find rewrites every column, so omitting this wiped
+                            // the stored edibility note on every lightbox edit.
+                            edibility_note: find.edibility_note ?? null,
           });
           setLocationPickerOpen(false);
         }}

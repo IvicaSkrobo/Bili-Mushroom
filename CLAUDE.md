@@ -146,10 +146,10 @@ success on a codebase it never opened. `npm run typecheck` runs `tsc -b --noEmit
 does build the referenced projects.
 
 `npm run build` still starts with the no-op `tsc`. It is deliberately left that way for
-now: the real typecheck currently reports ~65 pre-existing errors (mostly test fixtures
-built before `Find` gained fields, plus react-leaflet `TileLayer` typings), and wiring
-`tsc -b` into `build` would break releases until those are cleared. Clear them, then
-change `build` to `tsc -b && vite build` in the same commit.
+now: the real typecheck still reports pre-existing errors (test fixtures built before
+`Find` gained fields, react-leaflet `TileLayer` typings, unused bindings), and wiring the
+real check into `build` would break releases until those are cleared. Clear them, then
+change `build` to `npm run typecheck && vite build` in the same commit.
 
 
 ## Frontend Design
