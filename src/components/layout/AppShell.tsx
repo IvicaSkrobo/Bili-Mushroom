@@ -9,6 +9,7 @@ import { useT } from '@/i18n/index';
 import { APP_VERSION } from '@/lib/appMeta';
 import { checkDevUpdateMock } from '@/lib/devUpdater';
 import { DONATE_URL, HAS_DONATE_URL } from '@/lib/externalLinks';
+import { isBugReportConfigured } from '@/lib/bugReport';
 import { openExternalUrl } from '@/lib/openExternal';
 
 const CollectionTab = lazy(() => import('@/tabs/CollectionTab'));
@@ -22,6 +23,8 @@ const SettingsDialog = lazy(() =>
 const ReportBugDialog = lazy(() =>
   import('@/components/dialogs/ReportBugDialog').then((m) => ({ default: m.ReportBugDialog })),
 );
+
+const BUG_REPORT_ENABLED = isBugReportConfigured();
 
 const TAB_VALUES: Tab[] = ['collection', 'samples', 'species', 'map', 'stats'];
 const TAB_KEYS: Record<Tab, string> = {
@@ -143,15 +146,17 @@ export function AppShell() {
                 <Heart className="h-4 w-4" />
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => setReportBugOpen(true)}
-              aria-label={t('settings.reportBugTitle')}
-              title={t('settings.reportBugTitle')}
-              className="inline-flex h-9 w-9 items-center justify-center text-destructive/80 transition-colors hover:text-destructive"
-            >
-              <Bug className="h-4 w-4" />
-            </button>
+            {BUG_REPORT_ENABLED && (
+              <button
+                type="button"
+                onClick={() => setReportBugOpen(true)}
+                aria-label={t('settings.reportBugTitle')}
+                title={t('settings.reportBugTitle')}
+                className="inline-flex h-9 w-9 items-center justify-center text-destructive/80 transition-colors hover:text-destructive"
+              >
+                <Bug className="h-4 w-4" />
+              </button>
+            )}
             <button
               type="button"
               aria-label={t('app.toggleTheme')}
@@ -260,7 +265,7 @@ export function AppShell() {
           <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
         </Suspense>
       )}
-      {reportBugOpen && (
+      {BUG_REPORT_ENABLED && reportBugOpen && (
         <Suspense fallback={null}>
           <ReportBugDialog open={reportBugOpen} onOpenChange={setReportBugOpen} />
         </Suspense>

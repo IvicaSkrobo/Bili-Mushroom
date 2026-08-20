@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { APP_VERSION } from '@/lib/appMeta';
-import { isBugReportConfigured, submitBugReport } from '@/lib/bugReport';
+import { submitBugReport } from '@/lib/bugReport';
 import { useT } from '@/i18n/index';
 import { useAppStore } from '@/stores/appStore';
 
@@ -86,12 +86,6 @@ export function ReportBugDialog({ open, onOpenChange }: ReportBugDialogProps) {
         </DialogHeader>
 
         <div className="grid gap-4">
-          {!isBugReportConfigured() && (
-            <div className="rounded-sm border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-200">
-              {t('bugReport.notConfigured')}
-            </div>
-          )}
-
           <div className="grid gap-2">
             <Label htmlFor="bug-title">{t('bugReport.problemTitle')}</Label>
             <Input
@@ -160,7 +154,7 @@ export function ReportBugDialog({ open, onOpenChange }: ReportBugDialogProps) {
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {t('bugReport.cancel')}
           </Button>
-          <Button type="button" onClick={handleSubmit} disabled={!canSubmit || submitting || !isBugReportConfigured()}>
+          <Button type="button" onClick={handleSubmit} disabled={!canSubmit || submitting}>
             <Send className="h-4 w-4" />
             {submitting ? t('bugReport.sending') : t('bugReport.send')}
           </Button>
