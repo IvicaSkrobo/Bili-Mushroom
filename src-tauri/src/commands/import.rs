@@ -133,6 +133,7 @@ const MIGRATION_0023: &str = include_str!("../../migrations/0023_species_profile
 const MIGRATION_0024: &str = include_str!("../../migrations/0024_find_weather.sql");
 const MIGRATION_0025: &str =
     include_str!("../../migrations/0025_find_determiner_finder.sql");
+const MIGRATION_0026: &str = include_str!("../../migrations/0026_samples.sql");
 
 fn normalize_observed_range(
     observed_count: Option<i64>,
@@ -522,6 +523,12 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
         conn.execute_batch("PRAGMA user_version = 25")
             .map_err(|e| format!("Failed to set user_version=25: {}", e))?;
     }
+    if version < 26 {
+        conn.execute_batch(MIGRATION_0026)
+            .map_err(|e| format!("Migration 0026 failed: {}", e))?;
+        conn.execute_batch("PRAGMA user_version = 26")
+            .map_err(|e| format!("Failed to set user_version=26: {}", e))?;
+    }
     // Repair development/local databases whose user_version advanced before
     // these metadata columns were present. This is idempotent and keeps
     // synonyms/local names saveable without touching stored values.
@@ -596,6 +603,10 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
         conn.execute_batch("ALTER TABLE finds ADD COLUMN finder TEXT")
             .map_err(|e| format!("Repair finds.finder failed: {}", e))?;
     }
+
+    // Idempotent: CREATE TABLE IF NOT EXISTS, so safe on every open.
+    conn.execute_batch(MIGRATION_0026)
+        .map_err(|e| format!("Repair samples tables failed: {}", e))?;
 
     Ok(())
 }

@@ -15,6 +15,13 @@ pub fn run() {
         )
         .invoke_handler(tauri::generate_handler![
             commands::exif::parse_exif,
+            commands::samples::get_samples,
+            commands::samples::get_sample_for_find,
+            commands::samples::create_sample_for_find,
+            commands::samples::update_sample,
+            commands::samples::delete_sample,
+            commands::samples::sync_sample_folder,
+            commands::samples::open_sample_folder,
             commands::import::initialize_database,
             commands::import::import_find,
             commands::import::get_finds,

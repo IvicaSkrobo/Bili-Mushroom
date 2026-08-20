@@ -20,6 +20,7 @@ import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAddFindPhotos, useCreateFind, useFinds, useSpeciesProfiles, useUpsertSpeciesProfile } from '@/hooks/useFinds';
+import { useCreateSampleForFind } from '@/hooks/useSamples';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
 import { reverseGeocode } from '@/lib/geocoding';
@@ -616,6 +617,8 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [form, setForm] = useState<FormState>(() => loadCreateFindDraft()?.form ?? BLANK_FORM);
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
+  const [isSample, setIsSample] = useState(false);
+  const createSample = useCreateSampleForFind();
   const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
   const [photoViewerIndex, setPhotoViewerIndex] = useState(0);
   const commonNameManuallyEditedRef = useRef(false);
@@ -775,6 +778,10 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
         await addPhotosMutation.mutateAsync({ findId: created.id, sourcePaths: selectedPhotos });
       }
 
+      if (isSample) {
+        await createSample.mutateAsync(created.id);
+      }
+
       if (form.species_name.trim() && (form.common_name.trim() || form.species_description.trim())) {
         await upsertSpeciesProfile.mutateAsync({
           speciesName: form.species_name.trim(),
@@ -794,6 +801,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
       }
 
       setForm(BLANK_FORM);
+      setIsSample(false);
       setSelectedPhotos([]);
       setPhotoViewerOpen(false);
       setPhotoViewerIndex(0);
@@ -1024,6 +1032,18 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
               placeholder={t('edit.weatherPlaceholder')}
               className={filledClass(form.weather)}
             />
+          </div>
+          <div className="rounded-md border border-border/70 bg-card/35 px-3 py-2.5">
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <input
+                type="checkbox"
+                checked={isSample}
+                onChange={(e) => setIsSample(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+              {t('edit.isSample')}
+            </label>
+            <p className="mt-1 pl-6 text-xs text-muted-foreground">{t('edit.isSampleHelp')}</p>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             <div>

@@ -12,6 +12,7 @@ import { DONATE_URL, HAS_DONATE_URL } from '@/lib/externalLinks';
 import { openExternalUrl } from '@/lib/openExternal';
 
 const CollectionTab = lazy(() => import('@/tabs/CollectionTab'));
+const SamplesTab = lazy(() => import('@/tabs/SamplesTab'));
 const SpeciesTab = lazy(() => import('@/tabs/SpeciesTab'));
 const MapTab = lazy(() => import('@/tabs/MapTab'));
 const StatsTab = lazy(() => import('@/tabs/StatsTab'));
@@ -22,9 +23,10 @@ const ReportBugDialog = lazy(() =>
   import('@/components/dialogs/ReportBugDialog').then((m) => ({ default: m.ReportBugDialog })),
 );
 
-const TAB_VALUES: Tab[] = ['collection', 'species', 'map', 'stats'];
+const TAB_VALUES: Tab[] = ['collection', 'samples', 'species', 'map', 'stats'];
 const TAB_KEYS: Record<Tab, string> = {
   collection: 'nav.collection',
+  samples: 'nav.samples',
   species: 'nav.species',
   map: 'nav.map',
   stats: 'nav.stats',
@@ -239,6 +241,11 @@ export function AppShell() {
         <TabsContent value="map" className="flex-1 min-h-0">
           <Suspense fallback={<div className="h-full w-full animate-pulse bg-card/20" />}>
             <MapTab />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="samples" className="flex-1 min-h-0">
+          <Suspense fallback={<div className="h-full w-full animate-pulse bg-card/20" />}>
+            <SamplesTab />
           </Suspense>
         </TabsContent>
         <TabsContent value="stats" className="flex-1 min-h-0">

@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { useUpdateFind, useAddFindPhotos, useDeleteFindPhoto, useBulkDeleteFindPhotos, useFinds, useSpeciesProfiles, useUpsertSpeciesProfile } from '@/hooks/useFinds';
+import { useCreateSampleForFind, useSampleForFind } from '@/hooks/useSamples';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
 import { openFindFolder, parseExif, SUPPORTED_EXTENSIONS, type Find } from '@/lib/finds';
@@ -121,6 +122,9 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   const storagePath = useAppStore((s) => s.storagePath);
   const photoAssetVersion = useAppStore((s) => s.photoAssetVersion);
   const updateMutation = useUpdateFind();
+  const existingSample = useSampleForFind(find?.id ?? null);
+  const createSample = useCreateSampleForFind();
+  const [isSample, setIsSample] = useState(false);
   const upsertSpeciesProfile = useUpsertSpeciesProfile();
   const addPhotosMutation = useAddFindPhotos();
   const deletePhotoMutation = useDeleteFindPhoto();
@@ -234,6 +238,10 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   }, [find]);
 
   useEffect(() => {
+    setIsSample(Boolean(existingSample.data));
+  }, [existingSample.data]);
+
+  useEffect(() => {
     if (!find) return;
     const nextCommonName = speciesProfile?.common_name ?? '';
     setForm((prev) => {
@@ -325,6 +333,11 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
               description: form.species_description.trim() || null,
               habitat: speciesProfile?.habitat ?? null,
             });
+          }
+          // Registering after the find is saved means the sample folder links the
+          // current photos and its data sheet reflects the edits just made.
+          if (isSample && !existingSample.data && find) {
+            await createSample.mutateAsync(find.id);
           }
           onOpenChange(false);
         },
@@ -596,6 +609,21 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
               onChange={(e) => handleChange('weather', e.target.value)}
               placeholder={t('edit.weatherPlaceholder')}
             />
+          </div>
+          <div className="rounded-md border border-border/70 bg-card/35 px-3 py-2.5">
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <input
+                type="checkbox"
+                checked={isSample}
+                disabled={Boolean(existingSample.data)}
+                onChange={(e) => setIsSample(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+              {t('edit.isSample')}
+            </label>
+            <p className="mt-1 pl-6 text-xs text-muted-foreground">
+              {existingSample.data ? existingSample.data.label : t('edit.isSampleHelp')}
+            </p>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             <div>
