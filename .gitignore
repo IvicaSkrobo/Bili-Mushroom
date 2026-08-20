@@ -69,3 +69,6 @@ graphify-out/
 
 # Local Codex CLI config — machine-specific, may hold credentials
 .codex/
+
+# GSD transient run logs
+.planning/logs/
