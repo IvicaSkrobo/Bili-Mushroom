@@ -1,6 +1,6 @@
 {
   "name": "gljivobook",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -24,7 +24,8 @@
     "release:major": "node scripts/release.js major",
     "version:check": "node scripts/validate-release-version.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:rust": "node scripts/rust-test.cjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.11.0",

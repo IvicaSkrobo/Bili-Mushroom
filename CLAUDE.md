@@ -123,7 +123,20 @@ Windows desktop app for mushroom foragers to catalogue, organize, explore finds.
 <!-- GSD:conventions-start source:CONVENTIONS.md -->
 ## Conventions
 
-None yet. Populate as patterns emerge.
+**Running Rust tests on Windows: use `npm run test:rust`, not `cargo test`.**
+
+Plain `cargo test` aborts before any test runs with `STATUS_ENTRYPOINT_NOT_FOUND`
+(0xc0000139). The unit-test executable has no application manifest, so Windows resolves
+`comctl32.dll` to the System32 v5.82 build, which does not export `TaskDialogIndirect`
+or `RemoveWindowSubclass` that the Tauri dependency chain imports. The app binary is
+fine — `tauri-build` gives it a manifest binding Common-Controls v6.
+
+`scripts/rust-test.cjs` builds the test binaries, stamps that manifest into each one
+with `mt.exe` from the Windows SDK, then runs them. Filters pass through:
+`npm run test:rust -- collection_folder`. Release builds are untouched — no rustflags
+or `.cargo/config.toml` are involved.
+
+If a Rust test result is ever reported without this runner, treat it as unverified.
 
 ## Frontend Design
 
