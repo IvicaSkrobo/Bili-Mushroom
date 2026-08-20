@@ -36,6 +36,8 @@ pub struct ImportPayload {
     pub additional_photos: Vec<String>, // Mode A: extra source paths for same find
     #[serde(default)]
     pub edibility_note: Option<String>,
+    #[serde(default)]
+    pub weather: Option<String>,
 }
 
 #[derive(serde::Serialize, Clone, Debug)]
@@ -64,6 +66,7 @@ pub struct FindRecord {
     pub is_favorite: bool,
     pub created_at: String,
     pub edibility_note: Option<String>,
+    pub weather: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub photo_count: Option<i64>,
     pub photos: Vec<FindPhoto>,
@@ -121,6 +124,7 @@ const MIGRATION_0020: &str = include_str!("../../migrations/0020_species_profile
 const MIGRATION_0021: &str = include_str!("../../migrations/0021_species_recipes.sql");
 const MIGRATION_0022: &str = include_str!("../../migrations/0022_species_profile_common_name.sql");
 const MIGRATION_0023: &str = include_str!("../../migrations/0023_species_profile_habitat.sql");
+const MIGRATION_0024: &str = include_str!("../../migrations/0024_find_weather.sql");
 
 fn normalize_observed_range(
     observed_count: Option<i64>,
@@ -174,6 +178,7 @@ pub(crate) fn find_record_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<
         is_favorite: row.get::<_, i64>(13)? == 1,
         created_at: row.get(14)?,
         edibility_note: row.get(15)?,
+        weather: row.get(16)?,
         photo_count: None,
         photos: vec![],
     })
@@ -477,6 +482,21 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
         conn.execute_batch("PRAGMA user_version = 23")
             .map_err(|e| format!("Failed to set user_version=23: {}", e))?;
     }
+    if version < 24 {
+        let weather_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('finds') WHERE name = 'weather'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        if weather_exists == 0 {
+            conn.execute_batch(MIGRATION_0024)
+                .map_err(|e| format!("Migration 0024 failed: {}", e))?;
+        }
+        conn.execute_batch("PRAGMA user_version = 24")
+            .map_err(|e| format!("Failed to set user_version=24: {}", e))?;
+    }
     // Repair development/local databases whose user_version advanced before
     // these metadata columns were present. This is idempotent and keeps
     // synonyms/local names saveable without touching stored values.
@@ -514,6 +534,18 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
     if habitat_exists == 0 {
         conn.execute_batch("ALTER TABLE species_profiles ADD COLUMN habitat TEXT")
             .map_err(|e| format!("Repair species_profiles.habitat failed: {}", e))?;
+    }
+
+    let weather_exists: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('finds') WHERE name = 'weather'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
+    if weather_exists == 0 {
+        conn.execute_batch("ALTER TABLE finds ADD COLUMN weather TEXT")
+            .map_err(|e| format!("Repair finds.weather failed: {}", e))?;
     }
 
     Ok(())
@@ -566,8 +598,8 @@ fn has_existing_photo_path(conn: &Connection, photo_path: &str) -> rusqlite::Res
 
 pub(crate) fn insert_find_row(conn: &Connection, record: &FindRecord) -> rusqlite::Result<i64> {
     conn.execute(
-        "INSERT INTO finds (original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+        "INSERT INTO finds (original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
         params![
             record.original_filename,
             record.species_name,
@@ -584,6 +616,7 @@ pub(crate) fn insert_find_row(conn: &Connection, record: &FindRecord) -> rusqlit
             if record.is_favorite { 1i64 } else { 0i64 },
             record.created_at,
             record.edibility_note,
+            record.weather,
         ],
     )?;
     Ok(conn.last_insert_rowid())
@@ -1040,6 +1073,7 @@ pub async fn import_find(
             is_favorite: false,
             created_at,
             edibility_note: payload.edibility_note.clone(),
+            weather: payload.weather.clone(),
             photo_count: Some(staged.len() as i64),
             photos: vec![],
         };
@@ -1143,7 +1177,7 @@ pub async fn get_finds(
         format!(" WHERE {}", where_clauses.join(" AND "))
     };
     let sql = format!(
-        "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note
+        "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather
          FROM finds{} ORDER BY date_found DESC, id DESC LIMIT ? OFFSET ?",
         where_sql,
     );
@@ -1370,7 +1404,7 @@ fn load_finds_for_species(
     let primary_photos_only = filters.photos_mode.as_deref() == Some("primary");
     let where_sql = format!(" WHERE {}", where_clauses.join(" AND "));
     let sql = format!(
-        "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note
+        "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather
          FROM finds{} ORDER BY date_found DESC, id DESC LIMIT ? OFFSET ?",
         where_sql,
     );
@@ -1660,6 +1694,8 @@ pub struct UpdateFindPayload {
     pub observed_count_min: Option<i64>,
     pub observed_count_max: Option<i64>,
     pub edibility_note: Option<String>,
+    #[serde(default)]
+    pub weather: Option<String>,
 }
 
 #[tauri::command]
@@ -1691,7 +1727,7 @@ pub async fn update_find(
 
     let rows_affected = tx
         .execute(
-            "UPDATE finds SET species_name=?1, date_found=?2, country=?3, region=?4, lat=?5, lng=?6, notes=?7, location_note=?8, observed_count=?9, observed_count_min=?10, observed_count_max=?11, edibility_note=?12 WHERE id=?13",
+            "UPDATE finds SET species_name=?1, date_found=?2, country=?3, region=?4, lat=?5, lng=?6, notes=?7, location_note=?8, observed_count=?9, observed_count_min=?10, observed_count_max=?11, edibility_note=?12, weather=?13 WHERE id=?14",
             params![
                 payload.species_name,
                 payload.date_found,
@@ -1705,6 +1741,7 @@ pub async fn update_find(
                 observed_count_min,
                 observed_count_max,
                 payload.edibility_note,
+                payload.weather,
                 payload.id,
             ],
         )
@@ -1718,7 +1755,7 @@ pub async fn update_find(
 
     let mut record = tx
         .query_row(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note FROM finds WHERE id = ?1",
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather FROM finds WHERE id = ?1",
             params![payload.id],
             |row| find_record_from_row(row),
         )
@@ -1932,6 +1969,7 @@ pub(crate) mod test_helpers {
             is_favorite: false,
             created_at: "2024-05-10T14:23:00Z".to_string(),
             edibility_note: None,
+            weather: None,
             photo_count: Some(0),
             photos: vec![],
         }
@@ -2126,6 +2164,7 @@ mod tests {
                     observed_count_min: None,
                     observed_count_max: None,
                     edibility_note: None,
+                    weather: None,
                     photo_count: None,
                     photos: vec![],
                 }),
@@ -2364,6 +2403,7 @@ mod tests {
                     is_favorite: row.get::<_, i64>(11)? == 1,
                     created_at: row.get(12)?,
                     edibility_note: None,
+                    weather: None,
                     photo_count: None,
                     photos: vec![],
                 })
@@ -2417,6 +2457,7 @@ mod tests {
             observed_count_min: None,
             observed_count_max: None,
             edibility_note: None,
+            weather: None,
         };
 
         let updated = update_find_on_conn(&conn, &payload).expect("update");
@@ -2458,6 +2499,7 @@ mod tests {
             observed_count_min: None,
             observed_count_max: None,
             edibility_note: None,
+            weather: None,
         };
 
         let result = update_find_on_conn(&conn, &payload);
@@ -2516,6 +2558,7 @@ mod tests {
             observed_count_max: None,
             additional_photos,
             edibility_note: None,
+            weather: None,
         }
     }
 

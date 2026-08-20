@@ -35,6 +35,8 @@ pub struct CreateFindPayload {
     pub observed_count_min: Option<i64>,
     pub observed_count_max: Option<i64>,
     pub edibility_note: Option<String>,
+    #[serde(default)]
+    pub weather: Option<String>,
 }
 
 #[tauri::command]
@@ -75,6 +77,7 @@ pub async fn create_find(
         is_favorite: false,
         created_at,
         edibility_note: payload.edibility_note,
+        weather: payload.weather,
         photo_count: Some(0),
         photos: vec![],
     };
@@ -90,7 +93,7 @@ pub async fn create_find(
 
     let mut inserted = conn
         .query_row(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note FROM finds WHERE id = ?1",
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather FROM finds WHERE id = ?1",
             params![new_id],
             |row| find_record_from_row(row),
         )
@@ -1075,7 +1078,7 @@ pub async fn set_find_favorite(
 
     let mut record = conn
         .query_row(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note FROM finds WHERE id = ?1",
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather FROM finds WHERE id = ?1",
             params![find_id],
             |row| crate::commands::import::find_record_from_row(row),
         )
@@ -1261,7 +1264,7 @@ pub async fn add_find_photos(
     // Re-query the full find record with photos
     let mut record = conn
         .query_row(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note FROM finds WHERE id = ?1",
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather FROM finds WHERE id = ?1",
             params![find_id],
             |row| crate::commands::import::find_record_from_row(row),
         )
@@ -1351,7 +1354,7 @@ pub async fn delete_find_photo(
     // 5. Re-query full FindRecord
     let mut record = conn
         .query_row(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note FROM finds WHERE id = ?1",
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather FROM finds WHERE id = ?1",
             params![find_id],
             |row| crate::commands::import::find_record_from_row(row),
         )
@@ -1475,7 +1478,7 @@ pub async fn bulk_delete_find_photos(
     // Re-query full FindRecord
     let mut record = conn
         .query_row(
-            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note FROM finds WHERE id = ?1",
+            "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather FROM finds WHERE id = ?1",
             params![find_id],
             |row| crate::commands::import::find_record_from_row(row),
         )
@@ -1991,6 +1994,7 @@ mod tests {
             observed_count_min: None,
             observed_count_max: None,
             edibility_note: None,
+            weather: None,
         }
     }
 
@@ -2025,13 +2029,14 @@ mod tests {
             is_favorite: false,
             created_at,
             edibility_note: None,
+            weather: None,
             photo_count: Some(0),
             photos: vec![],
         };
         let new_id = insert_find_row(conn, &record).map_err(|e| e.to_string())?;
         let mut inserted = conn
             .query_row(
-                "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note FROM finds WHERE id = ?1",
+                "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather FROM finds WHERE id = ?1",
                 rusqlite::params![new_id],
                 |row| find_record_from_row(row),
             )
@@ -2311,7 +2316,7 @@ mod tests {
         // 4. Return full FindRecord
         let mut record = conn
             .query_row(
-                "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note FROM finds WHERE id = ?1",
+                "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather FROM finds WHERE id = ?1",
                 params![find_id],
                 |row| find_record_from_row(row),
             )
@@ -2388,7 +2393,7 @@ mod tests {
 
         let mut record = conn
             .query_row(
-                "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note FROM finds WHERE id = ?1",
+                "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather FROM finds WHERE id = ?1",
                 params![find_id],
                 |row| find_record_from_row(row),
             )

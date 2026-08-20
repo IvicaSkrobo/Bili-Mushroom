@@ -1,0 +1,1 @@
+ALTER TABLE finds ADD COLUMN weather TEXT;
