@@ -1386,10 +1386,15 @@ fn backup_db_before_destructive_change(
             }
         })
         .collect();
-    let timestamp = Utc::now().format("%Y%m%d-%H%M%S").to_string();
+    // Milliseconds so two backups in the same second cannot collide.
+    let timestamp = Utc::now().format("%Y%m%d-%H%M%S%.3f").to_string();
     let backup_path = backup_dir.join(format!("bili-mushroom-{timestamp}-{safe_reason}.db"));
 
-    std::fs::copy(&db_path, &backup_path).map_err(|e| {
+    // Goes through SQLite rather than fs::copy: a file copy of a live database is not
+    // guaranteed coherent, and once the library runs in WAL mode it would miss whatever
+    // still sits in the -wal sidecar — exactly the recent edits worth protecting.
+    let conn = open_db(storage_path)?;
+    crate::commands::import::copy_database_to(&conn, &backup_path).map_err(|e| {
         format!(
             "Failed to back up database from '{}' to '{}': {}",
             db_path.display(),
@@ -2323,6 +2328,56 @@ mod tests {
     // -----------------------------------------------------------------------
     // create_find tests
     // -----------------------------------------------------------------------
+
+    /// Destructive maintenance takes a copy first. It must be a real, complete database
+    /// — `fs::copy` of a live SQLite file is not guaranteed coherent, and under WAL it
+    /// would miss whatever still sits in the sidecar, which is precisely the recent work
+    /// worth protecting.
+    #[test]
+    fn destructive_backup_writes_a_usable_database_copy() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_str().expect("storage path");
+        {
+            let conn = open_db(storage_path).expect("create library database");
+            insert_find_row(&conn, &make_find_record("keep-me.jpg", "2024-05-10"))
+                .expect("insert a find worth protecting");
+        }
+
+        let backup_path = backup_db_before_destructive_change(storage_path, "prune missing/photos!")
+            .expect("write the backup")
+            .expect("a backup path is returned when the database exists");
+
+        let file_name = Path::new(&backup_path)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .expect("backup file name");
+        assert!(
+            file_name.ends_with("-prune-missing-photos-.db"),
+            "the reason is sanitised into the file name, got {file_name}"
+        );
+
+        let backup = Connection::open(&backup_path).expect("open the backup");
+        let check: String = backup
+            .query_row("PRAGMA quick_check", [], |row| row.get(0))
+            .expect("check the backup");
+        assert_eq!(check, "ok");
+        let finds: i64 = backup
+            .query_row("SELECT COUNT(*) FROM finds", [], |row| row.get(0))
+            .expect("count finds in the backup");
+        assert_eq!(finds, 1, "the copy must carry the user's data");
+    }
+
+    #[test]
+    fn destructive_backup_is_skipped_when_there_is_no_database() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_str().expect("storage path");
+
+        assert!(
+            backup_db_before_destructive_change(storage_path, "nothing-to-do")
+                .expect("no database is not an error")
+                .is_none()
+        );
+    }
 
     fn make_create_payload(species_name: &str) -> CreateFindPayload {
         CreateFindPayload {

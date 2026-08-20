@@ -745,28 +745,38 @@ fn backup_before_migration(conn: &Connection, storage_path: &str) -> Result<(), 
         "{MIGRATION_BACKUP_PREFIX}{version}-{}.db",
         Utc::now().format("%Y%m%d-%H%M%S%.3f")
     ));
-    let target_str = target
-        .to_str()
-        .ok_or_else(|| "Database backup path is not valid UTF-8".to_string())?;
-
-    // VACUUM INTO writes a consistent, self-contained copy through SQLite itself. A file
-    // copy would be unsafe here, especially once the library runs in WAL mode, because
-    // recent pages can still live in the -wal sidecar.
-    conn.execute("VACUUM INTO ?1", params![target_str])
-        .map_err(|e| {
-            let _ = std::fs::remove_file(&target);
-            format!(
-                "Could not back up the library database before upgrading it (schema version {version}): {e}. Your library has not been changed — free some disk space and open Gljivobook again."
-            )
-        })?;
-
-    verify_backup(&target).map_err(|e| {
-        let _ = std::fs::remove_file(&target);
-        e
+    copy_database_to(conn, &target).map_err(|e| {
+        format!(
+            "Could not back up the library database before upgrading it (schema version {version}): {e} Your library has not been changed."
+        )
     })?;
 
     prune_migration_backups(&backup_dir);
     Ok(())
+}
+
+/// Writes a consistent copy of the database to `target`, then checks it.
+///
+/// Always prefer this over `fs::copy` for the library database. The copy is made by
+/// SQLite itself, so it is coherent even while pages are in flight — which matters now
+/// and matters more once the library runs in WAL mode, where recent pages live in the
+/// `-wal` sidecar and a plain file copy would silently miss them. A copy that fails its
+/// check is deleted rather than left behind looking like a safety net.
+pub(crate) fn copy_database_to(conn: &Connection, target: &Path) -> Result<(), String> {
+    let target_str = target
+        .to_str()
+        .ok_or_else(|| "Database backup path is not valid UTF-8.".to_string())?;
+
+    conn.execute("VACUUM INTO ?1", params![target_str])
+        .map_err(|e| {
+            let _ = std::fs::remove_file(target);
+            format!("Writing the database copy failed: {e}.")
+        })?;
+
+    verify_backup(target).map_err(|e| {
+        let _ = std::fs::remove_file(target);
+        e
+    })
 }
 
 /// Opens the fresh copy and asks SQLite whether it is intact. A backup nobody checked is
