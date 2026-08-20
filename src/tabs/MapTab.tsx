@@ -28,7 +28,9 @@ export default function MapTab() {
   const isActive = useAppStore((s) => s.activeTab === 'map');
   const pendingMapSpeciesFilter = useAppStore((s) => s.pendingMapSpeciesFilter);
   const setPendingMapSpeciesFilter = useAppStore((s) => s.setPendingMapSpeciesFilter);
-  const { data: finds } = useMapPoints(isActive);
+  // An empty map and a failed load look identical, which once cost an evening of
+  // hunting a bug that was really a stale binary. Surface the failure.
+  const { data: finds, error: findsError } = useMapPoints(isActive);
   const { data: zones } = useZones(isActive);
   const upsertZone = useUpsertZone();
   const [selectedSpecies, setSelectedSpecies] = useState<Set<string>>(new Set());
@@ -598,6 +600,14 @@ export default function MapTab() {
 
   return (
     <div className="relative h-full w-full">
+      {findsError != null && (
+        <div
+          role="alert"
+          className="pointer-events-none absolute inset-x-0 top-2 z-[1200] mx-auto w-fit max-w-[80%] rounded-sm border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs text-destructive backdrop-blur-sm"
+        >
+          {t('map.loadFailed')}
+        </div>
+      )}
       <FindsMap
         finds={filteredFinds}
         zones={filteredZones}

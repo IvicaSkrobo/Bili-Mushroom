@@ -645,6 +645,7 @@ const hr: Translations = {
 
   // map — storage / zone alerts
   'map.noStorage': 'Odaberi mapu pohrane da vidiš kartu.',
+  'map.loadFailed': 'Nalazi se nisu uspjeli učitati, pa je karta prazna. Ponovno pokreni aplikaciju; ako se ponovi, javi grešku.',
   'map.zoneNoFindLocal': 'Nema nalaza s koordinatama za ovu vrstu.',
   'map.zoneNoFindRegion': 'Nema nalaza s koordinatama za stvaranje regionalne zone.',
   'map.zoneCreateLocal': 'Lokalna zona još ne postoji za {name}. Stvoriti je sada?',
@@ -1344,6 +1345,7 @@ const en: Translations = {
 
   // map — storage / zone alerts
   'map.noStorage': 'Select a storage folder to see your map.',
+  'map.loadFailed': 'Finds could not be loaded, so the map is empty. Restart the app; if it keeps happening, report the error.',
   'map.zoneNoFindLocal': 'No mapped find is available to create a local zone for this species yet.',
   'map.zoneNoFindRegion': 'No mapped finds are available to create a region zone for this species yet.',
   'map.zoneCreateLocal': 'No local zone exists yet for {name}. Create one now?',
