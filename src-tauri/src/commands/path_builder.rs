@@ -242,10 +242,19 @@ mod tests {
             "Expected 'Boletus edulis' folder (markers stripped), got: {}",
             path_str
         );
+        // Only the species folder must be free of marker characters. The generated file
+        // name legitimately contains an underscore ("2024-05-10_001.jpg"), so asserting
+        // over the whole path would reject a correct result.
+        let species_folder = result
+            .parent()
+            .and_then(|parent| parent.file_name())
+            .expect("species folder component")
+            .to_string_lossy()
+            .to_string();
         assert!(
-            !path_str.contains('*') && !path_str.contains('_'),
-            "Expected no asterisks or underscores from markers, got: {}",
-            path_str
+            !species_folder.contains('*') && !species_folder.contains('_'),
+            "Expected no asterisks or underscores from markers in the species folder, got: {}",
+            species_folder
         );
     }
 }
