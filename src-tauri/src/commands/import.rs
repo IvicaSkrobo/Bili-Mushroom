@@ -45,7 +45,7 @@ pub struct ImportPayload {
     pub finder: Option<String>,
 }
 
-#[derive(serde::Serialize, Clone, Debug)]
+#[derive(serde::Serialize, Clone, Debug, PartialEq)]
 pub struct FindPhoto {
     pub id: i64,
     pub find_id: i64,
@@ -1735,6 +1735,89 @@ pub struct SpeciesOption {
     pub has_finds: bool,
 }
 
+/// One pin's worth of data for the map.
+///
+/// The map reads coordinates, the species label, the date and the popup photo, and
+/// nothing else. Loading full find rows for it meant carrying original filenames,
+/// country, region, location notes, observed counts, favourite flags, edibility notes,
+/// weather, determiner and finder for every pin — none of which is ever rendered there.
+#[derive(serde::Serialize, Debug, PartialEq)]
+pub struct MapPoint {
+    pub id: i64,
+    pub species_name: String,
+    pub date_found: String,
+    pub lat: f64,
+    pub lng: f64,
+    pub notes: String,
+    /// The one photo the popup shows, or empty. Chosen the same way the rest of the app
+    /// picks a representative: the primary photo, else the oldest.
+    pub photos: Vec<FindPhoto>,
+}
+
+/// Finds that can actually be drawn on the map.
+#[tauri::command]
+pub async fn get_map_points(storage_path: String) -> Result<Vec<MapPoint>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        get_map_points_for_connection(&conn)
+    })
+    .await
+    .map_err(|error| format!("Map points worker failed: {error}"))?
+}
+
+fn get_map_points_for_connection(conn: &Connection) -> Result<Vec<MapPoint>, String> {
+    // Finds without coordinates were previously loaded in full and then dropped by the
+    // grouping code; they are excluded here instead. The photo comes from a correlated
+    // subquery rather than a second IN (...) pass, so this stays one statement with no
+    // parameter list that grows with the library.
+    let mut stmt = conn
+        .prepare(
+            "SELECT f.id, f.species_name, f.date_found, f.lat, f.lng, f.notes,
+                    fp.id, fp.photo_path, fp.is_primary
+             FROM finds f
+             LEFT JOIN find_photos fp ON fp.id = (
+               SELECT inner_photo.id
+               FROM find_photos inner_photo
+               WHERE inner_photo.find_id = f.id
+               ORDER BY inner_photo.is_primary DESC, inner_photo.id ASC
+               LIMIT 1
+             )
+             WHERE f.lat IS NOT NULL
+               AND f.lng IS NOT NULL
+               AND LOWER(TRIM(f.species_name)) NOT IN ('tile-cache', '.bili-cache', '.bili-cache-tiles')
+             ORDER BY f.date_found DESC, f.id DESC",
+        )
+        .map_err(|error| format!("Failed to prepare map points query: {error}"))?;
+
+    let points = stmt
+        .query_map([], |row| {
+            let find_id: i64 = row.get(0)?;
+            let photo_id: Option<i64> = row.get(6)?;
+            let photos = match photo_id {
+                Some(id) => vec![FindPhoto {
+                    id,
+                    find_id,
+                    photo_path: row.get(7)?,
+                    is_primary: row.get::<_, i64>(8)? == 1,
+                }],
+                None => Vec::new(),
+            };
+            Ok(MapPoint {
+                id: find_id,
+                species_name: row.get(1)?,
+                date_found: row.get(2)?,
+                lat: row.get(3)?,
+                lng: row.get(4)?,
+                notes: row.get(5)?,
+                photos,
+            })
+        })
+        .map_err(|error| format!("Map points query failed: {error}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("Map points row mapping failed: {error}"))?;
+    Ok(points)
+}
+
 /// Every species the user could pick, from finds and profiles alike.
 ///
 /// The dialogs used to derive this from a full `get_finds` plus every species profile,
@@ -3079,6 +3162,58 @@ mod tests {
 
         let locations = get_find_locations_for_connection(&conn).expect("load locations");
         assert_eq!(locations, vec!["Gorski kotar", "Ucka"]);
+    }
+
+    #[test]
+    fn map_points_skip_coordinateless_and_internal_finds_and_carry_one_photo() {
+        let conn = setup_in_memory_db();
+        let insert = |species: &str, filename: &str, date: &str, lat: Option<f64>, lng: Option<f64>| {
+            let mut record = make_find_record(filename, date);
+            record.species_name = species.to_string();
+            record.lat = lat;
+            record.lng = lng;
+            insert_find_row(&conn, &record).expect("insert find")
+        };
+
+        let mapped = insert("Boletus edulis", "mapped.jpg", "2024-06-01", Some(45.1), Some(15.2));
+        let secondary = insert_find_photo(&conn, mapped, "secondary.jpg", false)
+            .expect("insert secondary photo");
+        let primary =
+            insert_find_photo(&conn, mapped, "primary.jpg", true).expect("insert primary photo");
+        let photoless = insert(
+            "Amanita muscaria",
+            "photoless.jpg",
+            "2024-07-01",
+            Some(46.0),
+            Some(16.0),
+        );
+        let _no_coordinates = insert("Cantharellus cibarius", "nogps.jpg", "2024-08-01", None, None);
+        let _internal = insert("tile-cache", "tile.png", "2024-08-01", Some(45.0), Some(15.0));
+
+        let points = get_map_points_for_connection(&conn).expect("load map points");
+
+        assert_eq!(
+            points.iter().map(|point| point.id).collect::<Vec<_>>(),
+            vec![photoless, mapped],
+            "only coordinate-bearing, non-internal finds appear, newest first"
+        );
+
+        let with_photo = &points[1];
+        assert_eq!(with_photo.species_name, "Boletus edulis");
+        assert_eq!(with_photo.lat, 45.1);
+        assert_eq!(with_photo.lng, 15.2);
+        assert_eq!(
+            with_photo.photos.len(),
+            1,
+            "the map carries one photo per pin, not the whole photo list"
+        );
+        assert_eq!(with_photo.photos[0].id, primary, "the primary photo wins");
+        assert_ne!(with_photo.photos[0].id, secondary);
+
+        assert!(
+            points[0].photos.is_empty(),
+            "a find with no photos still gets a pin"
+        );
     }
 
     #[test]

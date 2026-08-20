@@ -1,11 +1,11 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  getFinds, getFindLocations, getSpeciesOptions, getCollectionFolders, getSpeciesFinds, updateFind, deleteFind, getFindPhotos, getSpeciesNotes, getSpeciesNote, upsertSpeciesNote,
+  getFinds, getFindLocations, getMapPoints, getSpeciesOptions, getCollectionFolders, getSpeciesFinds, updateFind, deleteFind, getFindPhotos, getSpeciesNotes, getSpeciesNote, upsertSpeciesNote,
   getSpeciesProfiles, getSpeciesProfile, getSpeciesProfileSummaries, upsertSpeciesProfile, patchSpeciesProfile, getSpeciesRecipes, getSpeciesRecipesForSpecies, upsertSpeciesRecipe, deleteSpeciesRecipe,
   bulkRenameSpecies, renameSpeciesFolder, moveFindToFolder, setFindFavorite, addFindPhotos, createFind,
   deleteFindPhoto, bulkDeleteFindPhotos,
   FINDS_QUERY_KEY, SPECIES_NOTES_QUERY_KEY, SPECIES_PROFILES_QUERY_KEY, SPECIES_RECIPES_QUERY_KEY,
-  type Find, type FindSearchFilters, type SpeciesOption, type SpeciesProfilePatch, type UpdateFindPayload, type CreateFindPayload,
+  type Find, type FindSearchFilters, type MapPoint, type SpeciesOption, type SpeciesProfilePatch, type UpdateFindPayload, type CreateFindPayload,
 } from '@/lib/finds';
 import { SAMPLES_QUERY_KEY } from '@/lib/samples';
 import { useAppStore } from '@/stores/appStore';
@@ -30,6 +30,19 @@ export function useSpeciesOptions(enabled = true) {
     queryFn: () => getSpeciesOptions(storagePath!),
     enabled: !!storagePath && enabled,
     staleTime: 60_000,
+  });
+}
+
+/**
+ * Pins for the map. Replaces loading every find with its photo rows just to read four
+ * fields off each one.
+ */
+export function useMapPoints(enabled = true) {
+  const storagePath = useAppStore((s) => s.storagePath);
+  return useQuery<MapPoint[]>({
+    queryKey: [FINDS_QUERY_KEY, storagePath, 'map-points'],
+    queryFn: () => getMapPoints(storagePath!),
+    enabled: !!storagePath && enabled,
   });
 }
 

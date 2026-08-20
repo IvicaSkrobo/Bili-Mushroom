@@ -55,6 +55,18 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
     return Array.from(new Map(labels.map((label) => [label.toLowerCase(), label])).values())
       .sort((a, b) => a.localeCompare(b));
   },
+  get_map_points: (args: unknown) =>
+    (invokeHandlers.get_finds(args) as Array<Record<string, any>>)
+      .filter((find) => find.lat != null && find.lng != null)
+      .map((find) => ({
+        id: find.id,
+        species_name: find.species_name,
+        date_found: find.date_found ?? '',
+        lat: find.lat,
+        lng: find.lng,
+        notes: find.notes ?? '',
+        photos: (find.photos ?? []).slice(0, 1),
+      })),
   get_species_options: (args: unknown) => {
     const byKey = new Map<string, Record<string, any>>();
     const add = (name: unknown, hasFinds: boolean, profile?: Record<string, any>) => {

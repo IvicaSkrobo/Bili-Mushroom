@@ -3,7 +3,7 @@ import { FindsMap } from '@/components/map/FindsMap';
 import { SpeciesFilterPanel } from '@/components/map/SpeciesFilterPanel';
 import { ZoneModeControl } from '@/components/map/ZoneModeControl';
 import { useAppStore } from '@/stores/appStore';
-import { useFinds } from '@/hooks/useFinds';
+import { useMapPoints } from '@/hooks/useFinds';
 import { useUpsertZone, useZones } from '@/hooks/useZones';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 import {
@@ -17,12 +17,10 @@ import {
   type ZoneViewMode,
 } from '@/lib/zones';
 import type { Zone } from '@/lib/zones';
-import type { Find } from '@/lib/finds';
+import type { MapPoint } from '@/lib/finds';
 import { compareSpeciesNames, plainSpeciesName } from '@/lib/speciesName';
 import { useT } from '@/i18n/index';
 import { X } from 'lucide-react';
-
-const MAP_FIND_FILTERS = { photosMode: 'primary' as const };
 
 export default function MapTab() {
   const t = useT();
@@ -31,7 +29,7 @@ export default function MapTab() {
   const lang = useAppStore((s) => s.language);
   const pendingMapSpeciesFilter = useAppStore((s) => s.pendingMapSpeciesFilter);
   const setPendingMapSpeciesFilter = useAppStore((s) => s.setPendingMapSpeciesFilter);
-  const { data: finds } = useFinds(MAP_FIND_FILTERS, isActive);
+  const { data: finds } = useMapPoints(isActive);
   const { data: zones } = useZones(isActive);
   const upsertZone = useUpsertZone();
   const [selectedSpecies, setSelectedSpecies] = useState<Set<string>>(new Set());
@@ -41,8 +39,8 @@ export default function MapTab() {
   const [activeZoneId, setActiveZoneId] = useState<number | null>(null);
   const [zoneControlsCollapsed, setZoneControlsCollapsed] = useState(false);
   const [polygonEditor, setPolygonEditor] = useState<PolygonEditorState | null>(null);
-  const [localTargetFind, setLocalTargetFind] = useState<Find | null>(null);
-  const [regionTargetFind, setRegionTargetFind] = useState<Find | null>(null);
+  const [localTargetFind, setLocalTargetFind] = useState<MapPoint | null>(null);
+  const [regionTargetFind, setRegionTargetFind] = useState<MapPoint | null>(null);
   const [fitBoundsTrigger, setFitBoundsTrigger] = useState(0);
   const polygonEditorActive = polygonEditor != null;
 

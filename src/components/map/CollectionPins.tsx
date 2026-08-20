@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo, useRef, type MouseEvent } fr
 import L from 'leaflet';
 import { Marker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import { BookOpen, ChevronLeft, ChevronRight, LayoutList, ZoomIn } from 'lucide-react';
-import type { Find, SpeciesProfile } from '@/lib/finds';
+import type { MapPoint, SpeciesProfile } from '@/lib/finds';
 import type { Zone } from '@/lib/zones';
 import { usePhotoThumbnailSrc } from '@/hooks/usePhotoThumbnail';
 import { useSpeciesNotes, useSpeciesProfiles } from '@/hooks/useFinds';
@@ -16,7 +16,7 @@ export const LABEL_ZOOM_THRESHOLD = 13;
 
 interface SpeciesEntry {
   name: string;   // stable species_name from DB
-  finds: Find[];
+  finds: MapPoint[];
 }
 
 interface LocationGroup {
@@ -64,8 +64,8 @@ function CollectionPopup({
   speciesProfilesByName,
 }: {
   locationGroup: LocationGroup;
-  onStartLocalPolygonForFind: (find: Find) => void;
-  onStartRegionPolygonForFind: (find: Find) => void;
+  onStartLocalPolygonForFind: (find: MapPoint) => void;
+  onStartRegionPolygonForFind: (find: MapPoint) => void;
   zones: Zone[];
   speciesNotesByName: Map<string, string>;
   speciesProfilesByName: Map<string, SpeciesProfile>;
@@ -359,8 +359,8 @@ function CollectionPinsInner({
   zones,
 }: {
   groups: LocationGroup[];
-  onStartLocalPolygonForFind: (find: Find) => void;
-  onStartRegionPolygonForFind: (find: Find) => void;
+  onStartLocalPolygonForFind: (find: MapPoint) => void;
+  onStartRegionPolygonForFind: (find: MapPoint) => void;
   onSelectSpecies: (speciesName: string) => void;
   zones: Zone[];
 }) {
@@ -454,8 +454,8 @@ function CollectionMarker({
   showLabel: boolean;
   isSatellite: boolean;
   groupZones: Zone[];
-  onStartLocalPolygonForFind: (find: Find) => void;
-  onStartRegionPolygonForFind: (find: Find) => void;
+  onStartLocalPolygonForFind: (find: MapPoint) => void;
+  onStartRegionPolygonForFind: (find: MapPoint) => void;
   onSelectSpecies: (name: string) => void;
   speciesNotesByName: Map<string, string>;
   speciesProfilesByName: Map<string, SpeciesProfile>;
@@ -551,8 +551,8 @@ function rawToLabelHtml(raw: string): string {
  * produce separate pins. When the picker adopts an existing pin's coordinates
  * the new find is guaranteed to join that group.
  */
-export function locationGroupsFromFinds(finds: Find[]): LocationGroup[] {
-  const byLocation = new Map<string, { lat: number; lng: number; bySpecies: Map<string, Find[]> }>();
+export function locationGroupsFromFinds(finds: MapPoint[]): LocationGroup[] {
+  const byLocation = new Map<string, { lat: number; lng: number; bySpecies: Map<string, MapPoint[]> }>();
 
   for (const f of finds) {
     if (f.lat == null || f.lng == null) continue;

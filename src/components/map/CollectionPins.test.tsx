@@ -1,15 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { locationGroupsFromFinds, LABEL_ZOOM_THRESHOLD } from './CollectionPins';
-import type { Find } from '@/lib/finds';
+import type { MapPoint } from '@/lib/finds';
 
-function makeFind(overrides: Partial<Find> & { id: number; species_name: string; lat: number; lng: number }): Find {
+function makeFind(overrides: Partial<MapPoint> & { id: number; species_name: string; lat: number; lng: number }): MapPoint {
   return {
     photos: [],
     notes: null,
     date: null,
     location_name: null,
     ...overrides,
-  } as unknown as Find;
+  } as unknown as MapPoint;
 }
 
 function speciesNames(groups: ReturnType<typeof locationGroupsFromFinds>): string[][] {

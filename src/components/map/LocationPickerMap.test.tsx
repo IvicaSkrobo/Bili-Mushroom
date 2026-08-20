@@ -119,7 +119,7 @@ vi.mock('./leafletIconFix', () => ({
 
 // LocationPickerMap uses useFinds to load finds passed to CollectionPins
 vi.mock('@/hooks/useFinds', () => ({
-  useFinds: () => ({ data: findsMock.data }),
+  useMapPoints: () => ({ data: findsMock.data }),
   useSpeciesNotes: () => ({ data: [] }),
   useSpeciesProfiles: () => ({ data: [] }),
 }));

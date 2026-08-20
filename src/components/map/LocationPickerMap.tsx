@@ -14,7 +14,7 @@ import { useAppStore, saveMapViewport, loadMapViewport } from '@/stores/appStore
 import { applyLeafletIconFix } from './leafletIconFix';
 import { createRustProxyTileLayer } from './RustProxyTileLayer';
 import type { MapLayer } from '@/stores/appStore';
-import { useFinds } from '@/hooks/useFinds';
+import { useMapPoints } from '@/hooks/useFinds';
 import { useZones } from '@/hooks/useZones';
 import { findContainingRegionZone } from '@/lib/zones';
 import { PickerPins } from './PickerPins';
@@ -28,7 +28,6 @@ applyLeafletIconFix();
 const CROATIA_CENTER: [number, number] = [45.1, 15.2];
 const CROATIA_ZOOM = 7;
 const EXISTING_PIN_ZOOM = 13;
-const PICKER_FIND_FILTERS = { photosMode: 'none' as const };
 const ESRI_TEMPLATE =
   'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 const OSM_TEMPLATE = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -222,7 +221,7 @@ export function LocationPickerMap({
     }
   }, [open, initialLatLng]);
 
-  const { data: finds } = useFinds(PICKER_FIND_FILTERS, open);
+  const { data: finds } = useMapPoints(open);
   const { data: zones } = useZones(open);
   const visibleFinds = (finds ?? []).filter((find) => !isInternalLibraryName(find.species_name));
   const allSpecies = Array.from(new Set(visibleFinds.map((find) => find.species_name).filter(Boolean)))

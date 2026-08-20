@@ -8,7 +8,7 @@ vi.mock('@/components/map/FindsMap', () => ({
 }));
 
 vi.mock('@/hooks/useFinds', () => ({
-  useFinds: () => ({ data: [], isLoading: false }),
+  useMapPoints: () => ({ data: [], isLoading: false }),
 }));
 
 vi.mock('@/hooks/useZones', () => ({

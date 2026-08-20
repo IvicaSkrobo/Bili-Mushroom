@@ -258,6 +258,26 @@ export async function patchSpeciesProfile(
   return invoke<void>('patch_species_profile', { storagePath, speciesName, patch });
 }
 
+/**
+ * One pin's worth of data for the map: coordinates, the species label, the date and the
+ * single photo the popup shows. Deliberately not a `Find` — the map never renders
+ * filenames, country, region, location notes, counts, favourites, weather or determiner,
+ * and loading them for every pin was the map's whole cost.
+ */
+export interface MapPoint {
+  id: number;
+  species_name: string;
+  date_found: string;
+  lat: number;
+  lng: number;
+  notes: string;
+  photos: FindPhoto[];
+}
+
+export async function getMapPoints(storagePath: string): Promise<MapPoint[]> {
+  return invoke<MapPoint[]>('get_map_points', { storagePath });
+}
+
 export async function getCollectionFolders(
   storagePath: string,
   filters?: FindSearchFilters,
