@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { BookOpen, Calendar, Camera, FolderOpen, GalleryHorizontal, Map as MapIcon, MapPin, Pencil, Plus, Repeat2, Search, Star, X } from 'lucide-react';
+import { BookOpen, Calendar, Camera, FolderOpen, GalleryHorizontal, ImagePlus, Map as MapIcon, MapPin, Pencil, Plus, Repeat2, Search, Star, X } from 'lucide-react';
+import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +9,7 @@ import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useInfiniteCollectionFolders, useInfiniteSpeciesFinds, useSpeciesNotes, useUpsertSpeciesNote, useSpeciesProfiles, useUpsertSpeciesProfile, useSpeciesRecipes, useUpsertSpeciesRecipe, useDeleteSpeciesRecipe } from '@/hooks/useFinds';
+import { useAddFindPhotos, useInfiniteCollectionFolders, useInfiniteSpeciesFinds, useSpeciesNotes, useUpsertSpeciesNote, useSpeciesProfiles, useUpsertSpeciesProfile, useSpeciesRecipes, useUpsertSpeciesRecipe, useDeleteSpeciesRecipe } from '@/hooks/useFinds';
 import { usePhotoThumbnailSrc } from '@/hooks/usePhotoThumbnail';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
@@ -469,11 +470,13 @@ export default function SpeciesTab() {
   const { data: speciesProfiles } = useSpeciesProfiles();
   const { data: speciesRecipes } = useSpeciesRecipes();
   const upsertSpeciesProfile = useUpsertSpeciesProfile();
+  const addFindPhotos = useAddFindPhotos();
   const upsertSpeciesRecipe = useUpsertSpeciesRecipe();
   const deleteSpeciesRecipe = useDeleteSpeciesRecipe();
   const [search, setSearch] = useState('');
   const [selectedSpecies, setSelectedSpecies] = useState<string | null>(null);
   const [coverPickerOpen, setCoverPickerOpen] = useState(false);
+  const [coverUploadError, setCoverUploadError] = useState<string | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [lightboxPhotosOverride, setLightboxPhotosOverride] = useState<LightboxPhoto[] | null>(null);
@@ -834,6 +837,34 @@ export default function SpeciesTab() {
       habitat: existingProfile?.habitat ?? null,
     });
     setCoverPickerOpen(false);
+  };
+
+  // Fallback for a species whose finds carry no photos at all: pull an image off disk,
+  // attach it to the species' most recent find, and make it the cover.
+  const handleAddCoverFromDisk = async () => {
+    if (!selectedJournal) return;
+    const targetFindId = coverPickerFinds[0]?.id ?? selectedJournal.finds[0]?.id ?? null;
+    if (targetFindId === null) {
+      setCoverUploadError(t('species.coverNeedsFind'));
+      return;
+    }
+    setCoverUploadError(null);
+    try {
+      const selected = await openFileDialog({
+        multiple: false,
+        filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'] }],
+      });
+      const sourcePath = Array.isArray(selected) ? selected[0] : selected;
+      if (!sourcePath) return;
+
+      const updated = await addFindPhotos.mutateAsync({ findId: targetFindId, sourcePaths: [sourcePath] });
+      const newPhoto = updated.photos[updated.photos.length - 1] ?? updated.photos[0] ?? null;
+      if (newPhoto) {
+        handleSelectCover(selectedJournal.speciesName, newPhoto.id);
+      }
+    } catch (error) {
+      setCoverUploadError(String(error));
+    }
   };
 
   const handleRemoveTag = (tagToRemove: string) => {
@@ -1779,7 +1810,7 @@ export default function SpeciesTab() {
         </main>
       </div>
 
-      <Dialog open={coverPickerOpen} onOpenChange={setCoverPickerOpen}>
+      <Dialog open={coverPickerOpen} onOpenChange={(open) => { setCoverPickerOpen(open); if (!open) setCoverUploadError(null); }}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>{t('species.chooseCover')}</DialogTitle>
@@ -1825,6 +1856,22 @@ export default function SpeciesTab() {
               <div className="rounded-lg border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
                 {t('species.noCoverOptions')}
               </div>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-2 border-t border-border/50 pt-3">
+            <button
+              type="button"
+              onClick={handleAddCoverFromDisk}
+              disabled={addFindPhotos.isPending}
+              className="inline-flex w-fit items-center gap-2 rounded-md border border-border/70 bg-input px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/50 hover:text-primary disabled:opacity-50"
+            >
+              <ImagePlus className="h-4 w-4" />
+              {addFindPhotos.isPending ? t('species.coverUploading') : t('species.coverFromDisk')}
+            </button>
+            <p className="text-xs text-muted-foreground/80">{t('species.coverFromDiskHelp')}</p>
+            {coverUploadError && (
+              <p className="text-xs text-destructive">{coverUploadError}</p>
             )}
           </div>
         </DialogContent>

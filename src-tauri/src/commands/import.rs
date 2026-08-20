@@ -1424,11 +1424,48 @@ pub async fn get_species_finds(
     load_finds_for_species(&conn, &species_name, &filters)
 }
 
+/// Picks the find whose photo represents a species folder.
+///
+/// Preference order: the find holding the species' chosen cover photo, then the most
+/// recent find that actually has a photo, then simply the most recent find. Without the
+/// middle step a species whose newest find has no photos would show no thumbnail even
+/// though older finds do; without the first, a cover picked from an older find would
+/// save but never render.
 fn load_representative_find_for_species(
     conn: &Connection,
     species_name: &str,
     filters: &FindSearchFilters,
 ) -> Result<Option<FindRecord>, String> {
+    let cover_find_id: Option<i64> = conn
+        .query_row(
+            "SELECT fp.find_id
+             FROM find_photos fp
+             JOIN species_profiles sp ON sp.cover_photo_id = fp.id
+             WHERE sp.species_name = ?1",
+            params![species_name],
+            |row| row.get(0),
+        )
+        .ok();
+
+    if let Some(find_id) = cover_find_id {
+        // An explicitly chosen cover wins regardless of the active filters -- the user
+        // picked this photo to stand for the species.
+        let record = conn
+            .query_row(
+                "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather, determiner, finder FROM finds WHERE id = ?1",
+                params![find_id],
+                |row| find_record_from_row(row),
+            )
+            .ok();
+        if let Some(record) = record {
+            let mut records = vec![record];
+            hydrate_find_photos(conn, &mut records, true, Some(species_name))?;
+            if let Some(found) = records.pop() {
+                return Ok(Some(found));
+            }
+        }
+    }
+
     let mut filters = FindSearchFilters {
         limit: Some(1),
         offset: Some(0),
@@ -1436,7 +1473,14 @@ fn load_representative_find_for_species(
         ..filters.clone()
     };
     filters.species_query = None;
-    let mut finds = load_finds_for_species(conn, species_name, &filters)?;
+
+    let mut with_photos =
+        load_finds_for_species_inner(conn, species_name, &filters, true)?;
+    if let Some(found) = with_photos.pop() {
+        return Ok(Some(found));
+    }
+
+    let mut finds = load_finds_for_species_inner(conn, species_name, &filters, false)?;
     Ok(finds.pop())
 }
 
@@ -1445,9 +1489,25 @@ fn load_finds_for_species(
     species_name: &str,
     filters: &FindSearchFilters,
 ) -> Result<Vec<FindRecord>, String> {
+    load_finds_for_species_inner(conn, species_name, filters, false)
+}
+
+/// `require_photos` restricts the result to finds that have at least one photo, which is
+/// how the folder thumbnail skips over photoless finds.
+fn load_finds_for_species_inner(
+    conn: &Connection,
+    species_name: &str,
+    filters: &FindSearchFilters,
+    require_photos: bool,
+) -> Result<Vec<FindRecord>, String> {
     let mut where_clauses: Vec<String> = vec!["species_name = ?".to_string()];
     let mut query_params: Vec<Box<dyn ToSql>> = vec![Box::new(species_name.to_string())];
     push_find_search_filters(filters, "", &mut where_clauses, &mut query_params, false);
+    if require_photos {
+        where_clauses.push(
+            "EXISTS (SELECT 1 FROM find_photos fp WHERE fp.find_id = finds.id)".to_string(),
+        );
+    }
 
     let limit = filters
         .limit

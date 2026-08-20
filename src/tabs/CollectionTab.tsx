@@ -16,7 +16,7 @@ import { FolderEditDialog } from '@/components/finds/FolderEditDialog';
 import { DeleteFindDialog } from '@/components/finds/DeleteFindDialog';
 import { BulkDeleteDialog } from '@/components/finds/BulkDeleteDialog';
 import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
-import { useInfiniteCollectionFolders, useInfiniteSpeciesFinds, useFindPhotos, useSpeciesNotes, useSpeciesProfiles, useUpsertSpeciesNote, useUpsertSpeciesProfile, useBulkRenameSpecies, useSetFindFavorite, useDeleteFindPhoto } from '@/hooks/useFinds';
+import { useFinds, useInfiniteCollectionFolders, useInfiniteSpeciesFinds, useFindPhotos, useSpeciesNotes, useSpeciesProfiles, useUpsertSpeciesNote, useUpsertSpeciesProfile, useBulkRenameSpecies, useSetFindFavorite, useDeleteFindPhoto } from '@/hooks/useFinds';
 import { usePhotoThumbnailSrc } from '@/hooks/usePhotoThumbnail';
 import { useAppStore } from '@/stores/appStore';
 import { useT, tFindsCount } from '@/i18n/index';
@@ -666,6 +666,25 @@ export default function CollectionTab() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [locationSearch, setLocationSearch] = useState('');
+  const allFindsQuery = useFinds();
+  const knownLocations = useMemo(() => {
+    const seen = new Set<string>();
+    const labels: string[] = [];
+    for (const find of allFindsQuery.data ?? []) {
+      const label = (find.location_note ?? '').trim();
+      if (!label) continue;
+      const key = label.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      labels.push(label);
+    }
+    return labels.sort((a, b) => a.localeCompare(b));
+  }, [allFindsQuery.data]);
+  const locationOptions = useMemo(() => {
+    const typed = locationSearch.trim().toLowerCase();
+    if (!typed) return knownLocations;
+    return knownLocations.filter((label) => label.toLowerCase().includes(typed));
+  }, [knownLocations, locationSearch]);
   const [dateFilterMode, setDateFilterMode] = useState<'exact' | 'range' | 'month' | 'year' | 'dayMonth'>('exact');
   const [dateSearch, setDateSearch] = useState('');
   const [dateSearchEnd, setDateSearchEnd] = useState('');
@@ -1230,6 +1249,40 @@ export default function CollectionTab() {
                     </button>
                   )}
                 </div>
+                {knownLocations.length > 0 && (
+                  <div className="w-56 rounded-md border border-border/70 bg-card/40 p-1">
+                    <p className="px-1.5 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+                      {t('collection.locationSuggestions')}
+                    </p>
+                    {locationOptions.length > 0 ? (
+                      <div className="max-h-44 overflow-y-auto">
+                        {locationOptions.map((label) => {
+                          const isActive = locationSearch.trim().toLowerCase() === label.toLowerCase();
+                          return (
+                            <button
+                              key={label}
+                              type="button"
+                              onClick={() => setLocationSearch(isActive ? '' : label)}
+                              className={[
+                                'flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-xs transition-colors',
+                                isActive
+                                  ? 'bg-primary/15 text-primary'
+                                  : 'text-foreground hover:bg-accent hover:text-primary',
+                              ].join(' ')}
+                            >
+                              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/70" />
+                              <span className="min-w-0 truncate">{label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="px-1.5 py-1 text-xs italic text-muted-foreground/60">
+                        {t('collection.locationNoMatch')}
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center gap-1 rounded-md border border-border bg-input px-1 py-1">
                   <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
                   <select
