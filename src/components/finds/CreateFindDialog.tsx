@@ -42,6 +42,8 @@ interface FormState {
   lng: string;
   notes: string;
   weather: string;
+  determiner: string;
+  finder: string;
   observed_count_range: string;
   species_description: string;
 }
@@ -76,6 +78,8 @@ const BLANK_FORM: FormState = {
   lng: '',
   notes: '',
   weather: '',
+  determiner: '',
+  finder: '',
   observed_count_range: '',
   species_description: '',
 };
@@ -763,6 +767,8 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
         observed_count_max: observedRange.max,
         edibility_note: null,
         weather: form.weather.trim() || null,
+        determiner: form.determiner.trim() || null,
+        finder: form.finder.trim() || null,
       });
 
       if (selectedPhotos.length > 0) {
@@ -1018,6 +1024,26 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
               placeholder={t('edit.weatherPlaceholder')}
               className={filledClass(form.weather)}
             />
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <label className="text-sm font-medium">{t('edit.determiner')}</label>
+              <Input
+                value={form.determiner}
+                onChange={(e) => handleChange('determiner', e.target.value)}
+                placeholder={t('edit.determinerPlaceholder')}
+                className={filledClass(form.determiner)}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">{t('edit.finder')}</label>
+              <Input
+                value={form.finder}
+                onChange={(e) => handleChange('finder', e.target.value)}
+                placeholder={t('edit.finderPlaceholder')}
+                className={filledClass(form.finder)}
+              />
+            </div>
           </div>
           <div>
             <label className="text-sm font-medium">{t('edit.speciesDescription')}</label>

@@ -64,7 +64,7 @@ describe('exportToCsv', () => {
     const [path, content] = (writeTextFile as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(path).toBe('/tmp/test.csv');
     expect(content).toMatch(
-      /^species_name,date_found,country,region,location_note,lat,lng,notes,weather,photo_paths/,
+      /^species_name,date_found,country,region,location_note,lat,lng,notes,weather,determiner,finder,photo_paths/,
     );
     expect(content).toContain('"Cantharellus cibarius"');
     expect(content).toContain('"Croatia"');
@@ -97,7 +97,7 @@ describe('exportToCsv', () => {
     const lines = content.split('\n');
     expect(lines).toHaveLength(1);
     expect(lines[0]).toBe(
-      'species_name,date_found,country,region,location_note,lat,lng,notes,weather,photo_paths',
+      'species_name,date_found,country,region,location_note,lat,lng,notes,weather,determiner,finder,photo_paths',
     );
   });
 });

@@ -127,6 +127,8 @@ interface ImportDraft {
   sharedFolderNotes: string;
   sharedFindNotes: string;
   sharedWeather: string;
+  sharedDeterminer: string;
+  sharedFinder: string;
   sharedLocation: { lat: number; lng: number } | null;
   sharedSpeciesDescription: string;
   sharedEdibility: string;
@@ -164,6 +166,8 @@ function loadImportDraft(): ImportDraft | null {
       sharedFolderNotes: typeof parsed.sharedFolderNotes === 'string' ? parsed.sharedFolderNotes : '',
       sharedFindNotes: typeof parsed.sharedFindNotes === 'string' ? parsed.sharedFindNotes : '',
       sharedWeather: typeof parsed.sharedWeather === 'string' ? parsed.sharedWeather : '',
+      sharedDeterminer: typeof parsed.sharedDeterminer === 'string' ? parsed.sharedDeterminer : '',
+      sharedFinder: typeof parsed.sharedFinder === 'string' ? parsed.sharedFinder : '',
       sharedLocation: parsed.sharedLocation && typeof parsed.sharedLocation.lat === 'number' && typeof parsed.sharedLocation.lng === 'number'
         ? { lat: parsed.sharedLocation.lat, lng: parsed.sharedLocation.lng }
         : null,
@@ -270,6 +274,8 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   const [sharedFolderNotes, setSharedFolderNotes] = useState('');
   const [sharedFindNotes, setSharedFindNotes] = useState('');
   const [sharedWeather, setSharedWeather] = useState('');
+  const [sharedDeterminer, setSharedDeterminer] = useState('');
+  const [sharedFinder, setSharedFinder] = useState('');
   const [sharedMapOpen, setSharedMapOpen] = useState(false);
   const [sharedLocation, setSharedLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [sharedSpeciesDescription, setSharedSpeciesDescription] = useState<string>('');
@@ -331,6 +337,8 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     setSharedFolderNotes(draft.sharedFolderNotes);
     setSharedFindNotes(draft.sharedFindNotes);
     setSharedWeather(draft.sharedWeather);
+    setSharedDeterminer(draft.sharedDeterminer);
+    setSharedFinder(draft.sharedFinder);
     setSharedLocation(draft.sharedLocation);
     setSharedSpeciesDescription(draft.sharedSpeciesDescription);
     setSharedEdibility(draft.sharedEdibility);
@@ -356,6 +364,8 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
       sharedFolderNotes.trim() !== '' ||
       sharedFindNotes.trim() !== '' ||
       sharedWeather.trim() !== '' ||
+      sharedDeterminer.trim() !== '' ||
+      sharedFinder.trim() !== '' ||
       sharedLocation != null ||
       sharedSpeciesDescription.trim() !== '' ||
       sharedEdibility !== 'unknown' ||
@@ -381,6 +391,8 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         sharedFolderNotes,
         sharedFindNotes,
         sharedWeather,
+        sharedDeterminer,
+        sharedFinder,
         sharedLocation,
         sharedSpeciesDescription,
         sharedEdibility,
@@ -404,6 +416,8 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     sharedFolderNotes,
     sharedFindNotes,
     sharedWeather,
+    sharedDeterminer,
+    sharedFinder,
     sharedLocation,
     sharedSpeciesDescription,
     sharedEdibility,
@@ -536,6 +550,8 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         lng: sharedLocation?.lng ?? null,
         notes: sharedFindNotes.trim(),
         weather: sharedWeather.trim() || null,
+        determiner: sharedDeterminer.trim() || null,
+        finder: sharedFinder.trim() || null,
         observed_count: observedRange.representative,
         observed_count_min: observedRange.min,
         observed_count_max: observedRange.max,
@@ -606,6 +622,8 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     setSharedFolderNotes('');
     setSharedFindNotes('');
     setSharedWeather('');
+    setSharedDeterminer('');
+    setSharedFinder('');
     setSharedLocation(null);
     setImportSummary(null);
     setReviewOpen(false);
@@ -810,6 +828,28 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                   placeholder={t('edit.weatherPlaceholder')}
                   value={sharedWeather}
                   onChange={(e) => setSharedWeather(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">{t('edit.determiner')}</label>
+                <Input
+                  className={cn('mt-1', filledClass(sharedDeterminer))}
+                  aria-label={t('edit.determiner')}
+                  placeholder={t('edit.determinerPlaceholder')}
+                  value={sharedDeterminer}
+                  onChange={(e) => setSharedDeterminer(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">{t('edit.finder')}</label>
+                <Input
+                  className={cn('mt-1', filledClass(sharedFinder))}
+                  aria-label={t('edit.finder')}
+                  placeholder={t('edit.finderPlaceholder')}
+                  value={sharedFinder}
+                  onChange={(e) => setSharedFinder(e.target.value)}
                 />
               </div>
 

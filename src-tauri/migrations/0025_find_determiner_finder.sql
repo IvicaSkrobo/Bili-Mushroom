@@ -1,0 +1,2 @@
+ALTER TABLE finds ADD COLUMN determiner TEXT;
+ALTER TABLE finds ADD COLUMN finder TEXT;

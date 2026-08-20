@@ -41,6 +41,8 @@ interface FormState {
   lng: string;
   notes: string;
   weather: string;
+  determiner: string;
+  finder: string;
   observed_count_range: string;
   species_description: string;
 }
@@ -98,6 +100,8 @@ function findToFormState(find: Find): FormState {
     lng: find.lng !== null ? String(find.lng) : '',
     notes: find.notes ?? '',
     weather: find.weather ?? '',
+    determiner: find.determiner ?? '',
+    finder: find.finder ?? '',
     observed_count_range: formatObservedRange(
       find.observed_count_min,
       find.observed_count_max,
@@ -204,6 +208,8 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     lng: '',
     notes: '',
     weather: '',
+    determiner: '',
+    finder: '',
     observed_count_range: '',
     species_description: '',
   });
@@ -294,6 +300,8 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
         lng: form.lng !== '' ? parseFloat(form.lng) : null,
         notes: form.notes,
         weather: form.weather.trim() || null,
+        determiner: form.determiner.trim() || null,
+        finder: form.finder.trim() || null,
         observed_count: observedRange.representative,
         observed_count_min: observedRange.min,
         observed_count_max: observedRange.max,
@@ -588,6 +596,24 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
               onChange={(e) => handleChange('weather', e.target.value)}
               placeholder={t('edit.weatherPlaceholder')}
             />
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <label className="text-sm font-medium">{t('edit.determiner')}</label>
+              <Input
+                value={form.determiner}
+                onChange={(e) => handleChange('determiner', e.target.value)}
+                placeholder={t('edit.determinerPlaceholder')}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">{t('edit.finder')}</label>
+              <Input
+                value={form.finder}
+                onChange={(e) => handleChange('finder', e.target.value)}
+                placeholder={t('edit.finderPlaceholder')}
+              />
+            </div>
           </div>
           <div>
             <label className="text-sm font-medium">{t('edit.speciesDescription')}</label>

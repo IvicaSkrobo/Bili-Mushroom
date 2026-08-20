@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, CloudSun, Crop, Image, Loader2, MapPin, Maximize2, Minimize2, Minus, Pencil, Plus, RotateCw, Save, Trash2, X, ZoomIn } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, CloudSun, Crop, Image, Loader2, MapPin, Maximize2, Minimize2, Minus, Pencil, Plus, RotateCw, Save, Trash2, User, X, ZoomIn } from 'lucide-react';
 import {
   Dialog,
   DialogClose,
@@ -72,6 +72,9 @@ export function PhotoLightbox({
   const [notesValue, setNotesValue] = useState('');
   const [editingWeather, setEditingWeather] = useState(false);
   const [weatherValue, setWeatherValue] = useState('');
+  const [editingPeople, setEditingPeople] = useState(false);
+  const [determinerValue, setDeterminerValue] = useState('');
+  const [finderValue, setFinderValue] = useState('');
   const updateFind = useUpdateFind();
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -93,6 +96,7 @@ export function PhotoLightbox({
     setConfirmingDelete(false);
     setEditingNotes(false);
     setEditingWeather(false);
+    setEditingPeople(false);
     setCropMode(false);
     setCropSelection(null);
     setPendingRotation(0);
@@ -657,6 +661,8 @@ export function PhotoLightbox({
                             lng: find.lng ?? null,
                             notes: notesValue,
                             weather: find.weather ?? null,
+                            determiner: find.determiner ?? null,
+                            finder: find.finder ?? null,
                             observed_count: find.observed_count ?? null,
                             observed_count_min: find.observed_count_min ?? null,
                             observed_count_max: find.observed_count_max ?? null,
@@ -726,6 +732,8 @@ export function PhotoLightbox({
                             lng: find.lng ?? null,
                             notes: find.notes ?? '',
                             weather: weatherValue.trim() || null,
+                            determiner: find.determiner ?? null,
+                            finder: find.finder ?? null,
                             observed_count: find.observed_count ?? null,
                             observed_count_min: find.observed_count_min ?? null,
                             observed_count_max: find.observed_count_max ?? null,
@@ -745,6 +753,104 @@ export function PhotoLightbox({
                   </p>
                 ) : (
                   <p className="text-xs italic text-muted-foreground/30">{t('lightbox.noWeather')}</p>
+                )}
+              </div>
+              {/* Determiner + finder - inline edit/add */}
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/90">
+                    {t('lightbox.people')}
+                  </p>
+                  {!editingPeople && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeterminerValue(find.determiner ?? '');
+                        setFinderValue(find.finder ?? '');
+                        setEditingPeople(true);
+                      }}
+                      className="flex items-center gap-1 text-[10px] text-muted-foreground/65 transition-colors hover:text-primary"
+                      title={find.determiner || find.finder ? t('lightbox.editPeople') : t('lightbox.addPeople')}
+                    >
+                      {find.determiner || find.finder ? <Pencil className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                      {find.determiner || find.finder ? t('lightbox.edit') : t('lightbox.add')}
+                    </button>
+                  )}
+                </div>
+                {editingPeople ? (
+                  <div className="flex flex-col gap-1.5">
+                    <input
+                      autoFocus
+                      value={determinerValue}
+                      onChange={(e) => setDeterminerValue(e.target.value)}
+                      placeholder={t('edit.determiner')}
+                      className="w-full rounded border border-border/60 bg-background/40 px-2.5 py-1.5 text-sm font-medium leading-relaxed text-foreground outline-none focus:border-primary/60 focus:ring-1 focus:ring-ring"
+                    />
+                    <input
+                      value={finderValue}
+                      onChange={(e) => setFinderValue(e.target.value)}
+                      placeholder={t('edit.finder')}
+                      className="w-full rounded border border-border/60 bg-background/40 px-2.5 py-1.5 text-sm font-medium leading-relaxed text-foreground outline-none focus:border-primary/60 focus:ring-1 focus:ring-ring"
+                    />
+                    <div className="flex justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setEditingPeople(false)}
+                        className="rounded px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      >
+                        {t('common.cancel')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateFind.mutate({
+                            id: find.id,
+                            species_name: find.species_name ?? '',
+                            date_found: find.date_found ?? '',
+                            country: find.country ?? '',
+                            region: find.region ?? '',
+                            location_note: find.location_note ?? '',
+                            lat: find.lat ?? null,
+                            lng: find.lng ?? null,
+                            notes: find.notes ?? '',
+                            weather: find.weather ?? null,
+                            determiner: determinerValue.trim() || null,
+                            finder: finderValue.trim() || null,
+                            observed_count: find.observed_count ?? null,
+                            observed_count_min: find.observed_count_min ?? null,
+                            observed_count_max: find.observed_count_max ?? null,
+                          });
+                          setEditingPeople(false);
+                        }}
+                        className="flex items-center gap-1 rounded bg-primary/20 px-2.5 py-1 text-xs text-primary transition-colors hover:bg-primary/30"
+                      >
+                        <Check className="h-3 w-3" /> {t('edit.save')}
+                      </button>
+                    </div>
+                  </div>
+                ) : find.determiner || find.finder ? (
+                  <div className="flex flex-col gap-1">
+                    {find.determiner && (
+                      <p className="flex items-start gap-1.5 text-sm font-semibold leading-relaxed text-foreground">
+                        <User className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary/70" />
+                        <span>
+                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">{t('edit.determiner')}: </span>
+                          {find.determiner}
+                        </span>
+                      </p>
+                    )}
+                    {find.finder && (
+                      <p className="flex items-start gap-1.5 text-sm font-semibold leading-relaxed text-foreground">
+                        <User className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary/70" />
+                        <span>
+                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">{t('edit.finder')}: </span>
+                          {find.finder}
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs italic text-muted-foreground/30">{t('lightbox.noPeople')}</p>
                 )}
               </div>
               {observedDisplay && (
@@ -868,6 +974,8 @@ export function PhotoLightbox({
             lng,
             notes: find.notes ?? '',
             weather: find.weather ?? null,
+            determiner: find.determiner ?? null,
+            finder: find.finder ?? null,
             observed_count: find.observed_count ?? null,
             observed_count_min: find.observed_count_min ?? null,
             observed_count_max: find.observed_count_max ?? null,

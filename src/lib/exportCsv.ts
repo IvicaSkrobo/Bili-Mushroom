@@ -17,7 +17,7 @@ export function csvEscape(value: string | null | undefined): string {
 // ---------------------------------------------------------------------------
 
 export async function exportToCsv(finds: Find[]): Promise<string | null> {
-  const header = 'species_name,date_found,country,region,location_note,lat,lng,notes,weather,photo_paths';
+  const header = 'species_name,date_found,country,region,location_note,lat,lng,notes,weather,determiner,finder,photo_paths';
   const rows = finds.map((f) => {
     const photos = f.photos.map((p) => p.photo_path).join(';');
     return [
@@ -30,6 +30,8 @@ export async function exportToCsv(finds: Find[]): Promise<string | null> {
       f.lng ?? '',
       csvEscape(f.notes),
       csvEscape(f.weather ?? ''),
+      csvEscape(f.determiner ?? ''),
+      csvEscape(f.finder ?? ''),
       csvEscape(photos),
     ].join(',');
   });

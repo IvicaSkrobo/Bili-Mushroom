@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Pencil, Image, Trash2, Square, CheckSquare, Star, CloudSun } from 'lucide-react';
+import { Pencil, Image, Trash2, Square, CheckSquare, Star, CloudSun, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { isHeic, type Find, type SpeciesProfile } from '@/lib/finds';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
@@ -145,6 +145,12 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
           <p className="flex items-center gap-1 truncate text-xs text-muted-foreground/70">
             <CloudSun className="h-3 w-3 shrink-0 text-primary/60" />
             {find.weather}
+          </p>
+        )}
+        {(find.determiner || find.finder) && (
+          <p className="flex items-center gap-1 truncate text-xs text-muted-foreground/70">
+            <User className="h-3 w-3 shrink-0 text-primary/60" />
+            {[find.determiner, find.finder].filter(Boolean).join(' / ')}
           </p>
         )}
         <SpeciesMetadataBadges speciesProfile={speciesProfile} size="sm" hideUnknown={true} />

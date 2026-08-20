@@ -35,6 +35,8 @@ export interface ImportPayload {
   additional_photos: string[];  // Mode A: extra source paths for same find
   edibility_note: string | null;
   weather?: string | null;
+  determiner?: string | null;
+  finder?: string | null;
 }
 
 export interface Find {
@@ -55,6 +57,8 @@ export interface Find {
   created_at: string;
   edibility_note: string | null;
   weather?: string | null;
+  determiner?: string | null;
+  finder?: string | null;
   photo_count?: number;
   photos: FindPhoto[];
 }
@@ -235,6 +239,8 @@ export interface UpdateFindPayload {
   observed_count_max: number | null;
   edibility_note: string | null;
   weather?: string | null;
+  determiner?: string | null;
+  finder?: string | null;
 }
 
 /**
@@ -432,6 +438,8 @@ export interface CreateFindPayload {
   observed_count_max: number | null;
   edibility_note: string | null;
   weather?: string | null;
+  determiner?: string | null;
+  finder?: string | null;
 }
 
 /**
