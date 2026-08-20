@@ -654,6 +654,30 @@ fn ensure_performance_indexes(conn: &Connection) -> Result<(), String> {
 
 static INITIALIZED_DATABASES: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
 
+fn configure_library_connection(conn: &Connection) -> Result<(), String> {
+    let current_mode: String = conn
+        .query_row("PRAGMA journal_mode", [], |row| row.get(0))
+        .map_err(|e| format!("Failed to read DB journal mode: {e}"))?;
+    let journal_mode = if current_mode.eq_ignore_ascii_case("wal") {
+        current_mode
+    } else {
+        conn.query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))
+            .map_err(|e| format!("Failed to enable WAL journal mode: {e}"))?
+    };
+    if !journal_mode.eq_ignore_ascii_case("wal") {
+        return Err(format!(
+            "SQLite could not enable WAL journal mode (active mode: {journal_mode})."
+        ));
+    }
+
+    // NORMAL is SQLite's recommended durability/performance balance for WAL. A
+    // committed transaction remains safe from application crashes; only a sudden OS
+    // or power failure can lose the latest transaction, without corrupting the DB.
+    conn.execute_batch("PRAGMA synchronous = NORMAL;")
+        .map_err(|e| format!("Failed to configure WAL synchronization: {e}"))?;
+    Ok(())
+}
+
 pub(crate) fn open_db(storage_path: &str) -> Result<Connection, String> {
     let db_path = format!("{}/bili-mushroom.db", storage_path);
     let conn = Connection::open(&db_path)
@@ -676,6 +700,7 @@ pub(crate) fn open_db(storage_path: &str) -> Result<Connection, String> {
         ensure_performance_indexes(&conn)?;
         initialized_paths.insert(db_path);
     }
+    configure_library_connection(&conn)?;
     Ok(conn)
 }
 
@@ -3583,6 +3608,49 @@ mod tests {
             !dir.path().join(".bili-backups").join("migrations").exists(),
             "a database with nothing in it yet has nothing to back up"
         );
+    }
+
+    #[test]
+    fn open_db_uses_wal_and_keeps_reads_available_during_a_write() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_str().expect("storage path");
+        let writer = open_db(storage_path).expect("open writer connection");
+
+        let journal_mode: String = writer
+            .query_row("PRAGMA journal_mode", [], |row| row.get(0))
+            .expect("read journal mode");
+        assert_eq!(journal_mode.to_ascii_lowercase(), "wal");
+
+        let synchronous: i64 = writer
+            .query_row("PRAGMA synchronous", [], |row| row.get(0))
+            .expect("read synchronous mode");
+        assert_eq!(synchronous, 1, "NORMAL synchronous mode is value 1");
+
+        writer
+            .execute(
+                "INSERT INTO finds (original_filename, species_name, date_found, country, region, notes, location_note, created_at)
+                 VALUES ('committed.jpg', 'Boletus edulis', '2026-08-21', '', '', '', '', '2026-08-21T00:00:00Z')",
+                [],
+            )
+            .expect("insert committed baseline");
+        writer
+            .execute_batch(
+                "BEGIN IMMEDIATE;
+                 INSERT INTO finds (original_filename, species_name, date_found, country, region, notes, location_note, created_at)
+                 VALUES ('pending.jpg', 'Amanita muscaria', '2026-08-21', '', '', '', '', '2026-08-21T00:00:01Z');",
+            )
+            .expect("hold an uncommitted write");
+
+        let reader = open_db(storage_path).expect("open reader while write is active");
+        let visible_count: i64 = reader
+            .query_row("SELECT COUNT(*) FROM finds", [], |row| row.get(0))
+            .expect("read committed snapshot while writer is active");
+        assert_eq!(
+            visible_count, 1,
+            "the reader sees the committed snapshot without waiting for the writer"
+        );
+
+        writer.execute_batch("ROLLBACK").expect("release writer");
     }
 
     #[test]
