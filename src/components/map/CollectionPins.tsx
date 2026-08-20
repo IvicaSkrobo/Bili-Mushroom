@@ -4,7 +4,7 @@ import { Marker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import { BookOpen, ChevronLeft, ChevronRight, LayoutList, ZoomIn } from 'lucide-react';
 import type { Find, SpeciesProfile } from '@/lib/finds';
 import type { Zone } from '@/lib/zones';
-import { resolvePhotoSrc } from '@/lib/photoSrc';
+import { usePhotoThumbnailSrc } from '@/hooks/usePhotoThumbnail';
 import { useSpeciesNotes, useSpeciesProfiles } from '@/hooks/useFinds';
 import { useAppStore } from '@/stores/appStore';
 import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
@@ -57,7 +57,6 @@ function getCollectionIcon(labelText: string, showLabel: boolean, isSatellite: b
 
 function CollectionPopup({
   locationGroup,
-  storagePath,
   onStartLocalPolygonForFind,
   onStartRegionPolygonForFind,
   zones,
@@ -65,7 +64,6 @@ function CollectionPopup({
   speciesProfilesByName,
 }: {
   locationGroup: LocationGroup;
-  storagePath: string;
   onStartLocalPolygonForFind: (find: Find) => void;
   onStartRegionPolygonForFind: (find: Find) => void;
   zones: Zone[];
@@ -77,7 +75,6 @@ function CollectionPopup({
   const setSelectedCollectionSpecies = useAppStore((s) => s.setSelectedCollectionSpecies);
   const setPendingSpeciesSelection = useAppStore((s) => s.setPendingSpeciesSelection);
   const lang = useAppStore((s) => s.language);
-  const photoAssetVersion = useAppStore((s) => s.photoAssetVersion);
   const t = useT();
   const popupRef = useRef<HTMLDivElement | null>(null);
   const previousButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -100,23 +97,21 @@ function CollectionPopup({
     : 0;
   const safeIdx = currentIdx < 0 ? 0 : currentIdx;
   const currentSpecies = locationGroup.species[safeIdx] ?? locationGroup.species[0];
+  const representativeFind = currentSpecies
+    ? currentSpecies.finds.find((f) => f.photos.some((p) => p.is_primary)) ??
+      currentSpecies.finds[0] ??
+      null
+    : null;
+  const representativePhoto =
+    representativeFind?.photos.find((p) => p.is_primary) ??
+    representativeFind?.photos[0] ??
+    null;
+  const photoSrc = usePhotoThumbnailSrc(representativePhoto?.photo_path, 256);
   if (!currentSpecies) return null;
 
   const speciesProfile = speciesProfilesByName.get(currentSpecies.name);
   const commonName = normalizeCommonName(speciesProfile?.common_name, currentSpecies.name);
   const speciesNote = speciesNotesByName.get(currentSpecies.name);
-
-  const representativeFind =
-    currentSpecies.finds.find((f) => f.photos.some((p) => p.is_primary)) ??
-    currentSpecies.finds[0] ??
-    null;
-  const representativePhoto =
-    representativeFind?.photos.find((p) => p.is_primary) ??
-    representativeFind?.photos[0] ??
-    null;
-  const photoSrc = representativePhoto && storagePath
-    ? resolvePhotoSrc(storagePath, representativePhoto.photo_path, photoAssetVersion)
-    : null;
   const hasPhoto = photoSrc != null;
 
   const mostRecentFind = [...currentSpecies.finds].sort((a, b) => {
@@ -323,19 +318,33 @@ const OVERLAP_PX = 88;
 
 function computeCrowded(map: L.Map, groups: LocationGroup[]): Set<string> {
   const crowded = new Set<string>();
-  const points = groups.map((g) => ({
-    key: g.key,
-    pt: map.latLngToLayerPoint([g.lat, g.lng]),
-  }));
-  for (let i = 0; i < points.length; i++) {
-    for (let j = i + 1; j < points.length; j++) {
-      const dx = points[i].pt.x - points[j].pt.x;
-      const dy = points[i].pt.y - points[j].pt.y;
-      if (Math.sqrt(dx * dx + dy * dy) < OVERLAP_PX) {
-        crowded.add(points[i].key);
-        crowded.add(points[j].key);
+  const cells = new Map<string, Array<{ key: string; x: number; y: number }>>();
+  const overlapSquared = OVERLAP_PX * OVERLAP_PX;
+
+  for (const group of groups) {
+    const point = map.latLngToLayerPoint([group.lat, group.lng]);
+    const cellX = Math.floor(point.x / OVERLAP_PX);
+    const cellY = Math.floor(point.y / OVERLAP_PX);
+
+    // A point can overlap only its own pixel bucket or one of eight neighbours.
+    // This preserves the exact distance rule without comparing every marker pair.
+    for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
+      for (let offsetY = -1; offsetY <= 1; offsetY += 1) {
+        for (const other of cells.get(`${cellX + offsetX}:${cellY + offsetY}`) ?? []) {
+          const dx = point.x - other.x;
+          const dy = point.y - other.y;
+          if (dx * dx + dy * dy < overlapSquared) {
+            crowded.add(group.key);
+            crowded.add(other.key);
+          }
+        }
       }
     }
+
+    const cellKey = `${cellX}:${cellY}`;
+    const bucket = cells.get(cellKey) ?? [];
+    bucket.push({ key: group.key, x: point.x, y: point.y });
+    cells.set(cellKey, bucket);
   }
   return crowded;
 }
@@ -361,7 +370,6 @@ function CollectionPinsInner({
   const [viewportTick, setViewportTick] = useState(0);
   const { data: speciesNotesData } = useSpeciesNotes();
   const { data: speciesProfilesRaw } = useSpeciesProfiles();
-  const storagePath = useAppStore((s) => s.storagePath) ?? '';
   const isSatellite = useAppStore((s) => s.mapLayer === 'Satellite');
 
   const speciesNotesByName = useMemo(() => {
@@ -375,6 +383,16 @@ function CollectionPinsInner({
     speciesProfilesRaw?.forEach((p) => m.set(p.species_name, p));
     return m;
   }, [speciesProfilesRaw]);
+
+  const zonesBySpecies = useMemo(() => {
+    const bySpecies = new Map<string, Zone[]>();
+    for (const zone of zones) {
+      const entries = bySpecies.get(zone.species_name) ?? [];
+      entries.push(zone);
+      bySpecies.set(zone.species_name, entries);
+    }
+    return bySpecies;
+  }, [zones]);
 
   const visibleGroups = useMemo(() => {
     void viewportTick;
@@ -401,7 +419,7 @@ function CollectionPinsInner({
     <>
       {visibleGroups.map((g) => {
         const showLabel = zoom >= LABEL_ZOOM_THRESHOLD && !crowded.has(g.key) && !g.suppressLabel;
-        const groupZones = zones.filter((z) => g.species.some((s) => z.species_name === s.name));
+        const groupZones = g.species.flatMap((species) => zonesBySpecies.get(species.name) ?? []);
         return (
           <CollectionMarker
             key={`loc-${g.key}`}
@@ -409,7 +427,6 @@ function CollectionPinsInner({
             showLabel={showLabel}
             isSatellite={isSatellite}
             groupZones={groupZones}
-            storagePath={storagePath}
             onStartLocalPolygonForFind={onStartLocalPolygonForFind}
             onStartRegionPolygonForFind={onStartRegionPolygonForFind}
             onSelectSpecies={onSelectSpecies}
@@ -427,7 +444,6 @@ function CollectionMarker({
   showLabel,
   isSatellite,
   groupZones,
-  storagePath,
   onStartLocalPolygonForFind,
   onStartRegionPolygonForFind,
   onSelectSpecies,
@@ -438,7 +454,6 @@ function CollectionMarker({
   showLabel: boolean;
   isSatellite: boolean;
   groupZones: Zone[];
-  storagePath: string;
   onStartLocalPolygonForFind: (find: Find) => void;
   onStartRegionPolygonForFind: (find: Find) => void;
   onSelectSpecies: (name: string) => void;
@@ -476,15 +491,16 @@ function CollectionMarker({
         </Tooltip>
       )}
       <Popup minWidth={248} autoPan={false}>
-        <CollectionPopup
-          locationGroup={g}
-          storagePath={storagePath}
-          onStartLocalPolygonForFind={onStartLocalPolygonForFind}
-          onStartRegionPolygonForFind={onStartRegionPolygonForFind}
-          zones={groupZones}
-          speciesNotesByName={speciesNotesByName}
-          speciesProfilesByName={speciesProfilesByName}
-        />
+        {popupOpen ? (
+          <CollectionPopup
+            locationGroup={g}
+            onStartLocalPolygonForFind={onStartLocalPolygonForFind}
+            onStartRegionPolygonForFind={onStartRegionPolygonForFind}
+            zones={groupZones}
+            speciesNotesByName={speciesNotesByName}
+            speciesProfilesByName={speciesProfilesByName}
+          />
+        ) : null}
       </Popup>
     </Marker>
   );

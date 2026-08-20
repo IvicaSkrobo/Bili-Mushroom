@@ -48,6 +48,13 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
   initialize_database: (_args: unknown) => undefined,
   import_find: (_args: unknown) => ({ imported: [], skipped: [] }),
   get_finds: (_args: unknown) => [],
+  get_find_locations: (args: unknown) => {
+    const labels = (invokeHandlers.get_finds(args) as Array<Record<string, any>>)
+      .map((find) => String(find.location_note ?? '').trim())
+      .filter(Boolean);
+    return Array.from(new Map(labels.map((label) => [label.toLowerCase(), label])).values())
+      .sort((a, b) => a.localeCompare(b));
+  },
   get_collection_folders: (args: unknown) => summarizeMockFinds(invokeHandlers.get_finds(args) as Array<Record<string, any>>),
   get_species_finds: (args: unknown) => {
     const speciesName = (args as { speciesName?: string })?.speciesName;
@@ -79,7 +86,11 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
   },
   warm_photo_thumbnail_cache: (_args: unknown) => ({ processed: 0, failed: 0 }),
   get_species_notes: (_args: unknown) => [],
+  get_species_note: (_args: unknown) => null,
   get_species_profiles: (_args: unknown) => [],
+  get_species_profile: (_args: unknown) => null,
+  get_species_profile_summaries: (_args: unknown) => [],
+  get_species_recipes_for_species: (_args: unknown) => [],
   upsert_species_note: (_args: unknown) => undefined,
   upsert_species_profile: (_args: unknown) => undefined,
   bulk_rename_species: (_args: unknown) => undefined,

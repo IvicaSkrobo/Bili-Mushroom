@@ -22,6 +22,8 @@ import { compareSpeciesNames, plainSpeciesName } from '@/lib/speciesName';
 import { useT } from '@/i18n/index';
 import { X } from 'lucide-react';
 
+const MAP_FIND_FILTERS = { photosMode: 'primary' as const };
+
 export default function MapTab() {
   const t = useT();
   const storagePath = useAppStore((s) => s.storagePath);
@@ -29,7 +31,7 @@ export default function MapTab() {
   const lang = useAppStore((s) => s.language);
   const pendingMapSpeciesFilter = useAppStore((s) => s.pendingMapSpeciesFilter);
   const setPendingMapSpeciesFilter = useAppStore((s) => s.setPendingMapSpeciesFilter);
-  const { data: finds } = useFinds(undefined, isActive);
+  const { data: finds } = useFinds(MAP_FIND_FILTERS, isActive);
   const { data: zones } = useZones(isActive);
   const upsertZone = useUpsertZone();
   const [selectedSpecies, setSelectedSpecies] = useState<Set<string>>(new Set());

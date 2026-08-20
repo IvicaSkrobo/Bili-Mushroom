@@ -107,6 +107,12 @@ vi.mock('@tauri-apps/api/core', () => ({
   convertFileSrc: vi.fn((path: string) => `asset://localhost/${path}`),
 }));
 
+vi.mock('@/hooks/usePhotoThumbnail', () => ({
+  usePhotoThumbnailSrc: (photoPath: string | null | undefined) => (
+    photoPath ? `asset://localhost/${photoPath}` : null
+  ),
+}));
+
 vi.mock('@/hooks/useFinds', () => ({
   useFinds: () => ({
     data: [],
@@ -135,18 +141,21 @@ vi.mock('@/hooks/useFinds', () => ({
     isError: false,
     error: null,
   }),
-  useSpeciesNotes: () => ({
-    data: speciesNotes,
+  useSpeciesNote: () => ({
+    data: speciesNotes[0],
   }),
   useUpsertSpeciesNote: () => ({
     mutate: emptyMutate,
     mutateAsync: emptyMutate,
     isPending: false,
   }),
-  useSpeciesProfiles: () => ({
+  useSpeciesProfileSummaries: () => ({
     data: speciesProfiles,
   }),
-  useSpeciesRecipes: () => ({
+  useSpeciesProfile: () => ({
+    data: speciesProfiles[0],
+  }),
+  useSpeciesRecipesForSpecies: () => ({
     data: speciesRecipes,
   }),
   useUpsertSpeciesProfile: () => ({

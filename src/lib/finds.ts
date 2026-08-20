@@ -71,7 +71,7 @@ export interface FindSearchFilters {
   dateEnd?: string;
   datePrefix?: string;
   dateDayMonth?: string;
-  photosMode?: 'all' | 'primary';
+  photosMode?: 'all' | 'primary' | 'count' | 'none';
   limit?: number;
   offset?: number;
 }
@@ -139,6 +139,11 @@ export interface SpeciesProfile {
   fruiting_body_count_override?: string | null;
 }
 
+export type SpeciesProfileSummary = Pick<
+  SpeciesProfile,
+  'species_name' | 'common_name' | 'cover_photo_id' | 'tags' | 'edibility' | 'threat_status' | 'distribution'
+>;
+
 export interface SpeciesRecipe {
   id: number;
   species_name: string;
@@ -202,6 +207,10 @@ export async function importFind(
  */
 export async function getFinds(storagePath: string, filters?: FindSearchFilters): Promise<Find[]> {
   return invoke<Find[]>('get_finds', filters ? { storagePath, filters } : { storagePath });
+}
+
+export async function getFindLocations(storagePath: string): Promise<string[]> {
+  return invoke<string[]>('get_find_locations', { storagePath });
 }
 
 export async function getCollectionFolders(
@@ -291,6 +300,10 @@ export async function getSpeciesNotes(storagePath: string): Promise<SpeciesNote[
   return invoke<SpeciesNote[]>('get_species_notes', { storagePath });
 }
 
+export async function getSpeciesNote(storagePath: string, speciesName: string): Promise<SpeciesNote | null> {
+  return invoke<SpeciesNote | null>('get_species_note', { storagePath, speciesName });
+}
+
 export async function upsertSpeciesNote(
   storagePath: string,
   speciesName: string,
@@ -305,6 +318,14 @@ export const SPECIES_RECIPES_QUERY_KEY = 'species_recipes' as const;
 
 export async function getSpeciesProfiles(storagePath: string): Promise<SpeciesProfile[]> {
   return invoke<SpeciesProfile[]>('get_species_profiles', { storagePath });
+}
+
+export async function getSpeciesProfileSummaries(storagePath: string): Promise<SpeciesProfileSummary[]> {
+  return invoke<SpeciesProfileSummary[]>('get_species_profile_summaries', { storagePath });
+}
+
+export async function getSpeciesProfile(storagePath: string, speciesName: string): Promise<SpeciesProfile | null> {
+  return invoke<SpeciesProfile | null>('get_species_profile', { storagePath, speciesName });
 }
 
 export async function upsertSpeciesProfile(
@@ -343,6 +364,13 @@ export async function upsertSpeciesProfile(
 
 export async function getSpeciesRecipes(storagePath: string): Promise<SpeciesRecipe[]> {
   return invoke<SpeciesRecipe[]>('get_species_recipes', { storagePath });
+}
+
+export async function getSpeciesRecipesForSpecies(
+  storagePath: string,
+  speciesName: string,
+): Promise<SpeciesRecipe[]> {
+  return invoke<SpeciesRecipe[]>('get_species_recipes_for_species', { storagePath, speciesName });
 }
 
 export async function upsertSpeciesRecipe(

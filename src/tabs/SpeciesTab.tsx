@@ -9,7 +9,7 @@ import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useAddFindPhotos, useInfiniteCollectionFolders, useInfiniteSpeciesFinds, useSpeciesNotes, useUpsertSpeciesNote, useSpeciesProfiles, useUpsertSpeciesProfile, useSpeciesRecipes, useUpsertSpeciesRecipe, useDeleteSpeciesRecipe } from '@/hooks/useFinds';
+import { useAddFindPhotos, useInfiniteCollectionFolders, useInfiniteSpeciesFinds, useSpeciesNote, useUpsertSpeciesNote, useSpeciesProfile, useSpeciesProfileSummaries, useUpsertSpeciesProfile, useSpeciesRecipesForSpecies, useUpsertSpeciesRecipe, useDeleteSpeciesRecipe } from '@/hooks/useFinds';
 import { usePhotoThumbnailSrc } from '@/hooks/usePhotoThumbnail';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
@@ -465,10 +465,8 @@ export default function SpeciesTab() {
     hasNextPage: hasNextSpeciesFolderPage,
     isFetchingNextPage: isFetchingNextSpeciesFolderPage,
   } = useInfiniteCollectionFolders(undefined, SPECIES_FOLDER_PAGE_SIZE);
-  const { data: speciesNotes } = useSpeciesNotes();
   const upsertSpeciesNote = useUpsertSpeciesNote();
-  const { data: speciesProfiles } = useSpeciesProfiles();
-  const { data: speciesRecipes } = useSpeciesRecipes();
+  const { data: speciesProfileSummaries } = useSpeciesProfileSummaries();
   const upsertSpeciesProfile = useUpsertSpeciesProfile();
   const addFindPhotos = useAddFindPhotos();
   const upsertSpeciesRecipe = useUpsertSpeciesRecipe();
@@ -489,8 +487,8 @@ export default function SpeciesTab() {
 
   const folderSummaries = useMemo(() => folderPages?.pages.flat() ?? [], [folderPages]);
   const speciesProfilesByName = useMemo(
-    () => new Map((speciesProfiles ?? []).map((profile) => [profile.species_name, profile])),
-    [speciesProfiles],
+    () => new Map((speciesProfileSummaries ?? []).map((profile) => [profile.species_name, profile])),
+    [speciesProfileSummaries],
   );
 
   const speciesPreviews = useMemo(() => folderSummaries
@@ -603,6 +601,10 @@ export default function SpeciesTab() {
       lastRecorded: selectedPreview.lastRecorded,
     };
   }, [selectedFinds, selectedPreview, speciesProfilesByName]);
+  const selectedSpeciesName = selectedJournal?.speciesName ?? null;
+  const { data: selectedNoteRecord } = useSpeciesNote(selectedSpeciesName);
+  const { data: selectedProfile = null } = useSpeciesProfile(selectedSpeciesName);
+  const { data: selectedRecipes = [] } = useSpeciesRecipesForSpecies(selectedSpeciesName);
   const coverPickerFilters = useMemo(() => ({ photosMode: 'all' as const }), []);
   const coverPickerFindsQuery = useInfiniteSpeciesFinds(
     selectedJournal?.speciesName ?? null,
@@ -698,8 +700,7 @@ export default function SpeciesTab() {
     setPendingSpeciesSelection(null);
   }, [pendingSpeciesSelection, speciesPreviews, setPendingSpeciesSelection]);
 
-  const selectedNote = speciesNotes?.find((note) => note.species_name === selectedJournal?.speciesName)?.notes ?? '';
-  const selectedProfile = selectedJournal ? speciesProfilesByName.get(selectedJournal.speciesName) ?? null : null;
+  const selectedNote = selectedNoteRecord?.notes ?? '';
   const currentCoverPhotoId = selectedProfile?.cover_photo_id ?? selectedJournal?.heroPhotoId ?? null;
   const coverPhotoEntry = coverPickerPhotos.find((entry) => entry.photo.id === currentCoverPhotoId) ?? null;
   const selectedHeroPhotoPath = coverPhotoEntry?.photo.photo_path ?? selectedJournal?.heroPhotoPath ?? null;
@@ -755,6 +756,16 @@ export default function SpeciesTab() {
     setNoteInput(selectedNote);
   }, [selectedNote]);
 
+  // Detail data is loaded per selected species. Populate editors when that request resolves.
+  useEffect(() => {
+    setSpeciesDescriptionInput(selectedProfile?.description ?? selectedProfile?.edibility_note ?? '');
+    setSpeciesHabitatInput(selectedProfile?.habitat ?? '');
+    setEdibilityInput(selectedProfile?.edibility ?? 'unknown');
+    setThreatStatusInput(selectedProfile?.threat_status ?? 'unknown');
+    setDistributionInput(selectedProfile?.distribution ?? 'unknown');
+    setFruitingBodyCountInput(selectedProfile?.fruiting_body_count_override ?? '');
+  }, [selectedProfile]);
+
   // Radix Dialog can occasionally leave body scroll/pointer locks behind in Tauri WebView.
   useEffect(() => {
     if (coverPickerOpen || lightboxOpen || editingFind) return;
@@ -778,11 +789,6 @@ export default function SpeciesTab() {
   const selectedOtherNames = selectedProfile?.other_names ?? [];
   const selectedCommonName = normalizeCommonName(selectedProfile?.common_name, selectedJournal?.speciesName);
   const selectedFruitingBodyCountOverride = selectedProfile?.fruiting_body_count_override ?? null;
-  const selectedRecipes = useMemo(
-    () => (speciesRecipes ?? []).filter((recipe) => recipe.species_name === selectedJournal?.speciesName),
-    [speciesRecipes, selectedJournal?.speciesName],
-  );
-
   useEffect(() => {
     setRecipeDrafts(Object.fromEntries(selectedRecipes.map((recipe) => [
       recipe.id,
@@ -821,7 +827,7 @@ export default function SpeciesTab() {
   };
 
   const handleSelectCover = (speciesName: string, photoId: number) => {
-    const existingProfile = speciesProfiles?.find((entry) => entry.species_name === speciesName);
+    const existingProfile = speciesName === selectedJournal?.speciesName ? selectedProfile : null;
     upsertSpeciesProfile.mutate({
       speciesName,
       coverPhotoId: photoId,
@@ -1906,4 +1912,3 @@ export default function SpeciesTab() {
     </div>
   );
 }
-

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactNode } from 'react';
 import CollectionTab from './CollectionTab';
@@ -125,7 +125,7 @@ describe('CollectionTab', () => {
       expect(screen.getByTitle('favorites 1')).toBeInTheDocument();
     });
 
-    expect(screen.getByAltText('Amanita muscaria')).toHaveAttribute(
+    expect(await screen.findByAltText('Amanita muscaria')).toHaveAttribute(
       'src',
       expect.stringContaining('Amanita_muscaria_001.jpg'),
     );
@@ -222,7 +222,9 @@ describe('CollectionTab', () => {
     });
 
     // Now the user clicks "Otvori u zbirci" on the Species tab for the markup-named species.
-    useAppStore.setState({ selectedCollectionSpecies: '*Vrganj* smrekov' });
+    act(() => {
+      useAppStore.setState({ selectedCollectionSpecies: '*Vrganj* smrekov' });
+    });
 
     // Species names render as split <span> nodes (bold/non-bold via renderSpeciesName), so match
     // on the search input value (plain, asterisk-stripped) and the folder heading's full text
@@ -256,7 +258,7 @@ describe('CollectionTab', () => {
     });
 
     fireEvent.click(screen.getByText('Amanita muscaria'));
-    fireEvent.click(screen.getByAltText('Amanita muscaria'));
+    fireEvent.click(await screen.findByAltText('Amanita muscaria'));
     fireEvent.click(screen.getByRole('button', { name: /set as species representative photo/i }));
 
     await waitFor(() => {
@@ -279,7 +281,7 @@ describe('CollectionTab', () => {
     });
 
     fireEvent.click(screen.getByText('Amanita muscaria'));
-    fireEvent.click(screen.getByAltText('Amanita muscaria'));
+    fireEvent.click(await screen.findByAltText('Amanita muscaria'));
 
     const actionButton = screen.getByRole('button', { name: /set as species representative photo/i });
     expect(actionButton).toBeInTheDocument();

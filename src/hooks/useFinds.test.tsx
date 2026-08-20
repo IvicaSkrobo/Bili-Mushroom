@@ -2,7 +2,16 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactNode } from 'react';
-import { useFinds, useUpdateFind, useSetFindFavorite } from './useFinds';
+import {
+  useFinds,
+  useFindLocations,
+  useSetFindFavorite,
+  useSpeciesNote,
+  useSpeciesProfile,
+  useSpeciesProfileSummaries,
+  useSpeciesRecipesForSpecies,
+  useUpdateFind,
+} from './useFinds';
 import { invokeHandlers } from '@/test/tauri-mocks';
 import { useAppStore } from '@/stores/appStore';
 import type { Find, UpdateFindPayload } from '@/lib/finds';
@@ -100,6 +109,78 @@ describe('useFinds', () => {
     expect(result.current.isLoading).toBe(false);
     expect(result.current.fetchStatus).toBe('idle');
     expect(result.current.data).toBeUndefined();
+  });
+});
+
+describe('useFindLocations', () => {
+  it('loads the lightweight location list without requiring full find records', async () => {
+    useAppStore.setState({ storagePath: '/storage/test', dbReady: true });
+    invokeHandlers['get_find_locations'] = () => ['Gorski kotar', 'Ucka'];
+    const qc = makeQueryClient();
+    const wrapper = makeWrapper(qc);
+
+    const { result } = renderHook(() => useFindLocations(), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data).toEqual(['Gorski kotar', 'Ucka']);
+  });
+});
+
+describe('lazy species detail queries', () => {
+  beforeEach(() => {
+    useAppStore.setState({ storagePath: '/storage/test', dbReady: true });
+  });
+
+  it('loads lightweight summaries separately from one selected species detail', async () => {
+    invokeHandlers['get_species_profile_summaries'] = () => [{
+      species_name: 'Boletus edulis',
+      common_name: 'Porcini',
+      cover_photo_id: 7,
+      tags: [],
+      edibility: 'edible',
+      threat_status: null,
+      distribution: 'common',
+    }];
+    invokeHandlers['get_species_profile'] = (args: unknown) => ({
+      species_name: (args as { speciesName: string }).speciesName,
+      common_name: 'Porcini',
+      cover_photo_id: 7,
+      tags: [],
+      description: 'Long detail loaded on demand',
+    });
+    const qc = makeQueryClient();
+    const wrapper = makeWrapper(qc);
+    const summaries = renderHook(() => useSpeciesProfileSummaries(), { wrapper });
+    const detail = renderHook(() => useSpeciesProfile('Boletus edulis'), { wrapper });
+
+    await waitFor(() => expect(summaries.result.current.isSuccess).toBe(true));
+    await waitFor(() => expect(detail.result.current.isSuccess).toBe(true));
+    expect(summaries.result.current.data?.[0].cover_photo_id).toBe(7);
+    expect(detail.result.current.data?.description).toBe('Long detail loaded on demand');
+  });
+
+  it('loads note and recipes only for the selected species', async () => {
+    invokeHandlers['get_species_note'] = (args: unknown) => ({
+      species_name: (args as { speciesName: string }).speciesName,
+      notes: 'Selected note',
+    });
+    invokeHandlers['get_species_recipes_for_species'] = (args: unknown) => [{
+      id: 1,
+      species_name: (args as { speciesName: string }).speciesName,
+      title: 'Risotto',
+      notes: '',
+      created_at: '',
+      updated_at: '',
+    }];
+    const qc = makeQueryClient();
+    const wrapper = makeWrapper(qc);
+    const note = renderHook(() => useSpeciesNote('Boletus edulis'), { wrapper });
+    const recipes = renderHook(() => useSpeciesRecipesForSpecies('Boletus edulis'), { wrapper });
+
+    await waitFor(() => expect(note.result.current.isSuccess).toBe(true));
+    await waitFor(() => expect(recipes.result.current.isSuccess).toBe(true));
+    expect(note.result.current.data?.species_name).toBe('Boletus edulis');
+    expect(recipes.result.current.data?.[0].species_name).toBe('Boletus edulis');
   });
 });
 

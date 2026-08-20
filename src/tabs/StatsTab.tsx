@@ -13,7 +13,8 @@ import {
   useBestMonths,
   useSpeciesStats,
 } from '@/hooks/useStats';
-import { useFinds, useSpeciesProfiles } from '@/hooks/useFinds';
+import { useFinds, useSpeciesProfileSummaries } from '@/hooks/useFinds';
+import { getFinds } from '@/lib/finds';
 import { useAppStore } from '@/stores/appStore';
 import { exportToCsv } from '@/lib/exportCsv';
 import { buildSpeciesSpotHint } from '@/lib/insights';
@@ -92,6 +93,8 @@ function formatObservedCount(find: {
 // Component
 // ---------------------------------------------------------------------------
 
+const STATS_FIND_FILTERS = { photosMode: 'count' as const };
+
 export default function StatsTab() {
   const t = useT();
   const showDebugPdf = import.meta.env.DEV;
@@ -100,8 +103,8 @@ export default function StatsTab() {
   const { data: topSpots } = useTopSpots(isActive);
   const { data: bestMonths } = useBestMonths(isActive);
   const { data: speciesStats } = useSpeciesStats(isActive);
-  const { data: finds } = useFinds(undefined, isActive);
-  const { data: speciesProfiles } = useSpeciesProfiles(isActive);
+  const { data: finds } = useFinds(STATS_FIND_FILTERS, isActive);
+  const { data: speciesProfiles } = useSpeciesProfileSummaries(isActive);
   const storagePath = useAppStore((s) => s.storagePath);
   const lang = useAppStore((s) => s.language);
   const locale = lang === 'hr' ? 'hr-HR' : 'en-US';
@@ -159,7 +162,7 @@ export default function StatsTab() {
     ));
   }, [bestMonths, finds, locale, t]);
   const totalPhotos = useMemo(
-    () => finds?.reduce((sum, find) => sum + find.photos.length, 0) ?? 0,
+    () => finds?.reduce((sum, find) => sum + (find.photo_count ?? find.photos.length), 0) ?? 0,
     [finds],
   );
   const mostActiveMonthSummary = useMemo(() => {
@@ -302,7 +305,9 @@ export default function StatsTab() {
     setExportError(null);
     try {
       const { generateAndSavePdf } = await import('@/lib/exportPdf');
-      const path = await generateAndSavePdf(finds, storagePath, (msg) => {
+      // The stats screen intentionally omits photo rows. Load them only for an explicit PDF export.
+      const exportFinds = await getFinds(storagePath);
+      const path = await generateAndSavePdf(exportFinds, storagePath, (msg) => {
         setPdfStage(msg);
       });
       if (path) {
@@ -326,8 +331,9 @@ export default function StatsTab() {
     setExportError(null);
     try {
       const { generateAndSavePdf } = await import('@/lib/exportPdf');
+      const exportFinds = await getFinds(storagePath);
       const path = await generateAndSavePdf(
-        finds,
+        exportFinds,
         storagePath,
         (msg) => {
           setPdfStage(msg);

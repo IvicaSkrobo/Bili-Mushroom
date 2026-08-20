@@ -1,7 +1,7 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  getFinds, getCollectionFolders, getSpeciesFinds, updateFind, deleteFind, getFindPhotos, getSpeciesNotes, upsertSpeciesNote,
-  getSpeciesProfiles, upsertSpeciesProfile, getSpeciesRecipes, upsertSpeciesRecipe, deleteSpeciesRecipe,
+  getFinds, getFindLocations, getCollectionFolders, getSpeciesFinds, updateFind, deleteFind, getFindPhotos, getSpeciesNotes, getSpeciesNote, upsertSpeciesNote,
+  getSpeciesProfiles, getSpeciesProfile, getSpeciesProfileSummaries, upsertSpeciesProfile, getSpeciesRecipes, getSpeciesRecipesForSpecies, upsertSpeciesRecipe, deleteSpeciesRecipe,
   bulkRenameSpecies, renameSpeciesFolder, moveFindToFolder, setFindFavorite, addFindPhotos, createFind,
   deleteFindPhoto, bulkDeleteFindPhotos,
   FINDS_QUERY_KEY, SPECIES_NOTES_QUERY_KEY, SPECIES_PROFILES_QUERY_KEY, SPECIES_RECIPES_QUERY_KEY,
@@ -16,6 +16,16 @@ export function useFinds(filters?: FindSearchFilters, enabled = true) {
     queryKey: [FINDS_QUERY_KEY, storagePath, filters ?? null],
     queryFn: () => getFinds(storagePath!, filters),
     enabled: !!storagePath && enabled,
+  });
+}
+
+export function useFindLocations() {
+  const storagePath = useAppStore((s) => s.storagePath);
+  return useQuery<string[]>({
+    queryKey: [FINDS_QUERY_KEY, storagePath, 'locations'],
+    queryFn: () => getFindLocations(storagePath!),
+    enabled: !!storagePath,
+    staleTime: 5 * 60_000,
   });
 }
 
@@ -130,6 +140,16 @@ export function useSpeciesNotes() {
   });
 }
 
+export function useSpeciesNote(speciesName: string | null) {
+  const storagePath = useAppStore((s) => s.storagePath);
+  return useQuery({
+    queryKey: [SPECIES_NOTES_QUERY_KEY, storagePath, speciesName],
+    queryFn: () => getSpeciesNote(storagePath!, speciesName!),
+    enabled: !!storagePath && !!speciesName,
+    staleTime: 60_000,
+  });
+}
+
 export function useSpeciesProfiles(enabled = true) {
   const storagePath = useAppStore((s) => s.storagePath);
   return useQuery({
@@ -139,12 +159,42 @@ export function useSpeciesProfiles(enabled = true) {
   });
 }
 
+export function useSpeciesProfileSummaries(enabled = true) {
+  const storagePath = useAppStore((s) => s.storagePath);
+  return useQuery({
+    queryKey: [SPECIES_PROFILES_QUERY_KEY, storagePath, 'summaries'],
+    queryFn: () => getSpeciesProfileSummaries(storagePath!),
+    enabled: !!storagePath && enabled,
+    staleTime: 60_000,
+  });
+}
+
+export function useSpeciesProfile(speciesName: string | null) {
+  const storagePath = useAppStore((s) => s.storagePath);
+  return useQuery({
+    queryKey: [SPECIES_PROFILES_QUERY_KEY, storagePath, speciesName],
+    queryFn: () => getSpeciesProfile(storagePath!, speciesName!),
+    enabled: !!storagePath && !!speciesName,
+    staleTime: 60_000,
+  });
+}
+
 export function useSpeciesRecipes() {
   const storagePath = useAppStore((s) => s.storagePath);
   return useQuery({
     queryKey: [SPECIES_RECIPES_QUERY_KEY, storagePath],
     queryFn: () => getSpeciesRecipes(storagePath!),
     enabled: !!storagePath,
+  });
+}
+
+export function useSpeciesRecipesForSpecies(speciesName: string | null) {
+  const storagePath = useAppStore((s) => s.storagePath);
+  return useQuery({
+    queryKey: [SPECIES_RECIPES_QUERY_KEY, storagePath, speciesName],
+    queryFn: () => getSpeciesRecipesForSpecies(storagePath!, speciesName!),
+    enabled: !!storagePath && !!speciesName,
+    staleTime: 60_000,
   });
 }
 

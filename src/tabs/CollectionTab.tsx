@@ -16,8 +16,8 @@ import { FolderEditDialog } from '@/components/finds/FolderEditDialog';
 import { DeleteFindDialog } from '@/components/finds/DeleteFindDialog';
 import { BulkDeleteDialog } from '@/components/finds/BulkDeleteDialog';
 import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
-import { useFinds, useInfiniteCollectionFolders, useInfiniteSpeciesFinds, useFindPhotos, useSpeciesNotes, useSpeciesProfiles, useUpsertSpeciesNote, useUpsertSpeciesProfile, useBulkRenameSpecies, useSetFindFavorite, useDeleteFindPhoto } from '@/hooks/useFinds';
-import { usePhotoThumbnailSrc } from '@/hooks/usePhotoThumbnail';
+import { useFindLocations, useInfiniteCollectionFolders, useInfiniteSpeciesFinds, useFindPhotos, useSpeciesNotes, useSpeciesProfiles, useUpsertSpeciesNote, useUpsertSpeciesProfile, useBulkRenameSpecies, useSetFindFavorite, useDeleteFindPhoto } from '@/hooks/useFinds';
+import { usePhotoThumbnail } from '@/hooks/usePhotoThumbnail';
 import { useAppStore } from '@/stores/appStore';
 import { useT, tFindsCount } from '@/i18n/index';
 import type { Find, FindSearchFilters, SpeciesFolderSummary, SpeciesProfile } from '@/lib/finds';
@@ -223,17 +223,33 @@ const PhotoThumbnailImage = memo(function PhotoThumbnailImage({
   alt = '',
   className,
 }: PhotoThumbnailImageProps) {
-  const src = usePhotoThumbnailSrc(photoPath, size);
-  if (!src) return null;
+  const { src, isLoading, isError } = usePhotoThumbnail(photoPath, size);
   return (
-    <img
-      src={src}
-      alt={alt}
-      loading="lazy"
-      decoding="async"
-      className={className}
-      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-    />
+    <div className={`relative overflow-hidden bg-muted/55 ${className}`}>
+      {src && (
+        <img
+          src={src}
+          alt={alt}
+          loading="lazy"
+          decoding="async"
+          className="h-full w-full object-inherit"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+        />
+      )}
+      {!src && (
+        <div className="absolute inset-0 flex items-center justify-center bg-[radial-gradient(circle_at_50%_42%,hsl(var(--primary)/0.12),transparent_52%)]">
+          {isLoading ? (
+            <span
+              role="status"
+              aria-label="Loading photo"
+              className="h-4 w-4 animate-spin rounded-full border-2 border-primary/25 border-t-primary"
+            />
+          ) : (
+            <GalleryHorizontal className={`h-4 w-4 ${isError ? 'text-destructive/45' : 'text-muted-foreground/25'}`} aria-hidden="true" />
+          )}
+        </div>
+      )}
+    </div>
   );
 });
 
@@ -666,20 +682,7 @@ export default function CollectionTab() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [locationSearch, setLocationSearch] = useState('');
-  const allFindsQuery = useFinds();
-  const knownLocations = useMemo(() => {
-    const seen = new Set<string>();
-    const labels: string[] = [];
-    for (const find of allFindsQuery.data ?? []) {
-      const label = (find.location_note ?? '').trim();
-      if (!label) continue;
-      const key = label.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      labels.push(label);
-    }
-    return labels.sort((a, b) => a.localeCompare(b));
-  }, [allFindsQuery.data]);
+  const { data: knownLocations = [] } = useFindLocations();
   const locationOptions = useMemo(() => {
     const typed = locationSearch.trim().toLowerCase();
     if (!typed) return knownLocations;
