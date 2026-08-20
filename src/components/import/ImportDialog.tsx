@@ -580,22 +580,27 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
           speciesOptionsByLowerName.get(sharedName.trim().toLowerCase())?.species_name ??
           sharedName.trim();
         const sharedSpeciesProfile = await getSpeciesProfile(storagePath, canonicalSpeciesName);
-        await upsertSpeciesProfile(
-          storagePath,
-          sharedName.trim(),
-          sharedCommonName.trim() || (sharedSpeciesProfile?.common_name ?? null),
-          sharedSpeciesProfile?.cover_photo_id ?? null,
-          sharedSpeciesProfile?.tags ?? [],
-          sharedEdibility !== 'unknown' ? sharedEdibility : (sharedSpeciesProfile?.edibility ?? null),
-          sharedProtectedStatus !== 'unknown' ? sharedProtectedStatus : (sharedSpeciesProfile?.threat_status ?? null),
-          sharedDistribution !== 'unknown' ? sharedDistribution : (sharedSpeciesProfile?.distribution ?? null),
-          sharedSpeciesProfile?.edibility_note ?? null,
-          sharedSpeciesProfile?.synonyms ?? [],
-          sharedSpeciesProfile?.other_names ?? [],
-          sharedSpeciesProfile?.fruiting_body_count_override ?? null,
-          sharedSpeciesDescription.trim() || sharedSpeciesProfile?.description || sharedSpeciesProfile?.edibility_note || null,
-          sharedSpeciesProfile?.habitat ?? null,
-        );
+        // upsert_species_profile overwrites every column it is handed. If a profile row
+        // exists but the read above came back empty, writing now would blank fields the
+        // user never touched - leave the stored profile alone instead.
+        if (sharedSpeciesProfile || !sharedSpeciesOption?.has_profile) {
+          await upsertSpeciesProfile(
+            storagePath,
+            sharedName.trim(),
+            sharedCommonName.trim() || (sharedSpeciesProfile?.common_name ?? null),
+            sharedSpeciesProfile?.cover_photo_id ?? null,
+            sharedSpeciesProfile?.tags ?? [],
+            sharedEdibility !== 'unknown' ? sharedEdibility : (sharedSpeciesProfile?.edibility ?? null),
+            sharedProtectedStatus !== 'unknown' ? sharedProtectedStatus : (sharedSpeciesProfile?.threat_status ?? null),
+            sharedDistribution !== 'unknown' ? sharedDistribution : (sharedSpeciesProfile?.distribution ?? null),
+            sharedSpeciesProfile?.edibility_note ?? null,
+            sharedSpeciesProfile?.synonyms ?? [],
+            sharedSpeciesProfile?.other_names ?? [],
+            sharedSpeciesProfile?.fruiting_body_count_override ?? null,
+            sharedSpeciesDescription.trim() || sharedSpeciesProfile?.description || sharedSpeciesProfile?.edibility_note || null,
+            sharedSpeciesProfile?.habitat ?? null,
+          );
+        }
         qc.invalidateQueries({ queryKey: [SPECIES_PROFILES_QUERY_KEY, storagePath] });
       }
 

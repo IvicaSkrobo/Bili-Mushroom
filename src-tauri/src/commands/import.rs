@@ -1507,6 +1507,10 @@ pub struct SpeciesOption {
     /// True when at least one find carries this name; false for a profile that has
     /// no finds yet.
     pub has_finds: bool,
+    /// True when a species_profiles row exists. Callers that overwrite a profile use
+    /// this to tell "no profile yet, create one" apart from "a profile exists but I
+    /// could not read it" — only the first is safe to write from partial data.
+    pub has_profile: bool,
 }
 
 /// Every species the user could pick, from finds and profiles alike.
@@ -1529,15 +1533,16 @@ fn get_species_options_for_connection(conn: &Connection) -> Result<Vec<SpeciesOp
     // stored with different casing still supplies its common name.
     let mut stmt = conn
         .prepare(
-            "SELECT names.species_name, sp.common_name, sp.synonyms, sp.other_names, names.has_finds
+            "SELECT names.species_name, sp.common_name, sp.synonyms, sp.other_names, names.has_finds, names.has_profile
              FROM (
                SELECT MIN(species_name) AS species_name,
                       LOWER(TRIM(species_name)) AS species_key,
-                      MAX(has_finds) AS has_finds
+                      MAX(has_finds) AS has_finds,
+                      MAX(has_profile) AS has_profile
                FROM (
-                 SELECT species_name, 1 AS has_finds FROM finds
+                 SELECT species_name, 1 AS has_finds, 0 AS has_profile FROM finds
                  UNION ALL
-                 SELECT species_name, 0 AS has_finds FROM species_profiles
+                 SELECT species_name, 0 AS has_finds, 1 AS has_profile FROM species_profiles
                )
                WHERE TRIM(species_name) <> ''
                  AND LOWER(TRIM(species_name)) NOT IN ('tile-cache', '.bili-cache', '.bili-cache-tiles')
@@ -1564,6 +1569,7 @@ fn get_species_options_for_connection(conn: &Connection) -> Result<Vec<SpeciesOp
                     .and_then(|value| serde_json::from_str(value).ok())
                     .unwrap_or_default(),
                 has_finds: row.get::<_, i64>(4)? == 1,
+                has_profile: row.get::<_, i64>(5)? == 1,
             })
         })
         .map_err(|error| format!("Species options query failed: {error}"))?
@@ -2909,17 +2915,24 @@ mod tests {
         assert_eq!(boletus.other_names, vec!["pravi vrganj".to_string()]);
         assert!(boletus.has_finds);
 
+        assert!(boletus.has_profile);
+
         let cantharellus = &options[2];
         assert_eq!(cantharellus.common_name.as_deref(), Some("Lisicarka"));
         assert!(
             !cantharellus.has_finds,
             "a profile with no finds must be offered but flagged as unused"
         );
+        assert!(cantharellus.has_profile);
 
         let amanita = &options[0];
         assert_eq!(amanita.common_name, None);
         assert!(amanita.synonyms.is_empty());
         assert!(amanita.has_finds);
+        assert!(
+            !amanita.has_profile,
+            "a species that only exists in finds must be flagged as having no profile row,              so an upsert built from a missing profile is recognised as a safe create"
+        );
     }
 
     #[test]

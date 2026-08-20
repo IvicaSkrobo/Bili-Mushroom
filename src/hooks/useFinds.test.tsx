@@ -133,13 +133,14 @@ describe('useSpeciesOptions', () => {
     const findsSpy = vi.fn(() => []);
     invokeHandlers['get_finds'] = findsSpy;
     invokeHandlers['get_species_options'] = () => [
-      { species_name: 'Amanita muscaria', common_name: null, synonyms: [], other_names: [], has_finds: true },
+      { species_name: 'Amanita muscaria', common_name: null, synonyms: [], other_names: [], has_finds: true, has_profile: false },
       {
         species_name: 'Boletus edulis',
         common_name: 'Vrganj',
         synonyms: ['Boletus reticulatus'],
         other_names: ['pravi vrganj'],
         has_finds: false,
+        has_profile: true,
       },
     ];
     const qc = makeQueryClient();
@@ -154,6 +155,8 @@ describe('useSpeciesOptions', () => {
     ]);
     expect(result.current.data?.[1].common_name).toBe('Vrganj');
     expect(result.current.data?.[1].has_finds).toBe(false);
+    expect(result.current.data?.[1].has_profile).toBe(true);
+    expect(result.current.data?.[0].has_profile).toBe(false);
     // The point of the command: the autocomplete must not pull the library with it.
     expect(findsSpy).not.toHaveBeenCalled();
   });

@@ -37,9 +37,27 @@ could blank out tags, cover, edibility or habitat. Each dialog now awaits
 name is first resolved through the options list, because `get_species_profile` matches
 by exact name while the old client-side map matched case- and markup-insensitively.
 
+## Follow-up hardening (same task, after review)
+
+`upsert_species_profile` overwrites every column it is handed — only `common_name` is
+COALESCE-protected. That makes the read-modify-write load-bearing: a failed read would
+blank tags, cover, edibility, description and habitat. Three changes close it:
+
+- `SpeciesOption` gained `has_profile`, so a caller can tell "no profile row yet, safe
+  to create one" from "a profile exists but I could not read it back".
+- Each dialog now skips the upsert entirely in the second case rather than writing a
+  stripped row.
+- `get_species_profile` falls back to a case- and whitespace-insensitive match when the
+  exact key misses, which is what the old client-side map did implicitly.
+
+Also gated the profile query: the dialogs only ask for the full profile once the typed
+text names a known species. Suggestions and the common name come from the already-loaded
+options list, so nothing in the UI waits — this only removes a SQLite round trip per
+keystroke while the user types a new or partial name.
+
 ## Verification
 
-- Rust: `npm run test:rust` — 98 passed, 0 failed, 1 ignored. New test
+- Rust: `npm run test:rust` — 99 passed, 0 failed, 1 ignored. New test
   `species_options_union_finds_and_profiles_without_internal_folders` covers the union,
   the internal-folder and blank-name exclusion, casing collapse, a profile with no finds,
   and the synonyms/other-names JSON decode.

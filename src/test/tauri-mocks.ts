@@ -69,6 +69,7 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
         synonyms: profile?.synonyms ?? existing?.synonyms ?? [],
         other_names: profile?.other_names ?? existing?.other_names ?? [],
         has_finds: (existing?.has_finds ?? false) || hasFinds,
+        has_profile: (existing?.has_profile ?? false) || Boolean(profile),
       });
     };
     for (const find of invokeHandlers.get_finds(args) as Array<Record<string, any>>) {

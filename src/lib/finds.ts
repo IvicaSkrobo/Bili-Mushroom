@@ -224,6 +224,8 @@ export interface SpeciesOption {
   synonyms: string[];
   other_names: string[];
   has_finds: boolean;
+  /** A species_profiles row exists. Distinguishes "no profile yet" from "read failed". */
+  has_profile: boolean;
 }
 
 export async function getSpeciesOptions(storagePath: string): Promise<SpeciesOption[]> {

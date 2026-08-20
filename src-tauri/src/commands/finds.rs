@@ -1,5 +1,5 @@
 use chrono::Utc;
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::fs::File;
@@ -435,17 +435,44 @@ pub async fn get_species_profile(
 ) -> Result<Option<SpeciesProfile>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let conn = open_db(&storage_path)?;
-        conn.query_row(
-            "SELECT species_name, common_name, cover_photo_id, tags_json, edibility, threat_status, distribution, edibility_note, description, synonyms, other_names, fruiting_body_count_override, habitat
-             FROM species_profiles WHERE species_name = ?1",
+        get_species_profile_for_connection(&conn, &species_name)
+    })
+    .await
+    .map_err(|e| format!("Species profile worker failed: {}", e))?
+}
+
+const SPECIES_PROFILE_COLUMNS: &str = "species_name, common_name, cover_photo_id, tags_json, edibility, threat_status, distribution, edibility_note, description, synonyms, other_names, fruiting_body_count_override, habitat";
+
+/// Looks up one species profile.
+///
+/// Callers overwrite the profile with what they read here, so a miss caused by nothing
+/// more than different casing or surrounding whitespace would blank out tags, cover and
+/// edibility. Try the exact key first, then a normalized match.
+pub(crate) fn get_species_profile_for_connection(
+    conn: &Connection,
+    species_name: &str,
+) -> Result<Option<SpeciesProfile>, String> {
+    let exact = conn
+        .query_row(
+            &format!("SELECT {SPECIES_PROFILE_COLUMNS} FROM species_profiles WHERE species_name = ?1"),
             params![species_name],
             species_profile_from_row,
         )
         .optional()
-        .map_err(|e| e.to_string())
-    })
-    .await
-    .map_err(|e| format!("Species profile worker failed: {}", e))?
+        .map_err(|e| e.to_string())?;
+    if exact.is_some() {
+        return Ok(exact);
+    }
+    conn.query_row(
+        &format!(
+            "SELECT {SPECIES_PROFILE_COLUMNS} FROM species_profiles
+             WHERE LOWER(TRIM(species_name)) = LOWER(TRIM(?1)) LIMIT 1"
+        ),
+        params![species_name],
+        species_profile_from_row,
+    )
+    .optional()
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -2716,6 +2743,40 @@ mod tests {
         assert!(
             result.photos[0].is_primary,
             "remaining photo should be promoted to primary"
+        );
+    }
+
+    /// The dialogs overwrite the profile with whatever this lookup returns, so a miss
+    /// caused only by casing or stray whitespace would blank out tags, cover and
+    /// edibility on the next save.
+    #[test]
+    fn species_profile_lookup_tolerates_casing_and_whitespace() {
+        let conn = setup_in_memory_db();
+        conn.execute(
+            "INSERT INTO species_profiles (species_name, common_name, tags_json, updated_at)
+             VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![
+                "Boletus edulis",
+                "Vrganj",
+                r#"["jestivo"]"#,
+                "2026-05-12T00:00:00Z"
+            ],
+        )
+        .expect("insert species profile");
+
+        for lookup in ["Boletus edulis", "boletus edulis", "  BOLETUS EDULIS  "] {
+            let profile = get_species_profile_for_connection(&conn, lookup)
+                .expect("look up species profile")
+                .unwrap_or_else(|| panic!("profile must be found for {lookup:?}"));
+            assert_eq!(profile.species_name, "Boletus edulis");
+            assert_eq!(profile.tags, vec!["jestivo".to_string()]);
+        }
+
+        assert!(
+            get_species_profile_for_connection(&conn, "Cantharellus cibarius")
+                .expect("look up unknown species")
+                .is_none(),
+            "an unknown species must still return None so a new profile can be created"
         );
     }
 

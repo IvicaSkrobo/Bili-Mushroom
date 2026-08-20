@@ -646,7 +646,11 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
     const typed = form.species_name.trim();
     return speciesOptionsByLowerName.get(typed.toLowerCase())?.species_name ?? typed;
   }, [speciesOptionsByLowerName, form.species_name]);
-  const speciesProfile = useSpeciesProfile(canonicalSpeciesName || null).data ?? null;
+  // Only ask for the full profile once the typed text actually names a species we know.
+  // While the user is still typing, or is naming a brand-new species, there is nothing
+  // to fetch — suggestions and the common name already come from the options list, so
+  // gating this costs the user nothing and saves one SQLite round trip per keystroke.
+  const speciesProfile = useSpeciesProfile(speciesOption ? canonicalSpeciesName : null).data ?? null;
 
   useEffect(() => {
     const nextCommonName = speciesOption?.common_name ?? '';
@@ -788,21 +792,26 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
         const storedProfile = storagePath
           ? await getSpeciesProfile(storagePath, canonicalSpeciesName)
           : speciesProfile;
-        await upsertSpeciesProfile.mutateAsync({
-          speciesName: form.species_name.trim(),
-          commonName: form.common_name.trim() || (storedProfile?.common_name ?? null),
-          coverPhotoId: storedProfile?.cover_photo_id ?? null,
-          tags: storedProfile?.tags ?? [],
-          edibility: storedProfile?.edibility ?? null,
-          threatStatus: storedProfile?.threat_status ?? null,
-          distribution: storedProfile?.distribution ?? null,
-          edibilityNote: storedProfile?.edibility_note ?? null,
-          synonyms: storedProfile?.synonyms ?? [],
-          otherNames: storedProfile?.other_names ?? [],
-          fruitingBodyCountOverride: storedProfile?.fruiting_body_count_override ?? null,
-          description: form.species_description.trim(),
-          habitat: storedProfile?.habitat ?? null,
-        });
+        // upsert_species_profile overwrites every column it is handed. If a profile row
+        // exists but the read above came back empty, writing now would blank fields the
+        // user never touched - leave the stored profile alone instead.
+        if (storedProfile || !speciesOption?.has_profile) {
+          await upsertSpeciesProfile.mutateAsync({
+            speciesName: form.species_name.trim(),
+            commonName: form.common_name.trim() || (storedProfile?.common_name ?? null),
+            coverPhotoId: storedProfile?.cover_photo_id ?? null,
+            tags: storedProfile?.tags ?? [],
+            edibility: storedProfile?.edibility ?? null,
+            threatStatus: storedProfile?.threat_status ?? null,
+            distribution: storedProfile?.distribution ?? null,
+            edibilityNote: storedProfile?.edibility_note ?? null,
+            synonyms: storedProfile?.synonyms ?? [],
+            otherNames: storedProfile?.other_names ?? [],
+            fruitingBodyCountOverride: storedProfile?.fruiting_body_count_override ?? null,
+            description: form.species_description.trim(),
+            habitat: storedProfile?.habitat ?? null,
+          });
+        }
       }
 
       setForm(BLANK_FORM);

@@ -211,11 +211,19 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   // The typed name may differ in case or asterisk markup from the stored profile key,
   // which the old preloaded map absorbed. Resolve it through the options list before
   // asking for the profile, which is looked up by exact name.
+  const speciesOption = useMemo(
+    () => speciesOptionsByLowerName.get(form.species_name.trim().toLowerCase()) ?? null,
+    [speciesOptionsByLowerName, form.species_name],
+  );
   const canonicalSpeciesName = useMemo(() => {
     const typed = form.species_name.trim();
-    return speciesOptionsByLowerName.get(typed.toLowerCase())?.species_name ?? typed;
-  }, [speciesOptionsByLowerName, form.species_name]);
-  const speciesProfile = useSpeciesProfile(canonicalSpeciesName || null).data ?? null;
+    return speciesOption?.species_name ?? typed;
+  }, [speciesOption, form.species_name]);
+  // Only ask for the full profile once the typed text actually names a species we know.
+  // While the user is still typing, or is naming a brand-new species, there is nothing
+  // to fetch — suggestions and the common name already come from the options list, so
+  // gating this costs the user nothing and saves one SQLite round trip per keystroke.
+  const speciesProfile = useSpeciesProfile(speciesOption ? canonicalSpeciesName : null).data ?? null;
 
   useEffect(() => {
     if (find) {
@@ -318,21 +326,26 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
             const storedProfile = storagePath
               ? await getSpeciesProfile(storagePath, canonicalSpeciesName)
               : speciesProfile;
-            await upsertSpeciesProfile.mutateAsync({
-              speciesName: form.species_name.trim(),
-              commonName: form.common_name.trim() || (storedProfile?.common_name ?? null),
-              coverPhotoId: storedProfile?.cover_photo_id ?? null,
-              tags: storedProfile?.tags ?? [],
-              edibility: storedProfile?.edibility ?? null,
-              threatStatus: storedProfile?.threat_status ?? null,
-              distribution: storedProfile?.distribution ?? null,
-              edibilityNote: storedProfile?.edibility_note ?? null,
-              synonyms: storedProfile?.synonyms ?? [],
-              otherNames: storedProfile?.other_names ?? [],
-              fruitingBodyCountOverride: storedProfile?.fruiting_body_count_override ?? null,
-              description: form.species_description.trim() || null,
-              habitat: storedProfile?.habitat ?? null,
-            });
+            // upsert_species_profile overwrites every column it is handed. If a profile row
+            // exists but the read above came back empty, writing now would blank fields the
+            // user never touched - leave the stored profile alone instead.
+            if (storedProfile || !speciesOption?.has_profile) {
+              await upsertSpeciesProfile.mutateAsync({
+                speciesName: form.species_name.trim(),
+                commonName: form.common_name.trim() || (storedProfile?.common_name ?? null),
+                coverPhotoId: storedProfile?.cover_photo_id ?? null,
+                tags: storedProfile?.tags ?? [],
+                edibility: storedProfile?.edibility ?? null,
+                threatStatus: storedProfile?.threat_status ?? null,
+                distribution: storedProfile?.distribution ?? null,
+                edibilityNote: storedProfile?.edibility_note ?? null,
+                synonyms: storedProfile?.synonyms ?? [],
+                otherNames: storedProfile?.other_names ?? [],
+                fruitingBodyCountOverride: storedProfile?.fruiting_body_count_override ?? null,
+                description: form.species_description.trim() || null,
+                habitat: storedProfile?.habitat ?? null,
+              });
+            }
           }
           // Registering after the find is saved means the sample folder links the
           // current photos and its data sheet reflects the edits just made.
