@@ -31,6 +31,7 @@ import {
   importFind,
   upsertSpeciesNote,
   upsertSpeciesProfile,
+  getSpeciesProfile,
   FINDS_QUERY_KEY,
   SPECIES_NOTES_QUERY_KEY,
   SPECIES_PROFILES_QUERY_KEY,
@@ -41,7 +42,7 @@ import {
 import { EdibilitySelectBadge, ThreatStatusSelectBadge, DistributionSelectBadge } from '@/components/species/StatusSelectBadge';
 import { reverseGeocode } from '@/lib/geocoding';
 import { useAppStore } from '@/stores/appStore';
-import { useFinds, useSpeciesNotes, useSpeciesProfiles } from '@/hooks/useFinds';
+import { useFindLocations, useSpeciesNotes, useSpeciesOptions } from '@/hooks/useFinds';
 import { useT } from '@/i18n/index';
 import { createSampleForFind, SAMPLES_QUERY_KEY } from '@/lib/samples';
 import { isInternalLibraryName } from '@/lib/internalEntries';
@@ -195,32 +196,35 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   const lang = useAppStore((s) => s.language);
   const qc = useQueryClient();
   const { data: speciesNotesData } = useSpeciesNotes();
-  const { data: findsData } = useFinds();
-  const { data: speciesProfilesData } = useSpeciesProfiles();
+  // Species autocomplete comes from the lightweight options list. The full profile of
+  // the selected species is fetched on save, so a stale cache can never blank out
+  // fields the user did not touch.
+  const { data: speciesOptions } = useSpeciesOptions();
+  const { data: knownLocationNotes } = useFindLocations();
 
   const speciesNameSet = useMemo(() => {
     const set = new Set<string>();
-    for (const find of findsData ?? []) {
-      if (find.species_name) set.add(find.species_name.toLowerCase());
+    for (const option of speciesOptions ?? []) {
+      set.add(option.species_name.toLowerCase());
     }
     return set;
-  }, [findsData]);
+  }, [speciesOptions]);
 
-  const speciesProfilesByLowerName = useMemo(() => {
-    const map = new Map<string, NonNullable<typeof speciesProfilesData>[number]>();
-    for (const profile of speciesProfilesData ?? []) {
-      map.set(profile.species_name.toLowerCase(), profile);
-      map.set(plainSpeciesName(profile.species_name).toLowerCase(), profile);
+  const speciesOptionsByLowerName = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof speciesOptions>[number]>();
+    for (const option of speciesOptions ?? []) {
+      map.set(option.species_name.toLowerCase(), option);
+      map.set(plainSpeciesName(option.species_name).toLowerCase(), option);
     }
     return map;
-  }, [speciesProfilesData]);
+  }, [speciesOptions]);
   const knownCommonNames = useMemo(() => {
     const set = new Set<string>();
-    for (const profile of speciesProfilesData ?? []) {
-      if (profile.common_name) set.add(profile.common_name.trim().toLowerCase());
+    for (const option of speciesOptions ?? []) {
+      if (option.common_name) set.add(option.common_name.trim().toLowerCase());
     }
     return set;
-  }, [speciesProfilesData]);
+  }, [speciesOptions]);
 
   const speciesNotesByLowerName = useMemo(() => {
     const map = new Map<string, NonNullable<typeof speciesNotesData>[number]>();
@@ -231,30 +235,15 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   }, [speciesNotesData]);
 
 
-  const speciesFolders = useMemo(() => {
-    if (!findsData) return [];
-    const seen = new Set<string>();
-    return findsData
-      .map((f) => f.species_name)
-      .filter((name) => {
-        if (!name || seen.has(name) || isInternalLibraryName(name)) return false;
-        seen.add(name);
-        return true;
-      });
-  }, [findsData]);
+  const speciesFolders = useMemo(
+    () =>
+      (speciesOptions ?? [])
+        .map((option) => option.species_name)
+        .filter((name) => name && !isInternalLibraryName(name)),
+    [speciesOptions],
+  );
 
-  const locationNoteSuggestions = useMemo(() => {
-    if (!findsData) return [];
-    const seen = new Set<string>();
-    return findsData
-      .map((f) => f.location_note ?? '')
-      .filter((v) => {
-        const trimmed = v.trim();
-        if (!trimmed || seen.has(trimmed.toLowerCase())) return false;
-        seen.add(trimmed.toLowerCase());
-        return true;
-      });
-  }, [findsData]);
+  const locationNoteSuggestions = useMemo(() => knownLocationNotes ?? [], [knownLocationNotes]);
 
   // All photos for this single find
   const [photos, setPhotos] = useState<string[]>([]);
@@ -295,20 +284,20 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   const isNewSpecies = useMemo(() => {
     const name = sharedName.trim().toLowerCase();
     if (!name) return false;
-    return !speciesNameSet.has(name) && !speciesProfilesByLowerName.has(name);
-  }, [sharedName, speciesNameSet, speciesProfilesByLowerName]);
+    return !speciesNameSet.has(name) && !speciesOptionsByLowerName.has(name);
+  }, [sharedName, speciesNameSet, speciesOptionsByLowerName]);
 
-  const sharedSpeciesProfile = useMemo(
-    () => speciesProfilesByLowerName.get(sharedName.trim().toLowerCase()) ?? null,
-    [speciesProfilesByLowerName, sharedName],
+  const sharedSpeciesOption = useMemo(
+    () => speciesOptionsByLowerName.get(sharedName.trim().toLowerCase()) ?? null,
+    [speciesOptionsByLowerName, sharedName],
   );
 
   useEffect(() => {
     if (commonNameManuallyEditedRef.current) return;
-    const nextCommonName = sharedSpeciesProfile?.common_name ?? '';
+    const nextCommonName = sharedSpeciesOption?.common_name ?? '';
     lastAutoCommonNameRef.current = nextCommonName;
     setSharedCommonName(nextCommonName);
-  }, [sharedSpeciesProfile?.species_name, sharedSpeciesProfile?.common_name]);
+  }, [sharedSpeciesOption?.species_name, sharedSpeciesOption?.common_name]);
 
   // When species name changes to a known folder, pre-fill notes + species metadata from DB
   useEffect(() => {
@@ -582,6 +571,15 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
           sharedProtectedStatus !== 'unknown' ||
           sharedDistribution !== 'unknown')
       ) {
+        // Read-modify-write: pull the profile now rather than from a cached list, so
+        // saving right after typing a name cannot wipe tags, cover or edibility.
+        // The typed name may differ in case or asterisk markup from the stored profile
+        // key, which the old preloaded map absorbed. Resolve through the options list
+        // first, since the profile is looked up by exact name.
+        const canonicalSpeciesName =
+          speciesOptionsByLowerName.get(sharedName.trim().toLowerCase())?.species_name ??
+          sharedName.trim();
+        const sharedSpeciesProfile = await getSpeciesProfile(storagePath, canonicalSpeciesName);
         await upsertSpeciesProfile(
           storagePath,
           sharedName.trim(),

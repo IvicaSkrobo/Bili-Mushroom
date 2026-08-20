@@ -55,6 +55,32 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
     return Array.from(new Map(labels.map((label) => [label.toLowerCase(), label])).values())
       .sort((a, b) => a.localeCompare(b));
   },
+  get_species_options: (args: unknown) => {
+    const byKey = new Map<string, Record<string, any>>();
+    const add = (name: unknown, hasFinds: boolean, profile?: Record<string, any>) => {
+      const speciesName = String(name ?? '').trim();
+      if (!speciesName) return;
+      if (['tile-cache', '.bili-cache', '.bili-cache-tiles'].includes(speciesName.toLowerCase())) return;
+      const key = speciesName.toLowerCase();
+      const existing = byKey.get(key);
+      byKey.set(key, {
+        species_name: existing?.species_name ?? speciesName,
+        common_name: profile?.common_name ?? existing?.common_name ?? null,
+        synonyms: profile?.synonyms ?? existing?.synonyms ?? [],
+        other_names: profile?.other_names ?? existing?.other_names ?? [],
+        has_finds: (existing?.has_finds ?? false) || hasFinds,
+      });
+    };
+    for (const find of invokeHandlers.get_finds(args) as Array<Record<string, any>>) {
+      add(find.species_name, true);
+    }
+    for (const profile of invokeHandlers.get_species_profiles(args) as Array<Record<string, any>>) {
+      add(profile.species_name, false, profile);
+    }
+    return Array.from(byKey.values()).sort((a, b) =>
+      String(a.species_name).localeCompare(String(b.species_name)),
+    );
+  },
   get_collection_folders: (args: unknown) => summarizeMockFinds(invokeHandlers.get_finds(args) as Array<Record<string, any>>),
   get_species_finds: (args: unknown) => {
     const speciesName = (args as { speciesName?: string })?.speciesName;

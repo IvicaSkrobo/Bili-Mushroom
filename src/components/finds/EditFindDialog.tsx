@@ -17,11 +17,11 @@ import { DateInput } from '@/components/ui/date-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
-import { useUpdateFind, useAddFindPhotos, useDeleteFindPhoto, useBulkDeleteFindPhotos, useFinds, useSpeciesProfiles, useUpsertSpeciesProfile } from '@/hooks/useFinds';
+import { useUpdateFind, useAddFindPhotos, useDeleteFindPhoto, useBulkDeleteFindPhotos, useFindLocations, useFindPhotos, useSpeciesOptions, useSpeciesProfile, useUpsertSpeciesProfile } from '@/hooks/useFinds';
 import { useCreateSampleForFind, useSampleForFind } from '@/hooks/useSamples';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
-import { openFindFolder, parseExif, SUPPORTED_EXTENSIONS, type Find } from '@/lib/finds';
+import { getSpeciesProfile, openFindFolder, parseExif, SUPPORTED_EXTENSIONS, type Find } from '@/lib/finds';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { reverseGeocode } from '@/lib/geocoding';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
@@ -129,56 +129,47 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   const addPhotosMutation = useAddFindPhotos();
   const deletePhotoMutation = useDeleteFindPhoto();
   const bulkDeletePhotosMutation = useBulkDeleteFindPhotos();
-  const { data: findsData } = useFinds();
-  const { data: speciesProfiles } = useSpeciesProfiles();
-  const speciesProfilesByName = useMemo(() => {
-    const map = new Map<string, NonNullable<typeof speciesProfiles>[number]>();
-    for (const profile of speciesProfiles ?? []) {
-      map.set(profile.species_name.toLowerCase(), profile);
-      map.set(plainSpeciesName(profile.species_name).toLowerCase(), profile);
+  // Species autocomplete comes from the lightweight options list; the full profile is
+  // loaded only for the species currently in the form.
+  const { data: speciesOptions } = useSpeciesOptions();
+  const { data: knownLocationNotes } = useFindLocations();
+  const speciesOptionsByLowerName = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof speciesOptions>[number]>();
+    for (const option of speciesOptions ?? []) {
+      map.set(option.species_name.toLowerCase(), option);
+      map.set(plainSpeciesName(option.species_name).toLowerCase(), option);
     }
     return map;
-  }, [speciesProfiles]);
+  }, [speciesOptions]);
   const knownCommonNames = useMemo(() => {
     const set = new Set<string>();
-    for (const profile of speciesProfiles ?? []) {
-      if (profile.common_name) set.add(profile.common_name.trim().toLowerCase());
+    for (const option of speciesOptions ?? []) {
+      if (option.common_name) set.add(option.common_name.trim().toLowerCase());
     }
     return set;
-  }, [speciesProfiles]);
+  }, [speciesOptions]);
 
-  // Always reflect the live cache â€” photo deletions/additions update immediately
-  // without waiting for the parent's `find` prop to re-capture the new snapshot.
+  // Always reflect the live photo rows so deletions and additions show immediately,
+  // without waiting for the parent to re-capture its find snapshot.
+  const findPhotosQuery = useFindPhotos(find?.id ?? 0, Boolean(find));
   const livePhotos = useMemo(() => {
     if (!find) return [];
-    const live = findsData?.find(f => f.id === find.id);
-    return live?.photos ?? find.photos;
-  }, [findsData, find]);
+    return findPhotosQuery.data ?? find.photos;
+  }, [findPhotosQuery.data, find]);
 
-  const locationNoteSuggestions = useMemo(() => {
-    if (!findsData) return [];
-    const seen = new Set<string>();
-    return findsData
-      .map((f) => f.location_note ?? '')
-      .filter((v) => {
-        const trimmed = v.trim();
-        if (!trimmed || seen.has(trimmed.toLowerCase())) return false;
-        seen.add(trimmed.toLowerCase());
-        return true;
-      });
-  }, [findsData]);
+  const locationNoteSuggestions = useMemo(() => knownLocationNotes ?? [], [knownLocationNotes]);
 
   const speciesSuggestionsProfiles = useMemo(() => {
     const map = new Map<string, { common_name?: string | null; synonyms?: string[] | null; other_names?: string[] | null }>();
-    for (const profile of speciesProfiles ?? []) {
-      map.set(profile.species_name, {
-        common_name: profile.common_name,
-        synonyms: profile.synonyms,
-        other_names: profile.other_names,
+    for (const option of speciesOptions ?? []) {
+      map.set(option.species_name, {
+        common_name: option.common_name,
+        synonyms: option.synonyms,
+        other_names: option.other_names,
       });
     }
     return map;
-  }, [speciesProfiles]);
+  }, [speciesOptions]);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<number>>(new Set());
   const [pendingPhotos, setPendingPhotos] = useState<string[]>([]);
   const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
@@ -217,10 +208,14 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     observed_count_range: '',
     species_description: '',
   });
-  const speciesProfile = useMemo(
-    () => speciesProfilesByName.get(form.species_name.trim().toLowerCase()) ?? null,
-    [speciesProfilesByName, form.species_name],
-  );
+  // The typed name may differ in case or asterisk markup from the stored profile key,
+  // which the old preloaded map absorbed. Resolve it through the options list before
+  // asking for the profile, which is looked up by exact name.
+  const canonicalSpeciesName = useMemo(() => {
+    const typed = form.species_name.trim();
+    return speciesOptionsByLowerName.get(typed.toLowerCase())?.species_name ?? typed;
+  }, [speciesOptionsByLowerName, form.species_name]);
+  const speciesProfile = useSpeciesProfile(canonicalSpeciesName || null).data ?? null;
 
   useEffect(() => {
     if (find) {
@@ -318,20 +313,25 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
       {
         onSuccess: async () => {
           if (form.species_name.trim()) {
+            // Read-modify-write against the stored row rather than a cached copy, so a
+            // save right after typing cannot wipe tags, cover or edibility.
+            const storedProfile = storagePath
+              ? await getSpeciesProfile(storagePath, canonicalSpeciesName)
+              : speciesProfile;
             await upsertSpeciesProfile.mutateAsync({
               speciesName: form.species_name.trim(),
-              commonName: form.common_name.trim() || (speciesProfile?.common_name ?? null),
-              coverPhotoId: speciesProfile?.cover_photo_id ?? null,
-              tags: speciesProfile?.tags ?? [],
-              edibility: speciesProfile?.edibility ?? null,
-              threatStatus: speciesProfile?.threat_status ?? null,
-              distribution: speciesProfile?.distribution ?? null,
-              edibilityNote: speciesProfile?.edibility_note ?? null,
-              synonyms: speciesProfile?.synonyms ?? [],
-              otherNames: speciesProfile?.other_names ?? [],
-              fruitingBodyCountOverride: speciesProfile?.fruiting_body_count_override ?? null,
+              commonName: form.common_name.trim() || (storedProfile?.common_name ?? null),
+              coverPhotoId: storedProfile?.cover_photo_id ?? null,
+              tags: storedProfile?.tags ?? [],
+              edibility: storedProfile?.edibility ?? null,
+              threatStatus: storedProfile?.threat_status ?? null,
+              distribution: storedProfile?.distribution ?? null,
+              edibilityNote: storedProfile?.edibility_note ?? null,
+              synonyms: storedProfile?.synonyms ?? [],
+              otherNames: storedProfile?.other_names ?? [],
+              fruitingBodyCountOverride: storedProfile?.fruiting_body_count_override ?? null,
               description: form.species_description.trim() || null,
-              habitat: speciesProfile?.habitat ?? null,
+              habitat: storedProfile?.habitat ?? null,
             });
           }
           // Registering after the find is saved means the sample folder links the

@@ -1496,6 +1496,82 @@ fn get_find_locations_for_connection(conn: &Connection) -> Result<Vec<String>, S
     Ok(locations)
 }
 
+/// One entry in the species autocomplete: enough to suggest, match and label a
+/// species without loading its description, habitat or any find rows.
+#[derive(serde::Serialize, Debug, PartialEq)]
+pub struct SpeciesOption {
+    pub species_name: String,
+    pub common_name: Option<String>,
+    pub synonyms: Vec<String>,
+    pub other_names: Vec<String>,
+    /// True when at least one find carries this name; false for a profile that has
+    /// no finds yet.
+    pub has_finds: bool,
+}
+
+/// Every species the user could pick, from finds and profiles alike.
+///
+/// The dialogs used to derive this from a full `get_finds` plus every species profile,
+/// which meant loading the entire library to populate one autocomplete.
+#[tauri::command]
+pub async fn get_species_options(storage_path: String) -> Result<Vec<SpeciesOption>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        get_species_options_for_connection(&conn)
+    })
+    .await
+    .map_err(|error| format!("Species options worker failed: {error}"))?
+}
+
+fn get_species_options_for_connection(conn: &Connection) -> Result<Vec<SpeciesOption>, String> {
+    // Names are de-duplicated case-insensitively, matching how the dialogs used to
+    // dedupe them client-side, and the profile join uses the same key so a profile
+    // stored with different casing still supplies its common name.
+    let mut stmt = conn
+        .prepare(
+            "SELECT names.species_name, sp.common_name, sp.synonyms, sp.other_names, names.has_finds
+             FROM (
+               SELECT MIN(species_name) AS species_name,
+                      LOWER(TRIM(species_name)) AS species_key,
+                      MAX(has_finds) AS has_finds
+               FROM (
+                 SELECT species_name, 1 AS has_finds FROM finds
+                 UNION ALL
+                 SELECT species_name, 0 AS has_finds FROM species_profiles
+               )
+               WHERE TRIM(species_name) <> ''
+                 AND LOWER(TRIM(species_name)) NOT IN ('tile-cache', '.bili-cache', '.bili-cache-tiles')
+               GROUP BY LOWER(TRIM(species_name))
+             ) names
+             LEFT JOIN species_profiles sp ON LOWER(TRIM(sp.species_name)) = names.species_key
+             ORDER BY names.species_name COLLATE NOCASE ASC",
+        )
+        .map_err(|error| format!("Failed to prepare species options query: {error}"))?;
+
+    let options = stmt
+        .query_map([], |row| {
+            let synonyms_json: Option<String> = row.get(2)?;
+            let other_names_json: Option<String> = row.get(3)?;
+            Ok(SpeciesOption {
+                species_name: row.get(0)?,
+                common_name: row.get(1)?,
+                synonyms: synonyms_json
+                    .as_deref()
+                    .and_then(|value| serde_json::from_str(value).ok())
+                    .unwrap_or_default(),
+                other_names: other_names_json
+                    .as_deref()
+                    .and_then(|value| serde_json::from_str(value).ok())
+                    .unwrap_or_default(),
+                has_finds: row.get::<_, i64>(4)? == 1,
+            })
+        })
+        .map_err(|error| format!("Species options query failed: {error}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("Species options row mapping failed: {error}"))?;
+    Ok(options)
+}
+
 #[tauri::command]
 pub async fn get_collection_folders(
     storage_path: String,
@@ -2777,6 +2853,73 @@ mod tests {
 
         let locations = get_find_locations_for_connection(&conn).expect("load locations");
         assert_eq!(locations, vec!["Gorski kotar", "Ucka"]);
+    }
+
+    #[test]
+    fn species_options_union_finds_and_profiles_without_internal_folders() {
+        let conn = setup_in_memory_db();
+        for species in [
+            "Boletus edulis",
+            "Amanita muscaria",
+            "tile-cache",
+            "boletus edulis",
+            "   ",
+        ] {
+            let mut record = make_find_record("photo.jpg", "2024-06-01");
+            record.species_name = species.to_string();
+            insert_find_row(&conn, &record).expect("insert find");
+        }
+        conn.execute(
+            "INSERT INTO species_profiles (species_name, common_name, synonyms, other_names, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                "Boletus edulis",
+                "Vrganj",
+                r#"["Boletus reticulatus"]"#,
+                r#"["pravi vrganj"]"#,
+                "2024-07-01T00:00:00Z"
+            ],
+        )
+        .expect("insert profile with names");
+        conn.execute(
+            "INSERT INTO species_profiles (species_name, common_name, updated_at) VALUES (?1, ?2, ?3)",
+            params![
+                "Cantharellus cibarius",
+                "Lisicarka",
+                "2024-07-01T00:00:00Z"
+            ],
+        )
+        .expect("insert profile without finds");
+
+        let options = get_species_options_for_connection(&conn).expect("load species options");
+        let names: Vec<&str> = options
+            .iter()
+            .map(|option| option.species_name.as_str())
+            .collect();
+        assert_eq!(
+            names,
+            vec!["Amanita muscaria", "Boletus edulis", "Cantharellus cibarius"],
+            "internal folders and blank names are excluded, casing duplicates collapse, \
+             and a profile without finds still appears"
+        );
+
+        let boletus = &options[1];
+        assert_eq!(boletus.common_name.as_deref(), Some("Vrganj"));
+        assert_eq!(boletus.synonyms, vec!["Boletus reticulatus".to_string()]);
+        assert_eq!(boletus.other_names, vec!["pravi vrganj".to_string()]);
+        assert!(boletus.has_finds);
+
+        let cantharellus = &options[2];
+        assert_eq!(cantharellus.common_name.as_deref(), Some("Lisicarka"));
+        assert!(
+            !cantharellus.has_finds,
+            "a profile with no finds must be offered but flagged as unused"
+        );
+
+        let amanita = &options[0];
+        assert_eq!(amanita.common_name, None);
+        assert!(amanita.synonyms.is_empty());
+        assert!(amanita.has_finds);
     }
 
     #[test]

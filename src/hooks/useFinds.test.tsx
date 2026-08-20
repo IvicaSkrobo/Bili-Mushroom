@@ -7,6 +7,7 @@ import {
   useFindLocations,
   useSetFindFavorite,
   useSpeciesNote,
+  useSpeciesOptions,
   useSpeciesProfile,
   useSpeciesProfileSummaries,
   useSpeciesRecipesForSpecies,
@@ -123,6 +124,38 @@ describe('useFindLocations', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(result.current.data).toEqual(['Gorski kotar', 'Ucka']);
+  });
+});
+
+describe('useSpeciesOptions', () => {
+  it('loads the species autocomplete without reading any find records', async () => {
+    useAppStore.setState({ storagePath: '/storage/test', dbReady: true });
+    const findsSpy = vi.fn(() => []);
+    invokeHandlers['get_finds'] = findsSpy;
+    invokeHandlers['get_species_options'] = () => [
+      { species_name: 'Amanita muscaria', common_name: null, synonyms: [], other_names: [], has_finds: true },
+      {
+        species_name: 'Boletus edulis',
+        common_name: 'Vrganj',
+        synonyms: ['Boletus reticulatus'],
+        other_names: ['pravi vrganj'],
+        has_finds: false,
+      },
+    ];
+    const qc = makeQueryClient();
+    const wrapper = makeWrapper(qc);
+
+    const { result } = renderHook(() => useSpeciesOptions(), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data?.map((option) => option.species_name)).toEqual([
+      'Amanita muscaria',
+      'Boletus edulis',
+    ]);
+    expect(result.current.data?.[1].common_name).toBe('Vrganj');
+    expect(result.current.data?.[1].has_finds).toBe(false);
+    // The point of the command: the autocomplete must not pull the library with it.
+    expect(findsSpy).not.toHaveBeenCalled();
   });
 });
 

@@ -1,11 +1,11 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  getFinds, getFindLocations, getCollectionFolders, getSpeciesFinds, updateFind, deleteFind, getFindPhotos, getSpeciesNotes, getSpeciesNote, upsertSpeciesNote,
+  getFinds, getFindLocations, getSpeciesOptions, getCollectionFolders, getSpeciesFinds, updateFind, deleteFind, getFindPhotos, getSpeciesNotes, getSpeciesNote, upsertSpeciesNote,
   getSpeciesProfiles, getSpeciesProfile, getSpeciesProfileSummaries, upsertSpeciesProfile, getSpeciesRecipes, getSpeciesRecipesForSpecies, upsertSpeciesRecipe, deleteSpeciesRecipe,
   bulkRenameSpecies, renameSpeciesFolder, moveFindToFolder, setFindFavorite, addFindPhotos, createFind,
   deleteFindPhoto, bulkDeleteFindPhotos,
   FINDS_QUERY_KEY, SPECIES_NOTES_QUERY_KEY, SPECIES_PROFILES_QUERY_KEY, SPECIES_RECIPES_QUERY_KEY,
-  type Find, type FindSearchFilters, type UpdateFindPayload, type CreateFindPayload,
+  type Find, type FindSearchFilters, type SpeciesOption, type UpdateFindPayload, type CreateFindPayload,
 } from '@/lib/finds';
 import { SAMPLES_QUERY_KEY } from '@/lib/samples';
 import { useAppStore } from '@/stores/appStore';
@@ -16,6 +16,20 @@ export function useFinds(filters?: FindSearchFilters, enabled = true) {
     queryKey: [FINDS_QUERY_KEY, storagePath, filters ?? null],
     queryFn: () => getFinds(storagePath!, filters),
     enabled: !!storagePath && enabled,
+  });
+}
+
+/**
+ * Species autocomplete source. Replaces the old pattern of loading every find plus
+ * every species profile just to build a suggestion list.
+ */
+export function useSpeciesOptions(enabled = true) {
+  const storagePath = useAppStore((s) => s.storagePath);
+  return useQuery<SpeciesOption[]>({
+    queryKey: [FINDS_QUERY_KEY, storagePath, 'species-options'],
+    queryFn: () => getSpeciesOptions(storagePath!),
+    enabled: !!storagePath && enabled,
+    staleTime: 60_000,
   });
 }
 

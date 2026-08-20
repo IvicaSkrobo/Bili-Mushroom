@@ -19,7 +19,7 @@ import { DateInput } from '@/components/ui/date-input';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useAddFindPhotos, useCreateFind, useFinds, useSpeciesProfiles, useUpsertSpeciesProfile } from '@/hooks/useFinds';
+import { useAddFindPhotos, useCreateFind, useFindLocations, useSpeciesOptions, useSpeciesProfile, useUpsertSpeciesProfile } from '@/hooks/useFinds';
 import { useCreateSampleForFind } from '@/hooks/useSamples';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
@@ -29,7 +29,7 @@ import { PickLocationButton } from '@/components/map/PickLocationButton';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 import { compareSpeciesNames, plainSpeciesName } from '@/lib/speciesName';
 import { cn } from '@/lib/utils';
-import { editSourcePhotoImage, isHeic, parseExif, SUPPORTED_EXTENSIONS } from '@/lib/finds';
+import { editSourcePhotoImage, getSpeciesProfile, isHeic, parseExif, SUPPORTED_EXTENSIONS } from '@/lib/finds';
 import { filledClass } from '@/lib/filledFieldStyle';
 
 interface FormState {
@@ -549,37 +549,40 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   const createMutation = useCreateFind();
   const addPhotosMutation = useAddFindPhotos();
   const upsertSpeciesProfile = useUpsertSpeciesProfile();
-  const { data: findsData } = useFinds();
-  const { data: speciesProfilesData } = useSpeciesProfiles();
+  // Species autocomplete comes from the lightweight options list. The full profile of
+  // the selected species is fetched on save, so a stale cache can never blank out
+  // fields the user did not touch.
+  const { data: speciesOptions } = useSpeciesOptions();
+  const { data: knownLocationNotes } = useFindLocations();
   const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
   const lastAutoCommonNameRef = useRef<string>('');
   const speciesNameSet = useMemo(() => {
     const set = new Set<string>();
-    for (const find of findsData ?? []) {
-      if (find.species_name) set.add(find.species_name.toLowerCase());
+    for (const option of speciesOptions ?? []) {
+      set.add(option.species_name.toLowerCase());
     }
     return set;
-  }, [findsData]);
-  const speciesProfilesByLowerName = useMemo(() => {
-    const map = new Map<string, NonNullable<typeof speciesProfilesData>[number]>();
-    for (const profile of speciesProfilesData ?? []) {
-      map.set(profile.species_name.toLowerCase(), profile);
-      map.set(plainSpeciesName(profile.species_name).toLowerCase(), profile);
+  }, [speciesOptions]);
+  const speciesOptionsByLowerName = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof speciesOptions>[number]>();
+    for (const option of speciesOptions ?? []) {
+      map.set(option.species_name.toLowerCase(), option);
+      map.set(plainSpeciesName(option.species_name).toLowerCase(), option);
     }
     return map;
-  }, [speciesProfilesData]);
+  }, [speciesOptions]);
   const knownCommonNames = useMemo(() => {
     const set = new Set<string>();
-    for (const profile of speciesProfilesData ?? []) {
-      if (profile.common_name) set.add(profile.common_name.trim().toLowerCase());
+    for (const option of speciesOptions ?? []) {
+      if (option.common_name) set.add(option.common_name.trim().toLowerCase());
     }
     return set;
-  }, [speciesProfilesData]);
+  }, [speciesOptions]);
   const speciesSuggestions = useMemo(() => {
     const seen = new Set<string>();
     const values = [
       ...speciesFolders,
-      ...(findsData ?? []).map((find) => find.species_name),
+      ...(speciesOptions ?? []).map((option) => option.species_name),
     ];
     return values.filter((value) => {
       const trimmed = value.trim();
@@ -588,32 +591,21 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
       seen.add(key);
       return true;
     }).sort(compareSpeciesNames);
-  }, [findsData, speciesFolders]);
+  }, [speciesOptions, speciesFolders]);
 
   const speciesSuggestionsProfiles = useMemo(() => {
     const map = new Map<string, { common_name?: string | null; synonyms?: string[] | null; other_names?: string[] | null }>();
-    for (const profile of speciesProfilesData ?? []) {
-      map.set(profile.species_name, {
-        common_name: profile.common_name,
-        synonyms: profile.synonyms,
-        other_names: profile.other_names,
+    for (const option of speciesOptions ?? []) {
+      map.set(option.species_name, {
+        common_name: option.common_name,
+        synonyms: option.synonyms,
+        other_names: option.other_names,
       });
     }
     return map;
-  }, [speciesProfilesData]);
+  }, [speciesOptions]);
 
-  const locationNoteSuggestions = useMemo(() => {
-    if (!findsData) return [];
-    const seen = new Set<string>();
-    return findsData
-      .map((f) => f.location_note ?? '')
-      .filter((v) => {
-        const trimmed = v.trim();
-        if (!trimmed || seen.has(trimmed.toLowerCase())) return false;
-        seen.add(trimmed.toLowerCase());
-        return true;
-      });
-  }, [findsData]);
+  const locationNoteSuggestions = useMemo(() => knownLocationNotes ?? [], [knownLocationNotes]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [form, setForm] = useState<FormState>(() => loadCreateFindDraft()?.form ?? BLANK_FORM);
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
@@ -643,19 +635,27 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
     });
   }, [form]);
 
-  const speciesProfile = useMemo(
-    () => speciesProfilesByLowerName.get(form.species_name.trim().toLowerCase()) ?? null,
-    [speciesProfilesByLowerName, form.species_name],
+  const speciesOption = useMemo(
+    () => speciesOptionsByLowerName.get(form.species_name.trim().toLowerCase()) ?? null,
+    [speciesOptionsByLowerName, form.species_name],
   );
+  // The typed name may differ in case or asterisk markup from the stored profile key,
+  // which the old preloaded map absorbed. Resolve it through the options list before
+  // asking for the profile, which is looked up by exact name.
+  const canonicalSpeciesName = useMemo(() => {
+    const typed = form.species_name.trim();
+    return speciesOptionsByLowerName.get(typed.toLowerCase())?.species_name ?? typed;
+  }, [speciesOptionsByLowerName, form.species_name]);
+  const speciesProfile = useSpeciesProfile(canonicalSpeciesName || null).data ?? null;
 
   useEffect(() => {
-    const nextCommonName = speciesProfile?.common_name ?? '';
+    const nextCommonName = speciesOption?.common_name ?? '';
     setForm((prev) => {
       if (commonNameManuallyEditedRef.current) return prev;
       lastAutoCommonNameRef.current = nextCommonName;
       return { ...prev, common_name: nextCommonName };
     });
-  }, [speciesProfile?.species_name, speciesProfile?.common_name]);
+  }, [speciesOption?.species_name, speciesOption?.common_name]);
 
   useEffect(() => {
     if (!open && !form.species_name.trim()) {
@@ -783,20 +783,25 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
       }
 
       if (form.species_name.trim() && (form.common_name.trim() || form.species_description.trim())) {
+        // Read-modify-write: pull the profile now rather than from a cached list, so
+        // saving right after typing a name cannot wipe tags, cover or edibility.
+        const storedProfile = storagePath
+          ? await getSpeciesProfile(storagePath, canonicalSpeciesName)
+          : speciesProfile;
         await upsertSpeciesProfile.mutateAsync({
           speciesName: form.species_name.trim(),
-          commonName: form.common_name.trim() || (speciesProfile?.common_name ?? null),
-          coverPhotoId: speciesProfile?.cover_photo_id ?? null,
-          tags: speciesProfile?.tags ?? [],
-          edibility: speciesProfile?.edibility ?? null,
-          threatStatus: speciesProfile?.threat_status ?? null,
-          distribution: speciesProfile?.distribution ?? null,
-          edibilityNote: speciesProfile?.edibility_note ?? null,
-          synonyms: speciesProfile?.synonyms ?? [],
-          otherNames: speciesProfile?.other_names ?? [],
-          fruitingBodyCountOverride: speciesProfile?.fruiting_body_count_override ?? null,
+          commonName: form.common_name.trim() || (storedProfile?.common_name ?? null),
+          coverPhotoId: storedProfile?.cover_photo_id ?? null,
+          tags: storedProfile?.tags ?? [],
+          edibility: storedProfile?.edibility ?? null,
+          threatStatus: storedProfile?.threat_status ?? null,
+          distribution: storedProfile?.distribution ?? null,
+          edibilityNote: storedProfile?.edibility_note ?? null,
+          synonyms: storedProfile?.synonyms ?? [],
+          otherNames: storedProfile?.other_names ?? [],
+          fruitingBodyCountOverride: storedProfile?.fruiting_body_count_override ?? null,
           description: form.species_description.trim(),
-          habitat: speciesProfile?.habitat ?? null,
+          habitat: storedProfile?.habitat ?? null,
         });
       }
 
@@ -830,8 +835,8 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   const isKnownSpecies = useMemo(() => {
     const name = form.species_name.trim().toLowerCase();
     if (!name) return false;
-    return speciesNameSet.has(name) || speciesProfilesByLowerName.has(name);
-  }, [form.species_name, speciesNameSet, speciesProfilesByLowerName]);
+    return speciesNameSet.has(name) || speciesOptionsByLowerName.has(name);
+  }, [form.species_name, speciesNameSet, speciesOptionsByLowerName]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

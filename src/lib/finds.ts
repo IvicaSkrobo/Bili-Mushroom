@@ -213,6 +213,23 @@ export async function getFindLocations(storagePath: string): Promise<string[]> {
   return invoke<string[]>('get_find_locations', { storagePath });
 }
 
+/**
+ * One species the user can pick, from finds and profiles alike. Deliberately small:
+ * enough to suggest, match and label a species, with no description, habitat or find
+ * rows. Fetch the full profile with getSpeciesProfile once a species is chosen.
+ */
+export interface SpeciesOption {
+  species_name: string;
+  common_name: string | null;
+  synonyms: string[];
+  other_names: string[];
+  has_finds: boolean;
+}
+
+export async function getSpeciesOptions(storagePath: string): Promise<SpeciesOption[]> {
+  return invoke<SpeciesOption[]>('get_species_options', { storagePath });
+}
+
 export async function getCollectionFolders(
   storagePath: string,
   filters?: FindSearchFilters,
