@@ -1,6 +1,6 @@
 [package]
 name = "gljivobook"
-version = "0.3.8"
+version = "0.3.9"
 edition = "2021"
 
 [lib]
@@ -30,6 +30,11 @@ tokio = { version = "1", features = ["rt", "macros"] }
 time = "0.3"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "tiff", "bmp"] }
 tauri-plugin-opener = "2"
+
+# Free-space check before writing a pre-migration database backup, so a full disk is
+# reported clearly instead of being filled up by the copy itself.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
 
 [dev-dependencies]
 tempfile = "3"

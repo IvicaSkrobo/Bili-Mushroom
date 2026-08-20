@@ -269,6 +269,28 @@ pub fn get_cache_max_bytes(app: tauri::AppHandle) -> Result<i64, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Migration backups must sit outside every directory the cache cleanup removes.
+    /// `.bili-cache` exists to be thrown away; a safety copy stored inside it is one
+    /// "clear map cache" away from being gone.
+    #[test]
+    fn clearing_the_tile_cache_cannot_reach_migration_backups() {
+        let storage_path = "D:/Gljivobook";
+        let backup_dir = crate::commands::import::MIGRATION_BACKUP_DIR
+            .iter()
+            .fold(PathBuf::from(storage_path), |dir, part| dir.join(part));
+
+        for cache_dir in legacy_cache_dirs(storage_path) {
+            assert!(
+                !backup_dir.starts_with(&cache_dir),
+                "migration backups at {} would be deleted with the cache at {}",
+                backup_dir.display(),
+                cache_dir.display()
+            );
+        }
+    }
+
+    use super::*;
     use std::sync::{Mutex, OnceLock};
 
     const TILE_CACHE_SQL: &str = "

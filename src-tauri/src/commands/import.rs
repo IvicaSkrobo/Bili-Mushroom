@@ -679,8 +679,18 @@ pub(crate) fn open_db(storage_path: &str) -> Result<Connection, String> {
     Ok(conn)
 }
 
-/// How many pre-migration backups to keep before the oldest is discarded.
-const MIGRATION_BACKUPS_KEPT: usize = 5;
+/// Pre-migration backups live beside the library, never inside `.bili-cache`: that
+/// folder exists to be thrown away, and a backup a cache sweep can delete is not a
+/// backup. `.bili-backups` is already where the duplicate-photo cleanup keeps its copy.
+pub(crate) const MIGRATION_BACKUP_DIR: [&str; 2] = [".bili-backups", "migrations"];
+const MIGRATION_BACKUP_PREFIX: &str = "bili-mushroom-v";
+/// Kept on top of the newest one, which is never discarded.
+const MIGRATION_BACKUPS_KEPT: usize = 3;
+/// Total budget for kept backups. A single backup may exceed it when the database
+/// itself is larger — one usable copy beats none.
+const MIGRATION_BACKUP_BUDGET_BYTES: u64 = 1024 * 1024 * 1024;
+/// Slack on top of the database size, for SQLite's own working space.
+const MIGRATION_BACKUP_HEADROOM_BYTES: u64 = 32 * 1024 * 1024;
 
 /// Copies the database aside before a migration changes it.
 ///
@@ -688,6 +698,10 @@ const MIGRATION_BACKUPS_KEPT: usize = 5;
 /// never for a brand-new database, which has nothing to lose. A failure here aborts the
 /// migration rather than proceeding unprotected: the user can free disk space and
 /// reopen, which is recoverable, whereas an interrupted migration without a copy is not.
+///
+/// This copies the database — finds, species, notes, locations — not the photos.
+/// Migrations never touch photo files, and a full library copy belongs in an export the
+/// user starts deliberately.
 fn backup_before_migration(conn: &Connection, storage_path: &str) -> Result<(), String> {
     let version: i64 = conn
         .query_row("PRAGMA user_version", [], |row| row.get(0))
@@ -696,36 +710,88 @@ fn backup_before_migration(conn: &Connection, storage_path: &str) -> Result<(), 
         return Ok(());
     }
 
-    let backup_dir = Path::new(storage_path).join(".bili-cache").join("backups");
+    let db_path = Path::new(storage_path).join("bili-mushroom.db");
+    let db_bytes = std::fs::metadata(&db_path)
+        .map(|meta| meta.len())
+        .unwrap_or(0);
+    let needed = db_bytes.saturating_add(MIGRATION_BACKUP_HEADROOM_BYTES);
+
+    let backup_dir = MIGRATION_BACKUP_DIR
+        .iter()
+        .fold(PathBuf::from(storage_path), |dir, part| dir.join(part));
     std::fs::create_dir_all(&backup_dir)
         .map_err(|e| format!("Failed to create the database backup folder: {e}"))?;
 
-    let stamp = Utc::now().format("%Y%m%d-%H%M%S");
-    let target = backup_dir.join(format!("bili-mushroom-v{version}-{stamp}.db"));
+    // Reclaim space from older copies first, but never drop the newest one before the
+    // replacement exists and has been checked.
+    if free_space_bytes(&backup_dir).is_some_and(|free| free < needed) {
+        let existing = migration_backups(&backup_dir);
+        if existing.len() > 1 {
+            for stale in &existing[..existing.len() - 1] {
+                let _ = std::fs::remove_file(stale);
+            }
+        }
+    }
+
+    if let Some(free) = free_space_bytes(&backup_dir) {
+        if free < needed {
+            return Err(format!(
+                "A safety copy of the library database ({}) is needed before upgrading it, but only {} is free. Free some disk space and open Gljivobook again — your library has not been changed.",
+                format_bytes(needed),
+                format_bytes(free)
+            ));
+        }
+    }
+
+    let target = backup_dir.join(format!(
+        "{MIGRATION_BACKUP_PREFIX}{version}-{}.db",
+        Utc::now().format("%Y%m%d-%H%M%S%.3f")
+    ));
     let target_str = target
         .to_str()
         .ok_or_else(|| "Database backup path is not valid UTF-8".to_string())?;
 
     // VACUUM INTO writes a consistent, self-contained copy through SQLite itself. A file
-    // copy would be unsafe here, especially once the database runs in WAL mode, because
+    // copy would be unsafe here, especially once the library runs in WAL mode, because
     // recent pages can still live in the -wal sidecar.
     conn.execute("VACUUM INTO ?1", params![target_str])
         .map_err(|e| {
+            let _ = std::fs::remove_file(&target);
             format!(
-                "Could not back up the database before migrating from version {version}: {e}. \
-                 The library was left untouched — free some disk space and reopen the app."
+                "Could not back up the library database before upgrading it (schema version {version}): {e}. Your library has not been changed — free some disk space and open Gljivobook again."
             )
         })?;
+
+    verify_backup(&target).map_err(|e| {
+        let _ = std::fs::remove_file(&target);
+        e
+    })?;
 
     prune_migration_backups(&backup_dir);
     Ok(())
 }
 
-/// Keeps the newest backups and drops the rest. Names embed a sortable timestamp, so
-/// lexical order is chronological. Failures are ignored: a stale backup is harmless.
-fn prune_migration_backups(backup_dir: &Path) {
+/// Opens the fresh copy and asks SQLite whether it is intact. A backup nobody checked is
+/// a guess, and this is the one moment where checking is cheap.
+fn verify_backup(target: &Path) -> Result<(), String> {
+    let backup = Connection::open(target)
+        .map_err(|e| format!("The database backup could not be reopened for checking: {e}"))?;
+    let result: String = backup
+        .query_row("PRAGMA quick_check", [], |row| row.get(0))
+        .map_err(|e| format!("The database backup could not be checked: {e}"))?;
+    if result != "ok" {
+        return Err(format!(
+            "The database backup came out damaged ({result}), so the upgrade was stopped. Your library has not been changed."
+        ));
+    }
+    Ok(())
+}
+
+/// Migration backups, oldest first. Names embed a sortable timestamp, so lexical order
+/// is chronological.
+fn migration_backups(backup_dir: &Path) -> Vec<PathBuf> {
     let Ok(entries) = std::fs::read_dir(backup_dir) else {
-        return;
+        return Vec::new();
     };
     let mut backups: Vec<PathBuf> = entries
         .filter_map(|entry| entry.ok())
@@ -733,16 +799,83 @@ fn prune_migration_backups(backup_dir: &Path) {
         .filter(|path| {
             path.file_name()
                 .and_then(|name| name.to_str())
-                .is_some_and(|name| name.starts_with("bili-mushroom-v") && name.ends_with(".db"))
+                .is_some_and(|name| {
+                    name.starts_with(MIGRATION_BACKUP_PREFIX) && name.ends_with(".db")
+                })
         })
         .collect();
-    if backups.len() <= MIGRATION_BACKUPS_KEPT {
+    backups.sort();
+    backups
+}
+
+/// Trims to the newest few and to a total size budget. The newest copy always survives,
+/// however large it is, and only files matching the migration prefix are considered.
+fn prune_migration_backups(backup_dir: &Path) {
+    let backups = migration_backups(backup_dir);
+    if backups.len() <= 1 {
         return;
     }
-    backups.sort();
-    for stale in &backups[..backups.len() - MIGRATION_BACKUPS_KEPT] {
-        let _ = std::fs::remove_file(stale);
+
+    let mut kept_bytes = 0u64;
+    let mut kept = 0usize;
+    // Walk newest first so the copies that survive are the recent ones.
+    for path in backups.iter().rev() {
+        let size = std::fs::metadata(path).map(|meta| meta.len()).unwrap_or(0);
+        let is_newest = kept == 0;
+        let within_count = kept < MIGRATION_BACKUPS_KEPT;
+        let within_budget = kept_bytes.saturating_add(size) <= MIGRATION_BACKUP_BUDGET_BYTES;
+        if is_newest || (within_count && within_budget) {
+            kept += 1;
+            kept_bytes = kept_bytes.saturating_add(size);
+        } else {
+            let _ = std::fs::remove_file(path);
+        }
     }
+}
+
+fn format_bytes(bytes: u64) -> String {
+    const MB: f64 = (1024 * 1024) as f64;
+    const GB: f64 = (1024 * 1024 * 1024) as f64;
+    let bytes = bytes as f64;
+    if bytes >= GB {
+        format!("{:.1} GB", bytes / GB)
+    } else {
+        format!("{:.0} MB", (bytes / MB).max(1.0))
+    }
+}
+
+#[cfg(windows)]
+fn free_space_bytes(path: &Path) -> Option<u64> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
+
+    let wide: Vec<u16> = path
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let mut available: u64 = 0;
+    // SAFETY: `wide` is a NUL-terminated UTF-16 path that outlives the call, `available`
+    // is a live u64, and the two unused out-params are documented as optional.
+    let ok = unsafe {
+        GetDiskFreeSpaceExW(
+            wide.as_ptr(),
+            &mut available,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+        )
+    };
+    if ok == 0 {
+        None
+    } else {
+        Some(available)
+    }
+}
+
+#[cfg(not(windows))]
+fn free_space_bytes(_path: &Path) -> Option<u64> {
+    // No portable std API for this. VACUUM INTO below still fails safely on a full disk.
+    None
 }
 
 #[tauri::command]
@@ -3233,7 +3366,9 @@ mod tests {
             "opening the library must bring it to the current schema"
         );
 
-        let backups: Vec<PathBuf> = std::fs::read_dir(dir.path().join(".bili-cache").join("backups"))
+        let backups: Vec<PathBuf> = std::fs::read_dir(
+            dir.path().join(".bili-backups").join("migrations"),
+        )
             .expect("backup folder exists")
             .filter_map(|entry| entry.ok())
             .map(|entry| entry.path())
@@ -3262,7 +3397,7 @@ mod tests {
         open_db(storage_path).expect("create a fresh database");
 
         assert!(
-            !dir.path().join(".bili-cache").join("backups").exists(),
+            !dir.path().join(".bili-backups").join("migrations").exists(),
             "a database with nothing in it yet has nothing to back up"
         );
     }
