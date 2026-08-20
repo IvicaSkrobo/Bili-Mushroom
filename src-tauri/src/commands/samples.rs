@@ -374,24 +374,28 @@ pub(crate) fn remove_sample_for_find(
 
 #[tauri::command]
 pub async fn get_samples(storage_path: String) -> Result<Vec<SampleRecord>, String> {
-    let conn = open_db(&storage_path)?;
-    let sql = format!(
-        "{} ORDER BY s.sample_year DESC, s.species_name COLLATE NOCASE ASC, s.sample_no DESC",
-        SAMPLE_SELECT
-    );
-    let mut stmt = conn
-        .prepare(&sql)
-        .map_err(|e| format!("Failed to prepare samples query: {}", e))?;
-    let mut records: Vec<SampleRecord> = stmt
-        .query_map([], |row| row_to_sample(row))
-        .map_err(|e| format!("Samples query failed: {}", e))?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| format!("Samples row mapping failed: {}", e))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        let sql = format!(
+            "{} ORDER BY s.sample_year DESC, s.species_name COLLATE NOCASE ASC, s.sample_no DESC",
+            SAMPLE_SELECT
+        );
+        let mut stmt = conn
+            .prepare(&sql)
+            .map_err(|e| format!("Failed to prepare samples query: {}", e))?;
+        let mut records: Vec<SampleRecord> = stmt
+            .query_map([], |row| row_to_sample(row))
+            .map_err(|e| format!("Samples query failed: {}", e))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("Samples row mapping failed: {}", e))?;
 
-    for record in &mut records {
-        record.photo_paths = photo_paths_for_find(&conn, record.find_id)?;
-    }
-    Ok(records)
+        for record in &mut records {
+            record.photo_paths = photo_paths_for_find(&conn, record.find_id)?;
+        }
+        Ok(records)
+    })
+    .await
+    .map_err(|e| format!("Samples worker failed: {e}"))?
 }
 
 /// Registers a find as a specimen. Idempotent: a find that is already registered keeps
@@ -401,34 +405,38 @@ pub async fn create_sample_for_find(
     storage_path: String,
     find_id: i64,
 ) -> Result<SampleRecord, String> {
-    let conn = open_db(&storage_path)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
 
-    let existing: Option<i64> = conn
-        .query_row(
-            "SELECT id FROM samples WHERE find_id = ?1",
-            params![find_id],
-            |row| row.get(0),
+        let existing: Option<i64> = conn
+            .query_row(
+                "SELECT id FROM samples WHERE find_id = ?1",
+                params![find_id],
+                |row| row.get(0),
+            )
+            .ok();
+        if let Some(sample_id) = existing {
+            return sync_sample_folder_inner(&conn, &storage_path, sample_id);
+        }
+
+        let facts = load_find_facts(&conn, find_id)?;
+        let year = year_from_date(&facts.date_found);
+        let sample_no = next_sample_no(&conn, &facts.species_name, year)?;
+        let folder_rel = sample_folder_rel(&facts.species_name, year, sample_no);
+        let now = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+
+        conn.execute(
+            "INSERT INTO samples (find_id, species_name, sample_year, sample_no, folder_path, spore_print, dna_sample, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, ?6, ?6)",
+            params![find_id, facts.species_name, year, sample_no, folder_rel, now],
         )
-        .ok();
-    if let Some(sample_id) = existing {
-        return sync_sample_folder_inner(&conn, &storage_path, sample_id);
-    }
+        .map_err(|e| format!("Failed to create sample: {}", e))?;
 
-    let facts = load_find_facts(&conn, find_id)?;
-    let year = year_from_date(&facts.date_found);
-    let sample_no = next_sample_no(&conn, &facts.species_name, year)?;
-    let folder_rel = sample_folder_rel(&facts.species_name, year, sample_no);
-    let now = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-
-    conn.execute(
-        "INSERT INTO samples (find_id, species_name, sample_year, sample_no, folder_path, spore_print, dna_sample, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, ?6, ?6)",
-        params![find_id, facts.species_name, year, sample_no, folder_rel, now],
-    )
-    .map_err(|e| format!("Failed to create sample: {}", e))?;
-
-    let sample_id = conn.last_insert_rowid();
-    sync_sample_folder_inner(&conn, &storage_path, sample_id)
+        let sample_id = conn.last_insert_rowid();
+        sync_sample_folder_inner(&conn, &storage_path, sample_id)
+    })
+    .await
+    .map_err(|e| format!("Sample registration worker failed: {e}"))?
 }
 
 fn sync_sample_folder_inner(
@@ -449,8 +457,12 @@ pub async fn sync_sample_folder(
     storage_path: String,
     sample_id: i64,
 ) -> Result<SampleRecord, String> {
-    let conn = open_db(&storage_path)?;
-    sync_sample_folder_inner(&conn, &storage_path, sample_id)
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        sync_sample_folder_inner(&conn, &storage_path, sample_id)
+    })
+    .await
+    .map_err(|e| format!("Sample folder sync worker failed: {e}"))?
 }
 
 #[derive(serde::Deserialize)]
@@ -473,30 +485,34 @@ pub async fn update_sample(
     storage_path: String,
     payload: SampleUpdatePayload,
 ) -> Result<SampleRecord, String> {
-    let conn = open_db(&storage_path)?;
-    let now = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-    conn.execute(
-        "UPDATE samples SET preservation=?1, storage_location=?2, condition=?3, spore_print=?4,
-           dna_sample=?5, dried_at=?6, dry_weight=?7, loaned_to=?8, loaned_at=?9, notes=?10, updated_at=?11
-         WHERE id=?12",
-        params![
-            payload.preservation,
-            payload.storage_location,
-            payload.condition,
-            if payload.spore_print { 1i64 } else { 0i64 },
-            if payload.dna_sample { 1i64 } else { 0i64 },
-            payload.dried_at,
-            payload.dry_weight,
-            payload.loaned_to,
-            payload.loaned_at,
-            payload.notes,
-            now,
-            payload.id,
-        ],
-    )
-    .map_err(|e| format!("Failed to update sample: {}", e))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        let now = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+        conn.execute(
+            "UPDATE samples SET preservation=?1, storage_location=?2, condition=?3, spore_print=?4,
+               dna_sample=?5, dried_at=?6, dry_weight=?7, loaned_to=?8, loaned_at=?9, notes=?10, updated_at=?11
+             WHERE id=?12",
+            params![
+                payload.preservation,
+                payload.storage_location,
+                payload.condition,
+                if payload.spore_print { 1i64 } else { 0i64 },
+                if payload.dna_sample { 1i64 } else { 0i64 },
+                payload.dried_at,
+                payload.dry_weight,
+                payload.loaned_to,
+                payload.loaned_at,
+                payload.notes,
+                now,
+                payload.id,
+            ],
+        )
+        .map_err(|e| format!("Failed to update sample: {}", e))?;
 
-    sync_sample_folder_inner(&conn, &storage_path, payload.id)
+        sync_sample_folder_inner(&conn, &storage_path, payload.id)
+    })
+    .await
+    .map_err(|e| format!("Sample update worker failed: {e}"))?
 }
 
 /// Removes the register entry. The number stays retired; the folder is only touched when
@@ -507,26 +523,30 @@ pub async fn delete_sample(
     sample_id: i64,
     delete_folder: bool,
 ) -> Result<(), String> {
-    let conn = open_db(&storage_path)?;
-    let folder: Option<String> = conn
-        .query_row(
-            "SELECT folder_path FROM samples WHERE id = ?1",
-            params![sample_id],
-            |row| row.get(0),
-        )
-        .map_err(|e| format!("Failed to read sample {}: {}", sample_id, e))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        let folder: Option<String> = conn
+            .query_row(
+                "SELECT folder_path FROM samples WHERE id = ?1",
+                params![sample_id],
+                |row| row.get(0),
+            )
+            .map_err(|e| format!("Failed to read sample {}: {}", sample_id, e))?;
 
-    conn.execute("DELETE FROM samples WHERE id = ?1", params![sample_id])
-        .map_err(|e| format!("Failed to delete sample: {}", e))?;
+        conn.execute("DELETE FROM samples WHERE id = ?1", params![sample_id])
+            .map_err(|e| format!("Failed to delete sample: {}", e))?;
 
-    if delete_folder {
-        if let Some(folder_rel) = folder {
-            let folder_abs = Path::new(&storage_path)
-                .join(folder_rel.replace('/', std::path::MAIN_SEPARATOR_STR));
-            let _ = std::fs::remove_dir_all(folder_abs);
+        if delete_folder {
+            if let Some(folder_rel) = folder {
+                let folder_abs = Path::new(&storage_path)
+                    .join(folder_rel.replace('/', std::path::MAIN_SEPARATOR_STR));
+                let _ = std::fs::remove_dir_all(folder_abs);
+            }
         }
-    }
-    Ok(())
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Sample delete worker failed: {e}"))?
 }
 
 #[tauri::command]
@@ -534,39 +554,47 @@ pub async fn get_sample_for_find(
     storage_path: String,
     find_id: i64,
 ) -> Result<Option<SampleRecord>, String> {
-    let conn = open_db(&storage_path)?;
-    let sample_id: Option<i64> = conn
-        .query_row(
-            "SELECT id FROM samples WHERE find_id = ?1",
-            params![find_id],
-            |row| row.get(0),
-        )
-        .ok();
-    match sample_id {
-        Some(id) => Ok(Some(load_sample(&conn, id)?)),
-        None => Ok(None),
-    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        let sample_id: Option<i64> = conn
+            .query_row(
+                "SELECT id FROM samples WHERE find_id = ?1",
+                params![find_id],
+                |row| row.get(0),
+            )
+            .ok();
+        match sample_id {
+            Some(id) => Ok(Some(load_sample(&conn, id)?)),
+            None => Ok(None),
+        }
+    })
+    .await
+    .map_err(|e| format!("Sample lookup worker failed: {e}"))?
 }
 
 #[tauri::command]
 pub async fn open_sample_folder(storage_path: String, sample_id: i64) -> Result<(), String> {
-    let conn = open_db(&storage_path)?;
-    let folder: Option<String> = conn
-        .query_row(
-            "SELECT folder_path FROM samples WHERE id = ?1",
-            params![sample_id],
-            |row| row.get(0),
-        )
-        .map_err(|e| format!("Failed to read sample {}: {}", sample_id, e))?;
-    let folder_rel = folder.ok_or_else(|| "Sample has no folder yet".to_string())?;
-    let folder_abs =
-        Path::new(&storage_path).join(folder_rel.replace('/', std::path::MAIN_SEPARATOR_STR));
-    if !folder_abs.exists() {
-        return Err(format!("Sample folder not found: {}", folder_abs.display()));
-    }
-    std::process::Command::new("explorer")
-        .arg(folder_abs)
-        .spawn()
-        .map_err(|e| format!("Failed to open sample folder: {}", e))?;
-    Ok(())
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        let folder: Option<String> = conn
+            .query_row(
+                "SELECT folder_path FROM samples WHERE id = ?1",
+                params![sample_id],
+                |row| row.get(0),
+            )
+            .map_err(|e| format!("Failed to read sample {}: {}", sample_id, e))?;
+        let folder_rel = folder.ok_or_else(|| "Sample has no folder yet".to_string())?;
+        let folder_abs =
+            Path::new(&storage_path).join(folder_rel.replace('/', std::path::MAIN_SEPARATOR_STR));
+        if !folder_abs.exists() {
+            return Err(format!("Sample folder not found: {}", folder_abs.display()));
+        }
+        std::process::Command::new("explorer")
+            .arg(folder_abs)
+            .spawn()
+            .map_err(|e| format!("Failed to open sample folder: {}", e))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Sample folder worker failed: {e}"))?
 }

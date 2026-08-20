@@ -163,7 +163,13 @@ fn find_existing_zone_id(
 
 #[tauri::command]
 pub async fn get_zones(storage_path: String) -> Result<Vec<ZoneRecord>, String> {
-    let conn = open_db(&storage_path)?;
+    tauri::async_runtime::spawn_blocking(move || get_zones_blocking(&storage_path))
+        .await
+        .map_err(|e| format!("Zones worker failed: {e}"))?
+}
+
+fn get_zones_blocking(storage_path: &str) -> Result<Vec<ZoneRecord>, String> {
+    let conn = open_db(storage_path)?;
     let mut stmt = conn
         .prepare(
             "SELECT id, species_name, zone_type, name, geometry_type, center_lat, center_lng, radius_meters, polygon_json, source_find_id, notes, created_at, updated_at
@@ -183,8 +189,17 @@ pub async fn upsert_zone(
     storage_path: String,
     payload: UpsertZonePayload,
 ) -> Result<ZoneRecord, String> {
+    tauri::async_runtime::spawn_blocking(move || upsert_zone_blocking(&storage_path, payload))
+        .await
+        .map_err(|e| format!("Zone save worker failed: {e}"))?
+}
+
+fn upsert_zone_blocking(
+    storage_path: &str,
+    payload: UpsertZonePayload,
+) -> Result<ZoneRecord, String> {
     validate_zone(&payload)?;
-    let conn = open_db(&storage_path)?;
+    let conn = open_db(storage_path)?;
     let now = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
     let species_name = payload.species_name.trim().to_string();
     let name = payload.name.trim().to_string();
@@ -222,7 +237,7 @@ pub async fn upsert_zone(
         }
         None => {
             if let Some(existing_id) = find_existing_zone_id(&conn, &payload)? {
-                return get_zone_by_id(&storage_path, existing_id);
+                return get_zone_by_id(storage_path, existing_id);
             }
             conn.execute(
                 "INSERT INTO zones
@@ -248,13 +263,17 @@ pub async fn upsert_zone(
         }
     };
 
-    get_zone_by_id(&storage_path, zone_id)
+    get_zone_by_id(storage_path, zone_id)
 }
 
 #[tauri::command]
 pub async fn delete_zone(storage_path: String, zone_id: i64) -> Result<(), String> {
-    let conn = open_db(&storage_path)?;
-    conn.execute("DELETE FROM zones WHERE id = ?1", params![zone_id])
-        .map_err(|e| format!("Zone delete failed: {}", e))?;
-    Ok(())
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        conn.execute("DELETE FROM zones WHERE id = ?1", params![zone_id])
+            .map_err(|e| format!("Zone delete failed: {}", e))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Zone delete worker failed: {e}"))?
 }
