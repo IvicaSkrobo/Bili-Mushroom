@@ -245,6 +245,133 @@ fn build_data_sheet(record: &SampleRecord) -> String {
     serde_json::to_string_pretty(record).unwrap_or_else(|_| "{}".to_string())
 }
 
+
+/// Raises the counter so a number already in use is never handed out again.
+fn ensure_counter_at_least(
+    conn: &Connection,
+    key: &str,
+    year: i64,
+    no: i64,
+) -> Result<(), String> {
+    conn.execute(
+        "INSERT INTO sample_counters (species_key, sample_year, last_no)
+         VALUES (?1, ?2, ?3)
+         ON CONFLICT(species_key, sample_year) DO UPDATE SET
+           last_no = MAX(sample_counters.last_no, excluded.last_no)",
+        params![key, year, no],
+    )
+    .map_err(|e| format!("Failed to advance sample counter: {}", e))?;
+    Ok(())
+}
+
+/// Follows a species rename. Each affected sample keeps its number when that number is
+/// still free under the new name, and is renumbered when it would collide -- possible
+/// because numbering is per species, so merging two species can bring two 1/2026 together.
+/// The folder is moved to match; if the move fails the record still points at the new
+/// path and the next sync recreates it.
+pub(crate) fn relocate_samples_for_finds(
+    conn: &Connection,
+    storage_path: &str,
+    find_ids: &[i64],
+    new_species_name: &str,
+) -> Result<(), String> {
+    let new_key = species_key(new_species_name);
+
+    for find_id in find_ids {
+        let existing: Option<(i64, i64, i64, Option<String>)> = conn
+            .query_row(
+                "SELECT id, sample_year, sample_no, folder_path FROM samples WHERE find_id = ?1",
+                params![find_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .ok();
+        let Some((sample_id, year, current_no, old_folder)) = existing else {
+            continue;
+        };
+
+        let collides: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM samples
+                 WHERE LOWER(TRIM(REPLACE(species_name, '*', ''))) = ?1
+                   AND sample_year = ?2 AND sample_no = ?3 AND id <> ?4",
+                params![new_key, year, current_no, sample_id],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
+
+        let final_no = if collides > 0 {
+            next_sample_no(conn, new_species_name, year)?
+        } else {
+            ensure_counter_at_least(conn, &new_key, year, current_no)?;
+            current_no
+        };
+
+        let new_folder = sample_folder_rel(new_species_name, year, final_no);
+        if let Some(old_rel) = old_folder.as_deref() {
+            if old_rel != new_folder {
+                let old_abs = Path::new(storage_path)
+                    .join(old_rel.replace('/', std::path::MAIN_SEPARATOR_STR));
+                let new_abs = Path::new(storage_path)
+                    .join(new_folder.replace('/', std::path::MAIN_SEPARATOR_STR));
+                if old_abs.exists() {
+                    if let Some(parent) = new_abs.parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
+                    let _ = std::fs::rename(&old_abs, &new_abs);
+                }
+            }
+        }
+
+        conn.execute(
+            "UPDATE samples SET species_name = ?1, sample_no = ?2, folder_path = ?3, updated_at = ?4 WHERE id = ?5",
+            params![
+                new_species_name,
+                final_no,
+                new_folder,
+                Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                sample_id
+            ],
+        )
+        .map_err(|e| format!("Failed to move sample to renamed species: {}", e))?;
+
+        // Refresh the data sheet so it carries the new name and number.
+        let _ = sync_sample_folder_inner(conn, storage_path, sample_id);
+    }
+    Ok(())
+}
+
+/// Drops the register entry belonging to a deleted find. The folder is only removed when
+/// the find's files were trashed too -- a record-only delete leaves the material intact.
+pub(crate) fn remove_sample_for_find(
+    conn: &Connection,
+    storage_path: &str,
+    find_id: i64,
+    delete_folder: bool,
+) -> Result<(), String> {
+    let existing: Option<(i64, Option<String>)> = conn
+        .query_row(
+            "SELECT id, folder_path FROM samples WHERE find_id = ?1",
+            params![find_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .ok();
+    let Some((sample_id, folder)) = existing else {
+        return Ok(());
+    };
+
+    conn.execute("DELETE FROM samples WHERE id = ?1", params![sample_id])
+        .map_err(|e| format!("Failed to remove sample for deleted find: {}", e))?;
+
+    if delete_folder {
+        if let Some(folder_rel) = folder {
+            let folder_abs =
+                Path::new(storage_path).join(folder_rel.replace('/', std::path::MAIN_SEPARATOR_STR));
+            let _ = std::fs::remove_dir_all(folder_abs);
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn get_samples(storage_path: String) -> Result<Vec<SampleRecord>, String> {
     let conn = open_db(&storage_path)?;

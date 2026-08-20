@@ -226,6 +226,9 @@ export default function SamplesTab() {
                 </button>
                 {confirmingDelete ? (
                   <span className="inline-flex items-center gap-1.5">
+                    <span className="max-w-[22rem] text-right text-[11px] leading-snug text-muted-foreground">
+                      {t('samples.removeExplain')}
+                    </span>
                     <button
                       type="button"
                       onClick={() => {

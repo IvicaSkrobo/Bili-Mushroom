@@ -43,6 +43,7 @@ import { reverseGeocode } from '@/lib/geocoding';
 import { useAppStore } from '@/stores/appStore';
 import { useFinds, useSpeciesNotes, useSpeciesProfiles } from '@/hooks/useFinds';
 import { useT } from '@/i18n/index';
+import { createSampleForFind, SAMPLES_QUERY_KEY } from '@/lib/samples';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 import { plainSpeciesName } from '@/lib/speciesName';
 import { cn } from '@/lib/utils';
@@ -129,6 +130,7 @@ interface ImportDraft {
   sharedWeather: string;
   sharedDeterminer: string;
   sharedFinder: string;
+  sharedIsSample: boolean;
   sharedLocation: { lat: number; lng: number } | null;
   sharedSpeciesDescription: string;
   sharedEdibility: string;
@@ -168,6 +170,7 @@ function loadImportDraft(): ImportDraft | null {
       sharedWeather: typeof parsed.sharedWeather === 'string' ? parsed.sharedWeather : '',
       sharedDeterminer: typeof parsed.sharedDeterminer === 'string' ? parsed.sharedDeterminer : '',
       sharedFinder: typeof parsed.sharedFinder === 'string' ? parsed.sharedFinder : '',
+      sharedIsSample: parsed.sharedIsSample === true,
       sharedLocation: parsed.sharedLocation && typeof parsed.sharedLocation.lat === 'number' && typeof parsed.sharedLocation.lng === 'number'
         ? { lat: parsed.sharedLocation.lat, lng: parsed.sharedLocation.lng }
         : null,
@@ -276,6 +279,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   const [sharedWeather, setSharedWeather] = useState('');
   const [sharedDeterminer, setSharedDeterminer] = useState('');
   const [sharedFinder, setSharedFinder] = useState('');
+  const [sharedIsSample, setSharedIsSample] = useState(false);
   const [sharedMapOpen, setSharedMapOpen] = useState(false);
   const [sharedLocation, setSharedLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [sharedSpeciesDescription, setSharedSpeciesDescription] = useState<string>('');
@@ -339,6 +343,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     setSharedWeather(draft.sharedWeather);
     setSharedDeterminer(draft.sharedDeterminer);
     setSharedFinder(draft.sharedFinder);
+    setSharedIsSample(draft.sharedIsSample);
     setSharedLocation(draft.sharedLocation);
     setSharedSpeciesDescription(draft.sharedSpeciesDescription);
     setSharedEdibility(draft.sharedEdibility);
@@ -393,6 +398,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         sharedWeather,
         sharedDeterminer,
         sharedFinder,
+        sharedIsSample,
         sharedLocation,
         sharedSpeciesDescription,
         sharedEdibility,
@@ -418,6 +424,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     sharedWeather,
     sharedDeterminer,
     sharedFinder,
+    sharedIsSample,
     sharedLocation,
     sharedSpeciesDescription,
     sharedEdibility,
@@ -594,6 +601,17 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         qc.invalidateQueries({ queryKey: [SPECIES_PROFILES_QUERY_KEY, storagePath] });
       }
 
+      if (sharedIsSample) {
+        for (const record of summary.imported) {
+          try {
+            await createSampleForFind(storagePath, record.id);
+          } catch (error) {
+            console.error('Failed to register imported find as sample', error);
+          }
+        }
+        qc.invalidateQueries({ queryKey: [SAMPLES_QUERY_KEY, storagePath] });
+      }
+
       onImportComplete?.(summary.imported.length, summary.skipped.length);
       qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
 
@@ -624,6 +642,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     setSharedWeather('');
     setSharedDeterminer('');
     setSharedFinder('');
+    setSharedIsSample(false);
     setSharedLocation(null);
     setImportSummary(null);
     setReviewOpen(false);

@@ -548,6 +548,7 @@ pub async fn move_find_files(
 
     conn.execute_batch("PRAGMA foreign_keys = ON;")
         .map_err(|e| e.to_string())?;
+    crate::commands::samples::remove_sample_for_find(&conn, &storage_path, find_id, false)?;
     conn.execute("DELETE FROM finds WHERE id = ?1", params![find_id])
         .map_err(|e| format!("DB delete failed: {}", e))?;
 
@@ -749,6 +750,11 @@ pub async fn delete_find(
         }
     }
 
+    // The register entry goes with the find, but the sample folder never does: the app
+    // only ever removes the record. Note the photos hard-linked into that folder survive
+    // even a delete_files run, because the link keeps the inode alive.
+    crate::commands::samples::remove_sample_for_find(&conn, &storage_path, find_id, false)?;
+
     conn.execute("DELETE FROM finds WHERE id = ?1", params![find_id])
         .map_err(|e| format!("DB delete failed: {}", e))?;
 
@@ -939,6 +945,14 @@ pub async fn bulk_rename_species(
     }
 
     tx.commit().map_err(|e| e.to_string())?;
+
+    // After the commit so the helper sees the updated photo paths and species names.
+    crate::commands::samples::relocate_samples_for_finds(
+        &conn,
+        &storage_path,
+        &find_ids,
+        &new_species_name,
+    )?;
 
     for old_species_name in &old_species_names {
         let old_folder = Path::new(&storage_path).join(resolve_location_component(
