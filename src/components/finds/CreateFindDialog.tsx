@@ -19,7 +19,7 @@ import { DateInput } from '@/components/ui/date-input';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useAddFindPhotos, useCreateFind, useFindLocations, useSpeciesOptions, useSpeciesProfile, useUpsertSpeciesProfile } from '@/hooks/useFinds';
+import { useAddFindPhotos, useCreateFind, useFindLocations, usePatchSpeciesProfile, useSpeciesOptions, useSpeciesProfile } from '@/hooks/useFinds';
 import { useCreateSampleForFind } from '@/hooks/useSamples';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
@@ -29,7 +29,7 @@ import { PickLocationButton } from '@/components/map/PickLocationButton';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 import { compareSpeciesNames, plainSpeciesName } from '@/lib/speciesName';
 import { cn } from '@/lib/utils';
-import { editSourcePhotoImage, getSpeciesProfile, isHeic, parseExif, SUPPORTED_EXTENSIONS } from '@/lib/finds';
+import { editSourcePhotoImage, isHeic, parseExif, SUPPORTED_EXTENSIONS } from '@/lib/finds';
 import { filledClass } from '@/lib/filledFieldStyle';
 
 interface FormState {
@@ -548,7 +548,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   const storagePath = useAppStore((s) => s.storagePath);
   const createMutation = useCreateFind();
   const addPhotosMutation = useAddFindPhotos();
-  const upsertSpeciesProfile = useUpsertSpeciesProfile();
+  const patchSpeciesProfile = usePatchSpeciesProfile();
   // Species autocomplete comes from the lightweight options list. The full profile of
   // the selected species is fetched on save, so a stale cache can never blank out
   // fields the user did not touch.
@@ -787,31 +787,19 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
       }
 
       if (form.species_name.trim() && (form.common_name.trim() || form.species_description.trim())) {
-        // Read-modify-write: pull the profile now rather than from a cached list, so
-        // saving right after typing a name cannot wipe tags, cover or edibility.
-        const storedProfile = storagePath
-          ? await getSpeciesProfile(storagePath, canonicalSpeciesName)
-          : speciesProfile;
-        // upsert_species_profile overwrites every column it is handed. If a profile row
-        // exists but the read above came back empty, writing now would blank fields the
-        // user never touched - leave the stored profile alone instead.
-        if (storedProfile || !speciesOption?.has_profile) {
-          await upsertSpeciesProfile.mutateAsync({
-            speciesName: form.species_name.trim(),
-            commonName: form.common_name.trim() || (storedProfile?.common_name ?? null),
-            coverPhotoId: storedProfile?.cover_photo_id ?? null,
-            tags: storedProfile?.tags ?? [],
-            edibility: storedProfile?.edibility ?? null,
-            threatStatus: storedProfile?.threat_status ?? null,
-            distribution: storedProfile?.distribution ?? null,
-            edibilityNote: storedProfile?.edibility_note ?? null,
-            synonyms: storedProfile?.synonyms ?? [],
-            otherNames: storedProfile?.other_names ?? [],
-            fruitingBodyCountOverride: storedProfile?.fruiting_body_count_override ?? null,
-            description: form.species_description.trim(),
-            habitat: storedProfile?.habitat ?? null,
-          });
-        }
+        // A find dialog owns only the common name and description. Patching leaves
+        // tags, cover, edibility, threat status, distribution and habitat exactly as
+        // the species editor left them — no read-modify-write, no second IPC call, and
+        // nothing to blank out if a lookup ever misses.
+        await patchSpeciesProfile.mutateAsync({
+          speciesName: canonicalSpeciesName,
+          patch: {
+            ...(form.common_name.trim() ? { commonName: form.common_name.trim() } : {}),
+            ...(form.species_description.trim()
+              ? { description: form.species_description.trim() }
+              : {}),
+          },
+        });
       }
 
       setForm(BLANK_FORM);

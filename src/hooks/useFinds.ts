@@ -1,11 +1,11 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getFinds, getFindLocations, getSpeciesOptions, getCollectionFolders, getSpeciesFinds, updateFind, deleteFind, getFindPhotos, getSpeciesNotes, getSpeciesNote, upsertSpeciesNote,
-  getSpeciesProfiles, getSpeciesProfile, getSpeciesProfileSummaries, upsertSpeciesProfile, getSpeciesRecipes, getSpeciesRecipesForSpecies, upsertSpeciesRecipe, deleteSpeciesRecipe,
+  getSpeciesProfiles, getSpeciesProfile, getSpeciesProfileSummaries, upsertSpeciesProfile, patchSpeciesProfile, getSpeciesRecipes, getSpeciesRecipesForSpecies, upsertSpeciesRecipe, deleteSpeciesRecipe,
   bulkRenameSpecies, renameSpeciesFolder, moveFindToFolder, setFindFavorite, addFindPhotos, createFind,
   deleteFindPhoto, bulkDeleteFindPhotos,
   FINDS_QUERY_KEY, SPECIES_NOTES_QUERY_KEY, SPECIES_PROFILES_QUERY_KEY, SPECIES_RECIPES_QUERY_KEY,
-  type Find, type FindSearchFilters, type SpeciesOption, type UpdateFindPayload, type CreateFindPayload,
+  type Find, type FindSearchFilters, type SpeciesOption, type SpeciesProfilePatch, type UpdateFindPayload, type CreateFindPayload,
 } from '@/lib/finds';
 import { SAMPLES_QUERY_KEY } from '@/lib/samples';
 import { useAppStore } from '@/stores/appStore';
@@ -326,6 +326,23 @@ export function useUpsertSpeciesProfile() {
     }) => upsertSpeciesProfile(storagePath!, speciesName, commonName, coverPhotoId, tags, edibility, threatStatus, distribution, edibilityNote, synonyms, otherNames, fruitingBodyCountOverride, description, habitat),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [SPECIES_PROFILES_QUERY_KEY, storagePath] });
+    },
+  });
+}
+
+/**
+ * Edits part of a species profile and leaves the rest alone. Prefer this over
+ * useUpsertSpeciesProfile anywhere the screen does not own the whole profile.
+ */
+export function usePatchSpeciesProfile() {
+  const storagePath = useAppStore((s) => s.storagePath);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ speciesName, patch }: { speciesName: string; patch: SpeciesProfilePatch }) =>
+      patchSpeciesProfile(storagePath!, speciesName, patch),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [SPECIES_PROFILES_QUERY_KEY, storagePath] });
+      qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
     },
   });
 }

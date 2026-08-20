@@ -17,11 +17,11 @@ import { DateInput } from '@/components/ui/date-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
-import { useUpdateFind, useAddFindPhotos, useDeleteFindPhoto, useBulkDeleteFindPhotos, useFindLocations, useFindPhotos, useSpeciesOptions, useSpeciesProfile, useUpsertSpeciesProfile } from '@/hooks/useFinds';
+import { useUpdateFind, useAddFindPhotos, useDeleteFindPhoto, useBulkDeleteFindPhotos, useFindLocations, useFindPhotos, useSpeciesOptions, useSpeciesProfile, usePatchSpeciesProfile } from '@/hooks/useFinds';
 import { useCreateSampleForFind, useSampleForFind } from '@/hooks/useSamples';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
-import { getSpeciesProfile, openFindFolder, parseExif, SUPPORTED_EXTENSIONS, type Find } from '@/lib/finds';
+import { openFindFolder, parseExif, SUPPORTED_EXTENSIONS, type Find } from '@/lib/finds';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { reverseGeocode } from '@/lib/geocoding';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
@@ -125,7 +125,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
   const existingSample = useSampleForFind(find?.id ?? null);
   const createSample = useCreateSampleForFind();
   const [isSample, setIsSample] = useState(false);
-  const upsertSpeciesProfile = useUpsertSpeciesProfile();
+  const patchSpeciesProfile = usePatchSpeciesProfile();
   const addPhotosMutation = useAddFindPhotos();
   const deletePhotoMutation = useDeleteFindPhoto();
   const bulkDeletePhotosMutation = useBulkDeleteFindPhotos();
@@ -321,31 +321,19 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
       {
         onSuccess: async () => {
           if (form.species_name.trim()) {
-            // Read-modify-write against the stored row rather than a cached copy, so a
-            // save right after typing cannot wipe tags, cover or edibility.
-            const storedProfile = storagePath
-              ? await getSpeciesProfile(storagePath, canonicalSpeciesName)
-              : speciesProfile;
-            // upsert_species_profile overwrites every column it is handed. If a profile row
-            // exists but the read above came back empty, writing now would blank fields the
-            // user never touched - leave the stored profile alone instead.
-            if (storedProfile || !speciesOption?.has_profile) {
-              await upsertSpeciesProfile.mutateAsync({
-                speciesName: form.species_name.trim(),
-                commonName: form.common_name.trim() || (storedProfile?.common_name ?? null),
-                coverPhotoId: storedProfile?.cover_photo_id ?? null,
-                tags: storedProfile?.tags ?? [],
-                edibility: storedProfile?.edibility ?? null,
-                threatStatus: storedProfile?.threat_status ?? null,
-                distribution: storedProfile?.distribution ?? null,
-                edibilityNote: storedProfile?.edibility_note ?? null,
-                synonyms: storedProfile?.synonyms ?? [],
-                otherNames: storedProfile?.other_names ?? [],
-                fruitingBodyCountOverride: storedProfile?.fruiting_body_count_override ?? null,
-                description: form.species_description.trim() || null,
-                habitat: storedProfile?.habitat ?? null,
-              });
-            }
+            // A find dialog owns only the common name and description. Patching leaves
+            // tags, cover, edibility, threat status, distribution and habitat exactly as
+            // the species editor left them — no read-modify-write, no second IPC call, and
+            // nothing to blank out if a lookup ever misses.
+            await patchSpeciesProfile.mutateAsync({
+              speciesName: canonicalSpeciesName,
+              patch: {
+                ...(form.common_name.trim() ? { commonName: form.common_name.trim() } : {}),
+                ...(form.species_description.trim()
+                  ? { description: form.species_description.trim() }
+                  : {}),
+              },
+            });
           }
           // Registering after the find is saved means the sample folder links the
           // current photos and its data sheet reflects the edits just made.

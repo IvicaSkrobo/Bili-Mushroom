@@ -1,5 +1,5 @@
 use chrono::Utc;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, params_from_iter, types::ToSql, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::fs::File;
@@ -544,6 +544,153 @@ pub async fn upsert_species_profile(
         params![species_name, common_name, cover_photo_id, tags_json, updated_at, edibility, threat_status, distribution, edibility_note, synonyms_json, other_names_json, fruiting_body_count_override, description, habitat],
     )
     .map_err(|e| format!("Upsert species profile failed: {}", e))?;
+    Ok(())
+}
+
+/// A partial edit to a species profile: every field left unset stays untouched.
+///
+/// `upsert_species_profile` replaces the whole row, so callers that only edit a couple
+/// of fields have to read the profile back first and echo everything else. That
+/// read-modify-write is two IPC calls, and a read that missed silently blanked tags,
+/// cover, edibility and habitat. Screens that own only part of the profile — the find
+/// and import dialogs — send a patch instead and never have to read first.
+#[derive(serde::Deserialize, Default, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SpeciesProfilePatch {
+    pub common_name: Option<String>,
+    pub description: Option<String>,
+    pub edibility: Option<String>,
+    pub threat_status: Option<String>,
+    pub distribution: Option<String>,
+    pub habitat: Option<String>,
+    pub edibility_note: Option<String>,
+    pub cover_photo_id: Option<i64>,
+    pub tags: Option<Vec<String>>,
+}
+
+#[tauri::command]
+pub async fn patch_species_profile(
+    storage_path: String,
+    species_name: String,
+    patch: SpeciesProfilePatch,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        patch_species_profile_on_connection(&conn, &species_name, &patch)
+    })
+    .await
+    .map_err(|e| format!("Species profile patch worker failed: {}", e))?
+}
+
+pub(crate) fn patch_species_profile_on_connection(
+    conn: &Connection,
+    species_name: &str,
+    patch: &SpeciesProfilePatch,
+) -> Result<(), String> {
+    let tags_json = match patch.tags.as_ref() {
+        Some(tags) => Some(
+            serde_json::to_string(tags)
+                .map_err(|e| format!("Failed to encode species tags: {}", e))?,
+        ),
+        None => None,
+    };
+
+    // (column, value) for every field the caller actually set. Anything absent is left
+    // exactly as stored, which is the whole point of this command.
+    let mut columns: Vec<&str> = Vec::new();
+    let mut values: Vec<Box<dyn ToSql>> = Vec::new();
+    let mut push = |column: &'static str, value: Option<Box<dyn ToSql>>| {
+        if let Some(value) = value {
+            columns.push(column);
+            values.push(value);
+        }
+    };
+    push(
+        "common_name",
+        patch
+            .common_name
+            .clone()
+            .map(|v| Box::new(v) as Box<dyn ToSql>),
+    );
+    push(
+        "description",
+        patch
+            .description
+            .clone()
+            .map(|v| Box::new(v) as Box<dyn ToSql>),
+    );
+    push(
+        "edibility",
+        patch
+            .edibility
+            .clone()
+            .map(|v| Box::new(v) as Box<dyn ToSql>),
+    );
+    push(
+        "threat_status",
+        patch
+            .threat_status
+            .clone()
+            .map(|v| Box::new(v) as Box<dyn ToSql>),
+    );
+    push(
+        "distribution",
+        patch
+            .distribution
+            .clone()
+            .map(|v| Box::new(v) as Box<dyn ToSql>),
+    );
+    push(
+        "habitat",
+        patch.habitat.clone().map(|v| Box::new(v) as Box<dyn ToSql>),
+    );
+    push(
+        "edibility_note",
+        patch
+            .edibility_note
+            .clone()
+            .map(|v| Box::new(v) as Box<dyn ToSql>),
+    );
+    push(
+        "cover_photo_id",
+        patch.cover_photo_id.map(|v| Box::new(v) as Box<dyn ToSql>),
+    );
+    push("tags_json", tags_json.map(|v| Box::new(v) as Box<dyn ToSql>));
+
+    if columns.is_empty() {
+        return Ok(());
+    }
+
+    let updated_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let insert_columns = std::iter::once("species_name")
+        .chain(columns.iter().copied())
+        .chain(std::iter::once("updated_at"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let placeholders = (1..=columns.len() + 2)
+        .map(|index| format!("?{index}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let assignments = columns
+        .iter()
+        .map(|column| format!("{column} = excluded.{column}"))
+        .chain(std::iter::once("updated_at = excluded.updated_at".to_string()))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let sql = format!(
+        "INSERT INTO species_profiles ({insert_columns}) VALUES ({placeholders})
+         ON CONFLICT(species_name) DO UPDATE SET {assignments}"
+    );
+
+    let mut params: Vec<Box<dyn ToSql>> = vec![Box::new(species_name.to_string())];
+    params.extend(values);
+    params.push(Box::new(updated_at));
+
+    conn.execute(
+        &sql,
+        params_from_iter(params.iter().map(|value| value.as_ref() as &dyn ToSql)),
+    )
+    .map_err(|e| format!("Patch species profile failed: {}", e))?;
     Ok(())
 }
 
@@ -2743,6 +2890,95 @@ mod tests {
         assert!(
             result.photos[0].is_primary,
             "remaining photo should be promoted to primary"
+        );
+    }
+
+    /// A find dialog only owns the common name and description. Saving one must not
+    /// disturb tags, cover, edibility, threat status, distribution or habitat, which
+    /// belong to the species editor.
+    #[test]
+    fn patching_a_species_profile_leaves_untouched_fields_alone() {
+        let conn = setup_in_memory_db();
+        conn.execute(
+            "INSERT INTO species_profiles (species_name, common_name, cover_photo_id, tags_json, edibility, threat_status, distribution, description, habitat, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            rusqlite::params![
+                "Boletus edulis",
+                "Vrganj",
+                42i64,
+                r#"["jestivo","cesto"]"#,
+                "edible",
+                "least_concern",
+                "common",
+                "Stari opis",
+                "Hrastova suma",
+                "2026-05-12T00:00:00Z"
+            ],
+        )
+        .expect("insert full species profile");
+
+        patch_species_profile_on_connection(
+            &conn,
+            "Boletus edulis",
+            &SpeciesProfilePatch {
+                common_name: Some("Pravi vrganj".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("patch only the common name");
+
+        let profile = get_species_profile_for_connection(&conn, "Boletus edulis")
+            .expect("read profile")
+            .expect("profile exists");
+        assert_eq!(profile.common_name.as_deref(), Some("Pravi vrganj"));
+        assert_eq!(profile.cover_photo_id, Some(42));
+        assert_eq!(
+            profile.tags,
+            vec!["jestivo".to_string(), "cesto".to_string()]
+        );
+        assert_eq!(profile.edibility.as_deref(), Some("edible"));
+        assert_eq!(profile.threat_status.as_deref(), Some("least_concern"));
+        assert_eq!(profile.distribution.as_deref(), Some("common"));
+        assert_eq!(profile.description.as_deref(), Some("Stari opis"));
+        assert_eq!(profile.habitat.as_deref(), Some("Hrastova suma"));
+    }
+
+    #[test]
+    fn patching_an_unknown_species_creates_the_profile() {
+        let conn = setup_in_memory_db();
+
+        patch_species_profile_on_connection(
+            &conn,
+            "Cantharellus cibarius",
+            &SpeciesProfilePatch {
+                common_name: Some("Lisicarka".to_string()),
+                description: Some("Zuta, mirisna".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("patch a species with no profile row");
+
+        let profile = get_species_profile_for_connection(&conn, "Cantharellus cibarius")
+            .expect("read profile")
+            .expect("profile was created");
+        assert_eq!(profile.common_name.as_deref(), Some("Lisicarka"));
+        assert_eq!(profile.description.as_deref(), Some("Zuta, mirisna"));
+        assert_eq!(profile.cover_photo_id, None);
+        assert!(profile.tags.is_empty());
+    }
+
+    #[test]
+    fn an_empty_species_profile_patch_writes_nothing() {
+        let conn = setup_in_memory_db();
+
+        patch_species_profile_on_connection(&conn, "Amanita muscaria", &SpeciesProfilePatch::default())
+            .expect("empty patch is a no-op");
+
+        assert!(
+            get_species_profile_for_connection(&conn, "Amanita muscaria")
+                .expect("read profile")
+                .is_none(),
+            "an empty patch must not create a bare profile row"
         );
     }
 

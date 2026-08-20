@@ -69,7 +69,6 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
         synonyms: profile?.synonyms ?? existing?.synonyms ?? [],
         other_names: profile?.other_names ?? existing?.other_names ?? [],
         has_finds: (existing?.has_finds ?? false) || hasFinds,
-        has_profile: (existing?.has_profile ?? false) || Boolean(profile),
       });
     };
     for (const find of invokeHandlers.get_finds(args) as Array<Record<string, any>>) {
@@ -120,6 +119,7 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
   get_species_recipes_for_species: (_args: unknown) => [],
   upsert_species_note: (_args: unknown) => undefined,
   upsert_species_profile: (_args: unknown) => undefined,
+  patch_species_profile: (_args: unknown) => undefined,
   bulk_rename_species: (_args: unknown) => undefined,
   rename_species_folder: (_args: unknown) => undefined,
   set_find_favorite: (_args: unknown) => ({

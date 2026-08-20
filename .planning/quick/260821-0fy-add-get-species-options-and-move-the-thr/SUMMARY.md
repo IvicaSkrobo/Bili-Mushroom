@@ -55,9 +55,34 @@ text names a known species. Suggestions and the common name come from the alread
 options list, so nothing in the UI waits — this only removes a SQLite round trip per
 keystroke while the user types a new or partial name.
 
+## Second hardening pass: patch instead of read-modify-write
+
+The guard above made the overwrite safe, but the underlying shape was still wrong: a
+screen that edits two fields had to read the whole profile and echo eleven others back,
+across two separate IPC calls.
+
+New `patch_species_profile` command takes only the fields the caller sets; everything
+absent stays exactly as stored. It creates the row when none exists, and an empty patch
+writes nothing. One statement, one transaction, no read first.
+
+The three dialogs now send `{ commonName?, description? }` (Uvoz also sends edibility,
+threat status and distribution when they are not "unknown"). `upsert_species_profile`
+stays for the species editor, which genuinely owns the whole row and needs to clear
+fields.
+
+Two latent data-loss bugs disappear with it:
+- `CreateFindDialog` sent `description: form.species_description.trim()` unconditionally,
+  so saving a find with only a common name typed overwrote an existing species
+  description with an empty string.
+- `EditFindDialog` sent `description: ... || null` on **every** save, so any save while
+  the description field was empty cleared the stored description.
+
+`has_profile` was removed again — it existed only to guard the overwrite, which no
+longer happens.
+
 ## Verification
 
-- Rust: `npm run test:rust` — 99 passed, 0 failed, 1 ignored. New test
+- Rust: `npm run test:rust` — 102 passed, 0 failed, 1 ignored. New test
   `species_options_union_finds_and_profiles_without_internal_folders` covers the union,
   the internal-folder and blank-name exclusion, casing collapse, a profile with no finds,
   and the synonyms/other-names JSON decode.

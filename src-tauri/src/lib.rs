@@ -39,6 +39,7 @@ pub fn run() {
             commands::finds::get_species_recipes,
             commands::finds::get_species_note,
             commands::finds::get_species_profile,
+            commands::finds::patch_species_profile,
             commands::finds::get_species_profile_summaries,
             commands::finds::get_species_recipes_for_species,
             commands::finds::upsert_species_note,

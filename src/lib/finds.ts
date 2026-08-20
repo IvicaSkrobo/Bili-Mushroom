@@ -224,12 +224,38 @@ export interface SpeciesOption {
   synonyms: string[];
   other_names: string[];
   has_finds: boolean;
-  /** A species_profiles row exists. Distinguishes "no profile yet" from "read failed". */
-  has_profile: boolean;
 }
 
 export async function getSpeciesOptions(storagePath: string): Promise<SpeciesOption[]> {
   return invoke<SpeciesOption[]>('get_species_options', { storagePath });
+}
+
+/**
+ * A partial edit to a species profile: every field left out stays exactly as stored.
+ *
+ * Use this from screens that own only part of the profile — the find and import
+ * dialogs edit the common name and description, while tags, cover, edibility and
+ * habitat belong to the species editor. `upsertSpeciesProfile` replaces the whole row
+ * and is for that editor.
+ */
+export interface SpeciesProfilePatch {
+  commonName?: string;
+  description?: string;
+  edibility?: string;
+  threatStatus?: string;
+  distribution?: string;
+  habitat?: string;
+  edibilityNote?: string;
+  coverPhotoId?: number;
+  tags?: string[];
+}
+
+export async function patchSpeciesProfile(
+  storagePath: string,
+  speciesName: string,
+  patch: SpeciesProfilePatch,
+): Promise<void> {
+  return invoke<void>('patch_species_profile', { storagePath, speciesName, patch });
 }
 
 export async function getCollectionFolders(
