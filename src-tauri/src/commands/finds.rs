@@ -1,5 +1,5 @@
 use chrono::Utc;
-use rusqlite::params;
+use rusqlite::{params, OptionalExtension};
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::fs::File;
@@ -135,6 +135,17 @@ pub struct SpeciesProfile {
     pub synonyms: Vec<String>,
     pub other_names: Vec<String>,
     pub fruiting_body_count_override: Option<String>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct SpeciesProfileSummary {
+    pub species_name: String,
+    pub common_name: Option<String>,
+    pub cover_photo_id: Option<i64>,
+    pub tags: Vec<String>,
+    pub edibility: Option<String>,
+    pub threat_status: Option<String>,
+    pub distribution: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -313,6 +324,12 @@ pub struct SpeciesRecipe {
 
 #[tauri::command]
 pub async fn get_species_notes(storage_path: String) -> Result<Vec<SpeciesNote>, String> {
+    tauri::async_runtime::spawn_blocking(move || get_species_notes_blocking(&storage_path))
+        .await
+        .map_err(|e| format!("Species notes worker failed: {}", e))?
+}
+
+fn get_species_notes_blocking(storage_path: &str) -> Result<Vec<SpeciesNote>, String> {
     let conn = open_db(&storage_path)?;
     let mut stmt = conn
         .prepare("SELECT species_name, notes FROM species_notes ORDER BY species_name")
@@ -332,16 +349,66 @@ pub async fn get_species_notes(storage_path: String) -> Result<Vec<SpeciesNote>,
 
 #[tauri::command]
 pub async fn get_species_profiles(storage_path: String) -> Result<Vec<SpeciesProfile>, String> {
+    tauri::async_runtime::spawn_blocking(move || get_species_profiles_blocking(&storage_path))
+        .await
+        .map_err(|e| format!("Species profiles worker failed: {}", e))?
+}
+
+fn species_profile_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SpeciesProfile> {
+    let tags_json: String = row.get(3)?;
+    let synonyms_json: Option<String> = row.get(9)?;
+    let other_names_json: Option<String> = row.get(10)?;
+    Ok(SpeciesProfile {
+        species_name: row.get(0)?,
+        common_name: row.get(1)?,
+        cover_photo_id: row.get(2)?,
+        tags: serde_json::from_str(&tags_json).unwrap_or_default(),
+        edibility: row.get(4)?,
+        threat_status: row.get(5)?,
+        distribution: row.get(6)?,
+        edibility_note: row.get(7)?,
+        description: row.get(8)?,
+        habitat: row.get(12)?,
+        synonyms: synonyms_json
+            .as_deref()
+            .and_then(|s| serde_json::from_str(s).ok())
+            .unwrap_or_default(),
+        other_names: other_names_json
+            .as_deref()
+            .and_then(|s| serde_json::from_str(s).ok())
+            .unwrap_or_default(),
+        fruiting_body_count_override: row.get(11)?,
+    })
+}
+
+fn get_species_profiles_blocking(storage_path: &str) -> Result<Vec<SpeciesProfile>, String> {
     let conn = open_db(&storage_path)?;
     let mut stmt = conn
         .prepare("SELECT species_name, common_name, cover_photo_id, tags_json, edibility, threat_status, distribution, edibility_note, description, synonyms, other_names, fruiting_body_count_override, habitat FROM species_profiles ORDER BY species_name")
         .map_err(|e| e.to_string())?;
     let profiles = stmt
-        .query_map([], |row| {
+        .query_map([], species_profile_from_row)
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    Ok(profiles)
+}
+
+#[tauri::command]
+pub async fn get_species_profile_summaries(
+    storage_path: String,
+) -> Result<Vec<SpeciesProfileSummary>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT species_name, common_name, cover_photo_id, tags_json, edibility, threat_status, distribution
+                 FROM species_profiles ORDER BY species_name",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt.query_map([], |row| {
             let tags_json: String = row.get(3)?;
-            let synonyms_json: Option<String> = row.get(9)?;
-            let other_names_json: Option<String> = row.get(10)?;
-            Ok(SpeciesProfile {
+            Ok(SpeciesProfileSummary {
                 species_name: row.get(0)?,
                 common_name: row.get(1)?,
                 cover_photo_id: row.get(2)?,
@@ -349,24 +416,60 @@ pub async fn get_species_profiles(storage_path: String) -> Result<Vec<SpeciesPro
                 edibility: row.get(4)?,
                 threat_status: row.get(5)?,
                 distribution: row.get(6)?,
-                edibility_note: row.get(7)?,
-                description: row.get(8)?,
-                habitat: row.get(12)?,
-                synonyms: synonyms_json
-                    .as_deref()
-                    .and_then(|s| serde_json::from_str(s).ok())
-                    .unwrap_or_default(),
-                other_names: other_names_json
-                    .as_deref()
-                    .and_then(|s| serde_json::from_str(s).ok())
-                    .unwrap_or_default(),
-                fruiting_body_count_override: row.get(11)?,
             })
         })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
-    Ok(profiles)
+        let summaries = rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        Ok(summaries)
+    })
+    .await
+    .map_err(|e| format!("Species profile summaries worker failed: {}", e))?
+}
+
+#[tauri::command]
+pub async fn get_species_profile(
+    storage_path: String,
+    species_name: String,
+) -> Result<Option<SpeciesProfile>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        conn.query_row(
+            "SELECT species_name, common_name, cover_photo_id, tags_json, edibility, threat_status, distribution, edibility_note, description, synonyms, other_names, fruiting_body_count_override, habitat
+             FROM species_profiles WHERE species_name = ?1",
+            params![species_name],
+            species_profile_from_row,
+        )
+        .optional()
+        .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("Species profile worker failed: {}", e))?
+}
+
+#[tauri::command]
+pub async fn get_species_note(
+    storage_path: String,
+    species_name: String,
+) -> Result<Option<SpeciesNote>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        conn.query_row(
+            "SELECT species_name, notes FROM species_notes WHERE species_name = ?1",
+            params![species_name],
+            |row| {
+                Ok(SpeciesNote {
+                    species_name: row.get(0)?,
+                    notes: row.get(1)?,
+                })
+            },
+        )
+        .optional()
+        .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("Species note worker failed: {}", e))?
 }
 
 #[tauri::command]
@@ -419,6 +522,12 @@ pub async fn upsert_species_profile(
 
 #[tauri::command]
 pub async fn get_species_recipes(storage_path: String) -> Result<Vec<SpeciesRecipe>, String> {
+    tauri::async_runtime::spawn_blocking(move || get_species_recipes_blocking(&storage_path))
+        .await
+        .map_err(|e| format!("Species recipes worker failed: {}", e))?
+}
+
+fn get_species_recipes_blocking(storage_path: &str) -> Result<Vec<SpeciesRecipe>, String> {
     let conn = open_db(&storage_path)?;
     let mut stmt = conn
         .prepare("SELECT id, species_name, title, notes, created_at, updated_at FROM species_recipes ORDER BY species_name, id")
@@ -438,6 +547,39 @@ pub async fn get_species_recipes(storage_path: String) -> Result<Vec<SpeciesReci
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
     Ok(recipes)
+}
+
+#[tauri::command]
+pub async fn get_species_recipes_for_species(
+    storage_path: String,
+    species_name: String,
+) -> Result<Vec<SpeciesRecipe>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, species_name, title, notes, created_at, updated_at
+                 FROM species_recipes WHERE species_name = ?1 ORDER BY id",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt.query_map(params![species_name], |row| {
+            Ok(SpeciesRecipe {
+                id: row.get(0)?,
+                species_name: row.get(1)?,
+                title: row.get(2)?,
+                notes: row.get(3)?,
+                created_at: row.get(4)?,
+                updated_at: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+        let recipes = rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        Ok(recipes)
+    })
+    .await
+    .map_err(|e| format!("Species recipes worker failed: {}", e))?
 }
 
 #[tauri::command]

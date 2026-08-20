@@ -25,6 +25,7 @@ pub fn run() {
             commands::import::initialize_database,
             commands::import::import_find,
             commands::import::get_finds,
+            commands::import::get_find_locations,
             commands::import::get_collection_folders,
             commands::import::get_species_finds,
             commands::import::update_find,
@@ -35,6 +36,10 @@ pub fn run() {
             commands::finds::get_species_notes,
             commands::finds::get_species_profiles,
             commands::finds::get_species_recipes,
+            commands::finds::get_species_note,
+            commands::finds::get_species_profile,
+            commands::finds::get_species_profile_summaries,
+            commands::finds::get_species_recipes_for_species,
             commands::finds::upsert_species_note,
             commands::finds::upsert_species_profile,
             commands::finds::upsert_species_recipe,
@@ -116,7 +121,11 @@ mod smoke {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .expect("user_version");
-        assert_eq!(version, 22, "user_version must be 22 after all migrations");
+        assert_eq!(
+            version,
+            crate::commands::import::CURRENT_SCHEMA_VERSION,
+            "user_version must match CURRENT_SCHEMA_VERSION after all migrations"
+        );
 
         let edibility_exists: i64 = conn
             .query_row(

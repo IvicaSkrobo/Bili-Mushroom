@@ -2,6 +2,7 @@ use chrono::Utc;
 use rusqlite::{params, params_from_iter, Connection, ToSql};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 use std::thread;
 use std::time::Duration;
 use tauri::Emitter;
@@ -131,9 +132,13 @@ const MIGRATION_0021: &str = include_str!("../../migrations/0021_species_recipes
 const MIGRATION_0022: &str = include_str!("../../migrations/0022_species_profile_common_name.sql");
 const MIGRATION_0023: &str = include_str!("../../migrations/0023_species_profile_habitat.sql");
 const MIGRATION_0024: &str = include_str!("../../migrations/0024_find_weather.sql");
-const MIGRATION_0025: &str =
-    include_str!("../../migrations/0025_find_determiner_finder.sql");
+const MIGRATION_0025: &str = include_str!("../../migrations/0025_find_determiner_finder.sql");
 const MIGRATION_0026: &str = include_str!("../../migrations/0026_samples.sql");
+
+/// `PRAGMA user_version` after `migrate_db` has applied every migration. Bump this in
+/// the same commit that adds a migration — tests assert against it so a forgotten bump
+/// fails loudly instead of silently going stale.
+pub(crate) const CURRENT_SCHEMA_VERSION: i64 = 26;
 
 fn normalize_observed_range(
     observed_count: Option<i64>,
@@ -526,8 +531,8 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
     if version < 26 {
         conn.execute_batch(MIGRATION_0026)
             .map_err(|e| format!("Migration 0026 failed: {}", e))?;
-        conn.execute_batch("PRAGMA user_version = 26")
-            .map_err(|e| format!("Failed to set user_version=26: {}", e))?;
+        conn.execute_batch(&format!("PRAGMA user_version = {CURRENT_SCHEMA_VERSION}"))
+            .map_err(|e| format!("Failed to set user_version={CURRENT_SCHEMA_VERSION}: {e}"))?;
     }
     // Repair development/local databases whose user_version advanced before
     // these metadata columns were present. This is idempotent and keeps
@@ -542,6 +547,21 @@ fn migrate_db(conn: &Connection) -> Result<(), String> {
     if synonyms_exists == 0 {
         conn.execute_batch("ALTER TABLE species_profiles ADD COLUMN synonyms TEXT")
             .map_err(|e| format!("Repair species_profiles.synonyms failed: {}", e))?;
+    }
+
+    // Some existing databases advanced their version before the original species
+    // profile schema was fully applied. Collection thumbnail selection relies on
+    // this field, so repair it independently of user_version.
+    let cover_photo_id_exists: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('species_profiles') WHERE name = 'cover_photo_id'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
+    if cover_photo_id_exists == 0 {
+        conn.execute_batch("ALTER TABLE species_profiles ADD COLUMN cover_photo_id INTEGER")
+            .map_err(|e| format!("Repair species_profiles.cover_photo_id failed: {}", e))?;
     }
 
     let other_names_exists: i64 = conn
@@ -632,19 +652,40 @@ fn ensure_performance_indexes(conn: &Connection) -> Result<(), String> {
     Ok(())
 }
 
+static INITIALIZED_DATABASES: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+
 pub(crate) fn open_db(storage_path: &str) -> Result<Connection, String> {
     let db_path = format!("{}/bili-mushroom.db", storage_path);
     let conn = Connection::open(&db_path)
         .map_err(|e| format!("Failed to open DB at {}: {}", db_path, e))?;
-    migrate_db(&conn)?;
-    ensure_performance_indexes(&conn)?;
+    conn.busy_timeout(Duration::from_secs(5))
+        .map_err(|e| format!("Failed to configure DB busy timeout: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to enable DB foreign keys: {e}"))?;
+
+    // Migrations, repair PRAGMAs and CREATE INDEX checks are process-level setup,
+    // not per-query work. Keep the first-open safety for tests and storage-path
+    // switching while ensuring normal IPC reads only pay the connection cost.
+    let initialized = INITIALIZED_DATABASES.get_or_init(|| Mutex::new(HashSet::new()));
+    let mut initialized_paths = initialized
+        .lock()
+        .map_err(|_| "Database initialization lock was poisoned".to_string())?;
+    if !initialized_paths.contains(&db_path) {
+        migrate_db(&conn)?;
+        ensure_performance_indexes(&conn)?;
+        initialized_paths.insert(db_path);
+    }
     Ok(conn)
 }
 
 #[tauri::command]
 pub async fn initialize_database(storage_path: String) -> Result<(), String> {
-    let _conn = open_db(&storage_path)?;
-    Ok(())
+    tauri::async_runtime::spawn_blocking(move || {
+        let _conn = open_db(&storage_path)?;
+        Ok(())
+    })
+    .await
+    .map_err(|error| format!("Database initialization worker failed: {error}"))?
 }
 
 fn has_existing_photo_path(conn: &Connection, photo_path: &str) -> rusqlite::Result<bool> {
@@ -743,9 +784,14 @@ fn validate_library_relative_photo_path(photo_path: &str) -> rusqlite::Result<()
     let has_parent_component = path
         .components()
         .any(|component| matches!(component, std::path::Component::ParentDir));
+    // On Windows a drive-less rooted path such as "/tmp/photo.jpg" is NOT is_absolute(),
+    // yet it still escapes the library folder — it resolves against the current drive
+    // root. has_root() catches that case on both platforms.
+    let has_root = path.has_root();
 
     if trimmed.is_empty()
         || path.is_absolute()
+        || has_root
         || has_windows_drive
         || has_unc_prefix
         || has_parent_component
@@ -919,7 +965,14 @@ fn copy_payload_photos(
             .map(|e| format!(".{}", e.to_string_lossy().to_lowercase()))
             .unwrap_or_else(|| ".jpg".to_string());
 
-        let dest_full = build_dest_path(storage_path, &payload.species_name, &payload.date_found, location_label, 1, &ext);
+        let dest_full = build_dest_path(
+            storage_path,
+            &payload.species_name,
+            &payload.date_found,
+            location_label,
+            1,
+            &ext,
+        );
         let dest_folder = dest_full
             .parent()
             .ok_or_else(|| "Could not determine destination folder".to_string())?;
@@ -928,7 +981,14 @@ fn copy_payload_photos(
             .map_err(|e| format!("Failed to create directory {:?}: {}", dest_folder, e))?;
 
         let seq = next_seq_for_folder(dest_folder);
-        let dest_path = build_dest_path(storage_path, &payload.species_name, &payload.date_found, location_label, seq, &ext);
+        let dest_path = build_dest_path(
+            storage_path,
+            &payload.species_name,
+            &payload.date_found,
+            location_label,
+            seq,
+            &ext,
+        );
 
         if let Err(e) = std::fs::copy(&payload.source_path, &dest_path) {
             cleanup_staged_photos(&staged);
@@ -940,7 +1000,12 @@ fn copy_payload_photos(
 
         let relative_path = dest_path
             .strip_prefix(storage_path)
-            .map(|p| p.to_string_lossy().replace('\\', "/").trim_start_matches('/').to_string())
+            .map(|p| {
+                p.to_string_lossy()
+                    .replace('\\', "/")
+                    .trim_start_matches('/')
+                    .to_string()
+            })
             .unwrap_or_else(|_| dest_path.to_string_lossy().to_string());
 
         staged.push(StagedPhoto {
@@ -955,7 +1020,10 @@ fn copy_payload_photos(
 
     // add_dest_folder: same folder the primary photo landed in.
     let primary_abs = storage_path_buf.join(&staged[0].relative_path);
-    let add_dest_folder = primary_abs.parent().unwrap_or(storage_path_buf).to_path_buf();
+    let add_dest_folder = primary_abs
+        .parent()
+        .unwrap_or(storage_path_buf)
+        .to_path_buf();
 
     for additional_src in &payload.additional_photos {
         if !remember_source_path(seen_source_paths, additional_src) {
@@ -990,7 +1058,14 @@ fn copy_payload_photos(
             .unwrap_or_else(|| ".jpg".to_string());
 
         let add_seq = next_seq_for_folder(&add_dest_folder);
-        let add_dest_path = build_dest_path(storage_path, &payload.species_name, &payload.date_found, location_label, add_seq, &add_ext);
+        let add_dest_path = build_dest_path(
+            storage_path,
+            &payload.species_name,
+            &payload.date_found,
+            location_label,
+            add_seq,
+            &add_ext,
+        );
 
         if let Err(e) = std::fs::copy(additional_src, &add_dest_path) {
             cleanup_staged_photos(&staged);
@@ -1002,7 +1077,12 @@ fn copy_payload_photos(
 
         let add_relative_path = add_dest_path
             .strip_prefix(storage_path)
-            .map(|p| p.to_string_lossy().replace('\\', "/").trim_start_matches('/').to_string())
+            .map(|p| {
+                p.to_string_lossy()
+                    .replace('\\', "/")
+                    .trim_start_matches('/')
+                    .to_string()
+            })
             .unwrap_or_else(|_| add_dest_path.to_string_lossy().to_string());
 
         staged_sources.push(additional_src.clone());
@@ -1154,8 +1234,9 @@ pub async fn import_find(
 
             let mut photos: Vec<FindPhoto> = Vec::with_capacity(staged.len());
             for photo in &staged {
-                let photo_row_id = insert_find_photo(&tx, new_id, &photo.relative_path, photo.is_primary)
-                    .map_err(|e| format!("DB insert photo failed: {}", e))?;
+                let photo_row_id =
+                    insert_find_photo(&tx, new_id, &photo.relative_path, photo.is_primary)
+                        .map_err(|e| format!("DB insert photo failed: {}", e))?;
                 photos.push(FindPhoto {
                     id: photo_row_id,
                     find_id: new_id,
@@ -1223,11 +1304,21 @@ pub async fn get_finds(
     storage_path: String,
     filters: Option<FindSearchFilters>,
 ) -> Result<Vec<FindRecord>, String> {
-    let conn = open_db(&storage_path)?;
-    let filters = filters.unwrap_or_default();
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        get_finds_for_connection(&conn, &filters.unwrap_or_default())
+    })
+    .await
+    .map_err(|error| format!("Finds worker failed: {error}"))?
+}
+
+fn get_finds_for_connection(
+    conn: &Connection,
+    filters: &FindSearchFilters,
+) -> Result<Vec<FindRecord>, String> {
     let mut where_clauses: Vec<String> = Vec::new();
     let mut query_params: Vec<Box<dyn ToSql>> = Vec::new();
-    push_find_search_filters(&filters, "", &mut where_clauses, &mut query_params, true);
+    push_find_search_filters(filters, "", &mut where_clauses, &mut query_params, true);
 
     let limit = filters
         .limit
@@ -1235,6 +1326,7 @@ pub async fn get_finds(
         .unwrap_or(i64::MAX);
     let offset = filters.offset.unwrap_or(0).max(0);
     let primary_photos_only = filters.photos_mode.as_deref() == Some("primary");
+    let photo_counts_only = filters.photos_mode.as_deref() == Some("count");
     let where_sql = if where_clauses.is_empty() {
         String::new()
     } else {
@@ -1266,6 +1358,25 @@ pub async fn get_finds(
         .map_err(|e| format!("Row mapping failed: {}", e))?;
 
     if records.is_empty() {
+        return Ok(records);
+    }
+
+    if filters.photos_mode.as_deref() == Some("none") {
+        return Ok(records);
+    }
+
+    if photo_counts_only {
+        let mut count_stmt = conn
+            .prepare("SELECT find_id, COUNT(*) FROM find_photos GROUP BY find_id")
+            .map_err(|e| format!("Failed to prepare photo counts query: {}", e))?;
+        let photo_counts = count_stmt
+            .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))
+            .map_err(|e| format!("Photo counts query failed: {}", e))?
+            .collect::<Result<HashMap<_, _>, _>>()
+            .map_err(|e| format!("Photo counts row mapping failed: {}", e))?;
+        for record in &mut records {
+            record.photo_count = Some(*photo_counts.get(&record.id).unwrap_or(&0));
+        }
         return Ok(records);
     }
 
@@ -1356,12 +1467,52 @@ pub async fn get_finds(
 }
 
 #[tauri::command]
+pub async fn get_find_locations(storage_path: String) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        get_find_locations_for_connection(&conn)
+    })
+    .await
+    .map_err(|error| format!("Find locations worker failed: {error}"))?
+}
+
+fn get_find_locations_for_connection(conn: &Connection) -> Result<Vec<String>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT MIN(TRIM(location_note)) AS label
+             FROM finds
+             WHERE TRIM(location_note) <> ''
+               AND LOWER(TRIM(species_name)) NOT IN ('tile-cache', '.bili-cache', '.bili-cache-tiles')
+             GROUP BY LOWER(TRIM(location_note))
+             ORDER BY label COLLATE NOCASE ASC",
+        )
+        .map_err(|error| format!("Failed to prepare find locations query: {error}"))?;
+
+    let locations = stmt
+        .query_map([], |row| row.get(0))
+        .map_err(|error| format!("Find locations query failed: {error}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("Find locations row mapping failed: {error}"))?;
+    Ok(locations)
+}
+
+#[tauri::command]
 pub async fn get_collection_folders(
     storage_path: String,
     filters: Option<FindSearchFilters>,
 ) -> Result<Vec<SpeciesFolderSummary>, String> {
-    let conn = open_db(&storage_path)?;
-    let filters = filters.unwrap_or_default();
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        get_collection_folders_for_connection(&conn, &filters.unwrap_or_default())
+    })
+    .await
+    .map_err(|error| format!("Collection folders worker failed: {error}"))?
+}
+
+fn get_collection_folders_for_connection(
+    conn: &Connection,
+    filters: &FindSearchFilters,
+) -> Result<Vec<SpeciesFolderSummary>, String> {
     let mut where_clauses: Vec<String> = vec![
         "LOWER(TRIM(f.species_name)) NOT IN ('tile-cache', '.bili-cache', '.bili-cache-tiles')"
             .to_string(),
@@ -1416,12 +1567,279 @@ pub async fn get_collection_folders(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("Collection folders row mapping failed: {}", e))?;
 
-    for summary in &mut summaries {
-        summary.representative_find =
-            load_representative_find_for_species(&conn, &summary.species_name, &filters)?;
-    }
+    load_representative_finds_for_summaries(conn, &mut summaries, filters)?;
 
     Ok(summaries)
+}
+
+/// Loads the thumbnail find for every visible species in a small, fixed number of queries.
+/// The selection order matches the original per-species implementation: an explicit species
+/// cover first, then the most recent filtered find with a photo, then the most recent filtered
+/// find of any kind.
+fn load_representative_finds_for_summaries(
+    conn: &Connection,
+    summaries: &mut [SpeciesFolderSummary],
+    filters: &FindSearchFilters,
+) -> Result<(), String> {
+    if summaries.is_empty() {
+        return Ok(());
+    }
+
+    let species_names: Vec<String> = summaries
+        .iter()
+        .map(|summary| summary.species_name.clone())
+        .collect();
+    let mut representatives = load_explicit_cover_finds(conn, &species_names)?;
+
+    for (species_name, record) in load_latest_finds_by_species(conn, &species_names, filters, true)?
+    {
+        representatives.entry(species_name).or_insert(record);
+    }
+    for (species_name, record) in
+        load_latest_finds_by_species(conn, &species_names, filters, false)?
+    {
+        representatives.entry(species_name).or_insert(record);
+    }
+
+    // Hydrate over (profile species, record) pairs. Rebuilding the map from
+    // record.species_name here would undo the cover keying done in
+    // load_explicit_cover_finds, since a cover's find may belong to another species.
+    let mut entries: Vec<(String, FindRecord)> = representatives.into_iter().collect();
+    hydrate_representative_find_photos(conn, &mut entries)?;
+    let representatives: HashMap<String, FindRecord> = entries.into_iter().collect();
+
+    for summary in summaries {
+        summary.representative_find = representatives.get(&summary.species_name).cloned();
+    }
+    Ok(())
+}
+
+fn load_explicit_cover_finds(
+    conn: &Connection,
+    species_names: &[String],
+) -> Result<HashMap<String, FindRecord>, String> {
+    if !species_profiles_have_cover_photo_id(conn) {
+        return Ok(HashMap::new());
+    }
+
+    let placeholders = std::iter::repeat("?")
+        .take(species_names.len())
+        .collect::<Vec<_>>()
+        .join(",");
+    let sql = format!(
+        "SELECT f.id, f.original_filename, f.species_name, f.date_found, f.country, f.region, f.lat, f.lng, f.notes, f.location_note, f.observed_count, f.observed_count_min, f.observed_count_max, f.is_favorite, f.created_at, f.edibility_note, f.weather, f.determiner, f.finder, sp.species_name
+         FROM species_profiles sp
+         JOIN find_photos fp ON fp.id = sp.cover_photo_id
+         JOIN finds f ON f.id = fp.find_id
+         WHERE sp.species_name IN ({placeholders})"
+    );
+    let mut stmt = conn
+        .prepare(&sql)
+        .map_err(|error| format!("Failed to prepare collection cover query: {error}"))?;
+    // The cover belongs to the profile's species, which is not necessarily the find's
+    // own species_name: a find can be renamed or moved into another folder long after
+    // one of its photos was chosen as a species cover. Keying by f.species_name would
+    // hand the cover to the wrong folder and, worse, occupy that folder's slot so it
+    // loses its own representative too. Read sp.species_name (trailing column) instead.
+    let records: Vec<(String, FindRecord)> = stmt
+        .query_map(params_from_iter(species_names.iter()), |row| {
+            Ok((row.get::<_, String>(19)?, find_record_from_row(row)?))
+        })
+        .map_err(|error| format!("Collection cover query failed: {error}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("Collection cover row mapping failed: {error}"))?;
+    Ok(records.into_iter().collect())
+}
+
+fn load_latest_finds_by_species(
+    conn: &Connection,
+    species_names: &[String],
+    filters: &FindSearchFilters,
+    require_photos: bool,
+) -> Result<HashMap<String, FindRecord>, String> {
+    let placeholders = std::iter::repeat("?")
+        .take(species_names.len())
+        .collect::<Vec<_>>()
+        .join(",");
+    let mut where_clauses = vec![format!("f.species_name IN ({placeholders})")];
+    let mut query_params: Vec<Box<dyn ToSql>> = species_names
+        .iter()
+        .cloned()
+        .map(|species_name| Box::new(species_name) as Box<dyn ToSql>)
+        .collect();
+    // Species are already limited to the visible page. Applying the search term a second time
+    // would incorrectly filter an explicitly selected cover and is unnecessary here.
+    push_find_search_filters(filters, "f", &mut where_clauses, &mut query_params, false);
+    if require_photos {
+        where_clauses
+            .push("EXISTS (SELECT 1 FROM find_photos fp WHERE fp.find_id = f.id)".to_string());
+    }
+    let sql = format!(
+        "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather, determiner, finder
+         FROM (
+           SELECT f.id, f.original_filename, f.species_name, f.date_found, f.country, f.region, f.lat, f.lng, f.notes, f.location_note, f.observed_count, f.observed_count_min, f.observed_count_max, f.is_favorite, f.created_at, f.edibility_note, f.weather, f.determiner, f.finder,
+                  ROW_NUMBER() OVER (PARTITION BY f.species_name ORDER BY f.date_found DESC, f.id DESC) AS candidate_rank
+           FROM finds f
+           WHERE {}
+         )
+         WHERE candidate_rank = 1",
+        where_clauses.join(" AND "),
+    );
+    let mut stmt = conn
+        .prepare(&sql)
+        .map_err(|error| format!("Failed to prepare collection representative query: {error}"))?;
+    let records: Vec<FindRecord> = stmt
+        .query_map(
+            params_from_iter(
+                query_params
+                    .iter()
+                    .map(|value| value.as_ref() as &dyn ToSql),
+            ),
+            find_record_from_row,
+        )
+        .map_err(|error| format!("Collection representative query failed: {error}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("Collection representative row mapping failed: {error}"))?;
+    Ok(records
+        .into_iter()
+        .map(|record| (record.species_name.clone(), record))
+        .collect())
+}
+
+/// Fills photo count and thumbnail photo for each representative find.
+///
+/// Entries are `(profile species name, representative find)` pairs. The profile species
+/// is what the collection folder is rendered as and is not always the find's own
+/// `species_name` — a find can be moved or renamed after one of its photos was chosen
+/// as that species' cover. Photo selection therefore keys off the pair's species, never
+/// off `record.species_name`.
+fn hydrate_representative_find_photos(
+    conn: &Connection,
+    entries: &mut [(String, FindRecord)],
+) -> Result<(), String> {
+    if entries.is_empty() {
+        return Ok(());
+    }
+
+    let find_ids: Vec<i64> = entries.iter().map(|(_, record)| record.id).collect();
+    let placeholders = std::iter::repeat("?")
+        .take(find_ids.len())
+        .collect::<Vec<_>>()
+        .join(",");
+    let count_sql = format!(
+        "SELECT find_id, COUNT(*) FROM find_photos WHERE find_id IN ({placeholders}) GROUP BY find_id"
+    );
+    let mut count_stmt = conn
+        .prepare(&count_sql)
+        .map_err(|error| format!("Failed to prepare collection photo count query: {error}"))?;
+    let photo_counts: HashMap<i64, i64> = count_stmt
+        .query_map(params_from_iter(find_ids.iter()), |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })
+        .map_err(|error| format!("Collection photo count query failed: {error}"))?
+        .collect::<Result<HashMap<_, _>, _>>()
+        .map_err(|error| format!("Collection photo count row mapping failed: {error}"))?;
+
+    // Default thumbnail per find, independent of any species profile.
+    let photo_sql = format!(
+        "SELECT fp.id, fp.find_id, fp.photo_path, fp.is_primary
+         FROM find_photos fp
+         WHERE fp.find_id IN ({placeholders})
+           AND fp.id = (
+             SELECT fp2.id
+             FROM find_photos fp2
+             WHERE fp2.find_id = fp.find_id
+             ORDER BY fp2.is_primary DESC, fp2.id ASC
+             LIMIT 1
+           )"
+    );
+    let mut photo_stmt = conn
+        .prepare(&photo_sql)
+        .map_err(|error| format!("Failed to prepare collection thumbnail query: {error}"))?;
+    let photos: HashMap<i64, FindPhoto> = photo_stmt
+        .query_map(params_from_iter(find_ids.iter()), |row| {
+            Ok(FindPhoto {
+                id: row.get(0)?,
+                find_id: row.get(1)?,
+                photo_path: row.get(2)?,
+                is_primary: row.get::<_, i64>(3)? == 1,
+            })
+        })
+        .map_err(|error| format!("Collection thumbnail query failed: {error}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("Collection thumbnail row mapping failed: {error}"))?
+        .into_iter()
+        .map(|photo| (photo.find_id, photo))
+        .collect();
+
+    // Explicitly chosen covers, keyed by the profile that chose them. Joining
+    // species_profiles on the find's own species_name instead would pick the wrong
+    // photo whenever the cover's find has since moved to a different folder.
+    let covers = load_cover_photos_by_species(conn, entries)?;
+
+    for (species_name, record) in entries {
+        record.photo_count = Some(*photo_counts.get(&record.id).unwrap_or(&0));
+        let cover = covers
+            .get(species_name)
+            .filter(|photo| photo.find_id == record.id)
+            .cloned();
+        record.photos = cover
+            .or_else(|| photos.get(&record.id).cloned())
+            .into_iter()
+            .collect();
+    }
+    Ok(())
+}
+
+/// Loads each profile's explicitly chosen cover photo, keyed by the profile's species.
+fn load_cover_photos_by_species(
+    conn: &Connection,
+    entries: &[(String, FindRecord)],
+) -> Result<HashMap<String, FindPhoto>, String> {
+    if !species_profiles_have_cover_photo_id(conn) {
+        return Ok(HashMap::new());
+    }
+
+    let species_names: Vec<&String> = entries.iter().map(|(species, _)| species).collect();
+    let placeholders = std::iter::repeat("?")
+        .take(species_names.len())
+        .collect::<Vec<_>>()
+        .join(",");
+    let sql = format!(
+        "SELECT sp.species_name, fp.id, fp.find_id, fp.photo_path, fp.is_primary
+         FROM species_profiles sp
+         JOIN find_photos fp ON fp.id = sp.cover_photo_id
+         WHERE sp.species_name IN ({placeholders})"
+    );
+    let mut stmt = conn
+        .prepare(&sql)
+        .map_err(|error| format!("Failed to prepare collection cover photo query: {error}"))?;
+    let rows: Vec<(String, FindPhoto)> = stmt
+        .query_map(params_from_iter(species_names.iter()), |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                FindPhoto {
+                    id: row.get(1)?,
+                    find_id: row.get(2)?,
+                    photo_path: row.get(3)?,
+                    is_primary: row.get::<_, i64>(4)? == 1,
+                },
+            ))
+        })
+        .map_err(|error| format!("Collection cover photo query failed: {error}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("Collection cover photo row mapping failed: {error}"))?;
+    Ok(rows.into_iter().collect())
+}
+
+fn species_profiles_have_cover_photo_id(conn: &Connection) -> bool {
+    conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('species_profiles') WHERE name = 'cover_photo_id'",
+        [],
+        |row| row.get::<_, i64>(0),
+    )
+    .unwrap_or(0)
+        > 0
 }
 
 #[tauri::command]
@@ -1430,69 +1848,12 @@ pub async fn get_species_finds(
     species_name: String,
     filters: Option<FindSearchFilters>,
 ) -> Result<Vec<FindRecord>, String> {
-    let conn = open_db(&storage_path)?;
-    let filters = filters.unwrap_or_default();
-    load_finds_for_species(&conn, &species_name, &filters)
-}
-
-/// Picks the find whose photo represents a species folder.
-///
-/// Preference order: the find holding the species' chosen cover photo, then the most
-/// recent find that actually has a photo, then simply the most recent find. Without the
-/// middle step a species whose newest find has no photos would show no thumbnail even
-/// though older finds do; without the first, a cover picked from an older find would
-/// save but never render.
-fn load_representative_find_for_species(
-    conn: &Connection,
-    species_name: &str,
-    filters: &FindSearchFilters,
-) -> Result<Option<FindRecord>, String> {
-    let cover_find_id: Option<i64> = conn
-        .query_row(
-            "SELECT fp.find_id
-             FROM find_photos fp
-             JOIN species_profiles sp ON sp.cover_photo_id = fp.id
-             WHERE sp.species_name = ?1",
-            params![species_name],
-            |row| row.get(0),
-        )
-        .ok();
-
-    if let Some(find_id) = cover_find_id {
-        // An explicitly chosen cover wins regardless of the active filters -- the user
-        // picked this photo to stand for the species.
-        let record = conn
-            .query_row(
-                "SELECT id, original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather, determiner, finder FROM finds WHERE id = ?1",
-                params![find_id],
-                |row| find_record_from_row(row),
-            )
-            .ok();
-        if let Some(record) = record {
-            let mut records = vec![record];
-            hydrate_find_photos(conn, &mut records, true, Some(species_name))?;
-            if let Some(found) = records.pop() {
-                return Ok(Some(found));
-            }
-        }
-    }
-
-    let mut filters = FindSearchFilters {
-        limit: Some(1),
-        offset: Some(0),
-        photos_mode: Some("primary".to_string()),
-        ..filters.clone()
-    };
-    filters.species_query = None;
-
-    let mut with_photos =
-        load_finds_for_species_inner(conn, species_name, &filters, true)?;
-    if let Some(found) = with_photos.pop() {
-        return Ok(Some(found));
-    }
-
-    let mut finds = load_finds_for_species_inner(conn, species_name, &filters, false)?;
-    Ok(finds.pop())
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        load_finds_for_species(&conn, &species_name, &filters.unwrap_or_default())
+    })
+    .await
+    .map_err(|error| format!("Species finds worker failed: {error}"))?
 }
 
 fn load_finds_for_species(
@@ -1515,9 +1876,8 @@ fn load_finds_for_species_inner(
     let mut query_params: Vec<Box<dyn ToSql>> = vec![Box::new(species_name.to_string())];
     push_find_search_filters(filters, "", &mut where_clauses, &mut query_params, false);
     if require_photos {
-        where_clauses.push(
-            "EXISTS (SELECT 1 FROM find_photos fp WHERE fp.find_id = finds.id)".to_string(),
-        );
+        where_clauses
+            .push("EXISTS (SELECT 1 FROM find_photos fp WHERE fp.find_id = finds.id)".to_string());
     }
 
     let limit = filters
@@ -2060,6 +2420,8 @@ pub(crate) mod test_helpers {
         include_str!("../../migrations/0015_species_profile_edibility_note.sql");
     const MIGRATION_0016: &str =
         include_str!("../../migrations/0016_species_profile_threat_distribution.sql");
+    const MIGRATION_0024: &str = include_str!("../../migrations/0024_find_weather.sql");
+    const MIGRATION_0025: &str = include_str!("../../migrations/0025_find_determiner_finder.sql");
 
     pub(crate) fn setup_in_memory_db() -> Connection {
         let conn = Connection::open_in_memory().expect("in-memory DB");
@@ -2078,6 +2440,19 @@ pub(crate) mod test_helpers {
         conn.execute_batch(MIGRATION_0014).expect("migration 0014");
         conn.execute_batch(MIGRATION_0015).expect("migration 0015");
         conn.execute_batch(MIGRATION_0016).expect("migration 0016");
+        // Migration 0017 is deliberately skipped here: it only repairs databases where
+        // the original 0014 targeted the wrong table, and migrate_db guards it with a
+        // column-existence check. MIGRATION_0014 above already adds finds.edibility_note,
+        // so running 0017's ALTER unconditionally fails with "duplicate column name".
+        conn.execute_batch(MIGRATION_0018).expect("migration 0018");
+        conn.execute_batch(MIGRATION_0019).expect("migration 0019");
+        conn.execute_batch(MIGRATION_0020).expect("migration 0020");
+        conn.execute_batch(MIGRATION_0021).expect("migration 0021");
+        conn.execute_batch(MIGRATION_0022).expect("migration 0022");
+        conn.execute_batch(MIGRATION_0023).expect("migration 0023");
+        conn.execute_batch(MIGRATION_0024).expect("migration 0024");
+        conn.execute_batch(MIGRATION_0025).expect("migration 0025");
+        conn.execute_batch(MIGRATION_0026).expect("migration 0026");
         conn
     }
 
@@ -2161,7 +2536,8 @@ mod tests {
         insert_find_row(&conn, &make_find_record("a.jpg", "2019-05-20")).expect("insert a");
         insert_find_row(&conn, &make_find_record("b.jpg", "2024-05-20")).expect("insert b");
         insert_find_row(&conn, &make_find_record("c.jpg", "2024-05-21")).expect("insert decoy day");
-        insert_find_row(&conn, &make_find_record("d.jpg", "2024-06-20")).expect("insert decoy month");
+        insert_find_row(&conn, &make_find_record("d.jpg", "2024-06-20"))
+            .expect("insert decoy month");
 
         let filters = FindSearchFilters {
             date_day_month: Some("05-20".to_string()),
@@ -2232,6 +2608,201 @@ mod tests {
             where_clauses2.is_empty(),
             "empty date_day_month should not add a WHERE clause"
         );
+    }
+
+    #[test]
+    fn collection_folders_batch_selection_preserves_cover_and_photo_fallbacks() {
+        let conn = setup_in_memory_db();
+        let insert = |species_name: &str, filename: &str, date: &str| {
+            let mut record = make_find_record(filename, date);
+            record.species_name = species_name.to_string();
+            insert_find_row(&conn, &record).expect("insert find")
+        };
+
+        let cover_find = insert("Boletus edulis", "cover.jpg", "2024-05-01");
+        let cover_primary = insert_find_photo(&conn, cover_find, "boletus-primary.jpg", true)
+            .expect("insert primary photo");
+        let cover_selected = insert_find_photo(&conn, cover_find, "boletus-cover.jpg", false)
+            .expect("insert selected cover");
+        let _newer_boletus = insert("Boletus edulis", "newer.jpg", "2024-06-01");
+
+        let chanterelle_photo_find = insert("Cantharellus cibarius", "photo.jpg", "2024-05-01");
+        let chanterelle_photo = insert_find_photo(
+            &conn,
+            chanterelle_photo_find,
+            "chanterelle-primary.jpg",
+            true,
+        )
+        .expect("insert chanterelle photo");
+        let _newer_photoless = insert("Cantharellus cibarius", "newer.jpg", "2024-06-01");
+        let amanita_old = insert("Amanita muscaria", "old.jpg", "2024-04-01");
+        let amanita_latest = insert("Amanita muscaria", "latest.jpg", "2024-07-01");
+
+        conn.execute(
+            "INSERT INTO species_profiles (species_name, cover_photo_id, updated_at) VALUES (?1, ?2, ?3)",
+            params!["Boletus edulis", cover_selected, "2024-07-01T00:00:00Z"],
+        )
+        .expect("save cover profile");
+
+        let summaries = get_collection_folders_for_connection(&conn, &FindSearchFilters::default())
+            .expect("load collection folders");
+        let representatives: HashMap<String, FindRecord> = summaries
+            .into_iter()
+            .map(|summary| {
+                (
+                    summary.species_name,
+                    summary.representative_find.expect("representative find"),
+                )
+            })
+            .collect();
+
+        let boletus = &representatives["Boletus edulis"];
+        assert_eq!(boletus.id, cover_find, "explicit cover find must win");
+        assert_eq!(
+            boletus.photos[0].id, cover_selected,
+            "selected cover photo must win"
+        );
+        assert_eq!(boletus.photo_count, Some(2));
+        assert_ne!(boletus.photos[0].id, cover_primary);
+
+        let chanterelle = &representatives["Cantharellus cibarius"];
+        assert_eq!(
+            chanterelle.id, chanterelle_photo_find,
+            "latest find with a photo must beat newer photoless find"
+        );
+        assert_eq!(chanterelle.photos[0].id, chanterelle_photo);
+        assert_eq!(chanterelle.photo_count, Some(1));
+
+        let amanita = &representatives["Amanita muscaria"];
+        assert_eq!(
+            amanita.id, amanita_latest,
+            "latest find must be used when species has no photos"
+        );
+        assert_eq!(amanita.photo_count, Some(0));
+        assert!(amanita.photos.is_empty());
+        assert_ne!(amanita.id, amanita_old);
+    }
+
+    /// A cover belongs to the species profile that chose it, not to the find that holds
+    /// the photo. Renaming or moving that find (bulk_rename_species, move_find_to_folder)
+    /// must not hand the cover to the destination folder, and must not let it displace
+    /// the destination's own representative.
+    #[test]
+    fn collection_folder_cover_stays_with_its_profile_after_the_find_moves_species() {
+        let conn = setup_in_memory_db();
+        let insert = |species_name: &str, filename: &str, date: &str| {
+            let mut record = make_find_record(filename, date);
+            record.species_name = species_name.to_string();
+            insert_find_row(&conn, &record).expect("insert find")
+        };
+
+        // The find that owns Boletus' chosen cover photo. It also carries a primary
+        // photo, so a fallback to "primary photo of this find" is distinguishable from
+        // "the cover Boletus actually chose".
+        let moved_find = insert("Boletus edulis", "cover.jpg", "2024-05-01");
+        let _moved_primary = insert_find_photo(&conn, moved_find, "moved-primary.jpg", true)
+            .expect("insert primary photo");
+        let boletus_cover = insert_find_photo(&conn, moved_find, "boletus-cover.jpg", false)
+            .expect("insert selected cover");
+        conn.execute(
+            "INSERT INTO species_profiles (species_name, cover_photo_id, updated_at) VALUES (?1, ?2, ?3)",
+            params!["Boletus edulis", boletus_cover, "2024-07-01T00:00:00Z"],
+        )
+        .expect("save cover profile");
+
+        // Boletus keeps another, newer find so the folder would still render without the cover.
+        let boletus_newer = insert("Boletus edulis", "boletus-newer.jpg", "2024-06-01");
+        insert_find_photo(&conn, boletus_newer, "boletus-newer-photo.jpg", true)
+            .expect("insert boletus newer photo");
+
+        // Chanterelle has its own newest find with a photo — the correct representative.
+        let chanterelle_latest = insert("Cantharellus cibarius", "chanterelle.jpg", "2024-07-01");
+        let chanterelle_photo =
+            insert_find_photo(&conn, chanterelle_latest, "chanterelle-photo.jpg", true)
+                .expect("insert chanterelle photo");
+
+        // The user moves the cover's find into the Chanterelle folder. The profile row
+        // still points at the photo, exactly as move_find_to_folder leaves it.
+        conn.execute(
+            "UPDATE finds SET species_name = ?1 WHERE id = ?2",
+            params!["Cantharellus cibarius", moved_find],
+        )
+        .expect("move find to another species folder");
+
+        let summaries = get_collection_folders_for_connection(&conn, &FindSearchFilters::default())
+            .expect("load collection folders");
+        let representatives: HashMap<String, FindRecord> = summaries
+            .into_iter()
+            .map(|summary| {
+                (
+                    summary.species_name,
+                    summary.representative_find.expect("representative find"),
+                )
+            })
+            .collect();
+
+        let boletus = &representatives["Boletus edulis"];
+        assert_eq!(
+            boletus.id, moved_find,
+            "the profile's chosen cover must still represent Boletus after its find moved"
+        );
+        assert_eq!(
+            boletus.photos[0].id, boletus_cover,
+            "the cover photo Boletus chose must win over the find's primary photo"
+        );
+
+        let chanterelle = &representatives["Cantharellus cibarius"];
+        assert_eq!(
+            chanterelle.id, chanterelle_latest,
+            "Chanterelle must keep its own latest photographed find, not inherit Boletus' cover"
+        );
+        assert_eq!(chanterelle.photos[0].id, chanterelle_photo);
+    }
+
+    #[test]
+    fn find_locations_are_trimmed_deduplicated_and_lightweight() {
+        let conn = setup_in_memory_db();
+        for (species, location) in [
+            ("Boletus edulis", "  Ucka  "),
+            ("Cantharellus cibarius", "ucka"),
+            ("Amanita muscaria", "Gorski kotar"),
+            ("Amanita muscaria", ""),
+            ("tile-cache", "Internal cache"),
+        ] {
+            let mut record = make_find_record("location.jpg", "2024-06-01");
+            record.species_name = species.to_string();
+            record.location_note = location.to_string();
+            insert_find_row(&conn, &record).expect("insert location find");
+        }
+
+        let locations = get_find_locations_for_connection(&conn).expect("load locations");
+        assert_eq!(locations, vec!["Gorski kotar", "Ucka"]);
+    }
+
+    #[test]
+    fn count_photo_mode_returns_counts_without_photo_rows() {
+        let conn = setup_in_memory_db();
+        let first = insert_find_row(&conn, &make_find_record("first.jpg", "2024-06-01"))
+            .expect("insert first find");
+        let second = insert_find_row(&conn, &make_find_record("second.jpg", "2024-06-02"))
+            .expect("insert second find");
+        insert_find_photo(&conn, first, "first-primary.jpg", true).expect("insert primary");
+        insert_find_photo(&conn, first, "first-extra.jpg", false).expect("insert extra");
+
+        let filters = FindSearchFilters {
+            photos_mode: Some("count".to_string()),
+            ..FindSearchFilters::default()
+        };
+        let records = get_finds_for_connection(&conn, &filters).expect("load count-only finds");
+        let by_id: HashMap<i64, FindRecord> = records
+            .into_iter()
+            .map(|record| (record.id, record))
+            .collect();
+
+        assert_eq!(by_id[&first].photo_count, Some(2));
+        assert!(by_id[&first].photos.is_empty());
+        assert_eq!(by_id[&second].photo_count, Some(0));
+        assert!(by_id[&second].photos.is_empty());
     }
 
     #[test]
@@ -2393,6 +2964,36 @@ mod tests {
             table_exists, 1,
             "find_photos table must exist after migration 0003"
         );
+    }
+
+    #[test]
+    fn migrate_db_repairs_missing_species_cover_photo_id_at_current_version() {
+        let conn = setup_in_memory_db();
+        conn.execute_batch(
+            "
+            DROP TABLE species_profiles;
+            CREATE TABLE species_profiles (
+                species_name TEXT PRIMARY KEY,
+                updated_at TEXT NOT NULL,
+                synonyms TEXT,
+                other_names TEXT,
+                habitat TEXT
+            );
+            PRAGMA user_version = 26;
+            ",
+        )
+        .expect("create a version-current database with the legacy profile schema");
+
+        migrate_db(&conn).expect("repair legacy species profile schema");
+
+        let cover_photo_id_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('species_profiles') WHERE name = 'cover_photo_id'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("inspect repaired species_profiles schema");
+        assert_eq!(cover_photo_id_exists, 1);
     }
 
     #[test]
@@ -2723,17 +3324,34 @@ mod tests {
         let mut seen = HashSet::new();
         let mut skipped = Vec::new();
 
-        let staged = copy_payload_photos(&storage_path, storage_path_buf, &payload, "", &mut seen, &mut skipped)
-            .expect("copy phase should succeed");
+        let staged = copy_payload_photos(
+            &storage_path,
+            storage_path_buf,
+            &payload,
+            "",
+            &mut seen,
+            &mut skipped,
+        )
+        .expect("copy phase should succeed");
 
         assert_eq!(staged.len(), 2, "primary + 1 additional should be staged");
         assert!(skipped.is_empty());
         // Source files must still exist — copy phase never deletes.
-        assert!(primary_src.exists(), "primary source must survive copy phase");
-        assert!(extra_src.exists(), "additional source must survive copy phase");
+        assert!(
+            primary_src.exists(),
+            "primary source must survive copy phase"
+        );
+        assert!(
+            extra_src.exists(),
+            "additional source must survive copy phase"
+        );
         // Destination files must exist on disk.
         for photo in &staged {
-            assert!(photo.dest_abs.exists(), "staged destination should exist: {:?}", photo.dest_abs);
+            assert!(
+                photo.dest_abs.exists(),
+                "staged destination should exist: {:?}",
+                photo.dest_abs
+            );
         }
     }
 
@@ -2758,8 +3376,18 @@ mod tests {
         let mut seen = HashSet::new();
         let mut skipped = Vec::new();
 
-        let result = copy_payload_photos(&storage_path, storage_path_buf, &payload, "", &mut seen, &mut skipped);
-        assert!(result.is_err(), "copy phase should fail when an additional photo source is missing");
+        let result = copy_payload_photos(
+            &storage_path,
+            storage_path_buf,
+            &payload,
+            "",
+            &mut seen,
+            &mut skipped,
+        );
+        assert!(
+            result.is_err(),
+            "copy phase should fail when an additional photo source is missing"
+        );
 
         // Root-cause regression check: the primary photo's destination file must NOT be
         // left behind in storage after the batch fails — otherwise a stray file exists
@@ -2811,7 +3439,14 @@ mod tests {
 
         // Copy phase fails (missing additional source) -> import_find returns early via `?`
         // BEFORE ever touching the DB or conn.transaction(). Assert exactly that contract.
-        let copy_result = copy_payload_photos(&storage_path, storage_path_buf, &payload, "", &mut seen, &mut skipped);
+        let copy_result = copy_payload_photos(
+            &storage_path,
+            storage_path_buf,
+            &payload,
+            "",
+            &mut seen,
+            &mut skipped,
+        );
         assert!(copy_result.is_err());
 
         // No find row should exist — nothing was ever inserted, since the fix defers all
@@ -2819,19 +3454,31 @@ mod tests {
         let find_count: i64 = conn
             .query_row("SELECT COUNT(*) FROM finds", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(find_count, 0, "no find row should exist after copy-phase failure");
+        assert_eq!(
+            find_count, 0,
+            "no find row should exist after copy-phase failure"
+        );
 
         let photo_count: i64 = conn
             .query_row("SELECT COUNT(*) FROM find_photos", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(photo_count, 0, "no find_photos row should exist after copy-phase failure");
+        assert_eq!(
+            photo_count, 0,
+            "no find_photos row should exist after copy-phase failure"
+        );
 
-        assert!(primary_src.exists(), "primary source must survive a copy-phase failure");
+        assert!(
+            primary_src.exists(),
+            "primary source must survive a copy-phase failure"
+        );
 
         // Sanity: use conn at least once through the transaction API to mirror real usage
         // and confirm the DB handle itself is still healthy after the aborted attempt.
-        let tx = conn.transaction().expect("connection should still support transactions");
-        tx.commit().expect("empty transaction should commit cleanly");
+        let tx = conn
+            .transaction()
+            .expect("connection should still support transactions");
+        tx.commit()
+            .expect("empty transaction should commit cleanly");
     }
 
     // ---------------------------------------------------------------------------

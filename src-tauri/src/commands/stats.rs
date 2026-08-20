@@ -1,5 +1,8 @@
-use rusqlite::params;
 use base64::Engine;
+use std::collections::HashMap;
+
+#[cfg(test)]
+use rusqlite::params;
 
 use crate::commands::import::open_db;
 
@@ -65,6 +68,12 @@ pub struct SpeciesStatSummary {
 
 #[tauri::command]
 pub async fn get_stats_cards(storage_path: String) -> Result<StatsCards, String> {
+    tauri::async_runtime::spawn_blocking(move || get_stats_cards_blocking(&storage_path))
+        .await
+        .map_err(|e| format!("Stats cards worker failed: {}", e))?
+}
+
+fn get_stats_cards_blocking(storage_path: &str) -> Result<StatsCards, String> {
     let conn = open_db(&storage_path)?;
 
     let total_finds: i64 = conn
@@ -121,6 +130,12 @@ pub async fn get_stats_cards(storage_path: String) -> Result<StatsCards, String>
 
 #[tauri::command]
 pub async fn get_top_spots(storage_path: String) -> Result<Vec<TopSpot>, String> {
+    tauri::async_runtime::spawn_blocking(move || get_top_spots_blocking(&storage_path))
+        .await
+        .map_err(|e| format!("Top spots worker failed: {}", e))?
+}
+
+fn get_top_spots_blocking(storage_path: &str) -> Result<Vec<TopSpot>, String> {
     let conn = open_db(&storage_path)?;
     let mut stmt = conn
         .prepare(
@@ -150,6 +165,12 @@ pub async fn get_top_spots(storage_path: String) -> Result<Vec<TopSpot>, String>
 
 #[tauri::command]
 pub async fn get_best_months(storage_path: String) -> Result<Vec<BestMonth>, String> {
+    tauri::async_runtime::spawn_blocking(move || get_best_months_blocking(&storage_path))
+        .await
+        .map_err(|e| format!("Best months worker failed: {}", e))?
+}
+
+fn get_best_months_blocking(storage_path: &str) -> Result<Vec<BestMonth>, String> {
     let conn = open_db(&storage_path)?;
     let mut stmt = conn
         .prepare(
@@ -178,6 +199,12 @@ pub async fn get_best_months(storage_path: String) -> Result<Vec<BestMonth>, Str
 
 #[tauri::command]
 pub async fn get_calendar(storage_path: String) -> Result<Vec<CalendarEntry>, String> {
+    tauri::async_runtime::spawn_blocking(move || get_calendar_blocking(&storage_path))
+        .await
+        .map_err(|e| format!("Calendar worker failed: {}", e))?
+}
+
+fn get_calendar_blocking(storage_path: &str) -> Result<Vec<CalendarEntry>, String> {
     let conn = open_db(&storage_path)?;
     let mut stmt = conn
         .prepare(
@@ -208,13 +235,30 @@ pub async fn get_calendar(storage_path: String) -> Result<Vec<CalendarEntry>, St
 
 #[tauri::command]
 pub async fn get_species_stats(storage_path: String) -> Result<Vec<SpeciesStatSummary>, String> {
+    tauri::async_runtime::spawn_blocking(move || get_species_stats_blocking(&storage_path))
+        .await
+        .map_err(|e| format!("Species stats worker failed: {}", e))?
+}
+
+fn get_species_stats_blocking(storage_path: &str) -> Result<Vec<SpeciesStatSummary>, String> {
     let conn = open_db(&storage_path)?;
 
-    // First query: aggregate per species
+    // Query 1: all scalar aggregates per species.
     let mut stmt = conn
         .prepare(
             &format!(
-                "SELECT species_name, COUNT(*) as find_count, MIN(CASE WHEN date_found IS NOT NULL AND date_found != '' THEN date_found END) as first_find \
+                "SELECT species_name,
+                        COUNT(*) as find_count,
+                        MIN(CASE WHEN date_found IS NOT NULL AND date_found != '' THEN date_found END) as first_find,
+                        MIN(COALESCE(observed_count_min, observed_count)),
+                        MAX(COALESCE(observed_count_max, observed_count)),
+                        AVG(COALESCE(
+                          CAST(observed_count AS REAL),
+                          CASE WHEN observed_count_min IS NOT NULL AND observed_count_max IS NOT NULL
+                            THEN (CAST(observed_count_min AS REAL) + CAST(observed_count_max AS REAL)) / 2.0
+                            ELSE CAST(COALESCE(observed_count_min, observed_count_max) AS REAL)
+                          END
+                        ))
                  FROM finds WHERE {} GROUP BY species_name ORDER BY find_count DESC",
                 INTERNAL_SPECIES_FILTER
             ),
@@ -226,6 +270,9 @@ pub async fn get_species_stats(storage_path: String) -> Result<Vec<SpeciesStatSu
         species_name: String,
         find_count: i64,
         first_find: String,
+        observed_min: Option<i64>,
+        observed_max: Option<i64>,
+        observed_avg: Option<f64>,
     }
 
     let species_rows: Vec<SpeciesRow> = stmt
@@ -234,100 +281,80 @@ pub async fn get_species_stats(storage_path: String) -> Result<Vec<SpeciesStatSu
                 species_name: row.get(0)?,
                 find_count: row.get(1)?,
                 first_find: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
+                observed_min: row.get(3)?,
+                observed_max: row.get(4)?,
+                observed_avg: row.get(5)?,
             })
         })
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
 
-    let mut result: Vec<SpeciesStatSummary> = Vec::with_capacity(species_rows.len());
+    // Query 2: month counts for every species. The first row per species is its best month.
+    let mut month_stmt = conn
+        .prepare(&format!(
+            "SELECT species_name, strftime('%Y-%m', date_found) AS ym, COUNT(*) AS cnt
+             FROM finds
+             WHERE {} AND date_found IS NOT NULL AND date_found != ''
+             GROUP BY species_name, ym
+             ORDER BY species_name COLLATE NOCASE, cnt DESC, ym ASC",
+            INTERNAL_SPECIES_FILTER
+        ))
+        .map_err(|e| e.to_string())?;
+    let month_rows = month_stmt
+        .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
+        .map_err(|e| e.to_string())?;
+    let mut best_months = HashMap::<String, String>::new();
+    for row in month_rows {
+        let (species_name, month) = row.map_err(|e| e.to_string())?;
+        best_months.entry(species_name).or_insert(month);
+    }
 
-    for row in species_rows {
-        // Best month sub-query
-        let best_month: Option<String> = conn
-            .query_row(
-                &format!(
-                    "SELECT strftime('%Y-%m', date_found) as ym, COUNT(*) as cnt \
-                     FROM finds WHERE {} AND species_name = ?1 AND date_found IS NOT NULL AND date_found != '' \
-                     GROUP BY ym ORDER BY cnt DESC LIMIT 1",
-                    INTERNAL_SPECIES_FILTER
-                ),
-                params![row.species_name],
-                |r| r.get(0),
-            )
-            .ok();
+    // Query 3: every distinct species/location pair in one pass.
+    let mut location_stmt = conn
+        .prepare(&format!(
+            "SELECT DISTINCT species_name, country, region, location_note
+             FROM finds WHERE {}
+             ORDER BY species_name COLLATE NOCASE, country, region, location_note",
+            INTERNAL_SPECIES_FILTER
+        ))
+        .map_err(|e| e.to_string())?;
+    let location_rows = location_stmt
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                SpeciesLocation {
+                    country: row.get(1)?,
+                    region: row.get(2)?,
+                    location_note: row.get(3)?,
+                },
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+    let mut locations_by_species = HashMap::<String, Vec<SpeciesLocation>>::new();
+    for row in location_rows {
+        let (species_name, location) = row.map_err(|e| e.to_string())?;
+        locations_by_species
+            .entry(species_name)
+            .or_default()
+            .push(location);
+    }
 
-        // Observed count sub-query: aggregate min/max/avg across finds for this species.
-        // Uses COALESCE so observed_count_min/max fall back to observed_count when one is absent.
-        // AVG uses per-find midpoint when both min+max present, exact count otherwise.
-        // Returns all-NULL row (not an error) when no finds have observed data.
-        struct ObsStats {
-            obs_min: Option<i64>,
-            obs_max: Option<i64>,
-            obs_avg: Option<f64>,
-        }
-
-        let obs_stats: ObsStats = conn
-            .query_row(
-                &format!(
-                    "SELECT \
-                       MIN(COALESCE(observed_count_min, observed_count)), \
-                       MAX(COALESCE(observed_count_max, observed_count)), \
-                       AVG(COALESCE( \
-                         CAST(observed_count AS REAL), \
-                         CASE WHEN observed_count_min IS NOT NULL AND observed_count_max IS NOT NULL \
-                           THEN (CAST(observed_count_min AS REAL) + CAST(observed_count_max AS REAL)) / 2.0 \
-                           ELSE CAST(COALESCE(observed_count_min, observed_count_max) AS REAL) \
-                         END \
-                       )) \
-                     FROM finds WHERE {} AND species_name = ?1",
-                    INTERNAL_SPECIES_FILTER
-                ),
-                params![row.species_name],
-                |r| Ok(ObsStats {
-                    obs_min: r.get(0)?,
-                    obs_max: r.get(1)?,
-                    obs_avg: r.get(2)?,
-                }),
-            )
-            .unwrap_or(ObsStats { obs_min: None, obs_max: None, obs_avg: None });
-
-        // Locations sub-query
-        let mut loc_stmt = conn
-            .prepare(
-                &format!(
-                    "SELECT DISTINCT country, region, location_note \
-                     FROM finds WHERE {} AND species_name = ?1",
-                    INTERNAL_SPECIES_FILTER
-                ),
-            )
-            .map_err(|e| e.to_string())?;
-
-        let locations: Vec<SpeciesLocation> = loc_stmt
-            .query_map(params![row.species_name], |r| {
-                Ok(SpeciesLocation {
-                    country: r.get(0)?,
-                    region: r.get(1)?,
-                    location_note: r.get(2)?,
-                })
-            })
-            .map_err(|e| e.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())?;
-
-        result.push(SpeciesStatSummary {
+    Ok(species_rows
+        .into_iter()
+        .map(|row| SpeciesStatSummary {
+            best_month: best_months.remove(&row.species_name),
+            locations: locations_by_species
+                .remove(&row.species_name)
+                .unwrap_or_default(),
             species_name: row.species_name,
             find_count: row.find_count,
             first_find: row.first_find,
-            best_month,
-            locations,
-            observed_min: obs_stats.obs_min,
-            observed_max: obs_stats.obs_max,
-            observed_avg: obs_stats.obs_avg,
-        });
-    }
-
-    Ok(result)
+            observed_min: row.observed_min,
+            observed_max: row.observed_max,
+            observed_avg: row.observed_avg,
+        })
+        .collect())
 }
 
 /// Read photo files as base64-encoded strings for export.
@@ -339,9 +366,20 @@ pub async fn read_photos_as_base64(
     storage_path: String,
     photo_paths: Vec<String>,
 ) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        read_photos_as_base64_blocking(&storage_path, &photo_paths)
+    })
+    .await
+    .map_err(|e| format!("Photo export worker failed: {}", e))?
+}
+
+fn read_photos_as_base64_blocking(
+    storage_path: &str,
+    photo_paths: &[String],
+) -> Result<Vec<String>, String> {
     let mut result: Vec<String> = Vec::with_capacity(photo_paths.len());
 
-    for rel in &photo_paths {
+    for rel in photo_paths {
         // T-04-01: Reject paths containing `..` to prevent traversal outside storage_path
         if rel.contains("..") {
             return Err(format!(
@@ -511,6 +549,33 @@ mod tests {
         assert_eq!(obs_max, Some(8), "max should be 8");
         let avg = obs_avg.expect("avg should be Some");
         assert!((avg - 6.0).abs() < 0.001, "avg should be 6.0, got {}", avg);
+    }
+
+    #[test]
+    fn species_stats_batch_query_preserves_month_locations_and_observed_values() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_string_lossy().to_string();
+        let conn = open_db(&storage_path).expect("open db");
+        insert_find_with_range(&conn, "Boletus edulis", "2024-05-01", Some(3), Some(5), None);
+        insert_find_with_range(&conn, "Boletus edulis", "2024-05-20", Some(5), Some(9), None);
+        insert_find_with_range(&conn, "Boletus edulis", "2024-06-01", None, None, Some(7));
+        conn.execute(
+            "UPDATE finds SET country = 'Croatia', region = 'Gorski Kotar', location_note = 'Oak forest'",
+            [],
+        )
+        .expect("set location");
+        drop(conn);
+
+        let stats = get_species_stats_blocking(&storage_path).expect("batch stats");
+        assert_eq!(stats.len(), 1);
+        let boletus = &stats[0];
+        assert_eq!(boletus.find_count, 3);
+        assert_eq!(boletus.best_month.as_deref(), Some("2024-05"));
+        assert_eq!(boletus.locations.len(), 1);
+        assert_eq!(boletus.locations[0].location_note, "Oak forest");
+        assert_eq!(boletus.observed_min, Some(3));
+        assert_eq!(boletus.observed_max, Some(9));
+        assert!((boletus.observed_avg.expect("avg") - 6.0).abs() < 0.001);
     }
 
     #[test]
