@@ -226,6 +226,44 @@ describe('CreateFindDialog', () => {
     expect(invokeCallArgs.length).toBe(1);
   });
 
+  it('stores the library spelling when the typed name differs only in case', async () => {
+    // The library already knows "Boletus edulis". Typing it in lower case must not open
+    // a second, case-variant species folder alongside the existing one.
+    invokeHandlers['get_species_options'] = () => [
+      {
+        species_name: 'Boletus edulis',
+        common_name: 'Vrganj',
+        synonyms: [],
+        other_names: [],
+        has_finds: true,
+      },
+    ];
+    const createdWith: Array<Record<string, any>> = [];
+    invokeHandlers['create_find'] = (args: unknown) => {
+      createdWith.push(args as Record<string, any>);
+      return { ...noPhotoFind, id: 101, species_name: 'Boletus edulis' };
+    };
+
+    renderDialog(true);
+
+    const speciesInput = screen.getByRole('textbox', { name: /latin name/i });
+    speciesInput.textContent = 'boletus edulis';
+    fireEvent.input(speciesInput);
+
+    // The options list resolves asynchronously; the auto-filled common name is the
+    // observable signal that the typed text has been matched to the known species.
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Vrganj')).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /save/i })).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => expect(createdWith.length).toBe(1));
+    expect(createdWith[0].payload.species_name).toBe('Boletus edulis');
+  });
+
   it('shows error message when create_find invoke rejects', async () => {
     invokeHandlers['create_find'] = () => {
       throw new Error('DB write failed');

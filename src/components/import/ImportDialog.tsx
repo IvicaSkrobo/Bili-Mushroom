@@ -290,6 +290,11 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     () => speciesOptionsByLowerName.get(sharedName.trim().toLowerCase()) ?? null,
     [speciesOptionsByLowerName, sharedName],
   );
+  // The spelling the library already uses, when the typed text names a species we know.
+  const sharedCanonicalSpeciesName = useMemo(
+    () => sharedSpeciesOption?.species_name ?? sharedName.trim(),
+    [sharedSpeciesOption, sharedName],
+  );
 
   useEffect(() => {
     if (commonNameManuallyEditedRef.current) return;
@@ -535,7 +540,9 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
       const payload: ImportPayload = {
         source_path: photos[0],
         original_filename: photos[0].split('/').pop()?.split('\\').pop() ?? photos[0],
-        species_name: sharedName.trim(),
+        // Store the spelling the library already uses when the typed text names a known
+        // species, so a casing difference cannot split one species into two folders.
+        species_name: sharedCanonicalSpeciesName,
         common_name: sharedCommonName.trim() || null,
         date_found: sharedDate,
         country: sharedCountry,
@@ -572,14 +579,9 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
       ) {
         // Read-modify-write: pull the profile now rather than from a cached list, so
         // saving right after typing a name cannot wipe tags, cover or edibility.
-        // The typed name may differ in case or asterisk markup from the stored profile
-        // key; resolve through the options list first.
-        const canonicalSpeciesName =
-          speciesOptionsByLowerName.get(sharedName.trim().toLowerCase())?.species_name ??
-          sharedName.trim();
         // Patch only the fields this dialog owns. Tags, cover, synonyms and habitat stay
         // exactly as the species editor left them.
-        await patchSpeciesProfile(storagePath, canonicalSpeciesName, {
+        await patchSpeciesProfile(storagePath, sharedCanonicalSpeciesName, {
           ...(sharedCommonName.trim() ? { commonName: sharedCommonName.trim() } : {}),
           ...(sharedSpeciesDescription.trim()
             ? { description: sharedSpeciesDescription.trim() }

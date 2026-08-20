@@ -760,7 +760,10 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
     const observedRange = parseObservedRangeInput(form.observed_count_range);
     try {
       const created = await createMutation.mutateAsync({
-        species_name: form.species_name,
+        // Store the spelling the library already uses when the typed text names a known
+        // species. Otherwise "boletus edulis" typed against an existing "Boletus edulis"
+        // would open a second, case-variant folder in the collection.
+        species_name: canonicalSpeciesName,
         common_name: form.common_name.trim() || null,
         date_found: form.date_found,
         country: form.country,

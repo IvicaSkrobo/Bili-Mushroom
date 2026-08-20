@@ -301,7 +301,9 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     updateMutation.mutate(
       {
         id: find.id,
-        species_name: form.species_name,
+        // Store the spelling the library already uses when the typed text names a known
+        // species, so a casing difference cannot split one species into two folders.
+        species_name: canonicalSpeciesName,
         common_name: form.common_name.trim() || null,
         date_found: form.date_found,
         country: form.country,
