@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Crop, Image, Loader2, MapPin, Maximize2, Minimize2, Minus, Pencil, Plus, RotateCw, Save, Trash2, X, ZoomIn } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, CloudSun, Crop, Image, Loader2, MapPin, Maximize2, Minimize2, Minus, Pencil, Plus, RotateCw, Save, Trash2, X, ZoomIn } from 'lucide-react';
 import {
   Dialog,
   DialogClose,
@@ -70,6 +70,8 @@ export function PhotoLightbox({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState('');
+  const [editingWeather, setEditingWeather] = useState(false);
+  const [weatherValue, setWeatherValue] = useState('');
   const updateFind = useUpdateFind();
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -90,6 +92,7 @@ export function PhotoLightbox({
     setPan({ x: 0, y: 0 });
     setConfirmingDelete(false);
     setEditingNotes(false);
+    setEditingWeather(false);
     setCropMode(false);
     setCropSelection(null);
     setPendingRotation(0);
@@ -653,6 +656,7 @@ export function PhotoLightbox({
                             lat: find.lat ?? null,
                             lng: find.lng ?? null,
                             notes: notesValue,
+                            weather: find.weather ?? null,
                             observed_count: find.observed_count ?? null,
                             observed_count_min: find.observed_count_min ?? null,
                             observed_count_max: find.observed_count_max ?? null,
@@ -671,6 +675,76 @@ export function PhotoLightbox({
                   </p>
                 ) : (
                   <p className="text-xs text-muted-foreground/30 italic">{t('lightbox.noNotes')}</p>
+                )}
+              </div>
+              {/* Weather — inline edit/add */}
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/90">
+                    {t('lightbox.weather')}
+                  </p>
+                  {!editingWeather && (
+                    <button
+                      type="button"
+                      onClick={() => { setWeatherValue(find.weather ?? ''); setEditingWeather(true); }}
+                      className="flex items-center gap-1 text-[10px] text-muted-foreground/65 transition-colors hover:text-primary"
+                      title={find.weather ? t('lightbox.editWeather') : t('lightbox.addWeather')}
+                    >
+                      {find.weather ? <Pencil className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                      {find.weather ? t('lightbox.edit') : t('lightbox.add')}
+                    </button>
+                  )}
+                </div>
+                {editingWeather ? (
+                  <div className="flex flex-col gap-1.5">
+                    <input
+                      autoFocus
+                      value={weatherValue}
+                      onChange={(e) => setWeatherValue(e.target.value)}
+                      placeholder={t('edit.weatherPlaceholder')}
+                      className="w-full rounded border border-border/60 bg-background/40 px-2.5 py-1.5 text-sm font-medium leading-relaxed text-foreground outline-none focus:border-primary/60 focus:ring-1 focus:ring-ring"
+                    />
+                    <div className="flex justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setEditingWeather(false)}
+                        className="rounded px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      >
+                        {t('common.cancel')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateFind.mutate({
+                            id: find.id,
+                            species_name: find.species_name ?? '',
+                            date_found: find.date_found ?? '',
+                            country: find.country ?? '',
+                            region: find.region ?? '',
+                            location_note: find.location_note ?? '',
+                            lat: find.lat ?? null,
+                            lng: find.lng ?? null,
+                            notes: find.notes ?? '',
+                            weather: weatherValue.trim() || null,
+                            observed_count: find.observed_count ?? null,
+                            observed_count_min: find.observed_count_min ?? null,
+                            observed_count_max: find.observed_count_max ?? null,
+                          });
+                          setEditingWeather(false);
+                        }}
+                        className="flex items-center gap-1 rounded bg-primary/20 px-2.5 py-1 text-xs text-primary transition-colors hover:bg-primary/30"
+                      >
+                        <Check className="h-3 w-3" /> {t('edit.save')}
+                      </button>
+                    </div>
+                  </div>
+                ) : find.weather ? (
+                  <p className="flex items-start gap-1.5 text-sm font-semibold leading-relaxed text-foreground">
+                    <CloudSun className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary/70" />
+                    {find.weather}
+                  </p>
+                ) : (
+                  <p className="text-xs italic text-muted-foreground/30">{t('lightbox.noWeather')}</p>
                 )}
               </div>
               {observedDisplay && (
@@ -793,6 +867,7 @@ export function PhotoLightbox({
             lat,
             lng,
             notes: find.notes ?? '',
+            weather: find.weather ?? null,
             observed_count: find.observed_count ?? null,
             observed_count_min: find.observed_count_min ?? null,
             observed_count_max: find.observed_count_max ?? null,

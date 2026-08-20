@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Pencil, Image, Trash2, Square, CheckSquare, Star } from 'lucide-react';
+import { Pencil, Image, Trash2, Square, CheckSquare, Star, CloudSun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { isHeic, type Find, type SpeciesProfile } from '@/lib/finds';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
@@ -140,6 +140,12 @@ export function FindCard({ find, storagePath, onEdit, onDelete, selectMode, isSe
         )}
         {find.notes && (
           <p className="line-clamp-2 text-xs text-muted-foreground/70 italic">{find.notes}</p>
+        )}
+        {find.weather && (
+          <p className="flex items-center gap-1 truncate text-xs text-muted-foreground/70">
+            <CloudSun className="h-3 w-3 shrink-0 text-primary/60" />
+            {find.weather}
+          </p>
         )}
         <SpeciesMetadataBadges speciesProfile={speciesProfile} size="sm" hideUnknown={true} />
       </div>

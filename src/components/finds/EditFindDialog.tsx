@@ -40,6 +40,7 @@ interface FormState {
   lat: string;
   lng: string;
   notes: string;
+  weather: string;
   observed_count_range: string;
   species_description: string;
 }
@@ -96,6 +97,7 @@ function findToFormState(find: Find): FormState {
     lat: find.lat !== null ? String(find.lat) : '',
     lng: find.lng !== null ? String(find.lng) : '',
     notes: find.notes ?? '',
+    weather: find.weather ?? '',
     observed_count_range: formatObservedRange(
       find.observed_count_min,
       find.observed_count_max,
@@ -201,6 +203,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
     lat: '',
     lng: '',
     notes: '',
+    weather: '',
     observed_count_range: '',
     species_description: '',
   });
@@ -290,6 +293,7 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
         lat: form.lat !== '' ? parseFloat(form.lat) : null,
         lng: form.lng !== '' ? parseFloat(form.lng) : null,
         notes: form.notes,
+        weather: form.weather.trim() || null,
         observed_count: observedRange.representative,
         observed_count_min: observedRange.min,
         observed_count_max: observedRange.max,
@@ -575,6 +579,14 @@ export function EditFindDialog({ find, onOpenChange }: EditFindDialogProps) {
               onChange={(e) => handleChange('notes', e.target.value)}
               placeholder={t('edit.notes')}
               rows={3}
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium">{t('edit.weather')}</label>
+            <Input
+              value={form.weather}
+              onChange={(e) => handleChange('weather', e.target.value)}
+              placeholder={t('edit.weatherPlaceholder')}
             />
           </div>
           <div>

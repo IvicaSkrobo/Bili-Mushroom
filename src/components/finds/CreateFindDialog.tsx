@@ -41,6 +41,7 @@ interface FormState {
   lat: string;
   lng: string;
   notes: string;
+  weather: string;
   observed_count_range: string;
   species_description: string;
 }
@@ -74,6 +75,7 @@ const BLANK_FORM: FormState = {
   lat: '',
   lng: '',
   notes: '',
+  weather: '',
   observed_count_range: '',
   species_description: '',
 };
@@ -760,6 +762,7 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
         observed_count_min: observedRange.min,
         observed_count_max: observedRange.max,
         edibility_note: null,
+        weather: form.weather.trim() || null,
       });
 
       if (selectedPhotos.length > 0) {
@@ -1005,6 +1008,15 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
               placeholder={t('edit.notes')}
               rows={3}
               className={filledClass(form.notes)}
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium">{t('edit.weather')}</label>
+            <Input
+              value={form.weather}
+              onChange={(e) => handleChange('weather', e.target.value)}
+              placeholder={t('edit.weatherPlaceholder')}
+              className={filledClass(form.weather)}
             />
           </div>
           <div>

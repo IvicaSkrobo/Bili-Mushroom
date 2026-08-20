@@ -126,6 +126,7 @@ interface ImportDraft {
   sharedObservedRange: string;
   sharedFolderNotes: string;
   sharedFindNotes: string;
+  sharedWeather: string;
   sharedLocation: { lat: number; lng: number } | null;
   sharedSpeciesDescription: string;
   sharedEdibility: string;
@@ -162,6 +163,7 @@ function loadImportDraft(): ImportDraft | null {
       sharedObservedRange: typeof parsed.sharedObservedRange === 'string' ? parsed.sharedObservedRange : '',
       sharedFolderNotes: typeof parsed.sharedFolderNotes === 'string' ? parsed.sharedFolderNotes : '',
       sharedFindNotes: typeof parsed.sharedFindNotes === 'string' ? parsed.sharedFindNotes : '',
+      sharedWeather: typeof parsed.sharedWeather === 'string' ? parsed.sharedWeather : '',
       sharedLocation: parsed.sharedLocation && typeof parsed.sharedLocation.lat === 'number' && typeof parsed.sharedLocation.lng === 'number'
         ? { lat: parsed.sharedLocation.lat, lng: parsed.sharedLocation.lng }
         : null,
@@ -267,6 +269,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   const [sharedObservedRange, setSharedObservedRange] = useState('');
   const [sharedFolderNotes, setSharedFolderNotes] = useState('');
   const [sharedFindNotes, setSharedFindNotes] = useState('');
+  const [sharedWeather, setSharedWeather] = useState('');
   const [sharedMapOpen, setSharedMapOpen] = useState(false);
   const [sharedLocation, setSharedLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [sharedSpeciesDescription, setSharedSpeciesDescription] = useState<string>('');
@@ -327,6 +330,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     setSharedObservedRange(draft.sharedObservedRange);
     setSharedFolderNotes(draft.sharedFolderNotes);
     setSharedFindNotes(draft.sharedFindNotes);
+    setSharedWeather(draft.sharedWeather);
     setSharedLocation(draft.sharedLocation);
     setSharedSpeciesDescription(draft.sharedSpeciesDescription);
     setSharedEdibility(draft.sharedEdibility);
@@ -351,6 +355,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
       sharedObservedRange.trim() !== '' ||
       sharedFolderNotes.trim() !== '' ||
       sharedFindNotes.trim() !== '' ||
+      sharedWeather.trim() !== '' ||
       sharedLocation != null ||
       sharedSpeciesDescription.trim() !== '' ||
       sharedEdibility !== 'unknown' ||
@@ -375,6 +380,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         sharedObservedRange,
         sharedFolderNotes,
         sharedFindNotes,
+        sharedWeather,
         sharedLocation,
         sharedSpeciesDescription,
         sharedEdibility,
@@ -397,6 +403,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     sharedObservedRange,
     sharedFolderNotes,
     sharedFindNotes,
+    sharedWeather,
     sharedLocation,
     sharedSpeciesDescription,
     sharedEdibility,
@@ -528,6 +535,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         lat: sharedLocation?.lat ?? null,
         lng: sharedLocation?.lng ?? null,
         notes: sharedFindNotes.trim(),
+        weather: sharedWeather.trim() || null,
         observed_count: observedRange.representative,
         observed_count_min: observedRange.min,
         observed_count_max: observedRange.max,
@@ -597,6 +605,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     setSharedObservedRange('');
     setSharedFolderNotes('');
     setSharedFindNotes('');
+    setSharedWeather('');
     setSharedLocation(null);
     setImportSummary(null);
     setReviewOpen(false);
@@ -790,6 +799,17 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                   rows={3}
                   value={sharedFindNotes}
                   onChange={(e) => setSharedFindNotes(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">{t('edit.weather')}</label>
+                <Input
+                  className={cn('mt-1', filledClass(sharedWeather))}
+                  aria-label={t('edit.weather')}
+                  placeholder={t('edit.weatherPlaceholder')}
+                  value={sharedWeather}
+                  onChange={(e) => setSharedWeather(e.target.value)}
                 />
               </div>
 
