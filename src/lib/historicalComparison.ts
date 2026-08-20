@@ -29,7 +29,7 @@ export function getISOWeek(date: Date): number {
  * only historical comparisons are shown.
  */
 export function buildHistoricalComparison(
-  entries: CalendarEntry[],
+  entries: Array<Pick<CalendarEntry, 'date_found' | 'species_name'>>,
   today: Date = new Date(),
 ): HistoricalPeriodData {
   const currentYear = today.getFullYear();

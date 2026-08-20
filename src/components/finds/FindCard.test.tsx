@@ -17,8 +17,12 @@ const sampleFind: Find = {
   lng: 13.9,
   notes: 'Found near oak tree',
   location_note: '',
+  observed_count: null,
+  observed_count_min: null,
+  observed_count_max: null,
   is_favorite: false,
   created_at: '2024-05-10T14:00:00Z',
+  edibility_note: null,
   photos: [
     { id: 1, find_id: 1, photo_path: 'Croatia/Istria/2024-05-10/Amanita_muscaria_2024-05-10_001.jpg', is_primary: true },
   ],

@@ -471,22 +471,6 @@ export default function MapTab() {
     setActiveZoneId(savedZone.id);
   }
 
-  function handlePickLocalTargetFind(find: MapPoint) {
-    if (find.lat == null || find.lng == null) return;
-    setZoneMode('local');
-    setActiveSpecies(find.species_name);
-    setLocalTargetFind(find);
-    setActiveZoneId(findZoneForFind(find, 'local')?.id ?? null);
-  }
-
-  function handlePickRegionTargetFind(find: MapPoint) {
-    if (find.lat == null || find.lng == null) return;
-    setZoneMode('region');
-    setActiveSpecies(find.species_name);
-    setRegionTargetFind(find);
-    setActiveZoneId(findZoneForFind(find, 'region')?.id ?? null);
-  }
-
   function handleStartPolygonPointEdit() {
     if (!activeZone || activeZone.geometry_type !== 'polygon') return;
     openPolygonEditor({
@@ -612,9 +596,6 @@ export default function MapTab() {
         finds={filteredFinds}
         zones={filteredZones}
         zoneMode={zoneMode}
-        onCreateZoneForFind={handleCreateZoneForFind}
-        onPickLocalTargetFind={handlePickLocalTargetFind}
-        onPickRegionTargetFind={handlePickRegionTargetFind}
         onStartLocalPolygonForFind={handleStartLocalPolygonForFind}
         onStartRegionPolygonForFind={handleStartRegionPolygonForFind}
         polygonEditorActive={polygonEditorActive}

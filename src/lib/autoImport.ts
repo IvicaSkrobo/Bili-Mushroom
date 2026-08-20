@@ -114,6 +114,7 @@ export async function scanAndImport(
       observed_count_min: null,
       observed_count_max: null,
       additional_photos: imagePaths.slice(1),
+      edibility_note: null,
     };
 
     const summary = await importFind(storagePath, [payload]);
@@ -162,6 +163,7 @@ export async function scanAndImport(
         observed_count_min: null,
         observed_count_max: null,
         additional_photos: items.slice(1).map((i) => i.path),
+        edibility_note: null,
       };
 
       const summary = await importFind(storagePath, [payload]);

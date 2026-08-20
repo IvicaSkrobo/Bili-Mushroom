@@ -33,10 +33,16 @@ const sampleFind: Find = {
   date_found: '2024-05-10',
   country: 'Croatia',
   region: 'Istria',
+  location_note: '',
   lat: 45.1,
   lng: 13.9,
   notes: 'Found near oak tree',
+  observed_count: null,
+  observed_count_min: null,
+  observed_count_max: null,
+  is_favorite: false,
   created_at: '2024-05-10T14:00:00Z',
+  edibility_note: null,
   photos: [],
 };
 

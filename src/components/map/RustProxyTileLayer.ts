@@ -149,9 +149,11 @@ export function createRustProxyTileLayer(
       return img;
     },
   });
-  return new RustProxyGridLayer({
+  const layer = new RustProxyGridLayer();
+  L.setOptions(layer, {
     attribution: options.attribution,
     minZoom: options.minZoom ?? 0,
     maxZoom: options.maxZoom ?? 19,
   });
+  return layer;
 }

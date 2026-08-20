@@ -32,12 +32,13 @@ export function DraggablePanel({
 
   useEffect(() => {
     if (!drag) return undefined;
+    const activeDrag = drag;
     function onPointerMove(event: PointerEvent) {
       const maxX = Math.max(8, window.innerWidth - 96);
       const maxY = Math.max(8, window.innerHeight - 96);
       setPosition({
-        x: Math.min(Math.max(8, event.clientX - drag.dx), maxX),
-        y: Math.min(Math.max(8, event.clientY - drag.dy), maxY),
+        x: Math.min(Math.max(8, event.clientX - activeDrag.dx), maxX),
+        y: Math.min(Math.max(8, event.clientY - activeDrag.dy), maxY),
       });
     }
     function onPointerUp() {

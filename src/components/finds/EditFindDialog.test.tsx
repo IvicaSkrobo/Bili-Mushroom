@@ -65,6 +65,7 @@ const sampleFind: Find = {
   observed_count_max: null,
   is_favorite: false,
   created_at: '2024-05-10T14:00:00Z',
+  edibility_note: null,
   photos: [],
 };
 

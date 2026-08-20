@@ -28,10 +28,16 @@ const find1: Find = {
   date_found: '2024-05-10',
   country: 'Croatia',
   region: 'Istria',
+  location_note: '',
   lat: 45.1,
   lng: 13.9,
   notes: '',
+  observed_count: null,
+  observed_count_min: null,
+  observed_count_max: null,
+  is_favorite: false,
   created_at: '2024-05-10T14:00:00Z',
+  edibility_note: null,
   photos: [
     { id: 1, find_id: 1, photo_path: 'Croatia/Istria/2024-05-10/Amanita_muscaria_001.jpg', is_primary: true },
   ],
@@ -44,10 +50,16 @@ const find2: Find = {
   date_found: '2024-06-01',
   country: 'Croatia',
   region: 'Istria',
+  location_note: '',
   lat: 45.2,
   lng: 14.0,
   notes: '',
+  observed_count: null,
+  observed_count_min: null,
+  observed_count_max: null,
+  is_favorite: false,
   created_at: '2024-06-01T10:00:00Z',
+  edibility_note: null,
   photos: [
     { id: 2, find_id: 2, photo_path: 'Croatia/Istria/2024-06-01/Boletus_edulis_001.jpg', is_primary: true },
   ],
@@ -338,7 +350,7 @@ describe('date filter modes (calendar picker)', () => {
   });
 
   it('produces dateDayMonth filter (zero-padded) when a day is picked in day+month mode', async () => {
-    const foldersSpy = vi.fn(() => []);
+    const foldersSpy = vi.fn((_args: unknown) => []);
     invokeHandlers['get_collection_folders'] = foldersSpy;
 
     renderTab();
@@ -367,7 +379,7 @@ describe('date filter modes (calendar picker)', () => {
   });
 
   it('produces no date filter when day+month mode has no day picked yet', async () => {
-    const foldersSpy = vi.fn(() => []);
+    const foldersSpy = vi.fn((_args: unknown) => []);
     invokeHandlers['get_collection_folders'] = foldersSpy;
 
     renderTab();
@@ -397,7 +409,7 @@ describe('date filter modes (calendar picker)', () => {
   // grid cells, never concatenated digits), but this keeps end-to-end coverage on the single-digit
   // day case going through the same parseCompleteDateQuery path.
   it('produces the correct exact-mode dateStart/dateEnd when picking day 1 of a month', async () => {
-    const foldersSpy = vi.fn(() => []);
+    const foldersSpy = vi.fn((_args: unknown) => []);
     invokeHandlers['get_collection_folders'] = foldersSpy;
 
     renderTab();

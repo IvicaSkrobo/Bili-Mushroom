@@ -556,13 +556,6 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   const { data: knownLocationNotes } = useFindLocations();
   const [speciesFolders, setSpeciesFolders] = useState<string[]>([]);
   const lastAutoCommonNameRef = useRef<string>('');
-  const speciesNameSet = useMemo(() => {
-    const set = new Set<string>();
-    for (const option of speciesOptions ?? []) {
-      set.add(option.species_name.toLowerCase());
-    }
-    return set;
-  }, [speciesOptions]);
   const speciesOptionsByLowerName = useMemo(() => {
     const map = new Map<string, NonNullable<typeof speciesOptions>[number]>();
     for (const option of speciesOptions ?? []) {
@@ -831,12 +824,6 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
   }
 
   const canSave = form.species_name.trim() !== '' && !createMutation.isPending && !addPhotosMutation.isPending;
-
-  const isKnownSpecies = useMemo(() => {
-    const name = form.species_name.trim().toLowerCase();
-    if (!name) return false;
-    return speciesNameSet.has(name) || speciesOptionsByLowerName.has(name);
-  }, [form.species_name, speciesNameSet, speciesOptionsByLowerName]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

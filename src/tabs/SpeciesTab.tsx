@@ -4,7 +4,6 @@ import { BookOpen, Calendar, Camera, FolderOpen, GalleryHorizontal, ImagePlus, M
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -91,20 +90,6 @@ interface SpeciesJournal {
   topSpotLastRecorded: string | null;
   dateSummaries: DateSummary[];
   yearSummaries: YearSummary[];
-}
-
-function normalizeTags(tags: string[]): string[] {
-  const seen = new Set<string>();
-  const cleaned: string[] = [];
-  for (const tag of tags) {
-    const value = tag.trim();
-    if (!value) continue;
-    const key = value.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    cleaned.push(value);
-  }
-  return cleaned;
 }
 
 function formatDate(date: string | null, locale: string): string {

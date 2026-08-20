@@ -39,7 +39,7 @@ export function LayerSwitcher() {
       maxZoom: 17,
     });
 
-    const layers: Record<MapLayer, L.TileLayer> = {
+    const layers: Record<MapLayer, L.GridLayer> = {
       Street: osmLayer,
       Satellite: esriLayer,
       Topo: topoLayer,

@@ -55,6 +55,9 @@ const sampleSpeciesStat: SpeciesStatSummary = {
   find_count: 12,
   first_find: '2023-08-10',
   best_month: '2024-09',
+  observed_min: null,
+  observed_max: null,
+  observed_avg: null,
   locations: [
     { country: 'Croatia', region: 'Gorski Kotar', location_note: 'Beech forest' },
     { country: 'Croatia', region: 'Istria', location_note: 'Oak grove' },

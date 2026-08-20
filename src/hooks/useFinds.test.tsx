@@ -53,8 +53,12 @@ const sampleFind: Find = {
   lng: 13.9,
   notes: 'Found near oak tree',
   location_note: '',
+  observed_count: null,
+  observed_count_min: null,
+  observed_count_max: null,
   is_favorite: false,
   created_at: '2024-05-10T14:00:00Z',
+  edibility_note: null,
   photos: [],
 };
 
@@ -68,6 +72,10 @@ const sampleUpdatePayload: UpdateFindPayload = {
   lng: 14.1,
   notes: 'Updated note',
   location_note: '',
+  observed_count: null,
+  observed_count_min: null,
+  observed_count_max: null,
+  edibility_note: null,
 };
 
 // ---------------------------------------------------------------------------

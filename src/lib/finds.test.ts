@@ -31,12 +31,14 @@ const samplePayload: ImportPayload = {
   lng: 13.9,
   notes: 'Found near oak tree',
   observed_count: null,
+  observed_count_min: null,
+  observed_count_max: null,
   additional_photos: [],
+  edibility_note: null,
 };
 
 const sampleFind: Find = {
   id: 1,
-  photo_path: 'Croatia/Istria/2024-05-10/Amanita_muscaria_2024-05-10_001.jpg',
   original_filename: 'shroom.jpg',
   species_name: 'Amanita muscaria',
   date_found: '2024-05-10',
@@ -47,8 +49,11 @@ const sampleFind: Find = {
   lng: 13.9,
   notes: 'Found near oak tree',
   observed_count: null,
+  observed_count_min: null,
+  observed_count_max: null,
   is_favorite: false,
   created_at: '2024-05-10T14:00:00Z',
+  edibility_note: null,
   photos: [],
 };
 
@@ -113,6 +118,7 @@ describe('importFind', () => {
   const summary: ImportSummary = {
     imported: [sampleFind],
     skipped: [],
+    delete_failures: [],
   };
 
   beforeEach(() => {
@@ -185,6 +191,9 @@ const sampleUpdatePayload: UpdateFindPayload = {
   lng: 14.1,
   notes: 'Updated note',
   observed_count: 12,
+  observed_count_min: null,
+  observed_count_max: null,
+  edibility_note: null,
 };
 
 describe('updateFind', () => {

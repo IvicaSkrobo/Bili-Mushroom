@@ -6,17 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar, MonthYearPicker } from '@/components/ui/calendar';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Textarea } from '@/components/ui/textarea';
 import { ImportDialog } from '@/components/import/ImportDialog';
 import { CreateFindDialog } from '@/components/finds/CreateFindDialog';
-import { FindCard } from '@/components/finds/FindCard';
 import { PhotoLightbox, type LightboxPhoto } from '@/components/finds/PhotoLightbox';
 import { EditFindDialog } from '@/components/finds/EditFindDialog';
 import { FolderEditDialog } from '@/components/finds/FolderEditDialog';
 import { DeleteFindDialog } from '@/components/finds/DeleteFindDialog';
 import { BulkDeleteDialog } from '@/components/finds/BulkDeleteDialog';
 import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
-import { useFindLocations, useInfiniteCollectionFolders, useInfiniteSpeciesFinds, useFindPhotos, useSpeciesNotes, useSpeciesProfiles, useUpsertSpeciesNote, useUpsertSpeciesProfile, useBulkRenameSpecies, useSetFindFavorite, useDeleteFindPhoto } from '@/hooks/useFinds';
+import { useFindLocations, useInfiniteCollectionFolders, useInfiniteSpeciesFinds, useFindPhotos, useSpeciesNotes, useSpeciesProfiles, useUpsertSpeciesNote, useUpsertSpeciesProfile, useBulkRenameSpecies, useDeleteFindPhoto } from '@/hooks/useFinds';
 import { usePhotoThumbnail } from '@/hooks/usePhotoThumbnail';
 import { useAppStore } from '@/stores/appStore';
 import { useT, tFindsCount } from '@/i18n/index';
@@ -39,50 +37,6 @@ const PHOTO_GRID_INCREMENT = 30;
 
 function normalizeDateQuery(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, '');
-}
-
-function dateVariants(isoDate: string): string[] {
-  const [year, month, day] = isoDate.split('-');
-  if (!year || !month || !day) return [isoDate.toLowerCase()];
-  const dayNumber = String(Number(day));
-  const monthNumber = String(Number(month));
-  return [
-    isoDate,
-    `${year}${month}${day}`,
-    `${day}.${month}.${year}`,
-    `${day}${month}${year}`,
-    `${dayNumber}.${monthNumber}.${year}`,
-    `${dayNumber}${monthNumber}${year}`,
-    `${day}.${month}`,
-    `${dayNumber}.${monthNumber}`,
-    `${month}.${year}`,
-    `${monthNumber}.${year}`,
-    year,
-    month,
-    monthNumber,
-    day,
-    dayNumber,
-  ].map(normalizeDateQuery);
-}
-
-function matchesSmartDate(isoDate: string, query: string): boolean {
-  const q = normalizeDateQuery(query);
-  if (!q) return true;
-  const compactQuery = q.replace(/[./-]/g, '');
-  return dateVariants(isoDate).some((variant) => {
-    const compactVariant = variant.replace(/[./-]/g, '');
-    return variant.startsWith(q) || compactVariant.startsWith(compactQuery);
-  });
-}
-
-function matchesDateVariants(variants: string[], query: string): boolean {
-  const q = normalizeDateQuery(query);
-  if (!q) return true;
-  const compactQuery = q.replace(/[./-]/g, '');
-  return variants.some((variant) => {
-    const compactVariant = variant.replace(/[./-]/g, '');
-    return variant.startsWith(q) || compactVariant.startsWith(compactQuery);
-  });
 }
 
 function useDebouncedValue<T>(value: T, delayMs: number): T {
@@ -130,40 +84,6 @@ function parseCompleteDateQuery(query: string): string | null {
     return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
   }
   return null;
-}
-
-function matchesSmartMonth(isoDate: string, query: string): boolean {
-  const q = normalizeDateQuery(query);
-  if (!q) return true;
-  const [year, month] = isoDate.split('-');
-  if (!year || !month) return false;
-  const monthNumber = String(Number(month));
-  const variants = [
-    `${year}-${month}`,
-    `${year}${month}`,
-    `${month}.${year}`,
-    `${monthNumber}.${year}`,
-    month,
-    monthNumber,
-    year,
-  ].map(normalizeDateQuery);
-  const compactQuery = q.replace(/[./-]/g, '');
-  return variants.some((variant) => variant.startsWith(q) || variant.replace(/[./-]/g, '').startsWith(compactQuery));
-}
-
-function monthVariants(isoDate: string): string[] {
-  const [year, month] = isoDate.split('-');
-  if (!year || !month) return [];
-  const monthNumber = String(Number(month));
-  return [
-    `${year}-${month}`,
-    `${year}${month}`,
-    `${month}.${year}`,
-    `${monthNumber}.${year}`,
-    month,
-    monthNumber,
-    year,
-  ].map(normalizeDateQuery);
 }
 
 function splitDateParts(value: string, includeDay: boolean, includeYear = true): string[] {
@@ -668,7 +588,6 @@ export default function CollectionTab() {
   const { data: speciesProfiles } = useSpeciesProfiles();
   const upsertNote = useUpsertSpeciesNote();
   const upsertSpeciesProfile = useUpsertSpeciesProfile();
-  const setFindFavorite = useSetFindFavorite();
   const deletePhotoMutation = useDeleteFindPhoto();
 
   const [contentScrollElement, setContentScrollElement] = useState<HTMLDivElement | null>(null);
@@ -855,12 +774,6 @@ export default function CollectionTab() {
   const enterSelectMode = () => {
     setSelectMode(true);
     setSelectedIds(new Set());
-    setMoveTarget('');
-  };
-
-  const enterSelectModeWith = (id: number) => {
-    setSelectMode(true);
-    setSelectedIds(new Set([id]));
     setMoveTarget('');
   };
 

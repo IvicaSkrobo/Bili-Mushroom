@@ -23,9 +23,6 @@ interface FindsMapProps {
   finds: MapPoint[];
   zones?: Zone[];
   zoneMode?: ZoneViewMode;
-  onCreateZoneForFind?: (find: MapPoint, zoneType: ZoneType) => void | Promise<void>;
-  onPickLocalTargetFind?: (find: MapPoint) => void;
-  onPickRegionTargetFind?: (find: MapPoint) => void;
   onStartLocalPolygonForFind?: (find: MapPoint) => void;
   onStartRegionPolygonForFind?: (find: MapPoint) => void;
   // Unified polygon editor
@@ -61,9 +58,6 @@ export function FindsMap({
   finds,
   zones = [],
   zoneMode = 'pins',
-  onCreateZoneForFind = () => undefined,
-  onPickLocalTargetFind = () => undefined,
-  onPickRegionTargetFind = () => undefined,
   onStartLocalPolygonForFind = () => undefined,
   onStartRegionPolygonForFind = () => undefined,
   polygonEditorActive = false,

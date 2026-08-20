@@ -20,7 +20,12 @@ const sampleFind: Find = {
   lat: 45.1234,
   lng: 13.8765,
   notes: 'Beautiful golden chanterelles',
+  observed_count: null,
+  observed_count_min: null,
+  observed_count_max: null,
+  is_favorite: false,
   created_at: '2024-07-15T10:00:00Z',
+  edibility_note: null,
   photos: [
     { id: 1, find_id: 1, photo_path: 'chanterelle/chanterelle.jpg', is_primary: true },
   ],

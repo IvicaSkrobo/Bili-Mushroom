@@ -36,7 +36,7 @@ const api: PdfWorkerApi = {
         : React.createElement(MushroomJournal, { finds, speciesNotes });
       console.log('[PDF worker] element created');
 
-      const instance = pdf(element);
+      const instance = pdf(element as NonNullable<Parameters<typeof pdf>[0]>);
       const blob = await instance.toBlob();
       console.log('[PDF worker] blob ready, size=', blob.size);
 

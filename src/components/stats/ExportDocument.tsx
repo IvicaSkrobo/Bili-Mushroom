@@ -1,5 +1,5 @@
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
-import { MAX_PDF_PAGES, MAX_SPOTLIGHT_PAGES } from '@/lib/pdfModel';
+import { MAX_SPOTLIGHT_PAGES } from '@/lib/pdfModel';
 import type { FindForPdf, SpeciesNoteForPdf } from '@/lib/pdfModel';
 export { MAX_PDF_PAGES, MAX_SPOTLIGHT_PAGES } from '@/lib/pdfModel';
 export type { FindForPdf, SpeciesNoteForPdf } from '@/lib/pdfModel';
@@ -570,8 +570,6 @@ export function MushroomJournal({ finds, speciesNotes, smokeTest = false }: Prop
   const fieldOutings = buildFieldOutings(finds);
   const speciesMax = speciesRanking[0]?.count ?? 1;
   const monthMax = monthRanking[0]?.count ?? 1;
-  const firstOuting = fieldOutings[fieldOutings.length - 1] ?? null;
-
   // Year review
   const yearSpeciesRanking = buildSpeciesRanking(thisYear);
   const yearTopSpecies = yearSpeciesRanking[0];

@@ -7,7 +7,7 @@ const STORAGE_PATH_KEY = 'storageFolderPath';
 const STORAGE_PATH_CACHE_KEY = 'bili.storageFolderPath';
 
 async function getStore() {
-  return load(STORE_FILE, { autoSave: false });
+  return load(STORE_FILE, { autoSave: false, defaults: {} });
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {

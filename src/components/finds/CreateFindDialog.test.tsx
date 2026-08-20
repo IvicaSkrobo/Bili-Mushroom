@@ -49,6 +49,7 @@ const noPhotoFind: Find = {
   observed_count_max: null,
   is_favorite: false,
   created_at: '2026-05-08T10:00:00Z',
+  edibility_note: null,
   photos: [],
 };
 

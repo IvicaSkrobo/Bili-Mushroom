@@ -59,7 +59,7 @@ async function renderPdfOnMainThread(
   const element = smokeTest
     ? React.createElement(SmokeTestDocument, { finds })
     : React.createElement(MushroomJournal, { finds, speciesNotes });
-  const blob = await pdf(element).toBlob();
+  const blob = await pdf(element as NonNullable<Parameters<typeof pdf>[0]>).toBlob();
   return new Uint8Array(await blob.arrayBuffer());
 }
 

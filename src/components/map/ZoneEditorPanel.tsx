@@ -12,7 +12,6 @@ import { useAppStore } from '@/stores/appStore';
 interface ZoneEditorPanelProps {
   zone: Zone;
   finds: MapPoint[];
-  focusMode?: boolean;
   onStartPolygonEdit?: () => void;
   onClose: () => void;
   onZoneSaved: (zone: Zone) => void;
@@ -23,7 +22,6 @@ interface ZoneEditorPanelProps {
 export function ZoneEditorPanel({
   zone,
   finds,
-  focusMode = false,
   onStartPolygonEdit,
   onClose,
   onZoneSaved,
