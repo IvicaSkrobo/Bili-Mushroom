@@ -86,11 +86,25 @@ registered find keeps its number and just re-syncs), `update_sample`, `delete_sa
   path — including a delete-files run, where hard-linked photos survive in the sample
   folder because the link keeps the inode alive.
 
+## Second follow-up (commit 02b2b13)
+
+- **Deleting a find with a linked sample now asks.** The dialog names the sample
+  ("Ovaj nalaz ima povezan uzorak 1/2026") and offers a checkbox to delete its folder
+  too, unticked by default. The register entry always goes with the find — it points at a
+  row that is about to vanish — but the folder and its photos survive unless asked for.
+  The block only renders when a sample is actually linked, so ordinary deletes look
+  exactly as before. `delete_find` gained `delete_sample_folder: Option<bool>`.
+- **Herbarium labels.** `src/lib/exportSampleLabels.tsx` renders an A4 sheet of cut-out
+  slips: accession number, species, date, place, coordinates, det./leg., preservation and
+  storage location. Printed from the Uzorci list via the **Etikete** button, so the search
+  box doubles as the filter for which labels get printed. Rendered on the main thread —
+  labels are text only, so the export worker would only add failure modes.
+- Deletes and bulk renames invalidate the samples query so the register refreshes.
+
 ## Remaining follow-ups
 
-- **Labels (etikete)**: printable PDF labels are the natural next step — the app already
-  bundles `@react-pdf/renderer`.
 - Backing up or cloud-syncing the storage folder will duplicate hard-linked photos
   (most sync tools do not preserve links).
 - Re-registering a find that was removed from the register mints a **new** number and
   folder; the earlier folder stays on disk as an orphan by design.
+- Label layout is fixed at two per row on A4; no sheet-size or Avery-template options.
