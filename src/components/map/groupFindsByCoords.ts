@@ -1,14 +1,14 @@
-import type { Find } from '@/lib/finds';
+import type { MapPoint } from '@/lib/finds';
 
 export interface FindGroup {
   key: string;
   lat: number;
   lng: number;
-  finds: Find[];
+  finds: MapPoint[];
 }
 
-export function groupFindsByCoords(finds: Find[]): FindGroup[] {
-  const map = new Map<string, Find[]>();
+export function groupFindsByCoords(finds: MapPoint[]): FindGroup[] {
+  const map = new Map<string, MapPoint[]>();
   for (const f of finds) {
     if (f.lat === null || f.lng === null) continue;
     const key = `${f.lat},${f.lng}`;

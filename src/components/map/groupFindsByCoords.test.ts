@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { groupFindsByCoords } from './groupFindsByCoords';
-import type { Find } from '@/lib/finds';
+import type { MapPoint } from '@/lib/finds';
 
-function mk(id: number, lat: number | null, lng: number | null, opts?: { date?: string; species?: string }): Find {
+function mk(id: number, lat: number | null, lng: number | null, opts?: { date?: string; species?: string }): MapPoint {
   return {
     id,
     species_name: opts?.species ?? `species_${id}`,
@@ -16,7 +16,7 @@ function mk(id: number, lat: number | null, lng: number | null, opts?: { date?: 
     created_at: '',
     photos: [],
     original_filename: '',
-  } as Find;
+  } as MapPoint;
 }
 
 describe('groupFindsByCoords', () => {

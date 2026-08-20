@@ -1749,6 +1749,9 @@ pub struct MapPoint {
     pub lat: f64,
     pub lng: f64,
     pub notes: String,
+    /// Carried because the location picker copies it onto a new find when the user
+    /// clicks an existing pin.
+    pub location_note: String,
     /// The one photo the popup shows, or empty. Chosen the same way the rest of the app
     /// picks a representative: the primary photo, else the oldest.
     pub photos: Vec<FindPhoto>,
@@ -1772,7 +1775,7 @@ fn get_map_points_for_connection(conn: &Connection) -> Result<Vec<MapPoint>, Str
     // parameter list that grows with the library.
     let mut stmt = conn
         .prepare(
-            "SELECT f.id, f.species_name, f.date_found, f.lat, f.lng, f.notes,
+            "SELECT f.id, f.species_name, f.date_found, f.lat, f.lng, f.notes, f.location_note,
                     fp.id, fp.photo_path, fp.is_primary
              FROM finds f
              LEFT JOIN find_photos fp ON fp.id = (
@@ -1792,13 +1795,13 @@ fn get_map_points_for_connection(conn: &Connection) -> Result<Vec<MapPoint>, Str
     let points = stmt
         .query_map([], |row| {
             let find_id: i64 = row.get(0)?;
-            let photo_id: Option<i64> = row.get(6)?;
+            let photo_id: Option<i64> = row.get(7)?;
             let photos = match photo_id {
                 Some(id) => vec![FindPhoto {
                     id,
                     find_id,
-                    photo_path: row.get(7)?,
-                    is_primary: row.get::<_, i64>(8)? == 1,
+                    photo_path: row.get(8)?,
+                    is_primary: row.get::<_, i64>(9)? == 1,
                 }],
                 None => Vec::new(),
             };
@@ -1809,6 +1812,7 @@ fn get_map_points_for_connection(conn: &Connection) -> Result<Vec<MapPoint>, Str
                 lat: row.get(3)?,
                 lng: row.get(4)?,
                 notes: row.get(5)?,
+                location_note: row.get(6)?,
                 photos,
             })
         })

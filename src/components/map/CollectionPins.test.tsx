@@ -119,7 +119,7 @@ describe('locationGroupsFromFinds', () => {
   it('finds with null coords are excluded', () => {
     const finds = [
       makeFind({ id: 1, species_name: 'Boletus edulis', lat: 45.1, lng: 15.2 }),
-      { id: 2, species_name: 'Boletus edulis', lat: null, lng: null, photos: [], notes: null, date: null, location_name: null } as unknown as Find,
+      { id: 2, species_name: 'Boletus edulis', lat: null, lng: null, photos: [], notes: null, date: null, location_name: null } as unknown as MapPoint,
     ];
     const result = locationGroupsFromFinds(finds);
     expect(result).toHaveLength(1);

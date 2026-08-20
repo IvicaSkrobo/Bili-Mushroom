@@ -37,19 +37,19 @@ vi.mock('@/hooks/usePhotoThumbnail', () => ({
 
 import { FindPopup } from './FindPopup';
 import type { FindGroup } from './groupFindsByCoords';
-import type { Find } from '@/lib/finds';
+import type { MapPoint } from '@/lib/finds';
 
-function mk(id: number, name: string, date: string, photo?: string): Find {
+function mk(id: number, name: string, date: string, photo?: string): MapPoint {
   return {
     id, species_name: name, date_found: date,
     country: '', region: '', location_note: '',
     lat: 45, lng: 15, notes: '', created_at: '',
     original_filename: '',
     photos: photo ? [{ id: 100, find_id: id, photo_path: photo, is_primary: true }] : [],
-  } as Find;
+  } as MapPoint;
 }
 
-function group(finds: Find[]): FindGroup {
+function group(finds: MapPoint[]): FindGroup {
   return { key: 'k', lat: 45, lng: 15, finds };
 }
 

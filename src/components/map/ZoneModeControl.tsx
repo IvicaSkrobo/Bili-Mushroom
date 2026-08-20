@@ -1,5 +1,5 @@
 import { Layers3, MapPin, Minus, PencilRuler } from 'lucide-react';
-import type { Find } from '@/lib/finds';
+import type { MapPoint } from '@/lib/finds';
 import type { ZoneViewMode } from '@/lib/zones';
 import { DraggablePanel } from './DraggablePanel';
 import { renderSpeciesName } from '@/lib/speciesName';
@@ -9,9 +9,9 @@ import { useAppStore } from '@/stores/appStore';
 
 interface ZoneModeControlProps {
   mode: ZoneViewMode;
-  visibleFinds: Find[];
+  visibleFinds: MapPoint[];
   activeSpecies: string | null;
-  localTargetFind: Find | null;
+  localTargetFind: MapPoint | null;
   hasLocalCircle: boolean;
   hasLocalPolygon: boolean;
   hasRegionZone: boolean;

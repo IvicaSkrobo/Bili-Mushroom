@@ -1,6 +1,6 @@
 import { Crosshair, GripHorizontal, Trash2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import type { Find } from '@/lib/finds';
+import type { MapPoint } from '@/lib/finds';
 import { formatRadius, parsePolygonJson, summarizeZone, type Zone } from '@/lib/zones';
 import { useDeleteZone, useUpsertZone } from '@/hooks/useZones';
 import { DraggablePanel } from './DraggablePanel';
@@ -11,7 +11,7 @@ import { useAppStore } from '@/stores/appStore';
 
 interface ZoneEditorPanelProps {
   zone: Zone;
-  finds: Find[];
+  finds: MapPoint[];
   focusMode?: boolean;
   onStartPolygonEdit?: () => void;
   onClose: () => void;

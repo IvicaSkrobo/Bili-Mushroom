@@ -271,6 +271,8 @@ export interface MapPoint {
   lat: number;
   lng: number;
   notes: string;
+  /** Copied onto a new find when the location picker reuses an existing pin. */
+  location_note: string;
   photos: FindPhoto[];
 }
 

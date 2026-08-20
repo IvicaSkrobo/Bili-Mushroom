@@ -1,10 +1,11 @@
 {
   "name": "gljivobook",
-  "version": "0.3.12",
+  "version": "0.3.13",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "typecheck": "tsc -b --noEmit",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "website:dev": "vite --config website/vite.config.ts",

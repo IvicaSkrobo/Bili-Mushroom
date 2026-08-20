@@ -26,7 +26,6 @@ export default function MapTab() {
   const t = useT();
   const storagePath = useAppStore((s) => s.storagePath);
   const isActive = useAppStore((s) => s.activeTab === 'map');
-  const lang = useAppStore((s) => s.language);
   const pendingMapSpeciesFilter = useAppStore((s) => s.pendingMapSpeciesFilter);
   const setPendingMapSpeciesFilter = useAppStore((s) => s.setPendingMapSpeciesFilter);
   const { data: finds } = useMapPoints(isActive);
@@ -206,7 +205,7 @@ export default function MapTab() {
     }
   }
 
-  function findZoneForFind(find: Find, zoneType: ZoneType) {
+  function findZoneForFind(find: MapPoint, zoneType: ZoneType) {
     return (zones ?? []).find((zone) => {
       if (zone.zone_type !== zoneType || zone.species_name !== find.species_name) return false;
       if (zoneType === 'region') return true;
@@ -214,7 +213,7 @@ export default function MapTab() {
     }) ?? null;
   }
 
-  async function handleCreateZoneForFind(find: Find, zoneType: ZoneType) {
+  async function handleCreateZoneForFind(find: MapPoint, zoneType: ZoneType) {
     if (find.lat == null || find.lng == null) return;
     setActiveSpecies(find.species_name);
     const existingZone = findZoneForFind(find, zoneType);
@@ -258,7 +257,7 @@ export default function MapTab() {
 
   async function createRegionZoneForSpecies(speciesName: string, preferredSourceFindId: number | null = null) {
     const locatableFinds = (finds ?? []).filter(
-      (find): find is Find & { lat: number; lng: number } =>
+      (find): find is MapPoint & { lat: number; lng: number } =>
         find.species_name === speciesName && find.lat != null && find.lng != null,
     );
     if (locatableFinds.length === 0) return null;
@@ -349,7 +348,7 @@ export default function MapTab() {
     });
   }
 
-  function handleStartRegionPolygonForFind(find: Find) {
+  function handleStartRegionPolygonForFind(find: MapPoint) {
     if (find.lat == null || find.lng == null) return;
     setRegionTargetFind(find);
     setZoneMode('region');
@@ -373,7 +372,7 @@ export default function MapTab() {
     });
   }
 
-  function handleStartLocalPolygonForFind(find: Find) {
+  function handleStartLocalPolygonForFind(find: MapPoint) {
     if (find.lat == null || find.lng == null) return;
     setZoneMode('local');
     setActiveSpecies(find.species_name);
@@ -470,7 +469,7 @@ export default function MapTab() {
     setActiveZoneId(savedZone.id);
   }
 
-  function handlePickLocalTargetFind(find: Find) {
+  function handlePickLocalTargetFind(find: MapPoint) {
     if (find.lat == null || find.lng == null) return;
     setZoneMode('local');
     setActiveSpecies(find.species_name);
@@ -478,7 +477,7 @@ export default function MapTab() {
     setActiveZoneId(findZoneForFind(find, 'local')?.id ?? null);
   }
 
-  function handlePickRegionTargetFind(find: Find) {
+  function handlePickRegionTargetFind(find: MapPoint) {
     if (find.lat == null || find.lng == null) return;
     setZoneMode('region');
     setActiveSpecies(find.species_name);

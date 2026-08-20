@@ -2,7 +2,7 @@ import { CircleMarker, MapContainer, Marker, Polygon, Polyline, useMap, useMapEv
 import L from 'leaflet';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, LocateFixed, Move, Plus, Trash2, X } from 'lucide-react';
-import type { Find } from '@/lib/finds';
+import type { MapPoint } from '@/lib/finds';
 import { parsePolygonJson, type PolygonEditorMode, type Zone, type ZonePolygonPoint, type ZoneType, type ZoneViewMode } from '@/lib/zones';
 import { applyLeafletIconFix } from './leafletIconFix';
 import { CollectionPins } from './CollectionPins';
@@ -20,14 +20,14 @@ const CROATIA_CENTER: [number, number] = [45.1, 15.2];
 const CROATIA_ZOOM = 7;
 
 interface FindsMapProps {
-  finds: Find[];
+  finds: MapPoint[];
   zones?: Zone[];
   zoneMode?: ZoneViewMode;
-  onCreateZoneForFind?: (find: Find, zoneType: ZoneType) => void | Promise<void>;
-  onPickLocalTargetFind?: (find: Find) => void;
-  onPickRegionTargetFind?: (find: Find) => void;
-  onStartLocalPolygonForFind?: (find: Find) => void;
-  onStartRegionPolygonForFind?: (find: Find) => void;
+  onCreateZoneForFind?: (find: MapPoint, zoneType: ZoneType) => void | Promise<void>;
+  onPickLocalTargetFind?: (find: MapPoint) => void;
+  onPickRegionTargetFind?: (find: MapPoint) => void;
+  onStartLocalPolygonForFind?: (find: MapPoint) => void;
+  onStartRegionPolygonForFind?: (find: MapPoint) => void;
   // Unified polygon editor
   polygonEditorActive?: boolean;
   polygonEditorMode?: PolygonEditorMode;
@@ -52,7 +52,7 @@ interface FindsMapProps {
   onZoneSaved?: (zone: Zone) => void;
   onZoneTypeSelected?: (zone: Zone, zoneType: ZoneType) => void;
   onEditZone?: (zone: Zone | null) => void;
-  drawTargetFind?: Find | null;
+  drawTargetFind?: MapPoint | null;
   drawTargetZoneType?: ZoneType | null;
   fitBoundsTrigger?: number;
 }
@@ -123,7 +123,7 @@ export function FindsMap({
     map.flyToBounds(polygon as [number, number][], { animate: true, duration: 0.7, padding: [40, 40] });
   }, [polygonEditorActive, map, activeZoneId, zones]);
 
-  function focusDrawTarget(find: Find, zoneType: ZoneType) {
+  function focusDrawTarget(find: MapPoint, zoneType: ZoneType) {
     if (!map || find.lat == null || find.lng == null) return;
 
     const existingPolygon = zones.find((zone) => {
@@ -148,12 +148,12 @@ export function FindsMap({
     map.flyTo([find.lat, find.lng], zoom, { animate: true, duration: 0.7 });
   }
 
-  function handleStartLocalPolygonFromPin(find: Find) {
+  function handleStartLocalPolygonFromPin(find: MapPoint) {
     focusDrawTarget(find, 'local');
     onStartLocalPolygonForFind(find);
   }
 
-  function handleStartRegionPolygonFromPin(find: Find) {
+  function handleStartRegionPolygonFromPin(find: MapPoint) {
     focusDrawTarget(find, 'region');
     onStartRegionPolygonForFind(find);
   }
@@ -243,7 +243,7 @@ export function FindsMap({
           onClick={() => {
             if (!map) return;
             const withCoords = finds.filter(
-              (f): f is Find & { lat: number; lng: number } => f.lat != null && f.lng != null,
+              (f): f is MapPoint & { lat: number; lng: number } => f.lat != null && f.lng != null,
             );
             if (withCoords.length > 0) {
               map.fitBounds(
@@ -775,12 +775,12 @@ function PolygonDraftLayer({
   );
 }
 
-function FitBoundsOnTrigger({ trigger, finds }: { trigger: number; finds: Find[] }) {
+function FitBoundsOnTrigger({ trigger, finds }: { trigger: number; finds: MapPoint[] }) {
   const map = useMap();
   useEffect(() => {
     if (trigger === 0) return;
     const withCoords = finds.filter(
-      (f): f is Find & { lat: number; lng: number } => f.lat != null && f.lng != null,
+      (f): f is MapPoint & { lat: number; lng: number } => f.lat != null && f.lng != null,
     );
     if (withCoords.length === 0) return;
     if (withCoords.length === 1) {

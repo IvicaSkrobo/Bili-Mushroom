@@ -1,17 +1,17 @@
 import { useEffect } from 'react';
 import { useMap } from 'react-leaflet';
-import type { Find } from '@/lib/finds';
+import type { MapPoint } from '@/lib/finds';
 
 const CROATIA_MIN_LAT = 42.3;
 const CROATIA_MAX_LAT = 46.6;
 const CROATIA_MIN_LNG = 13.5;
 const CROATIA_MAX_LNG = 19.5;
 
-export function FitBoundsControl({ finds }: { finds: Find[] }) {
+export function FitBoundsControl({ finds }: { finds: MapPoint[] }) {
   const map = useMap();
   useEffect(() => {
     const withCoords = finds.filter(
-      (f): f is Find & { lat: number; lng: number } =>
+      (f): f is MapPoint & { lat: number; lng: number } =>
         f.lat !== null && f.lng !== null,
     );
     if (withCoords.length === 0) return;

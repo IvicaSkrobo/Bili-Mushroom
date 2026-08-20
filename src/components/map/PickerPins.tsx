@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import L from 'leaflet';
 import { Marker, useMap, useMapEvents } from 'react-leaflet';
-import type { Find } from '@/lib/finds';
+import type { MapPoint } from '@/lib/finds';
 import { useAppStore } from '@/stores/appStore';
 import { locationGroupsFromFinds, LABEL_ZOOM_THRESHOLD } from './CollectionPins';
 import { plainSpeciesName } from '@/lib/speciesName';
@@ -83,8 +83,28 @@ export function pickedLocationLabel(species: Array<{ name: string }>): string {
   ).join(', ');
 }
 
+/**
+ * The location note to copy onto a new find when the user adopts an existing pin.
+ *
+ * Only when every find at that spot agrees: two different notes at one coordinate mean
+ * we have no business guessing which one the user meant.
+ */
+export function pickedLocationNote(
+  species: Array<{ finds: Array<{ location_note?: string | null }> }>,
+): string | undefined {
+  const notes = Array.from(
+    new Set(
+      species
+        .flatMap((entry) => entry.finds)
+        .map((find) => find.location_note?.trim() ?? '')
+        .filter(Boolean),
+    ),
+  );
+  return notes.length === 1 ? notes[0] : undefined;
+}
+
 interface PickerPinsProps {
-  finds: Find[];
+  finds: MapPoint[];
   /** Called when the user clicks an existing pin to adopt its location. */
   onPickLocation: (lat: number, lng: number, label: string, locationNote?: string) => void;
 }
@@ -119,15 +139,7 @@ export function PickerPins({ finds, onPickLocation }: PickerPinsProps) {
         const showLabel =
           zoom >= LABEL_ZOOM_THRESHOLD && !crowded.has(c.key) && !c.suppressLabel;
         const label = pickedLocationLabel(c.species);
-        const locationNotes = Array.from(
-          new Set(
-            c.species
-              .flatMap((species) => species.finds)
-              .map((find) => find.location_note?.trim() ?? '')
-              .filter(Boolean),
-          ),
-        );
-        const locationNote = locationNotes.length === 1 ? locationNotes[0] : undefined;
+        const locationNote = pickedLocationNote(c.species);
 
         return (
           <Marker

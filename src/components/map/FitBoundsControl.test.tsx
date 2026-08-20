@@ -7,15 +7,15 @@ vi.mock('react-leaflet', () => ({
 }));
 
 import { FitBoundsControl } from './FitBoundsControl';
-import type { Find } from '@/lib/finds';
+import type { MapPoint } from '@/lib/finds';
 
-function mk(id: number, lat: number | null, lng: number | null): Find {
+function mk(id: number, lat: number | null, lng: number | null): MapPoint {
   return {
     id, species_name: 's', date_found: '2026-01-01',
     country: '', region: '', location_note: '',
     lat, lng, notes: '', created_at: '', photos: [],
     original_filename: '',
-  } as Find;
+  } as MapPoint;
 }
 
 describe('FitBoundsControl', () => {

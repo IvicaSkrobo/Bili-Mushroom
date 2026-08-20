@@ -513,10 +513,10 @@ export function CollectionPins({
   onStartRegionPolygonForFind = () => undefined,
   onSelectSpecies = () => undefined,
 }: {
-  finds: Find[];
+  finds: MapPoint[];
   zones?: Zone[];
-  onStartLocalPolygonForFind?: (find: Find) => void;
-  onStartRegionPolygonForFind?: (find: Find) => void;
+  onStartLocalPolygonForFind?: (find: MapPoint) => void;
+  onStartRegionPolygonForFind?: (find: MapPoint) => void;
   onSelectSpecies?: (speciesName: string) => void;
 }) {
   const groups = useMemo(() => locationGroupsFromFinds(finds), [finds]);

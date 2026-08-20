@@ -1,7 +1,7 @@
 import { type ReactNode, useMemo, useState } from 'react';
 import L from 'leaflet';
 import { Circle, Polygon, Popup, useMap } from 'react-leaflet';
-import type { Find } from '@/lib/finds';
+import type { MapPoint } from '@/lib/finds';
 import {
   parsePolygonJson,
   visibleZonesForMode,
@@ -76,7 +76,7 @@ function getZoneStyle(zoneType: Zone['zone_type'], isSatellite: boolean, active 
 
 interface ZoneLayersProps {
   zones: Zone[];
-  finds: Find[];
+  finds: MapPoint[];
   mode: ZoneViewMode;
   activeZoneId?: number | null;
   hiddenZoneIds?: number[];

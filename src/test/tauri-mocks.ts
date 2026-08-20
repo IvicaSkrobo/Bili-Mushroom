@@ -65,6 +65,7 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
         lat: find.lat,
         lng: find.lng,
         notes: find.notes ?? '',
+        location_note: find.location_note ?? '',
         photos: (find.photos ?? []).slice(0, 1),
       })),
   get_species_options: (args: unknown) => {

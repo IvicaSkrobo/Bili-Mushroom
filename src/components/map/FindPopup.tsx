@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useMap } from 'react-leaflet';
 import { useAppStore } from '@/stores/appStore';
 import { usePhotoThumbnailSrc } from '@/hooks/usePhotoThumbnail';
-import type { Find } from '@/lib/finds';
+import type { MapPoint } from '@/lib/finds';
 import type { FindGroup } from './groupFindsByCoords';
 import { renderSpeciesName, plainSpeciesName } from '@/lib/speciesName';
 import { useT } from '@/i18n/index';
@@ -24,7 +24,7 @@ function PopupRow({
   find,
   onExpand,
 }: {
-  find: Find;
+  find: MapPoint;
   onExpand: () => void;
 }) {
   return (
@@ -45,7 +45,7 @@ function LevelTwoCard({
   find,
   onBack,
 }: {
-  find: Find;
+  find: MapPoint;
   onBack: () => void;
 }) {
   const t = useT();

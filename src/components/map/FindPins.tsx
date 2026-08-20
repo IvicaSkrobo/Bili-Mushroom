@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import L from 'leaflet';
 import { Marker, Popup } from 'react-leaflet';
-import type { Find } from '@/lib/finds';
+import type { MapPoint } from '@/lib/finds';
 import { groupFindsByCoords } from './groupFindsByCoords';
 import { FindPopup } from './FindPopup';
 
@@ -59,7 +59,7 @@ export function FindPins({
   finds,
   storagePath,
 }: {
-  finds: Find[];
+  finds: MapPoint[];
   storagePath: string;
 }) {
   const groups = useMemo(() => groupFindsByCoords(finds), [finds]);

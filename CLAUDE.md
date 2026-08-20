@@ -138,6 +138,20 @@ or `.cargo/config.toml` are involved.
 
 If a Rust test result is ever reported without this runner, treat it as unverified.
 
+**Typechecking the frontend: use `npm run typecheck`, not `tsc --noEmit`.**
+
+`tsconfig.json` is a solution file — `"files": []` plus project references. Plain
+`tsc --noEmit` follows no references, checks nothing, and exits 0. It has been reporting
+success on a codebase it never opened. `npm run typecheck` runs `tsc -b --noEmit`, which
+does build the referenced projects.
+
+`npm run build` still starts with the no-op `tsc`. It is deliberately left that way for
+now: the real typecheck currently reports ~65 pre-existing errors (mostly test fixtures
+built before `Find` gained fields, plus react-leaflet `TileLayer` typings), and wiring
+`tsc -b` into `build` would break releases until those are cleared. Clear them, then
+change `build` to `tsc -b && vite build` in the same commit.
+
+
 ## Frontend Design
 
 `frontend-design` skill installed at `.agents/skills/frontend-design/SKILL.md`.
