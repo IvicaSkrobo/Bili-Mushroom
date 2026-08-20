@@ -45,7 +45,7 @@ describe('FindCard', () => {
 
   it('renders date_found', () => {
     render(<FindCard find={sampleFind} storagePath={storageRoot} onEdit={onEdit} onDelete={onDelete} onToggleFavorite={onToggleFavorite} />);
-    expect(screen.getByText('2024-05-10')).toBeInTheDocument();
+    expect(screen.getByText('05/10/24')).toBeInTheDocument();
   });
 
   it('renders country / region', () => {

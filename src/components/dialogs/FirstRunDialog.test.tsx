@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { FirstRunDialog } from './FirstRunDialog';
 import * as storageLib from '@/lib/storage';
 import { useAppStore } from '@/stores/appStore';
@@ -45,7 +45,7 @@ describe('FirstRunDialog', () => {
     const onSelected = vi.fn();
     render(<FirstRunDialog onFolderSelected={onSelected} />);
     fireEvent.click(screen.getByRole('button', { name: /choose folder/i }));
-    await new Promise((r) => setTimeout(r, 20));
+    await waitFor(() => expect(storageLib.pickAndSaveStoragePath).toHaveBeenCalledTimes(1));
     expect(onSelected).not.toHaveBeenCalled();
   });
 });

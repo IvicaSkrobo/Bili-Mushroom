@@ -18,7 +18,7 @@ vi.mock('@/lib/geocoding', () => ({
 function makeQueryClient() {
   return new QueryClient({
     defaultOptions: {
-      queries: { retry: false },
+      queries: { retry: false, staleTime: Infinity },
       mutations: { retry: false },
     },
   });
@@ -87,6 +87,8 @@ describe('CreateFindDialog', () => {
 
   function renderDialog(open = true) {
     const qc = makeQueryClient();
+    qc.setQueryData(['finds', storageRoot, null], []);
+    qc.setQueryData(['species_profiles', storageRoot], []);
     const Wrapper = makeWrapper(qc);
     render(
       <Wrapper>
@@ -114,7 +116,7 @@ describe('CreateFindDialog', () => {
 
   it('enables Save when species_name is filled', async () => {
     renderDialog(true);
-    const speciesInput = screen.getByRole('textbox', { name: /species name/i });
+    const speciesInput = screen.getByRole('textbox', { name: /latin name/i });
     // SpeciesNameEditor is a contentEditable div — set textContent and fire input
     speciesInput.textContent = 'Boletus edulis';
     fireEvent.input(speciesInput);
@@ -132,7 +134,7 @@ describe('CreateFindDialog', () => {
       </Wrapper>,
     );
 
-    const speciesInput = screen.getByRole('textbox', { name: /species name/i });
+    const speciesInput = screen.getByRole('textbox', { name: /latin name/i });
     speciesInput.textContent = 'Amanita muscaria';
     fireEvent.input(speciesInput);
 
@@ -147,7 +149,7 @@ describe('CreateFindDialog', () => {
       </Wrapper>,
     );
 
-    expect(screen.getByRole('textbox', { name: /species name/i })).toHaveTextContent('Amanita muscaria');
+    expect(screen.getByRole('textbox', { name: /latin name/i })).toHaveTextContent('Amanita muscaria');
   });
 
   it('clears draft when Cancel is clicked', async () => {
@@ -159,7 +161,7 @@ describe('CreateFindDialog', () => {
       </Wrapper>,
     );
 
-    const speciesInput = screen.getByRole('textbox', { name: /species name/i });
+    const speciesInput = screen.getByRole('textbox', { name: /latin name/i });
     speciesInput.textContent = 'Amanita muscaria';
     fireEvent.input(speciesInput);
 
@@ -177,7 +179,7 @@ describe('CreateFindDialog', () => {
       </Wrapper>,
     );
 
-    expect(screen.getByRole('textbox', { name: /species name/i })).toHaveTextContent('');
+    expect(screen.getByRole('textbox', { name: /latin name/i })).toHaveTextContent('');
   });
 
   it('calls create_find invoke and closes on success', async () => {
@@ -206,7 +208,7 @@ describe('CreateFindDialog', () => {
 
     renderDialog(true);
 
-    const speciesInput = screen.getByRole('textbox', { name: /species name/i });
+    const speciesInput = screen.getByRole('textbox', { name: /latin name/i });
     // SpeciesNameEditor is a contentEditable div — set textContent and fire input
     speciesInput.textContent = 'Boletus edulis';
     fireEvent.input(speciesInput);
@@ -231,7 +233,7 @@ describe('CreateFindDialog', () => {
 
     renderDialog(true);
 
-    const speciesInput = screen.getByRole('textbox', { name: /species name/i });
+    const speciesInput = screen.getByRole('textbox', { name: /latin name/i });
     // SpeciesNameEditor is a contentEditable div — set textContent and fire input
     speciesInput.textContent = 'Boletus edulis';
     fireEvent.input(speciesInput);

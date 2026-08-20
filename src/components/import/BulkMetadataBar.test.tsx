@@ -26,9 +26,9 @@ describe('BulkMetadataBar', () => {
     render(<BulkMetadataBar itemCount={3} onApplyAll={vi.fn()} />);
     expect(screen.getByPlaceholderText('Species name')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Country')).toBeInTheDocument();
-    // Date input is type="date" — check by type
-    const dateInput = document.querySelector('input[type="date"]');
-    expect(dateInput).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /date dd/i })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /date mm/i })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /date yyyy/i })).toBeInTheDocument();
   });
 
   it('clicking Apply to all calls onApplyAll with non-empty species_name', () => {

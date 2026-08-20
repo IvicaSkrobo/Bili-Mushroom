@@ -37,7 +37,7 @@ vi.mock('@/lib/geocoding', () => ({
 function makeQueryClient() {
   return new QueryClient({
     defaultOptions: {
-      queries: { retry: false },
+      queries: { retry: false, staleTime: Infinity },
       mutations: { retry: false },
     },
   });
@@ -81,6 +81,9 @@ describe('EditFindDialog', () => {
 
   function renderDialog(find: Find | null = sampleFind) {
     const qc = makeQueryClient();
+    qc.setQueryData(['finds', '/storage/test', null], []);
+    qc.setQueryData(['species_profiles', '/storage/test'], []);
+    if (find) qc.setQueryData(['samples', '/storage/test', 'find', find.id], null);
     const Wrapper = makeWrapper(qc);
     render(
       <Wrapper>
@@ -107,7 +110,9 @@ describe('EditFindDialog', () => {
 
   it('pre-fills date_found from find', () => {
     renderDialog(sampleFind);
-    expect(screen.getByDisplayValue('2024-05-10')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /date found dd/i })).toHaveValue('10');
+    expect(screen.getByRole('textbox', { name: /date found mm/i })).toHaveValue('05');
+    expect(screen.getByRole('textbox', { name: /date found yyyy/i })).toHaveValue('2024');
   });
 
   it('does not render a dialog when find is null', () => {
