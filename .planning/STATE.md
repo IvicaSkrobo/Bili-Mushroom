@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-04-09)
 Phase: 04.2 complete — MAINTENANCE
 Plan: Post-phase maintenance
 Status: Completed planned phase work; maintenance fixes and planning artifacts are synced to the current shipped behavior
-Last activity: 2026-08-20 - Completed quick task 260820-tn3: determinator + nalaznik fields on finds
+Last activity: 2026-08-20 - Completed quick task 260820-u6j: species cover photo fix + location filter suggestions
 
 Progress: [████████░░] 79%
 
@@ -186,6 +186,7 @@ Recent decisions affecting current work:
 | 260820-sw7 species-habitat-field | 2026-08-20 | species_profiles gains a `habitat` TEXT column (migration 0023 + idempotent repair block). Threaded through get/upsert_species_profile, finds.ts, useFinds.ts, and every existing upsert call site (CollectionTab, Create/EditFindDialog, ImportDialog) so unrelated writes preserve it. SpeciesTab: new "Stanište" tab beside "Opis" with an auto-growing textarea saving on blur. i18n: species.tabHabitat + edit.speciesHabitatPlaceholder (hr+en). |
 | 260820-tca find-weather-field | 2026-08-20 | finds gains a `weather` TEXT column (migration 0024 + repair block), carried through create_find/update_find/import payloads and every find SELECT. Manual free-text weather input added to CreateFindDialog (draft-persisted), EditFindDialog, ImportDialog shared header, and inline add/edit in PhotoLightbox. Displayed in the lightbox metadata panel, on FindCard when set, and as a new CSV export column. Lightbox note/location saves now pass weather through so they can't wipe it. i18n: edit.weather, edit.weatherPlaceholder, lightbox.weather/noWeather/addWeather/editWeather (hr+en). |
 | 260820-tn3 find-determiner-finder | 2026-08-20 | finds gains `determiner` + `finder` TEXT columns (migration 0025 + per-column repair blocks), carried through create_find/update_find/import payloads and every find SELECT. Determinator sits immediately before Nalaznik in CreateFindDialog, EditFindDialog, ImportDialog shared header, and a combined inline editor in PhotoLightbox. Shown in the lightbox metadata panel, on FindCard when set, and as two new CSV columns. All four lightbox save paths now pass weather/determiner/finder through so none can wipe the others. i18n: edit.determiner/finder(+Placeholder), lightbox.people/noPeople/addPeople/editPeople (hr+en). |
+| 260820-u6j species-cover-and-location-filter | 2026-08-20 | Fixed load_representative_find_for_species: now prefers the find holding species_profiles.cover_photo_id, then the newest find that has a photo, then the newest find (split load_finds_for_species into an inner variant with require_photos). Fixes blank species thumbnails when the newest find is photoless, and covers picked from older finds that saved but never rendered. Cover picker gained 'Dodaj fotografiju s racunala' (attaches to the newest find, sets as cover). CollectionTab location filter now lists recorded location_note values, filtered as you type, click to apply/clear. Filter audit: Zbirka is the only surface with a location filter; the map filters by species only. |
 
 ### Roadmap Evolution
 
