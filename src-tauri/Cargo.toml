@@ -1,6 +1,6 @@
 [package]
 name = "gljivobook"
-version = "0.2.127"
+version = "0.2.128"
 edition = "2021"
 
 [lib]
