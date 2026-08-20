@@ -44,17 +44,6 @@ function collectionIcon(labelText: string, showLabel: boolean, isSatellite: bool
   });
 }
 
-const collectionIconCache = new Map<string, L.DivIcon>();
-
-function getCollectionIcon(labelText: string, showLabel: boolean, isSatellite: boolean): L.DivIcon {
-  const cacheKey = `${labelText}|${showLabel ? 'l' : 'd'}|${isSatellite ? 's' : 'n'}`;
-  const cached = collectionIconCache.get(cacheKey);
-  if (cached) return cached;
-  const created = collectionIcon(labelText, showLabel, isSatellite);
-  collectionIconCache.set(cacheKey, created);
-  return created;
-}
-
 function CollectionPopup({
   locationGroup,
   onStartLocalPolygonForFind,
@@ -461,11 +450,18 @@ function CollectionMarker({
   speciesProfilesByName: Map<string, SpeciesProfile>;
 }) {
   const [popupOpen, setPopupOpen] = useState(false);
+  // Keep the icon stable while this marker is mounted, but let it be collected when
+  // viewport culling unmounts the marker. A module-global cache retained every label
+  // ever visited during long map sessions and grew without a bound as the library grew.
+  const icon = useMemo(
+    () => collectionIcon(g.labelText, showLabel, isSatellite),
+    [g.labelText, isSatellite, showLabel],
+  );
 
   return (
     <Marker
       position={[g.lat, g.lng]}
-      icon={getCollectionIcon(g.labelText, showLabel, isSatellite)}
+      icon={icon}
       eventHandlers={{
         click: () => onSelectSpecies(g.species[0]?.name ?? ''),
         popupopen: () => setPopupOpen(true),
