@@ -1,6 +1,7 @@
 import { readDir } from '@tauri-apps/plugin-fs';
 import { parseExif, importFind, SUPPORTED_EXTENSIONS, type ImportPayload } from './finds';
 import { isInternalLibraryName } from './internalEntries';
+import { EXIF_SCAN_CONCURRENCY, mapWithLimit } from './concurrency';
 
 export interface AutoImportProgress {
   species: string;
@@ -128,14 +129,14 @@ export async function scanAndImport(
 
     // Parse EXIF for all flat images first
     const flatParsed: { path: string; filename: string; exif: { date: string | null; lat: number | null; lng: number | null } }[] =
-      await Promise.all(
-        flatImages.map(async (e) => {
-          const path = `${storagePath}/${e.name}`;
-          let exif = { date: null as string | null, lat: null as number | null, lng: null as number | null };
-          try { exif = await parseExif(path); } catch { /* use defaults */ }
-          return { path, filename: e.name!, exif };
-        }),
-      );
+      // Bounded: parse_exif reads and decodes each file on the Rust blocking pool, and a
+      // first run can point at a folder holding thousands of loose photos.
+      await mapWithLimit(flatImages, EXIF_SCAN_CONCURRENCY, async (e) => {
+        const path = `${storagePath}/${e.name}`;
+        let exif = { date: null as string | null, lat: null as number | null, lng: null as number | null };
+        try { exif = await parseExif(path); } catch { /* use defaults */ }
+        return { path, filename: e.name!, exif };
+      });
 
     // Group by derived key
     const groups = new Map<string, typeof flatParsed>();

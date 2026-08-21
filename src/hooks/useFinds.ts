@@ -8,6 +8,7 @@ import {
   type Find, type FindSearchFilters, type MapPoint, type SpeciesOption, type SpeciesProfilePatch, type UpdateFindPayload, type CreateFindPayload,
 } from '@/lib/finds';
 import { SAMPLES_QUERY_KEY } from '@/lib/samples';
+import { BULK_COMMAND_CONCURRENCY, runWithLimit } from '@/lib/concurrency';
 import { useAppStore } from '@/stores/appStore';
 
 export function useFinds(filters?: FindSearchFilters, enabled = true) {
@@ -242,7 +243,12 @@ export function useBulkMoveFindToFolder() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ findIds, destFolder }: { findIds: number[]; destFolder: string }) => {
-      await Promise.all(findIds.map((id) => moveFindToFolder(storagePath!, id, destFolder)));
+      // Bounded: each call opens its own SQLite connection on the Rust blocking pool,
+      // and writes serialise there anyway, so firing all of them at once only buys
+      // threads and contention.
+      await runWithLimit(findIds, BULK_COMMAND_CONCURRENCY, (id) =>
+        moveFindToFolder(storagePath!, id, destFolder),
+      );
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
@@ -255,7 +261,11 @@ export function useBulkDeleteFinds() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ findIds, deleteFiles }: { findIds: number[]; deleteFiles: boolean }) => {
-      await Promise.all(findIds.map((id) => deleteFind(storagePath!, id, deleteFiles)));
+      // Bounded, and it stops at the first failure rather than racing ahead — this
+      // deletes the user's finds and their files.
+      await runWithLimit(findIds, BULK_COMMAND_CONCURRENCY, (id) =>
+        deleteFind(storagePath!, id, deleteFiles),
+      );
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });

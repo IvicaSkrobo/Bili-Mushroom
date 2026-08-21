@@ -27,6 +27,7 @@ import { reverseGeocode } from '@/lib/geocoding';
 import { LocationPickerMap } from '@/components/map/LocationPickerMap';
 import { PickLocationButton } from '@/components/map/PickLocationButton';
 import { isInternalLibraryName } from '@/lib/internalEntries';
+import { BULK_COMMAND_CONCURRENCY, mapWithLimit } from '@/lib/concurrency';
 import { compareSpeciesNames, plainSpeciesName } from '@/lib/speciesName';
 import { cn } from '@/lib/utils';
 import { editSourcePhotoImage, isHeic, parseExif, SUPPORTED_EXTENSIONS } from '@/lib/finds';
@@ -666,16 +667,15 @@ export function CreateFindDialog({ open, onOpenChange }: CreateFindDialogProps) 
     readDir(storagePath)
       .then(async (entries) => {
         const dirs = entries.filter((e) => e.isDirectory && e.name && !isInternalLibraryName(e.name));
-        const nonEmptyDirs = await Promise.all(
-          dirs.map(async (entry) => {
+        // Bounded: one readDir per species folder, and a large library has a lot of them.
+        const nonEmptyDirs = await mapWithLimit(dirs, BULK_COMMAND_CONCURRENCY, async (entry) => {
             try {
               const children = await readDir(`${storagePath}\\${entry.name}`);
               return children.length > 0 ? entry.name as string : null;
             } catch {
               return entry.name as string;
             }
-          }),
-        );
+        });
         setSpeciesFolders(nonEmptyDirs.filter((name): name is string => Boolean(name)));
       })
       .catch(() => setSpeciesFolders([]));
