@@ -10,6 +10,9 @@
 - **An unreadable disk can no longer be mistaken for missing photos** — deletion, sample folder cleanup and "clean up missing photo references" now tell *confirmed absent* apart from *could not be read*. A path the filesystem refuses to answer for is never treated as deleted.
 - **Safer reference cleanup** — the Settings cleanup scans every path before touching the database, removes nothing at all if any path cannot be confirmed missing and names it, and performs its row deletions and primary-photo promotions in a single transaction instead of one at a time.
 - **A photo row pointing at a folder can no longer send that folder to the Recycle Bin** — paths are checked for kind, not just existence: photo cleanup acts only on regular files and sample folder cleanup only on directories.
+- **Places nobody named are no longer counted as visited** — finds with no country, region or note were concatenated into a single blank key, so a library that records no locations reported one visited location and Top spots could list a blank row.
+- **An unreadable date cannot become the busiest month** — dates SQLite cannot parse are excluded rather than grouped into a nameless month, and a failing read of the busiest month is reported instead of silently becoming "no month".
+- **Statistics refresh after a reference cleanup** — the cleanup invalidated only the collection, so an open Statistics tab kept showing photo counts the cleanup had just removed.
 - **A failed cleanup says so** — a failed backup or transaction now shows a localised error instead of closing the dialog with nothing to show, and the reason a path blocked the cleanup is translated rather than shown as an English fragment inside a Croatian sentence.
 
 ---

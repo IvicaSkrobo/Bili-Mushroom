@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { FINDS_QUERY_KEY, type PruneSummary } from '@/lib/finds';
+import {
+  STATS_QUERY_KEY, STATS_FINDS_QUERY_KEY, TOP_SPOTS_QUERY_KEY,
+  BEST_MONTHS_QUERY_KEY, CALENDAR_QUERY_KEY, SPECIES_STATS_QUERY_KEY,
+} from '@/lib/stats';
 import { Archive, Database, FolderOpen, Globe2, HardDrive, Images, Info } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
@@ -103,7 +107,14 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
       setPruneResult(summary);
       setPruneConfirmOpen(false);
       if (summary.removed > 0) {
-        qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
+        // Photo counts feed the statistics too, so leaving those queries alone would keep
+        // an open Statistics tab showing photos the cleanup has just forgotten.
+        for (const key of [
+          FINDS_QUERY_KEY, STATS_QUERY_KEY, STATS_FINDS_QUERY_KEY, TOP_SPOTS_QUERY_KEY,
+          BEST_MONTHS_QUERY_KEY, CALENDAR_QUERY_KEY, SPECIES_STATS_QUERY_KEY,
+        ]) {
+          qc.invalidateQueries({ queryKey: [key, storagePath] });
+        }
       }
     } catch {
       // A failed backup or a failed transaction leaves the library untouched, but the

@@ -1,10 +1,18 @@
 use base64::Engine;
 use std::collections::HashMap;
 
+use rusqlite::OptionalExtension;
+
 #[cfg(test)]
 use rusqlite::params;
 
 use crate::commands::import::open_db;
+
+/// True only when a find actually names somewhere. Kept next to the internal filter so
+/// every place that counts locations agrees on what counts as one.
+const HAS_LOCATION: &str = "(TRIM(COALESCE(country, '')) <> '' \
+     OR TRIM(COALESCE(region, '')) <> '' \
+     OR TRIM(COALESCE(location_note, '')) <> '')";
 
 const INTERNAL_SPECIES_FILTER: &str =
     "LOWER(TRIM(species_name)) NOT IN ('tile-cache', '.bili-cache', '.bili-cache-tiles')";
@@ -156,9 +164,12 @@ fn get_stats_cards_blocking(storage_path: &str) -> Result<StatsCards, String> {
     let locations_visited: i64 = conn
         .query_row(
             &format!(
-                "SELECT COUNT(DISTINCT country || '|' || region || '|' || location_note) \
-                 FROM finds WHERE {}",
-                INTERNAL_SPECIES_FILTER
+                "SELECT COUNT(DISTINCT TRIM(COALESCE(country, '')) || '|' \
+                 || TRIM(COALESCE(region, '')) || '|' \
+                 || TRIM(COALESCE(location_note, ''))) \
+                 FROM finds WHERE {} AND {}",
+                INTERNAL_SPECIES_FILTER,
+                HAS_LOCATION
             ),
             [],
             |row| row.get(0),
@@ -170,13 +181,18 @@ fn get_stats_cards_blocking(storage_path: &str) -> Result<StatsCards, String> {
             &format!(
                 "SELECT strftime('%Y-%m', date_found) as ym, COUNT(*) as cnt \
                  FROM finds WHERE {} AND date_found IS NOT NULL AND date_found != '' \
+                 AND strftime('%Y-%m', date_found) IS NOT NULL \
                  GROUP BY ym ORDER BY cnt DESC LIMIT 1",
                 INTERNAL_SPECIES_FILTER
             ),
             [],
-            |row| row.get(0),
+            // Explicit so `optional` sees a Result<String>, not a Result<Option<String>>.
+            |row| row.get::<_, String>(0),
         )
-        .ok();
+        // An empty library has no busiest month, but a failing read is not the same thing
+        // as "no months" and must not be reported as one.
+        .optional()
+        .map_err(|e| format!("Could not read the busiest month: {e}"))?;
 
     Ok(StatsCards {
         total_finds,
@@ -199,8 +215,10 @@ fn get_top_spots_blocking(storage_path: &str) -> Result<Vec<TopSpot>, String> {
         .prepare(
             &format!(
                 "SELECT country, region, location_note, COUNT(*) as cnt FROM finds \
-                 WHERE {} GROUP BY country, region, location_note ORDER BY cnt DESC",
-                INTERNAL_SPECIES_FILTER
+                 WHERE {} AND {} \
+                 GROUP BY country, region, location_note ORDER BY cnt DESC",
+                INTERNAL_SPECIES_FILTER,
+                HAS_LOCATION
             ),
         )
         .map_err(|e| e.to_string())?;
@@ -607,6 +625,91 @@ mod tests {
         assert_eq!(obs_max, Some(8), "max should be 8");
         let avg = obs_avg.expect("avg should be Some");
         assert!((avg - 6.0).abs() < 0.001, "avg should be 6.0, got {}", avg);
+    }
+
+    /// Finds with no country, region or note are not a place anybody went. The old query
+    /// concatenated the three empty fields into a single distinct key, so a library that
+    /// records no locations at all reported one visited location.
+    #[test]
+    fn finds_without_a_location_are_not_counted_as_a_visited_place() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_string_lossy().to_string();
+        let conn = open_db(&storage_path).expect("open db");
+        insert_find_with(&conn, "Boletus edulis", "2024-05-01", "", "", "");
+        insert_find_with(&conn, "Boletus edulis", "2024-05-02", "", "", "   ");
+        drop(conn);
+
+        let cards = get_stats_cards_blocking(&storage_path).expect("stats cards");
+
+        assert_eq!(cards.total_finds, 2);
+        assert_eq!(cards.locations_visited, 0, "nowhere was named");
+    }
+
+    #[test]
+    fn a_named_place_still_counts_once_however_it_is_spelled_out() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_string_lossy().to_string();
+        let conn = open_db(&storage_path).expect("open db");
+        insert_find_with(&conn, "Boletus edulis", "2024-05-01", "Croatia", "Gorski Kotar", "Oak");
+        insert_find_with(&conn, "Boletus edulis", "2024-05-02", "Croatia", "Gorski Kotar", "Oak");
+        // Only a note, no country or region: still somewhere.
+        insert_find_with(&conn, "Amanita", "2024-05-03", "", "", "Behind the house");
+        insert_find_with(&conn, "Amanita", "2024-05-04", "", "", "");
+        drop(conn);
+
+        let cards = get_stats_cards_blocking(&storage_path).expect("stats cards");
+
+        assert_eq!(cards.locations_visited, 2);
+    }
+
+    #[test]
+    fn top_spots_never_offers_a_blank_place() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_string_lossy().to_string();
+        let conn = open_db(&storage_path).expect("open db");
+        // Two unlocated finds would otherwise form the busiest "spot" of all.
+        insert_find_with(&conn, "Boletus edulis", "2024-05-01", "", "", "");
+        insert_find_with(&conn, "Boletus edulis", "2024-05-02", "", "", "");
+        insert_find_with(&conn, "Amanita", "2024-05-03", "Croatia", "Istra", "Pine wood");
+        drop(conn);
+
+        let spots = get_top_spots_blocking(&storage_path).expect("top spots");
+
+        assert_eq!(spots.len(), 1);
+        assert_eq!(spots[0].location_note, "Pine wood");
+    }
+
+    /// `strftime` returns NULL for a date it cannot parse, which would otherwise group
+    /// into a nameless month and could be reported as the busiest one.
+    #[test]
+    fn an_unparseable_date_cannot_become_the_busiest_month() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_string_lossy().to_string();
+        let conn = open_db(&storage_path).expect("open db");
+        insert_find_with(&conn, "Boletus edulis", "not a date", "Croatia", "Istra", "Pine");
+        insert_find_with(&conn, "Boletus edulis", "rubbish", "Croatia", "Istra", "Pine");
+        insert_find_with(&conn, "Amanita", "2024-06-01", "Croatia", "Istra", "Pine");
+        drop(conn);
+
+        let cards = get_stats_cards_blocking(&storage_path).expect("stats cards");
+
+        assert_eq!(
+            cards.most_active_month.as_deref(),
+            Some("2024-06"),
+            "the only real month wins even though the junk dates are more numerous"
+        );
+    }
+
+    #[test]
+    fn an_empty_library_has_no_busiest_month() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_string_lossy().to_string();
+        open_db(&storage_path).expect("open db");
+
+        let cards = get_stats_cards_blocking(&storage_path).expect("stats cards");
+
+        assert_eq!(cards.most_active_month, None);
+        assert_eq!(cards.locations_visited, 0);
     }
 
     #[test]

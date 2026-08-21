@@ -23,6 +23,13 @@ A small honesty follow-up to v0.3.39, from a cross-review of the delete paths.
 - Paths are also checked for what they are, not only whether something is there. A photo
   entry that points at a folder is left alone instead of sending that whole folder to the
   Recycle Bin, and the cleanup no longer reads such a folder as a healthy photo.
+- Statistics no longer count a place nobody named. Finds with no country, region or note
+  were joined into one blank key, so a library recording no locations showed "1 location
+  visited" and the busiest places list could carry a blank entry.
+- A date the database cannot read can no longer be reported as your busiest month, and a
+  failing read of that figure is surfaced instead of quietly looking like "no month yet".
+- Statistics refresh after cleaning up missing photo references. Previously an open
+  Statistics tab kept showing photo counts for references that had just been removed.
 - A cleanup that fails — a backup that could not be written, a database that refused the
   change — now says so in your language. It previously closed the dialog with nothing to
   show, which looked the same as a clean run that found nothing. The reason a path stopped
@@ -44,7 +51,7 @@ A small honesty follow-up to v0.3.39, from a cross-review of the delete paths.
 
 ## Verification
 
-- Rust: 145 passed, 0 failed, 1 ignored (optional real-GPS EXIF fixture).
+- Rust: 150 passed, 0 failed, 1 ignored (optional real-GPS EXIF fixture).
 - Frontend: 372 passed.
 - New Rust regression tests: the single-delete path reports what it could not remove; a
   photo already off the disk is not reported; a repeated delete of the same find succeeds
