@@ -485,8 +485,8 @@ export async function bulkDeleteFinds(
   findIds: number[],
   deleteFiles: boolean,
   deleteSampleFolder = false,
-): Promise<void> {
-  return invoke<void>('bulk_delete_finds', {
+): Promise<BulkOperationResult> {
+  return invoke<BulkOperationResult>('bulk_delete_finds', {
     storagePath,
     findIds,
     deleteFiles,
@@ -498,8 +498,20 @@ export async function bulkMoveFindsToFolder(
   storagePath: string,
   findIds: number[],
   destFolder: string,
-): Promise<void> {
-  return invoke<void>('bulk_move_finds_to_folder', { storagePath, findIds, destFolder });
+): Promise<BulkOperationResult> {
+  return invoke<BulkOperationResult>('bulk_move_finds_to_folder', { storagePath, findIds, destFolder });
+}
+
+export interface BulkOperationFailure {
+  item: string;
+  error: string;
+}
+
+export interface BulkOperationResult {
+  requested: number;
+  completed: number;
+  file_failures: BulkOperationFailure[];
+  operation_failures: BulkOperationFailure[];
 }
 
 export async function openFindFolder(

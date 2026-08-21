@@ -1203,13 +1203,31 @@ pub async fn delete_find(
 /// photos first and then failing to delete the rows would leave records pointing at
 /// files that are gone; this way a failure at worst leaves files behind, which
 /// `audit_photo_library` already reports as orphans.
+#[derive(Debug, Default, serde::Serialize, PartialEq)]
+pub struct BulkOperationFailure {
+    pub item: String,
+    pub error: String,
+}
+
+#[derive(Debug, Default, serde::Serialize, PartialEq)]
+pub struct BulkOperationResult {
+    pub requested: u32,
+    pub completed: u32,
+    pub file_failures: Vec<BulkOperationFailure>,
+    pub operation_failures: Vec<BulkOperationFailure>,
+}
+
+fn bulk_requested(find_ids: &[i64]) -> u32 {
+    u32::try_from(find_ids.len()).unwrap_or(u32::MAX)
+}
+
 #[tauri::command]
 pub async fn bulk_delete_finds(
     storage_path: String,
     find_ids: Vec<i64>,
     delete_files: bool,
     delete_sample_folder: Option<bool>,
-) -> Result<(), String> {
+) -> Result<BulkOperationResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
         bulk_delete_finds_blocking(
             &storage_path,
@@ -1227,9 +1245,13 @@ fn bulk_delete_finds_blocking(
     find_ids: &[i64],
     delete_files: bool,
     delete_sample_folder: bool,
-) -> Result<(), String> {
+) -> Result<BulkOperationResult, String> {
+    let mut result = BulkOperationResult {
+        requested: bulk_requested(find_ids),
+        ..BulkOperationResult::default()
+    };
     if find_ids.is_empty() {
-        return Ok(());
+        return Ok(result);
     }
 
     let mut conn = open_db(storage_path)?;
@@ -1247,15 +1269,21 @@ fn bulk_delete_finds_blocking(
             let paths = stmt
                 .query_map(params![find_id], |row| row.get::<_, String>(0))
                 .map_err(|e| e.to_string())?
-                .filter_map(|row| row.ok());
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| format!("Could not read photo paths for find {find_id}: {e}"))?;
             photo_paths.extend(paths);
         }
         if delete_sample_folder {
-            if let Ok(Some(folder)) = conn.query_row(
-                "SELECT folder_path FROM samples WHERE find_id = ?1",
-                params![find_id],
-                |row| row.get::<_, Option<String>>(0),
-            ) {
+            if let Some(folder) = conn
+                .query_row(
+                    "SELECT folder_path FROM samples WHERE find_id = ?1",
+                    params![find_id],
+                    |row| row.get::<_, Option<String>>(0),
+                )
+                .optional()
+                .map_err(|e| format!("Could not read sample folder for find {find_id}: {e}"))?
+                .flatten()
+            {
                 sample_folders.push(folder);
             }
         }
@@ -1268,8 +1296,17 @@ fn bulk_delete_finds_blocking(
         // The register entry always goes with the find — it points at a row that is
         // about to disappear. The folder is handled below, after the commit.
         crate::commands::samples::remove_sample_for_find(&tx, storage_path, *find_id, false)?;
-        tx.execute("DELETE FROM finds WHERE id = ?1", params![find_id])
+        let deleted = tx
+            .execute("DELETE FROM finds WHERE id = ?1", params![find_id])
             .map_err(|e| format!("DB delete failed: {}", e))?;
+        if deleted > 0 {
+            result.completed = result.completed.saturating_add(1);
+        } else {
+            result.operation_failures.push(BulkOperationFailure {
+                item: find_id.to_string(),
+                error: "Find no longer exists".to_string(),
+            });
+        }
     }
     tx.commit()
         .map_err(|e| format!("Could not finish the delete: {e}"))?;
@@ -1278,14 +1315,25 @@ fn bulk_delete_finds_blocking(
         let abs_path = format!("{}/{}", storage_path, rel_path);
         if let Err(e) = trash::delete(&abs_path) {
             eprintln!("trash::delete failed for {}: {}", abs_path, e);
+            result.file_failures.push(BulkOperationFailure {
+                item: rel_path.clone(),
+                error: e.to_string(),
+            });
         }
     }
     for folder_rel in &sample_folders {
         let folder_abs =
             Path::new(storage_path).join(folder_rel.replace('/', std::path::MAIN_SEPARATOR_STR));
-        let _ = std::fs::remove_dir_all(folder_abs);
+        if folder_abs.exists() {
+            if let Err(error) = std::fs::remove_dir_all(&folder_abs) {
+                result.file_failures.push(BulkOperationFailure {
+                    item: folder_rel.clone(),
+                    error: error.to_string(),
+                });
+            }
+        }
     }
-    Ok(())
+    Ok(result)
 }
 
 /// Moves many finds' photos out to a folder and drops their records, in one command.
@@ -1299,21 +1347,45 @@ pub async fn bulk_move_finds_to_folder(
     storage_path: String,
     find_ids: Vec<i64>,
     dest_folder: String,
-) -> Result<(), String> {
+) -> Result<BulkOperationResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        if find_ids.is_empty() {
-            return Ok(());
-        }
-        let conn = open_db(&storage_path)?;
-        conn.execute_batch("PRAGMA foreign_keys = ON;")
-            .map_err(|e| e.to_string())?;
-        for find_id in &find_ids {
-            move_find_files_on_conn(&conn, &storage_path, *find_id, &dest_folder)?;
-        }
-        Ok(())
+        bulk_move_finds_to_folder_blocking(&storage_path, &find_ids, &dest_folder)
     })
     .await
     .map_err(|e| format!("Bulk move worker failed: {e}"))?
+}
+
+fn bulk_move_finds_to_folder_blocking(
+    storage_path: &str,
+    find_ids: &[i64],
+    dest_folder: &str,
+) -> Result<BulkOperationResult, String> {
+    let mut result = BulkOperationResult {
+        requested: bulk_requested(find_ids),
+        ..BulkOperationResult::default()
+    };
+    if find_ids.is_empty() {
+        return Ok(result);
+    }
+    let conn = open_db(storage_path)?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| e.to_string())?;
+    for find_id in find_ids {
+        match move_find_files_on_conn(&conn, storage_path, *find_id, dest_folder) {
+            Ok(()) => result.completed = result.completed.saturating_add(1),
+            Err(error) => {
+                result.operation_failures.push(BulkOperationFailure {
+                    item: find_id.to_string(),
+                    error,
+                });
+                // Preserve the old stop-on-first-error behaviour. A failed find may
+                // already have moved some files; continuing would enlarge the recovery
+                // surface while providing no additional safety.
+                break;
+            }
+        }
+    }
+    Ok(result)
 }
 
 #[tauri::command]
@@ -2877,7 +2949,12 @@ mod tests {
                 .collect()
         };
 
-        bulk_delete_finds_blocking(storage_path, &ids[..3], false, false).expect("bulk delete");
+        let result = bulk_delete_finds_blocking(storage_path, &ids[..3], false, false)
+            .expect("bulk delete");
+        assert_eq!(result.requested, 3);
+        assert_eq!(result.completed, 3);
+        assert!(result.file_failures.is_empty());
+        assert!(result.operation_failures.is_empty());
 
         let conn = open_db(storage_path).expect("reopen library");
         let remaining: i64 = conn
@@ -2905,7 +2982,9 @@ mod tests {
             insert_find_row(&conn, &make_find_record("keep.jpg", "2024-05-10")).expect("insert");
         }
 
-        bulk_delete_finds_blocking(storage_path, &[], true, true).expect("empty selection is fine");
+        let result = bulk_delete_finds_blocking(storage_path, &[], true, true)
+            .expect("empty selection is fine");
+        assert_eq!(result, BulkOperationResult::default());
 
         let conn = open_db(storage_path).expect("reopen library");
         let remaining: i64 = conn
@@ -2925,14 +3004,83 @@ mod tests {
             insert_find_row(&conn, &make_find_record("here.jpg", "2024-05-10")).expect("insert")
         };
 
-        bulk_delete_finds_blocking(storage_path, &[existing, 9_999], false, false)
+        let result = bulk_delete_finds_blocking(storage_path, &[existing, 9_999], false, false)
             .expect("bulk delete with a stale id");
+        assert_eq!(result.requested, 2);
+        assert_eq!(result.completed, 1);
+        assert_eq!(result.operation_failures.len(), 1);
+        assert_eq!(result.operation_failures[0].item, "9999");
 
         let conn = open_db(storage_path).expect("reopen library");
         let remaining: i64 = conn
             .query_row("SELECT COUNT(*) FROM finds", [], |row| row.get(0))
             .expect("count finds");
         assert_eq!(remaining, 0);
+    }
+
+    #[test]
+    fn bulk_delete_reports_files_that_could_not_be_trashed() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_str().expect("storage path");
+        let find_id = {
+            let conn = open_db(storage_path).expect("open library");
+            let find_id = insert_find_row(&conn, &make_find_record("gone.jpg", "2024-05-10"))
+                .expect("insert find");
+            insert_find_photo(&conn, find_id, "Boletus_edulis/gone.jpg", true)
+                .expect("insert missing photo row");
+            find_id
+        };
+
+        let result = bulk_delete_finds_blocking(storage_path, &[find_id], true, false)
+            .expect("database delete still succeeds");
+
+        assert_eq!(result.completed, 1);
+        assert_eq!(result.file_failures.len(), 1);
+        assert_eq!(result.file_failures[0].item, "Boletus_edulis/gone.jpg");
+    }
+
+    #[test]
+    fn bulk_move_reports_the_failed_find_and_stops_before_the_rest() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let destination = tempfile::tempdir().expect("destination");
+        let storage_path = dir.path().to_str().expect("storage path");
+        let ids: Vec<i64> = {
+            let conn = open_db(storage_path).expect("open library");
+            (0..2)
+                .map(|index| {
+                    let id = insert_find_row(
+                        &conn,
+                        &make_find_record(&format!("missing-{index}.jpg"), "2024-05-10"),
+                    )
+                    .expect("insert find");
+                    insert_find_photo(
+                        &conn,
+                        id,
+                        &format!("Boletus_edulis/missing-{index}.jpg"),
+                        true,
+                    )
+                    .expect("insert missing photo row");
+                    id
+                })
+                .collect()
+        };
+
+        let result = bulk_move_finds_to_folder_blocking(
+            storage_path,
+            &ids,
+            destination.path().to_str().expect("destination path"),
+        )
+        .expect("structured partial result");
+
+        assert_eq!(result.requested, 2);
+        assert_eq!(result.completed, 0);
+        assert_eq!(result.operation_failures.len(), 1);
+        assert_eq!(result.operation_failures[0].item, ids[0].to_string());
+        let conn = open_db(storage_path).expect("reopen library");
+        let remaining: i64 = conn
+            .query_row("SELECT COUNT(*) FROM finds", [], |row| row.get(0))
+            .expect("count untouched finds");
+        assert_eq!(remaining, 2, "the failed and unattempted finds stay registered");
     }
 
     /// Renaming a species folder moves every photo on disk and rewrites the rows that

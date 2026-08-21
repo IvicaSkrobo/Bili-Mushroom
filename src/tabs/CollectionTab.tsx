@@ -12,13 +12,13 @@ import { PhotoLightbox, type LightboxPhoto } from '@/components/finds/PhotoLight
 import { EditFindDialog } from '@/components/finds/EditFindDialog';
 import { FolderEditDialog } from '@/components/finds/FolderEditDialog';
 import { DeleteFindDialog } from '@/components/finds/DeleteFindDialog';
-import { BulkDeleteDialog } from '@/components/finds/BulkDeleteDialog';
+import { BulkDeleteDialog, type BulkDeleteMode } from '@/components/finds/BulkDeleteDialog';
 import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
 import { useFindLocations, useInfiniteCollectionFolders, useInfiniteSpeciesFinds, useFindPhotos, useSpeciesNotes, useSpeciesProfiles, useUpsertSpeciesNote, useUpsertSpeciesProfile, useBulkRenameSpecies, useDeleteFindPhoto } from '@/hooks/useFinds';
 import { usePhotoThumbnail } from '@/hooks/usePhotoThumbnail';
 import { useAppStore } from '@/stores/appStore';
 import { useT, tFindsCount } from '@/i18n/index';
-import type { Find, FindSearchFilters, SpeciesFolderSummary, SpeciesProfile } from '@/lib/finds';
+import type { BulkOperationResult, Find, FindSearchFilters, SpeciesFolderSummary, SpeciesProfile } from '@/lib/finds';
 import { getFindPhotoCount, openSpeciesFolder, SUPPORTED_EXTENSIONS } from '@/lib/finds';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 import { renderSpeciesName, plainSpeciesName, normalizeCommonName, compareSpeciesNames } from '@/lib/speciesName';
@@ -799,10 +799,30 @@ export default function CollectionTab() {
     );
   };
 
-  const handleBulkDeleteSuccess = () => {
-    setImportMsg(t('collection.deletedToast', { n: selectedIds.size }));
+  const handleBulkDeleteSuccess = (result: BulkOperationResult, mode: BulkDeleteMode) => {
+    const incomplete = Math.max(0, result.requested - result.completed);
+    const issueCount = incomplete + result.file_failures.length;
+    const message = issueCount === 0
+      ? t('collection.deletedToast', { n: result.completed })
+      : mode === 'files' && result.file_failures.length > 0
+        ? t('collection.bulkDeletePartialToast', {
+            done: result.completed,
+            files: result.file_failures.length,
+          })
+        : mode === 'move'
+          ? t('collection.bulkExternalMovePartialToast', {
+              done: result.completed,
+              requested: result.requested,
+              failed: incomplete,
+            })
+          : t('collection.bulkPartialToast', {
+              done: result.completed,
+              requested: result.requested,
+              issues: issueCount,
+            });
+    setImportMsg(message);
     if (importMsgTimer.current) clearTimeout(importMsgTimer.current);
-    importMsgTimer.current = setTimeout(() => setImportMsg(null), 4000);
+    importMsgTimer.current = setTimeout(() => setImportMsg(null), issueCount > 0 ? 8000 : 4000);
     cancelSelectMode();
   };
 

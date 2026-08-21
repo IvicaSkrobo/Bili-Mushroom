@@ -242,7 +242,7 @@ export function useBulkMoveFindToFolder() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ findIds, destFolder }: { findIds: number[]; destFolder: string }) => {
-      await bulkMoveFindsToFolder(storagePath!, findIds, destFolder);
+      return bulkMoveFindsToFolder(storagePath!, findIds, destFolder);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
@@ -255,7 +255,7 @@ export function useBulkDeleteFinds() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ findIds, deleteFiles }: { findIds: number[]; deleteFiles: boolean }) => {
-      await bulkDeleteFinds(storagePath!, findIds, deleteFiles);
+      return bulkDeleteFinds(storagePath!, findIds, deleteFiles);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });

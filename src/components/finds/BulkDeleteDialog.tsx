@@ -16,20 +16,21 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useBulkDeleteFinds, useBulkMoveFindToFolder } from '@/hooks/useFinds';
 import { useT } from '@/i18n/index';
+import type { BulkOperationResult } from '@/lib/finds';
 
-type DeleteMode = 'record' | 'files' | 'move';
+export type BulkDeleteMode = 'record' | 'files' | 'move';
 
 interface BulkDeleteDialogProps {
   count: number;
   findIds: number[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
+  onSuccess: (result: BulkOperationResult, mode: BulkDeleteMode) => void;
 }
 
 export function BulkDeleteDialog({ count, findIds, open, onOpenChange, onSuccess }: BulkDeleteDialogProps) {
   const t = useT();
-  const [mode, setMode] = useState<DeleteMode>('record');
+  const [mode, setMode] = useState<BulkDeleteMode>('record');
   const [destFolder, setDestFolder] = useState<string | null>(null);
   const [pickingFolder, setPickingFolder] = useState(false);
   const bulkDelete = useBulkDeleteFinds();
@@ -50,12 +51,12 @@ export function BulkDeleteDialog({ count, findIds, open, onOpenChange, onSuccess
       if (!destFolder) return;
       bulkMove.mutate(
         { findIds, destFolder },
-        { onSuccess: () => { onOpenChange(false); onSuccess(); } },
+        { onSuccess: (result) => { onOpenChange(false); onSuccess(result, mode); } },
       );
     } else {
       bulkDelete.mutate(
         { findIds, deleteFiles: mode === 'files' },
-        { onSuccess: () => { onOpenChange(false); onSuccess(); } },
+        { onSuccess: (result) => { onOpenChange(false); onSuccess(result, mode); } },
       );
     }
   }
@@ -80,7 +81,7 @@ export function BulkDeleteDialog({ count, findIds, open, onOpenChange, onSuccess
 
         <RadioGroup
           value={mode}
-          onValueChange={(val) => { setMode(val as DeleteMode); setDestFolder(null); }}
+          onValueChange={(val) => { setMode(val as BulkDeleteMode); setDestFolder(null); }}
           className="gap-3"
         >
           <div className="flex items-center gap-2">

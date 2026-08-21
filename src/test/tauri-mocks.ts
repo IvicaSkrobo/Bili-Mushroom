@@ -117,8 +117,24 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
     photos: [],
   }),
   delete_find: (_args: unknown) => undefined,
-  bulk_delete_finds: (_args: unknown) => undefined,
-  bulk_move_finds_to_folder: (_args: unknown) => undefined,
+  bulk_delete_finds: (args: unknown) => {
+    const findIds = (args as { findIds?: number[] }).findIds ?? [];
+    return {
+      requested: findIds.length,
+      completed: findIds.length,
+      file_failures: [],
+      operation_failures: [],
+    };
+  },
+  bulk_move_finds_to_folder: (args: unknown) => {
+    const findIds = (args as { findIds?: number[] }).findIds ?? [];
+    return {
+      requested: findIds.length,
+      completed: findIds.length,
+      file_failures: [],
+      operation_failures: [],
+    };
+  },
   move_find_files: (_args: unknown) => undefined,
   get_find_photos: (_args: unknown) => [],
   get_photo_thumbnail: (args: unknown) => {
