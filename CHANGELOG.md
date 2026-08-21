@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.3.37] — 2026-08-21
+
+### Fixed
+- **Long-session collection freezes** — blocking SQLite work no longer occupies the async runtime, and collection representatives are selected in batches instead of an N+1 query loop.
+- **Safe species editing** — partial renames leave unselected finds and species metadata untouched; profile edits patch only fields owned by the dialog and use the library's canonical spelling.
+- **Reliable bulk feedback** — bulk delete and move now report partial filesystem failures instead of showing a false success.
+- **Map load failures are visible** — a failed backend request is no longer indistinguishable from an empty map, and location notes survive the lean map payload.
+- **CSV photo paths** — statistics loads lean rows during normal use but hydrates full photo data for explicit CSV/PDF exports.
+- **Database safety** — automatic migration and maintenance backups are SQLite-consistent, verified, retained outside cache folders, disk-budgeted, and protected from unsafe cleanup.
+- **WAL compatibility** — WAL improves read/write overlap where supported and safely falls back to rollback journal with full synchronization on unsupported filesystems.
+
+### Performance
+- Collection, species autocomplete, map, statistics, dialogs, samples, zones, imports, and bulk operations no longer load or hydrate more library data than they use.
+- Multi-item operations use bounded concurrency or one batch command instead of creating hundreds of threads, connections, and IPC calls.
+- Thumbnail decoding and inactive thumbnail query caching are memory-bounded for long sessions and large photo libraries.
+- Map marker icons are released outside the viewport; slow SQLite statements now emit diagnostic timing logs.
+- Added a repeatable 5k/50k/100k-find benchmark and documented the measured threshold for future map clustering.
+
+### Added
+- Settings now shows database, thumbnail cache, map cache, and migration-backup usage, with access to the backup folder.
+- Frontend builds now run a real TypeScript project check; the Windows Rust test runner now fails clearly if Cargo or the test binary cannot actually start.
+
+---
+
 ## [0.1.20] — 2026-05-09
 
 ### Added
