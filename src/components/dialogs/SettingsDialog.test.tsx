@@ -4,6 +4,7 @@ import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SettingsDialog } from './SettingsDialog';
 import { formatMb } from '@/lib/tileCache';
+import { invokeHandlers } from '@/test/tauri-mocks';
 
 // vi.mock is hoisted — cannot reference outer variables in factory
 vi.mock('@/lib/tileCache', async () => {
@@ -54,6 +55,8 @@ vi.mock('@/i18n/index', () => ({
   useT: () => (key: string, vars?: Record<string, string | number>) => {
     if (key === 'settings.cacheUsage') return `${vars?.used} of ${vars?.limit}`;
     if (key === 'settings.cacheUsagePercent') return `Map cache ${vars?.percent}% used`;
+    if (key === 'settings.fileCount') return `${vars?.count} files`;
+    if (key === 'settings.copyCount') return `${vars?.count} copies`;
     return key;
   },
 }));
@@ -88,6 +91,14 @@ describe('SettingsDialog', () => {
     vi.mocked(tileCacheMock.getCacheMaxBytes).mockResolvedValue(500 * 1024 * 1024);
     vi.mocked(tileCacheMock.setCacheMax).mockResolvedValue(undefined);
     vi.mocked(tileCacheMock.clearTileCache).mockResolvedValue(undefined);
+    invokeHandlers.get_library_storage_stats = vi.fn().mockReturnValue({
+      database_bytes: 6 * 1024 * 1024,
+      thumbnail_cache_bytes: 42 * 1024 * 1024,
+      thumbnail_count: 1234,
+      backup_bytes: 84 * 1024 * 1024,
+      backup_count: 2,
+    });
+    invokeHandlers.open_library_backups_folder = vi.fn().mockReturnValue(undefined);
   });
 
   it('displays the Map Cache section heading', async () => {
@@ -150,5 +161,26 @@ describe('SettingsDialog', () => {
 
   it('formatMb rounds 44040192 bytes to "42 MB"', () => {
     expect(formatMb(44040192)).toBe('42 MB');
+  });
+
+  it('shows database, thumbnail cache, and backup usage without counting original photos', async () => {
+    renderDialog();
+
+    expect(await screen.findByTestId('library-database-size')).toHaveTextContent('6.0 MB');
+    expect(screen.getByTestId('library-thumbnail-size')).toHaveTextContent('42 MB');
+    expect(screen.getByTestId('library-thumbnail-size')).toHaveTextContent('1234');
+    expect(screen.getByTestId('library-backup-size')).toHaveTextContent('84 MB');
+    expect(screen.getByTestId('library-backup-size')).toHaveTextContent('2');
+  });
+
+  it('opens the dedicated backup folder from the storage panel', async () => {
+    renderDialog();
+    fireEvent.click(await screen.findByText('settings.openBackupFolder'));
+
+    await waitFor(() => {
+      expect(invokeHandlers.open_library_backups_folder).toHaveBeenCalledWith({
+        storagePath: '/tmp/storage',
+      });
+    });
   });
 });

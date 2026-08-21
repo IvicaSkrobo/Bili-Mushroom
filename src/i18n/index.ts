@@ -398,6 +398,15 @@ const hr: Translations = {
   'settings.hiddenSuggestionsDescription': 'Vrati prijedloge lokacija koje si sakrio iz autocomplete popisa.',
   'settings.hiddenSuggestionsReset': 'Vrati skrivene prijedloge',
   'settings.hiddenSuggestionsResetDone': 'Prijedlozi su vraćeni.',
+  'settings.libraryStorageTitle': 'Prostor knjižnice',
+  'settings.libraryStorageDescription': 'Baza, pregledne fotografije i automatske sigurnosne kopije',
+  'settings.databaseSize': 'Baza podataka',
+  'settings.thumbnailCacheSize': 'Cache preglednih fotografija',
+  'settings.automaticBackups': 'Automatske kopije',
+  'settings.fileCount': '{count} datoteka',
+  'settings.copyCount': '{count} kopija',
+  'settings.backupScopeHint': 'Kopije sadrže bazu i metapodatke, ne originalne fotografije.',
+  'settings.openBackupFolder': 'Otvori mapu',
 
   // bug report dialog
   'bugReport.title': 'Report bug',
@@ -1098,6 +1107,15 @@ const en: Translations = {
   'settings.hiddenSuggestionsDescription': 'Restore location suggestions you previously hid from autocomplete.',
   'settings.hiddenSuggestionsReset': 'Restore hidden suggestions',
   'settings.hiddenSuggestionsResetDone': 'Suggestions restored.',
+  'settings.libraryStorageTitle': 'Library storage',
+  'settings.libraryStorageDescription': 'Database, preview images, and automatic safety copies',
+  'settings.databaseSize': 'Database',
+  'settings.thumbnailCacheSize': 'Preview image cache',
+  'settings.automaticBackups': 'Automatic backups',
+  'settings.fileCount': '{count} files',
+  'settings.copyCount': '{count} copies',
+  'settings.backupScopeHint': 'Backups contain the database and metadata, not original photos.',
+  'settings.openBackupFolder': 'Open folder',
 
   // bug report dialog
   'bugReport.title': 'Report bug',

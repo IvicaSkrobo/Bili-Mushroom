@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { FINDS_QUERY_KEY } from '@/lib/finds';
-import { Globe2, Info } from 'lucide-react';
+import { Archive, Database, FolderOpen, Globe2, HardDrive, Images, Info } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
@@ -24,6 +24,12 @@ import { APP_VERSION } from '@/lib/appMeta';
 import { resetHiddenLocationSuggestions } from '@/components/finds/LocationNoteInput';
 import { WEBSITE_URL } from '@/lib/externalLinks';
 import { openExternalUrl } from '@/lib/openExternal';
+import {
+  formatStorageBytes,
+  getLibraryStorageStats,
+  openLibraryBackupsFolder,
+  type LibraryStorageStats,
+} from '@/lib/libraryStorage';
 
 export interface SettingsDialogProps {
   open: boolean;
@@ -49,13 +55,18 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const [pruneResult, setPruneResult] = useState<number | null>(null);
   const [suggestionsReset, setSuggestionsReset] = useState(false);
   const [stats, setStats] = useState<TileCacheStats>({ sizeBytes: 0, tileCount: 0 });
+  const [libraryStats, setLibraryStats] = useState<LibraryStorageStats | null>(null);
   const [cacheMaxMb, setCacheMaxMb] = useState<string>(String(DEFAULT_CACHE_MAX_BYTES / (1024 * 1024)));
 
   useEffect(() => {
     if (!open) return;
     getTileCacheStats().then(setStats).catch(() => {});
     getCacheMaxBytes().then((b) => setCacheMaxMb(String(Math.round(b / (1024 * 1024))))).catch(() => {});
-  }, [open]);
+    if (storagePath) {
+      setLibraryStats(null);
+      getLibraryStorageStats(storagePath).then(setLibraryStats).catch(() => {});
+    }
+  }, [open, storagePath]);
 
   async function handleCacheMaxBlur() {
     const mb = parseInt(cacheMaxMb, 10);
@@ -132,6 +143,13 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   function handleOpenExternal(url: string) {
     openExternalUrl(url).catch((err) => {
       console.error('[external-link] failed to open:', err);
+    });
+  }
+
+  function handleOpenBackups() {
+    if (!storagePath) return;
+    openLibraryBackupsFolder(storagePath).catch((err) => {
+      console.error('[backup-folder] failed to open:', err);
     });
   }
 
@@ -281,6 +299,74 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
           </TabsContent>
 
           <TabsContent value="advanced" className="space-y-4 pt-3">
+            <section
+              className="overflow-hidden rounded-md border border-border/70 bg-card"
+              aria-labelledby="library-storage-title"
+            >
+              <div className="flex items-center gap-2 border-b border-border/50 bg-muted/35 px-3 py-2.5">
+                <HardDrive className="h-4 w-4 text-primary" aria-hidden="true" />
+                <div>
+                  <h3 id="library-storage-title" className="text-sm font-medium">
+                    {t('settings.libraryStorageTitle')}
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground/70">
+                    {t('settings.libraryStorageDescription')}
+                  </p>
+                </div>
+              </div>
+
+              <div className="divide-y divide-border/40 px-3">
+                <div className="flex items-center justify-between gap-3 py-2">
+                  <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Database className="h-3.5 w-3.5 text-secondary" aria-hidden="true" />
+                    {t('settings.databaseSize')}
+                  </span>
+                  <span className="font-mono text-xs" data-testid="library-database-size">
+                    {libraryStats ? formatStorageBytes(libraryStats.databaseBytes) : '—'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3 py-2">
+                  <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Images className="h-3.5 w-3.5 text-secondary" aria-hidden="true" />
+                    {t('settings.thumbnailCacheSize')}
+                  </span>
+                  <span className="text-right font-mono text-xs" data-testid="library-thumbnail-size">
+                    {libraryStats
+                      ? `${formatStorageBytes(libraryStats.thumbnailCacheBytes)} · ${t('settings.fileCount', { count: libraryStats.thumbnailCount })}`
+                      : '—'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3 py-2">
+                  <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Archive className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                    {t('settings.automaticBackups')}
+                  </span>
+                  <span className="text-right font-mono text-xs" data-testid="library-backup-size">
+                    {libraryStats
+                      ? `${formatStorageBytes(libraryStats.backupBytes)} · ${t('settings.copyCount', { count: libraryStats.backupCount })}`
+                      : '—'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-border/50 bg-muted/20 px-3 py-2.5">
+                <p className="max-w-[280px] text-[10px] leading-relaxed text-muted-foreground/65">
+                  {t('settings.backupScopeHint')}
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 shrink-0 gap-1.5 px-2 text-xs"
+                  onClick={handleOpenBackups}
+                  disabled={!storagePath}
+                >
+                  <FolderOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                  {t('settings.openBackupFolder')}
+                </Button>
+              </div>
+            </section>
+
             <div>
               <div className="text-xs font-medium text-muted-foreground mb-1">{t('settings.hiddenSuggestionsTitle')}</div>
               <p className="text-xs text-muted-foreground/60 mb-2">

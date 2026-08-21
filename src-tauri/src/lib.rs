@@ -82,6 +82,8 @@ pub fn run() {
             commands::stats::get_species_stats,
             commands::stats::read_photos_as_base64,
             commands::storage::load_saved_storage_path,
+            commands::storage::get_library_storage_stats,
+            commands::storage::open_library_backups_folder,
             commands::updater::check_app_update,
             commands::updater::install_app_update,
         ]);
