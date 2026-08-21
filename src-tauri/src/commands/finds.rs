@@ -911,10 +911,10 @@ pub async fn move_find_files(
     dest_folder: String,
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let conn = open_db(&storage_path)?;
+        let mut conn = open_db(&storage_path)?;
         conn.execute_batch("PRAGMA foreign_keys = ON;")
             .map_err(|e| e.to_string())?;
-        move_find_files_on_conn(&conn, &storage_path, find_id, &dest_folder)
+        move_find_files_on_conn(&mut conn, &storage_path, find_id, &dest_folder)
     })
     .await
     .map_err(|e| format!("Move find files worker failed: {e}"))?
@@ -925,39 +925,85 @@ pub async fn move_find_files(
 /// Files first, row second: the record must not disappear while its photos are still
 /// where they were.
 fn move_find_files_on_conn(
-    conn: &Connection,
+    conn: &mut Connection,
     storage_path: &str,
     find_id: i64,
     dest_folder: &str,
 ) -> Result<(), String> {
+    let exists = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM finds WHERE id = ?1)",
+            params![find_id],
+            |row| row.get::<_, bool>(0),
+        )
+        .map_err(|e| format!("Could not locate find {find_id}: {e}"))?;
+    if !exists {
+        return Err(format!("Find {find_id} no longer exists"));
+    }
     let mut stmt = conn
         .prepare("SELECT photo_path FROM find_photos WHERE find_id = ?1")
         .map_err(|e| e.to_string())?;
     let paths: Vec<String> = stmt
         .query_map(params![find_id], |row| row.get(0))
         .map_err(|e| e.to_string())?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("Could not read photo paths for find {find_id}: {e}"))?;
+    drop(stmt);
 
+    std::fs::create_dir_all(dest_folder)
+        .map_err(|e| format!("Could not create destination folder '{dest_folder}': {e}"))?;
+    let mut reserved = HashSet::new();
+    let mut plan: Vec<(PathBuf, PathBuf)> = Vec::new();
     for rel_path in &paths {
-        let abs_src = format!("{}/{}", storage_path, rel_path);
+        let abs_src = Path::new(storage_path).join(rel_path.replace('/', std::path::MAIN_SEPARATOR_STR));
+        if !abs_src.is_file() {
+            return Err(format!("Photo is missing or not a file: '{}'", abs_src.display()));
+        }
         let filename = std::path::Path::new(rel_path.as_str())
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or(rel_path.as_str());
-        let abs_dest = format!("{}/{}", dest_folder, filename);
-        // Try rename first; fall back to copy+delete for cross-device moves
-        if std::fs::rename(&abs_src, &abs_dest).is_err() {
-            std::fs::copy(&abs_src, &abs_dest)
-                .map_err(|e| format!("Failed to copy '{}': {}", abs_src, e))?;
-            std::fs::remove_file(&abs_src)
-                .map_err(|e| format!("Copied '{}' but could not remove source: {}", abs_src, e))?;
-        }
+        let abs_dest = unique_destination_path_reserved(
+            &Path::new(dest_folder).join(filename),
+            &mut reserved,
+        );
+        plan.push((abs_src, abs_dest));
     }
 
-    crate::commands::samples::remove_sample_for_find(conn, storage_path, find_id, false)?;
-    conn.execute("DELETE FROM finds WHERE id = ?1", params![find_id])
-        .map_err(|e| format!("DB delete failed: {}", e))?;
+    let mut moved: Vec<(PathBuf, PathBuf)> = Vec::new();
+    for (source, destination) in &plan {
+        if let Err(error) = move_file_without_overwrite(source, destination) {
+            let rollback_errors = rollback_file_moves(&moved);
+            let suffix = if rollback_errors.is_empty() {
+                String::new()
+            } else {
+                format!(" Rollback also failed: {}", rollback_errors.join("; "))
+            };
+            return Err(format!("{error}{suffix}"));
+        }
+        moved.push((source.clone(), destination.clone()));
+    }
+
+    let db_result = (|| -> Result<(), String> {
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+        crate::commands::samples::remove_sample_for_find(&tx, storage_path, find_id, false)?;
+        let deleted = tx
+            .execute("DELETE FROM finds WHERE id = ?1", params![find_id])
+            .map_err(|e| format!("DB delete failed: {e}"))?;
+        if deleted != 1 {
+            return Err(format!("Find {find_id} disappeared before it could be deleted"));
+        }
+        tx.commit().map_err(|e| format!("DB delete commit failed: {e}"))
+    })();
+    if let Err(error) = db_result {
+        let rollback_errors = rollback_file_moves(&moved);
+        let suffix = if rollback_errors.is_empty() {
+            String::new()
+        } else {
+            format!(" Rollback also failed: {}", rollback_errors.join("; "))
+        };
+        return Err(format!("{error}{suffix}"));
+    }
     Ok(())
 }
 
@@ -1151,42 +1197,26 @@ pub async fn delete_find(
     delete_sample_folder: Option<bool>,
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let conn = open_db(&storage_path)?;
-        conn.execute_batch("PRAGMA foreign_keys = ON;")
-            .map_err(|e| e.to_string())?;
-
-        if delete_files {
-            let mut stmt = conn
-                .prepare("SELECT photo_path FROM find_photos WHERE find_id = ?1")
-                .map_err(|e| e.to_string())?;
-            let paths: Vec<String> = stmt
-                .query_map(params![find_id], |row| row.get(0))
-                .map_err(|e| e.to_string())?
-                .filter_map(|r| r.ok())
-                .collect();
-
-            for rel_path in &paths {
-                let abs_path = format!("{}/{}", storage_path, rel_path);
-                if let Err(e) = trash::delete(&abs_path) {
-                    eprintln!("trash::delete failed for {}: {}", abs_path, e);
-                }
-            }
-        }
-
-        // The register entry always goes with the find -- it points at a row that is about
-        // to disappear. The folder only goes when the caller explicitly asked, because the
-        // photos hard-linked into it otherwise survive even a delete_files run.
-        crate::commands::samples::remove_sample_for_find(
-            &conn,
+        let result = bulk_delete_finds_blocking(
             &storage_path,
-            find_id,
+            &[find_id],
+            delete_files,
             delete_sample_folder.unwrap_or(false),
         )?;
-
-        conn.execute("DELETE FROM finds WHERE id = ?1", params![find_id])
-            .map_err(|e| format!("DB delete failed: {}", e))?;
-
-        Ok(())
+        if result.completed == 1 {
+            // Preserve the single-delete UX: once the DB record is safely gone, leftover
+            // files are non-fatal and are discoverable by the library audit.
+            for failure in result.file_failures {
+                eprintln!("delete_find file cleanup failed for {}: {}", failure.item, failure.error);
+            }
+            Ok(())
+        } else {
+            Err(result
+                .operation_failures
+                .first()
+                .map(|failure| failure.error.clone())
+                .unwrap_or_else(|| format!("Find {find_id} was not deleted")))
+        }
     })
     .await
     .map_err(|e| format!("Delete find worker failed: {e}"))?
@@ -1367,11 +1397,11 @@ fn bulk_move_finds_to_folder_blocking(
     if find_ids.is_empty() {
         return Ok(result);
     }
-    let conn = open_db(storage_path)?;
+    let mut conn = open_db(storage_path)?;
     conn.execute_batch("PRAGMA foreign_keys = ON;")
         .map_err(|e| e.to_string())?;
     for find_id in find_ids {
-        match move_find_files_on_conn(&conn, storage_path, *find_id, dest_folder) {
+        match move_find_files_on_conn(&mut conn, storage_path, *find_id, dest_folder) {
             Ok(()) => result.completed = result.completed.saturating_add(1),
             Err(error) => {
                 result.operation_failures.push(BulkOperationFailure {
@@ -1559,37 +1589,33 @@ fn bulk_rename_species_blocking(
             let filename = source_abs
                 .file_name()
                 .ok_or_else(|| format!("Photo path has no filename: {}", source_abs.display()))?;
-            let mut target_abs = target_folder.join(filename);
-
-            if source_abs != target_abs && !renamed_whole_folder {
-                if source_abs.exists() {
-                    target_abs = unique_destination_path(&target_abs);
-                    std::fs::create_dir_all(target_abs.parent().ok_or_else(|| {
-                        format!("Target path has no parent: {}", target_abs.display())
-                    })?)
-                    .map_err(|e| {
-                        format!(
-                            "Failed to prepare target folder for '{}': {}",
-                            target_abs.display(),
-                            e
-                        )
-                    })?;
-                    std::fs::rename(&source_abs, &target_abs)
-                        .or_else(|_| {
-                            std::fs::copy(&source_abs, &target_abs)?;
-                            std::fs::remove_file(&source_abs)
-                        })
-                        .map_err(|e| {
-                            format!(
-                                "Failed to move '{}' to '{}': {}",
-                                source_abs.display(),
-                                target_abs.display(),
-                                e
-                            )
-                        })?;
-                }
-                // Record the path regardless — heals stale paths from partial earlier renames
-            }
+            let expected_target = target_folder.join(filename);
+            let target_abs = if source_abs == expected_target {
+                source_abs.clone()
+            } else if renamed_whole_folder && expected_target.is_file() {
+                // The folder move already carried this file to the expected path.
+                expected_target
+            } else if source_abs.is_file() {
+                let destination = unique_destination_path(&expected_target);
+                std::fs::create_dir_all(destination.parent().ok_or_else(|| {
+                    format!("Target path has no parent: {}", destination.display())
+                })?)
+                .map_err(|e| {
+                    format!(
+                        "Failed to prepare target folder for '{}': {}",
+                        destination.display(),
+                        e
+                    )
+                })?;
+                move_file_without_overwrite(&source_abs, &destination)?;
+                destination
+            } else {
+                // Never guess that an unrelated same-named file in the target folder is
+                // the missing source. Preserve the stale path so the library audit can
+                // report it accurately instead of silently attaching somebody else's photo.
+                moved_photo_paths.push((*photo_id, photo_path.clone()));
+                continue;
+            };
 
             let relative = target_abs
                 .strip_prefix(storage_path)
@@ -1727,6 +1753,67 @@ fn unique_destination_path(initial: &Path) -> PathBuf {
     }
 
     initial.to_path_buf()
+}
+
+fn unique_destination_path_reserved(initial: &Path, reserved: &mut HashSet<PathBuf>) -> PathBuf {
+    let stem = initial
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "photo".to_string());
+    let ext = initial
+        .extension()
+        .map(|e| format!(".{}", e.to_string_lossy()))
+        .unwrap_or_default();
+    let parent = initial.parent().map(Path::to_path_buf).unwrap_or_default();
+    for index in 1..10_000 {
+        let candidate = if index == 1 {
+            initial.to_path_buf()
+        } else {
+            parent.join(format!("{stem} ({index}){ext}"))
+        };
+        if !candidate.exists() && reserved.insert(candidate.clone()) {
+            return candidate;
+        }
+    }
+    // The caller will reject this as an existing destination instead of overwriting it.
+    initial.to_path_buf()
+}
+
+fn move_file_without_overwrite(source: &Path, destination: &Path) -> Result<(), String> {
+    if destination.exists() {
+        return Err(format!(
+            "Refusing to overwrite existing file '{}'",
+            destination.display()
+        ));
+    }
+    if std::fs::rename(source, destination).is_ok() {
+        return Ok(());
+    }
+    std::fs::copy(source, destination).map_err(|e| {
+        format!(
+            "Failed to copy '{}' to '{}': {e}",
+            source.display(),
+            destination.display()
+        )
+    })?;
+    if let Err(error) = std::fs::remove_file(source) {
+        let _ = std::fs::remove_file(destination);
+        return Err(format!(
+            "Copied '{}' but could not remove the source: {error}",
+            source.display()
+        ));
+    }
+    Ok(())
+}
+
+fn rollback_file_moves(moved: &[(PathBuf, PathBuf)]) -> Vec<String> {
+    let mut errors = Vec::new();
+    for (original, destination) in moved.iter().rev() {
+        if let Err(error) = move_file_without_overwrite(destination, original) {
+            errors.push(error);
+        }
+    }
+    errors
 }
 
 fn remove_empty_dir_if_possible(path: &Path) {
@@ -3083,6 +3170,76 @@ mod tests {
         assert_eq!(remaining, 2, "the failed and unattempted finds stay registered");
     }
 
+    #[test]
+    fn bulk_move_never_overwrites_an_existing_same_named_file() {
+        let dir = tempfile::tempdir().expect("library");
+        let destination = tempfile::tempdir().expect("destination");
+        let storage_path = dir.path().to_str().expect("storage path");
+        let source_folder = dir.path().join("Boletus_edulis");
+        std::fs::create_dir_all(&source_folder).expect("source folder");
+        std::fs::write(source_folder.join("same.jpg"), b"new photo").expect("source photo");
+        std::fs::write(destination.path().join("same.jpg"), b"keep me").expect("existing photo");
+        let find_id = {
+            let conn = open_db(storage_path).expect("open library");
+            let id = insert_find_row(&conn, &make_find_record("same.jpg", "2024-05-10"))
+                .expect("insert find");
+            insert_find_photo(&conn, id, "Boletus_edulis/same.jpg", true)
+                .expect("insert photo");
+            id
+        };
+
+        let result = bulk_move_finds_to_folder_blocking(
+            storage_path,
+            &[find_id],
+            destination.path().to_str().expect("destination path"),
+        )
+        .expect("move find");
+
+        assert_eq!(result.completed, 1);
+        assert_eq!(std::fs::read(destination.path().join("same.jpg")).unwrap(), b"keep me");
+        assert_eq!(
+            std::fs::read(destination.path().join("same (2).jpg")).unwrap(),
+            b"new photo"
+        );
+        let conn = open_db(storage_path).expect("reopen library");
+        let remaining: i64 = conn.query_row("SELECT COUNT(*) FROM finds", [], |row| row.get(0)).unwrap();
+        assert_eq!(remaining, 0);
+    }
+
+    #[test]
+    fn bulk_move_preflight_keeps_every_source_when_any_photo_is_missing() {
+        let dir = tempfile::tempdir().expect("library");
+        let destination = tempfile::tempdir().expect("destination");
+        let storage_path = dir.path().to_str().expect("storage path");
+        let source_folder = dir.path().join("Boletus_edulis");
+        std::fs::create_dir_all(&source_folder).expect("source folder");
+        let existing = source_folder.join("first.jpg");
+        std::fs::write(&existing, b"first").expect("source photo");
+        let find_id = {
+            let conn = open_db(storage_path).expect("open library");
+            let id = insert_find_row(&conn, &make_find_record("first.jpg", "2024-05-10"))
+                .expect("insert find");
+            insert_find_photo(&conn, id, "Boletus_edulis/first.jpg", true).unwrap();
+            insert_find_photo(&conn, id, "Boletus_edulis/missing.jpg", false).unwrap();
+            id
+        };
+
+        let result = bulk_move_finds_to_folder_blocking(
+            storage_path,
+            &[find_id],
+            destination.path().to_str().expect("destination path"),
+        )
+        .expect("structured failure");
+
+        assert_eq!(result.completed, 0);
+        assert_eq!(result.operation_failures.len(), 1);
+        assert!(existing.exists(), "preflight must fail before moving the first photo");
+        assert_eq!(std::fs::read_dir(destination.path()).unwrap().count(), 0);
+        let conn = open_db(storage_path).expect("reopen library");
+        let remaining: i64 = conn.query_row("SELECT COUNT(*) FROM finds", [], |row| row.get(0)).unwrap();
+        assert_eq!(remaining, 1);
+    }
+
     /// Renaming a species folder moves every photo on disk and rewrites the rows that
     /// name the old species. The move used to run inside the SQLite transaction, so a
     /// folder of hundreds of photos held the write lock for the whole copy.
@@ -3270,6 +3427,54 @@ mod tests {
             "the moved find's photo must exist at its new path: {moved_photo}"
         );
         assert_ne!(moved_photo, format!("{old_folder_name}/moved.jpg"));
+    }
+
+    #[test]
+    fn partial_rename_does_not_attach_a_missing_photo_to_a_same_named_target_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_str().expect("storage path").to_string();
+        let old_species = "Boletus edulis";
+        let new_species = "Boletus reticulatus";
+        let old_folder = Path::new(&storage_path).join(resolve_location_component(
+            &plain_species_name(old_species),
+            "unknown_species",
+        ));
+        let target_folder = Path::new(&storage_path).join(resolve_location_component(
+            &plain_species_name(new_species),
+            "unknown_species",
+        ));
+        std::fs::create_dir_all(&old_folder).unwrap();
+        std::fs::create_dir_all(&target_folder).unwrap();
+        std::fs::write(old_folder.join("stays.jpg"), b"stays").unwrap();
+        std::fs::write(target_folder.join("missing.jpg"), b"somebody else").unwrap();
+        let old_folder_name = old_folder.file_name().unwrap().to_string_lossy();
+        let (moved_id, original_missing_path) = {
+            let conn = open_db(&storage_path).expect("open library");
+            let mut moved = make_find_record("missing.jpg", "2024-05-10");
+            moved.species_name = old_species.to_string();
+            let moved_id = insert_find_row(&conn, &moved).unwrap();
+            let missing = format!("{old_folder_name}/missing.jpg");
+            insert_find_photo(&conn, moved_id, &missing, true).unwrap();
+            let mut stays = make_find_record("stays.jpg", "2024-05-11");
+            stays.species_name = old_species.to_string();
+            let stays_id = insert_find_row(&conn, &stays).unwrap();
+            insert_find_photo(&conn, stays_id, &format!("{old_folder_name}/stays.jpg"), true).unwrap();
+            (moved_id, missing)
+        };
+
+        bulk_rename_species_blocking(&storage_path, &[moved_id], new_species)
+            .expect("rename with stale photo path");
+
+        let conn = open_db(&storage_path).expect("reopen library");
+        let stored_path: String = conn
+            .query_row(
+                "SELECT photo_path FROM find_photos WHERE find_id = ?1",
+                params![moved_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(stored_path, original_missing_path);
+        assert_eq!(std::fs::read(target_folder.join("missing.jpg")).unwrap(), b"somebody else");
     }
 
     #[test]

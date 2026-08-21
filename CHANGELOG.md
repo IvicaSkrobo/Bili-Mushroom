@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.39] — 2026-08-21
+
+### Fixed
+- **Collision-safe photo moves** — moving a find to another folder never overwrites an existing same-named file; a unique numbered name is selected before any file is touched.
+- **Atomic move preflight and recovery** — every source photo is validated up front, completed file moves roll back if a later filesystem or database step fails, and the find row is removed in a short transaction only after the files are safe.
+- **Honest partial rename paths** — a missing source photo is no longer silently attached to an unrelated same-named photo in the destination species folder.
+- **Safe single-find deletion** — individual deletion now shares the DB-first batch mechanism, preventing trashed photos from being left behind a live DB record if SQL fails.
+
+---
+
 ## [0.3.38] — 2026-08-21
 
 ### Performance
