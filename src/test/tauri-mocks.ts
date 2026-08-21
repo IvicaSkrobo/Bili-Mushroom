@@ -291,6 +291,20 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
   get_stats_cards: (_args: unknown) => ({
     total_finds: 0, unique_species: 0, locations_visited: 0, most_active_month: null,
   }),
+  get_stats_finds: (args: unknown) =>
+    (invokeHandlers.get_finds(args) as Array<Record<string, any>>).map((find) => ({
+      id: find.id,
+      species_name: find.species_name,
+      date_found: find.date_found,
+      country: find.country ?? '',
+      region: find.region ?? '',
+      location_note: find.location_note ?? '',
+      notes: find.notes ?? '',
+      observed_count: find.observed_count ?? null,
+      observed_count_min: find.observed_count_min ?? null,
+      observed_count_max: find.observed_count_max ?? null,
+      photo_count: find.photo_count ?? find.photos?.length ?? 0,
+    })),
   get_top_spots: (_args: unknown) => [],
   get_best_months: (_args: unknown) => [],
   get_calendar: (_args: unknown) => [],

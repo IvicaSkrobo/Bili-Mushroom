@@ -76,6 +76,7 @@ pub fn run() {
             commands::zones::upsert_zone,
             commands::zones::delete_zone,
             commands::stats::get_stats_cards,
+            commands::stats::get_stats_finds,
             commands::stats::get_top_spots,
             commands::stats::get_best_months,
             commands::stats::get_calendar,

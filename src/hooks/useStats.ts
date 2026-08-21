@@ -2,21 +2,33 @@ import { useQuery } from '@tanstack/react-query';
 import { useAppStore } from '@/stores/appStore';
 import {
   getStatsCards,
+  getStatsFinds,
   getTopSpots,
   getBestMonths,
   getCalendar,
   getSpeciesStats,
   STATS_QUERY_KEY,
+  STATS_FINDS_QUERY_KEY,
   TOP_SPOTS_QUERY_KEY,
   BEST_MONTHS_QUERY_KEY,
   CALENDAR_QUERY_KEY,
   SPECIES_STATS_QUERY_KEY,
   type StatsCards,
+  type StatsFind,
   type TopSpot,
   type BestMonth,
   type CalendarEntry,
   type SpeciesStatSummary,
 } from '@/lib/stats';
+
+export function useStatsFinds(enabled = true) {
+  const storagePath = useAppStore((s) => s.storagePath);
+  return useQuery<StatsFind[]>({
+    queryKey: [STATS_FINDS_QUERY_KEY, storagePath],
+    queryFn: () => getStatsFinds(storagePath!),
+    enabled: !!storagePath && enabled,
+  });
+}
 
 export function useStatsCards(enabled = true) {
   const storagePath = useAppStore((s) => s.storagePath);

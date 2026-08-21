@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { SpeciesMetadataBadges } from '@/components/species/SpeciesMetadataBadges';
-import type { Find, SpeciesProfile } from '@/lib/finds';
-import type { SpeciesStatSummary } from '@/lib/stats';
+import type { SpeciesProfile } from '@/lib/finds';
+import type { StatsFind, SpeciesStatSummary } from '@/lib/stats';
 import { normalizeCommonName, plainSpeciesName, renderSpeciesName } from '@/lib/speciesName';
 import { useT } from '@/i18n/index';
 import { useAppStore } from '@/stores/appStore';
@@ -13,7 +13,7 @@ interface SpeciesStatRowProps {
   stat: SpeciesStatSummary;
   rank: number;
   index: number;
-  finds?: Find[];
+  finds?: StatsFind[];
   speciesProfile?: SpeciesProfile | null;
 }
 
@@ -23,7 +23,7 @@ function formatObserved(min: number | null, max: number | null): string {
   return `${min}-${max}`;
 }
 
-function locationLabel(find: Pick<Find, 'country' | 'region' | 'location_note'>): string {
+function locationLabel(find: Pick<StatsFind, 'country' | 'region' | 'location_note'>): string {
   return [find.location_note, find.region, find.country].filter(Boolean).join(' / ');
 }
 

@@ -21,6 +21,22 @@ pub struct StatsCards {
     pub most_active_month: Option<String>, // "YYYY-MM" format
 }
 
+/// Minimal find payload required by the statistics screen.
+#[derive(serde::Serialize, Clone, Debug, PartialEq)]
+pub struct StatsFind {
+    pub id: i64,
+    pub species_name: String,
+    pub date_found: String,
+    pub country: String,
+    pub region: String,
+    pub location_note: String,
+    pub notes: String,
+    pub observed_count: Option<i64>,
+    pub observed_count_min: Option<i64>,
+    pub observed_count_max: Option<i64>,
+    pub photo_count: i64,
+}
+
 #[derive(serde::Serialize, Clone, Debug)]
 pub struct TopSpot {
     pub country: String,
@@ -65,6 +81,48 @@ pub struct SpeciesStatSummary {
 // ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn get_stats_finds(storage_path: String) -> Result<Vec<StatsFind>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        get_stats_finds_for_connection(&conn)
+    })
+    .await
+    .map_err(|e| format!("Stats finds worker failed: {}", e))?
+}
+
+fn get_stats_finds_for_connection(conn: &rusqlite::Connection) -> Result<Vec<StatsFind>, String> {
+    let query = format!(
+        "SELECT f.id, f.species_name, f.date_found, f.country, f.region, \
+                f.location_note, f.notes, f.observed_count, f.observed_count_min, \
+                f.observed_count_max, \
+                (SELECT COUNT(*) FROM find_photos fp WHERE fp.find_id = f.id) \
+         FROM finds f WHERE {} ORDER BY f.date_found DESC, f.id DESC",
+        INTERNAL_SPECIES_FILTER.replace("species_name", "f.species_name")
+    );
+    let mut statement = conn.prepare(&query).map_err(|e| e.to_string())?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok(StatsFind {
+                id: row.get(0)?,
+                species_name: row.get(1)?,
+                date_found: row.get(2)?,
+                country: row.get(3)?,
+                region: row.get(4)?,
+                location_note: row.get(5)?,
+                notes: row.get(6)?,
+                observed_count: row.get(7)?,
+                observed_count_min: row.get(8)?,
+                observed_count_max: row.get(9)?,
+                photo_count: row.get(10)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    Ok(rows)
+}
 
 #[tauri::command]
 pub async fn get_stats_cards(storage_path: String) -> Result<StatsCards, String> {
@@ -607,6 +665,41 @@ mod tests {
         assert_eq!(unique_species, 0, "empty db: unique_species should be 0");
         assert_eq!(locations_visited, 0, "empty db: locations_visited should be 0");
         assert!(most_active_month.is_none(), "empty db: most_active_month should be None");
+    }
+
+    #[test]
+    fn stats_finds_are_lean_ordered_and_exclude_internal_rows() {
+        let conn = setup_in_memory_db();
+        let older = insert_find_with(
+            &conn,
+            "Boletus edulis",
+            "2024-05-10",
+            "Croatia",
+            "Gorski Kotar",
+            "Forest",
+        );
+        let newer = insert_find_with(
+            &conn,
+            "Cantharellus cibarius",
+            "2024-06-10",
+            "Croatia",
+            "Istria",
+            "Meadow",
+        );
+        insert_find_with(&conn, "tile-cache", "2024-07-10", "", "", "");
+        conn.execute(
+            "INSERT INTO find_photos (find_id, photo_path, is_primary) VALUES (?1, 'a.jpg', 1), (?1, 'b.jpg', 0)",
+            params![newer],
+        )
+        .expect("insert photos");
+
+        let rows = get_stats_finds_for_connection(&conn).expect("stats finds");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].id, newer);
+        assert_eq!(rows[0].photo_count, 2);
+        assert_eq!(rows[0].location_note, "Meadow");
+        assert_eq!(rows[1].id, older);
+        assert_eq!(rows[1].photo_count, 0);
     }
 
     #[test]

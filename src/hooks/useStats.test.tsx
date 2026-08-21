@@ -2,10 +2,10 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactNode } from 'react';
-import { useStatsCards, useCalendar, useSpeciesStats, useTopSpots } from './useStats';
+import { useStatsCards, useStatsFinds, useCalendar, useSpeciesStats, useTopSpots } from './useStats';
 import { invokeHandlers } from '@/test/tauri-mocks';
 import { useAppStore } from '@/stores/appStore';
-import type { StatsCards, CalendarEntry, SpeciesStatSummary, TopSpot } from '@/lib/stats';
+import type { StatsCards, StatsFind, CalendarEntry, SpeciesStatSummary, TopSpot } from '@/lib/stats';
 
 import '@/test/tauri-mocks';
 
@@ -41,6 +41,20 @@ const sampleStatsCards: StatsCards = {
   unique_species: 17,
   locations_visited: 8,
   most_active_month: '2024-05',
+};
+
+const sampleStatsFind: StatsFind = {
+  id: 7,
+  species_name: 'Boletus edulis',
+  date_found: '2024-05-10',
+  country: 'Croatia',
+  region: 'Gorski Kotar',
+  location_note: 'Beech forest',
+  notes: 'Healthy specimen',
+  observed_count: 3,
+  observed_count_min: null,
+  observed_count_max: null,
+  photo_count: 2,
 };
 
 const sampleCalendarEntry: CalendarEntry = {
@@ -100,6 +114,29 @@ describe('useStatsCards', () => {
     expect(result.current.isLoading).toBe(false);
     expect(result.current.fetchStatus).toBe('idle');
     expect(result.current.data).toBeUndefined();
+  });
+});
+
+describe('useStatsFinds', () => {
+  it('loads the lean statistics payload instead of the full finds command', async () => {
+    useAppStore.setState({ storagePath: '/storage/test', dbReady: true });
+    let statsCalls = 0;
+    let fullFindCalls = 0;
+    invokeHandlers.get_stats_finds = () => {
+      statsCalls += 1;
+      return [sampleStatsFind];
+    };
+    invokeHandlers.get_finds = () => {
+      fullFindCalls += 1;
+      return [];
+    };
+
+    const { result } = renderHook(() => useStatsFinds(), {
+      wrapper: makeWrapper(makeQueryClient()),
+    });
+    await waitFor(() => expect(result.current.data).toEqual([sampleStatsFind]));
+    expect(statsCalls).toBe(1);
+    expect(fullFindCalls).toBe(0);
   });
 });
 

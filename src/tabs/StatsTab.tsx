@@ -12,8 +12,9 @@ import {
   useTopSpots,
   useBestMonths,
   useSpeciesStats,
+  useStatsFinds,
 } from '@/hooks/useStats';
-import { useFinds, useSpeciesProfileSummaries } from '@/hooks/useFinds';
+import { useSpeciesProfileSummaries } from '@/hooks/useFinds';
 import { getFinds } from '@/lib/finds';
 import { useAppStore } from '@/stores/appStore';
 import { exportToCsv } from '@/lib/exportCsv';
@@ -93,8 +94,6 @@ function formatObservedCount(find: {
 // Component
 // ---------------------------------------------------------------------------
 
-const STATS_FIND_FILTERS = { photosMode: 'count' as const };
-
 export default function StatsTab() {
   const t = useT();
   const showDebugPdf = import.meta.env.DEV;
@@ -103,7 +102,7 @@ export default function StatsTab() {
   const { data: topSpots } = useTopSpots(isActive);
   const { data: bestMonths } = useBestMonths(isActive);
   const { data: speciesStats } = useSpeciesStats(isActive);
-  const { data: finds } = useFinds(STATS_FIND_FILTERS, isActive);
+  const { data: finds } = useStatsFinds(isActive);
   const { data: speciesProfiles } = useSpeciesProfileSummaries(isActive);
   const storagePath = useAppStore((s) => s.storagePath);
   const lang = useAppStore((s) => s.language);
@@ -162,7 +161,7 @@ export default function StatsTab() {
     ));
   }, [bestMonths, finds, locale, t]);
   const totalPhotos = useMemo(
-    () => finds?.reduce((sum, find) => sum + (find.photo_count ?? find.photos.length), 0) ?? 0,
+    () => finds?.reduce((sum, find) => sum + find.photo_count, 0) ?? 0,
     [finds],
   );
   const mostActiveMonthSummary = useMemo(() => {
@@ -288,7 +287,10 @@ export default function StatsTab() {
     if (!finds || finds.length === 0) return;
     setExportError(null);
     try {
-      const path = await exportToCsv(finds);
+      if (!storagePath) return;
+      // CSV includes photo paths, so hydrate full rows only on an explicit export.
+      const exportFinds = await getFinds(storagePath);
+      const path = await exportToCsv(exportFinds);
       if (path) {
         setStatusMessage(t('stats.csvSaved', { path }));
         setTimeout(() => setStatusMessage(null), 3000);

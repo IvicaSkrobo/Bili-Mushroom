@@ -11,6 +11,20 @@ export interface StatsCards {
   most_active_month: string | null; // "YYYY-MM" format
 }
 
+export interface StatsFind {
+  id: number;
+  species_name: string;
+  date_found: string;
+  country: string;
+  region: string;
+  location_note: string;
+  notes: string;
+  observed_count: number | null;
+  observed_count_min: number | null;
+  observed_count_max: number | null;
+  photo_count: number;
+}
+
 export interface TopSpot {
   country: string;
   region: string;
@@ -52,6 +66,7 @@ export interface SpeciesStatSummary {
 // ---------------------------------------------------------------------------
 
 export const STATS_QUERY_KEY = 'stats_cards' as const;
+export const STATS_FINDS_QUERY_KEY = 'stats_finds' as const;
 export const TOP_SPOTS_QUERY_KEY = 'top_spots' as const;
 export const BEST_MONTHS_QUERY_KEY = 'best_months' as const;
 export const CALENDAR_QUERY_KEY = 'calendar' as const;
@@ -63,6 +78,10 @@ export const SPECIES_STATS_QUERY_KEY = 'species_stats' as const;
 
 export async function getStatsCards(storagePath: string): Promise<StatsCards> {
   return invoke<StatsCards>('get_stats_cards', { storagePath });
+}
+
+export async function getStatsFinds(storagePath: string): Promise<StatsFind[]> {
+  return invoke<StatsFind[]>('get_stats_finds', { storagePath });
 }
 
 export async function getTopSpots(storagePath: string): Promise<TopSpot[]> {
