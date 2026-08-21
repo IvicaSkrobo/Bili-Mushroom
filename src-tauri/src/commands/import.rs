@@ -770,7 +770,7 @@ fn croatian_sort_tokens(value: &str) -> Vec<(u8, u32)> {
             .position(|letter| *letter == character.to_string())
         {
             tokens.push((1, weight as u32));
-        } else if character == ' ' || character.is_ascii_punctuation() {
+        } else if character.is_whitespace() || character.is_ascii_punctuation() {
             tokens.push((0, character as u32));
         } else {
             tokens.push((2, character as u32));
@@ -3622,7 +3622,8 @@ mod tests {
         };
 
         let expected = vec![
-            "*Amanita*", "amanita", "crvena", "Čupava", "Ćubasta", "dubovka",
+            "Alba\tbeta", "Alba beta", "Alba\u{00A0}beta", "*Amanita*", "amanita",
+            "crvena", "Čupava", "Ćubasta", "dubovka",
             "Džinovska", "Đurđevača", "Lisičarka", "Ljuskava", "Niska", "Njivska",
             "Quercus", "Rujnica", "siva", "Šampinjon", "Vlažna", "Wulfenia",
             "Xerocomus", "Ypsilandra", "zvončić", "Žuta",
@@ -3630,12 +3631,13 @@ mod tests {
         for name in expected.iter().rev() {
             insert(name, "2024-05-01");
         }
+        let page_size = 2;
         let load_page = |offset: i64, sort_mode: Option<&str>| {
             get_collection_folders_for_connection(
                 &conn,
                 &FindSearchFilters {
                     sort_mode: sort_mode.map(str::to_string),
-                    limit: Some(11),
+                    limit: Some(page_size),
                     offset: Some(offset),
                     ..FindSearchFilters::default()
                 },
@@ -3646,12 +3648,16 @@ mod tests {
             .collect::<Vec<_>>()
         };
 
-        let mut names = load_page(0, Some("alpha"));
-        names.extend(load_page(11, Some("alpha")));
+        let names = (0..expected.len())
+            .step_by(page_size as usize)
+            .flat_map(|offset| load_page(offset as i64, Some("alpha")))
+            .collect::<Vec<_>>();
         assert_eq!(names, expected);
 
-        let mut recent_names = load_page(0, None);
-        recent_names.extend(load_page(11, None));
+        let recent_names = (0..expected.len())
+            .step_by(page_size as usize)
+            .flat_map(|offset| load_page(offset as i64, None))
+            .collect::<Vec<_>>();
         assert_eq!(recent_names, expected, "recent ties use the same Croatian secondary order");
     }
 
