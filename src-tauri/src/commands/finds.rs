@@ -1295,6 +1295,18 @@ pub async fn bulk_rename_species(
     new_species_name: String,
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
+        bulk_rename_species_blocking(&storage_path, &find_ids, &new_species_name)
+    })
+    .await
+    .map_err(|e| format!("Bulk rename worker failed: {e}"))?
+}
+
+fn bulk_rename_species_blocking(
+    storage_path: &str,
+    find_ids: &[i64],
+    new_species_name: &str,
+) -> Result<(), String> {
+    {
         if find_ids.is_empty() {
             return Ok(());
         }
@@ -1303,13 +1315,16 @@ pub async fn bulk_rename_species(
             return Err("new species name cannot be empty".into());
         }
 
-        let mut conn = open_db(&storage_path)?;
-        let tx = conn.transaction().map_err(|e| e.to_string())?;
+        let mut conn = open_db(storage_path)?;
 
+        // Read first, outside any transaction. Holding SQLite's write lock while photos
+        // are moved on disk blocks every other write for as long as the move takes —
+        // on a species folder with hundreds of photos that is long enough to push other
+        // commands past their busy timeout.
         let mut photo_rows: Vec<(i64, String)> = Vec::new();
         let mut old_species_names: Vec<String> = Vec::new();
-        for find_id in &find_ids {
-            let species_name: String = tx
+        for find_id in find_ids {
+            let species_name: String = conn
                 .query_row(
                     "SELECT species_name FROM finds WHERE id = ?1",
                     params![find_id],
@@ -1318,7 +1333,7 @@ pub async fn bulk_rename_species(
                 .map_err(|e| format!("Failed to read species for id {}: {}", find_id, e))?;
             old_species_names.push(species_name);
 
-            let mut stmt = tx
+            let mut stmt = conn
                 .prepare(
                     "SELECT id, photo_path FROM find_photos WHERE find_id = ?1 ORDER BY is_primary DESC, id ASC",
                 )
@@ -1333,14 +1348,14 @@ pub async fn bulk_rename_species(
             photo_rows.extend(rows);
         }
 
-        let target_folder = Path::new(&storage_path).join(resolve_location_component(
+        let target_folder = Path::new(storage_path).join(resolve_location_component(
             &plain_species_name(&new_species_name),
             "unknown_species",
         ));
         let mut old_folders: Vec<PathBuf> = old_species_names
             .iter()
             .map(|name| {
-                Path::new(&storage_path).join(resolve_location_component(
+                Path::new(storage_path).join(resolve_location_component(
                     &plain_species_name(name),
                     "unknown_species",
                 ))
@@ -1366,12 +1381,14 @@ pub async fn bulk_rename_species(
             })?;
         }
 
+        // Move the files and record where each photo ended up. Still no transaction.
+        let mut moved_photo_paths: Vec<(i64, String)> = Vec::new();
         for (photo_id, photo_path) in &photo_rows {
             // Normalize DB-stored forward slashes to the OS separator so the
             // path comparison below works correctly on Windows (mixed separators
             // would make source_abs != target_abs even for the same file).
             let normalized_photo_path = photo_path.replace('/', std::path::MAIN_SEPARATOR_STR);
-            let source_abs = Path::new(&storage_path).join(&normalized_photo_path);
+            let source_abs = Path::new(storage_path).join(&normalized_photo_path);
             let filename = source_abs
                 .file_name()
                 .ok_or_else(|| format!("Photo path has no filename: {}", source_abs.display()))?;
@@ -1404,11 +1421,11 @@ pub async fn bulk_rename_species(
                             )
                         })?;
                 }
-                // Update DB path regardless — heals stale paths from partial earlier renames
+                // Record the path regardless — heals stale paths from partial earlier renames
             }
 
             let relative = target_abs
-                .strip_prefix(&storage_path)
+                .strip_prefix(storage_path)
                 .map(|p| {
                     p.to_string_lossy()
                         .replace('\\', "/")
@@ -1416,6 +1433,14 @@ pub async fn bulk_rename_species(
                         .to_string()
                 })
                 .unwrap_or_else(|_| target_abs.to_string_lossy().replace('\\', "/"));
+            moved_photo_paths.push((*photo_id, relative));
+        }
+
+        // Everything below is SQL only, so the write lock is held for the length of a
+        // few statements rather than the length of the file moves.
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+        for (photo_id, relative) in &moved_photo_paths {
             tx.execute(
                 "UPDATE find_photos SET photo_path = ?1 WHERE id = ?2",
                 params![relative, photo_id],
@@ -1423,7 +1448,7 @@ pub async fn bulk_rename_species(
             .map_err(|e| format!("Failed to update photo path for photo {}: {}", photo_id, e))?;
         }
 
-        for find_id in &find_ids {
+        for find_id in find_ids {
             tx.execute(
                 "UPDATE finds SET species_name = ?1 WHERE id = ?2",
                 params![new_species_name, find_id],
@@ -1454,23 +1479,21 @@ pub async fn bulk_rename_species(
         // After the commit so the helper sees the updated photo paths and species names.
         crate::commands::samples::relocate_samples_for_finds(
             &conn,
-            &storage_path,
-            &find_ids,
+            storage_path,
+            find_ids,
             &new_species_name,
         )?;
 
         for old_species_name in &old_species_names {
-            let old_folder = Path::new(&storage_path).join(resolve_location_component(
-                &plain_species_name(&old_species_name),
+            let old_folder = Path::new(storage_path).join(resolve_location_component(
+                &plain_species_name(old_species_name),
                 "unknown_species",
             ));
             remove_empty_dir_if_possible(&old_folder);
         }
 
         Ok(())
-    })
-    .await
-    .map_err(|e| format!("Bulk rename worker failed: {e}"))?
+    }
 }
 
 #[tauri::command]
@@ -2760,6 +2783,101 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM finds", [], |row| row.get(0))
             .expect("count finds");
         assert_eq!(remaining, 0);
+    }
+
+    /// Renaming a species folder moves every photo on disk and rewrites the rows that
+    /// name the old species. The move used to run inside the SQLite transaction, so a
+    /// folder of hundreds of photos held the write lock for the whole copy.
+    #[test]
+    fn bulk_rename_moves_photos_and_rewrites_every_reference() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_str().expect("storage path").to_string();
+        let old_species = "Boletus edulis";
+        let new_species = "Boletus reticulatus";
+
+        let old_folder = Path::new(&storage_path).join(resolve_location_component(
+            &plain_species_name(old_species),
+            "unknown_species",
+        ));
+        std::fs::create_dir_all(&old_folder).expect("create the old species folder");
+        std::fs::write(old_folder.join("shroom.jpg"), b"photo bytes").expect("write a photo");
+
+        let find_id;
+        {
+            let conn = open_db(&storage_path).expect("open library");
+            let mut record = make_find_record("shroom.jpg", "2024-05-10");
+            record.species_name = old_species.to_string();
+            find_id = insert_find_row(&conn, &record).expect("insert find");
+            let relative = format!(
+                "{}/shroom.jpg",
+                old_folder
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .expect("old folder name")
+            );
+            insert_find_photo(&conn, find_id, &relative, true).expect("insert photo row");
+            conn.execute(
+                "INSERT INTO species_notes (species_name, notes, updated_at) VALUES (?1, ?2, ?3)",
+                params![old_species, "sjeverna padina", "2024-05-10T00:00:00Z"],
+            )
+            .expect("insert species note");
+        }
+
+        bulk_rename_species_blocking(&storage_path, &[find_id], new_species).expect("rename");
+
+        let conn = open_db(&storage_path).expect("reopen library");
+        let species: String = conn
+            .query_row(
+                "SELECT species_name FROM finds WHERE id = ?1",
+                params![find_id],
+                |row| row.get(0),
+            )
+            .expect("read renamed find");
+        assert_eq!(species, new_species);
+
+        let photo_path: String = conn
+            .query_row(
+                "SELECT photo_path FROM find_photos WHERE find_id = ?1",
+                params![find_id],
+                |row| row.get(0),
+            )
+            .expect("read photo path");
+        let new_folder_name = Path::new(&storage_path)
+            .join(resolve_location_component(
+                &plain_species_name(new_species),
+                "unknown_species",
+            ))
+            .file_name()
+            .and_then(|name| name.to_str())
+            .expect("new folder name")
+            .to_string();
+        assert!(
+            photo_path.starts_with(&new_folder_name),
+            "photo path must point at the new folder, got {photo_path}"
+        );
+        assert!(
+            Path::new(&storage_path).join(photo_path.replace('/', std::path::MAIN_SEPARATOR_STR)).exists(),
+            "the photo file must actually be where the database now says it is"
+        );
+
+        let renamed_notes: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM species_notes WHERE species_name = ?1",
+                params![new_species],
+                |row| row.get(0),
+            )
+            .expect("count renamed notes");
+        assert_eq!(renamed_notes, 1, "species notes follow the rename");
+    }
+
+    #[test]
+    fn bulk_rename_refuses_an_empty_name_and_ignores_an_empty_selection() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_str().expect("storage path");
+        open_db(storage_path).expect("create library");
+
+        assert!(bulk_rename_species_blocking(storage_path, &[], "Anything").is_ok());
+        assert!(bulk_rename_species_blocking(storage_path, &[1], "   ").is_err());
     }
 
     fn make_create_payload(species_name: &str) -> CreateFindPayload {
