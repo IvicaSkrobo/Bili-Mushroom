@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-04-09)
 Phase: 04.2 complete — MAINTENANCE
 Plan: Post-phase maintenance
 Status: Completed planned phase work; maintenance fixes and planning artifacts are synced to the current shipped behavior
-Last activity: 2026-08-21 - Completed quick task 260821-species-find-gallery-other-names: Species find photo browsing and other-name editing
+Last activity: 2026-08-21 - Completed quick task 260821-collection-word-prefix-search: Collection search from the beginning of every word
 
 Progress: [████████░░] 79%
 
@@ -195,6 +195,7 @@ Recent decisions affecting current work:
 | 260821-0fy-c profile-safety-and-migration-backup | 2026-08-21 | patch_species_profile replaces the read-modify-write in all three dialogs (one atomic statement, only the fields the dialog owns); fixes two latent wipes where an empty description field cleared the stored species description. Find records now store the library spelling when the typed name differs only in case, so "boletus edulis" no longer opens a second folder beside "Boletus edulis". open_db takes a VACUUM INTO backup to .bili-cache/backups before any migration touches an existing database, keeps the newest five, and aborts the migration if the copy cannot be written. Rust 104/104, frontend 346/346. |
 | 260821-0fy-d get-map-points | 2026-08-21 | New get_map_points command returning a lean MapPoint (id, species, date, lat, lng, notes, one photo) in a single statement with a correlated subquery instead of a growing IN list. Coordinateless and internal finds are excluded in SQL rather than loaded and discarded client-side. MapTab and LocationPickerMap use it; CollectionPins is typed on MapPoint. Drops original_filename, country, region, location_note, observed counts, favourite, created_at, edibility_note, weather, determiner and finder from the map payload. StatsTab is now the only remaining get_finds caller, and it asks for counts only. Rust 111/111, frontend 346/346. |
 | 260821-species-find-gallery-other-names | 2026-08-21 | Species → Finds opens the selected find's complete photo set lazily in PhotoLightbox; Description adds keyboard-accessible add/remove editing for Other names while preserving synonyms and all unrelated profile metadata. |
+| 260821-collection-word-prefix-search | 2026-08-21 | Collection species search matches the beginning of the full name or any later space-separated word (`b` and `edu` find `Boletus edulis`, while `dul` does not). Matching remains case-insensitive, strips display markup, escapes LIKE wildcards, and stays in SQL before alphabetical pagination. |
 
 ### Roadmap Evolution
 
