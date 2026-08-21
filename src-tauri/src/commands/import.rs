@@ -2806,16 +2806,20 @@ fn push_find_search_filters(
     };
 
     if include_species_query {
-        if let Some(species_query) = normalized_like_prefix(filters.species_query.as_deref()) {
+        if let Some((first_word_query, later_word_query)) =
+            normalized_like_word_prefixes(filters.species_query.as_deref())
+        {
             // species_name may contain '*' markup (bold/non-bold display convention, see
             // src/lib/speciesName.tsx). The query string is always plain (asterisks stripped
             // client-side), so strip '*' from the column here too before comparing — otherwise
             // an embedded asterisk in the stored name breaks the prefix match entirely.
             where_clauses.push(format!(
-                "LOWER(REPLACE({}, '*', '')) LIKE ? ESCAPE '\\'",
-                col("species_name")
+                "(LOWER(REPLACE({}, '*', '')) LIKE ? ESCAPE '\\' OR LOWER(REPLACE({}, '*', '')) LIKE ? ESCAPE '\\')",
+                col("species_name"),
+                col("species_name"),
             ));
-            query_params.push(Box::new(species_query));
+            query_params.push(Box::new(first_word_query));
+            query_params.push(Box::new(later_word_query));
         }
     }
 
@@ -2868,15 +2872,13 @@ fn normalized_like_query(value: Option<&str>) -> Option<String> {
     }
 }
 
-fn normalized_like_prefix(value: Option<&str>) -> Option<String> {
+fn normalized_like_word_prefixes(value: Option<&str>) -> Option<(String, String)> {
     let trimmed = value?.trim().to_lowercase();
     if trimmed.is_empty() {
         None
     } else {
-        Some(format!(
-            "{}%",
-            trimmed.replace('%', "\\%").replace('_', "\\_")
-        ))
+        let escaped = trimmed.replace('%', "\\%").replace('_', "\\_");
+        Some((format!("{escaped}%"), format!("% {escaped}%")))
     }
 }
 
@@ -3459,7 +3461,7 @@ mod tests {
     }
 
     #[test]
-    fn collection_folder_species_search_matches_prefix_only_from_first_letter() {
+    fn collection_folder_species_search_matches_prefix_at_start_of_any_word() {
         let conn = setup_in_memory_db();
         let insert = |species_name: &str, date: &str| {
             let mut record = make_find_record("photo.jpg", date);
@@ -3471,29 +3473,55 @@ mod tests {
         insert("Boletus edulis", "2024-05-01");
         insert("*Bovista* plumbea", "2024-06-01");
         insert("Cantharellus cibarius", "2024-08-01");
+        insert("Alpha %beta", "2024-04-01");
+        insert("Alpha xbeta", "2024-03-01");
+        insert("Alpha _delta", "2024-02-01");
+        insert("Alpha xdelta", "2024-01-01");
 
-        let summaries = get_collection_folders_for_connection(
-            &conn,
-            &FindSearchFilters {
-                species_query: Some("b".to_string()),
-                ..FindSearchFilters::default()
-            },
-        )
-        .expect("search collection folders");
-        let names: Vec<&str> = summaries
-            .iter()
-            .map(|summary| summary.species_name.as_str())
-            .collect();
+        let search = |query: &str| {
+            get_collection_folders_for_connection(
+                &conn,
+                &FindSearchFilters {
+                    species_query: Some(query.to_string()),
+                    ..FindSearchFilters::default()
+                },
+            )
+            .expect("search collection folders")
+            .into_iter()
+            .map(|summary| summary.species_name)
+            .collect::<Vec<_>>()
+        };
 
+        let names = search("b");
         assert_eq!(
             names.len(),
             2,
-            "a middle-of-name match must not leak into prefix search"
+            "the first typed letter must match only word prefixes"
         );
-        assert!(names.contains(&"Boletus edulis"));
+        assert!(names.iter().any(|name| name == "Boletus edulis"));
         assert!(
-            names.contains(&"*Bovista* plumbea"),
+            names.iter().any(|name| name == "*Bovista* plumbea"),
             "display markup must not break prefix matching"
+        );
+
+        assert_eq!(
+            search("EDU"),
+            vec!["Boletus edulis"],
+            "matching a later word must remain case-insensitive"
+        );
+        assert!(
+            search("dul").is_empty(),
+            "a match from the middle of a word must stay excluded"
+        );
+        assert_eq!(
+            search("%b"),
+            vec!["Alpha %beta"],
+            "a percent sign in the query must remain literal"
+        );
+        assert_eq!(
+            search("_d"),
+            vec!["Alpha _delta"],
+            "an underscore in the query must remain literal"
         );
     }
 
