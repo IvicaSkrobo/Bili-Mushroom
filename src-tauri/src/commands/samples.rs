@@ -8,7 +8,7 @@
 //! intact). Hard links fall back to plain copies when the filesystem refuses them.
 
 use chrono::Utc;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 
 use crate::commands::import::open_db;
@@ -84,7 +84,8 @@ fn next_sample_no(conn: &Connection, species_name: &str, year: i64) -> Result<i6
             params![key, year],
             |row| row.get(0),
         )
-        .ok();
+        .optional()
+        .map_err(|e| format!("Could not read the sample counter: {e}"))?;
 
     // Existing rows win if they somehow sit above the counter (hand-edited DB, restore).
     let highest_used: Option<i64> = conn
@@ -93,7 +94,8 @@ fn next_sample_no(conn: &Connection, species_name: &str, year: i64) -> Result<i6
             params![key, year],
             |row| row.get(0),
         )
-        .ok()
+        .optional()
+        .map_err(|e| format!("Could not read the highest sample number in use: {e}"))?
         .flatten();
 
     let next = current.unwrap_or(0).max(highest_used.unwrap_or(0)) + 1;
@@ -284,7 +286,8 @@ pub(crate) fn relocate_samples_for_finds(
                 params![find_id],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )
-            .ok();
+            .optional()
+            .map_err(|e| format!("Could not read the sample for find {find_id}: {e}"))?;
         let Some((sample_id, year, current_no, old_folder)) = existing else {
             continue;
         };
@@ -341,7 +344,11 @@ pub(crate) fn relocate_samples_for_finds(
 }
 
 /// Drops the register entry belonging to a deleted find. The folder is only removed when
-/// the find's files were trashed too -- a record-only delete leaves the material intact.
+/// the caller asked for it -- a record-only delete leaves the material intact.
+///
+/// Only "there is no such row" counts as a normal absence: a corrupt or unreadable
+/// database surfaces as an error so the delete transaction rolls back instead of
+/// quietly deciding the find had no sample.
 pub(crate) fn remove_sample_for_find(
     conn: &Connection,
     storage_path: &str,
@@ -354,7 +361,8 @@ pub(crate) fn remove_sample_for_find(
             params![find_id],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
-        .ok();
+        .optional()
+        .map_err(|e| format!("Could not read the sample for find {find_id}: {e}"))?;
     let Some((sample_id, folder)) = existing else {
         return Ok(());
     };
@@ -414,7 +422,8 @@ pub async fn create_sample_for_find(
                 params![find_id],
                 |row| row.get(0),
             )
-            .ok();
+            .optional()
+            .map_err(|e| format!("Could not look up the sample for find {find_id}: {e}"))?;
         if let Some(sample_id) = existing {
             return sync_sample_folder_inner(&conn, &storage_path, sample_id);
         }
@@ -562,7 +571,8 @@ pub async fn get_sample_for_find(
                 params![find_id],
                 |row| row.get(0),
             )
-            .ok();
+            .optional()
+            .map_err(|e| format!("Could not look up the sample for find {find_id}: {e}"))?;
         match sample_id {
             Some(id) => Ok(Some(load_sample(&conn, id)?)),
             None => Ok(None),

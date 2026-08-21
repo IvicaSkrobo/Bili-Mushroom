@@ -1369,9 +1369,16 @@ fn bulk_delete_finds_blocking(
         .map_err(|e| format!("Could not finish the delete: {e}"))?;
 
     for rel_path in &photo_paths {
-        let abs_path = format!("{}/{}", storage_path, rel_path);
+        let abs_path =
+            Path::new(storage_path).join(rel_path.replace('/', std::path::MAIN_SEPARATOR_STR));
+        if !abs_path.exists() {
+            // The row pointed at a file that is no longer on disk -- someone removed it
+            // outside the app, or an earlier cleanup got it. Nothing was left behind, so
+            // there is nothing to warn about. The audit reports such rows separately.
+            continue;
+        }
         if let Err(e) = trash::delete(&abs_path) {
-            eprintln!("trash::delete failed for {}: {}", abs_path, e);
+            eprintln!("trash::delete failed for {}: {}", abs_path.display(), e);
             result.file_failures.push(BulkOperationFailure {
                 item: rel_path.clone(),
                 error: e.to_string(),
@@ -3087,30 +3094,45 @@ mod tests {
         }
     }
 
+    /// Exercises the single-delete path itself, not the bulk helper underneath it: the
+    /// contract being guarded is that `delete_find` hands the failures back to the caller
+    /// instead of swallowing them, which is what let a leftover look like a clean delete.
     #[test]
-    fn deleting_a_find_reports_photos_that_could_not_be_trashed() {
+    fn single_delete_reports_something_it_could_not_remove() {
         let dir = tempfile::tempdir().expect("tempdir");
         let storage_path = dir.path().to_str().expect("storage path");
+        let photo_rel = "Boletus_edulis/here.jpg";
+        std::fs::create_dir_all(dir.path().join("Boletus_edulis")).expect("species folder");
+        std::fs::write(dir.path().join("Boletus_edulis/here.jpg"), b"photo").expect("photo");
+        // A sample whose recorded folder is a file, not a directory: removing it fails
+        // deterministically, which is a leftover the user has to hear about.
+        let blocker_rel = "Uzorci/blocked";
+        std::fs::create_dir_all(dir.path().join("Uzorci")).expect("samples root");
+        std::fs::write(dir.path().join("Uzorci/blocked"), b"not a directory").expect("blocker");
         let find_id = {
             let conn = open_db(storage_path).expect("open library");
-            let find_id = insert_find_row(&conn, &make_find_record("gone.jpg", "2024-05-10"))
+            let find_id = insert_find_row(&conn, &make_find_record("here.jpg", "2024-05-10"))
                 .expect("insert find");
-            // The row points at a file that is not on disk, so trashing it must fail.
-            insert_find_photo(&conn, find_id, "Boletus_edulis/gone.jpg", true)
-                .expect("insert photo");
+            insert_find_photo(&conn, find_id, photo_rel, true).expect("insert photo");
+            conn.execute(
+                "INSERT INTO samples (find_id, species_name, sample_year, sample_no, folder_path, spore_print, dna_sample, created_at, updated_at)
+                 VALUES (?1, 'Boletus edulis', 2026, 1, ?2, 0, 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+                params![find_id, blocker_rel],
+            )
+            .expect("insert sample");
             find_id
         };
 
-        let result = bulk_delete_finds_blocking(storage_path, &[find_id], true, false)
-            .expect("delete the record");
+        let result = delete_single_find_blocking(storage_path, find_id, true, true)
+            .expect("the record still goes");
 
-        assert_eq!(result.completed, 1, "the record still goes");
+        assert_eq!(result.completed, 1);
         assert_eq!(
             result.file_failures.len(),
             1,
-            "the caller must be able to see that a photo was left behind"
+            "the caller must be able to see what stayed behind"
         );
-        assert_eq!(result.file_failures[0].item, "Boletus_edulis/gone.jpg");
+        assert_eq!(result.file_failures[0].item, blocker_rel);
     }
 
     #[test]
@@ -3186,13 +3208,14 @@ mod tests {
     }
 
     #[test]
-    fn bulk_delete_reports_files_that_could_not_be_trashed() {
+    fn bulk_delete_does_not_report_a_photo_that_was_already_off_the_disk() {
         let dir = tempfile::tempdir().expect("tempdir");
         let storage_path = dir.path().to_str().expect("storage path");
         let find_id = {
             let conn = open_db(storage_path).expect("open library");
             let find_id = insert_find_row(&conn, &make_find_record("gone.jpg", "2024-05-10"))
                 .expect("insert find");
+            // Row points at a file somebody removed outside the app.
             insert_find_photo(&conn, find_id, "Boletus_edulis/gone.jpg", true)
                 .expect("insert missing photo row");
             find_id
@@ -3202,8 +3225,11 @@ mod tests {
             .expect("database delete still succeeds");
 
         assert_eq!(result.completed, 1);
-        assert_eq!(result.file_failures.len(), 1);
-        assert_eq!(result.file_failures[0].item, "Boletus_edulis/gone.jpg");
+        assert!(
+            result.file_failures.is_empty(),
+            "a file that is already gone is not something left behind, so warning about it \
+             would send the user looking for a photo that does not exist"
+        );
     }
 
     #[test]

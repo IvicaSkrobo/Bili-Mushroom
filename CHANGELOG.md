@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.40] — 2026-08-21
+
+### Fixed
+- **Honest single deletion** — deleting one find no longer reports full success when the record went but something could not be cleaned up; the dialog names how many files or folders were left behind, as batch deletion already did.
+- **No warning for photos that are already gone** — a file removed outside the app is treated as already deleted rather than as a failure, so deletion no longer points at a photo that does not exist. The photo library audit still lists such rows.
+- **Idempotent deletion** — deleting a find that is already gone counts as done instead of showing an error, so a stale list or a second confirmation no longer fails on completed work. Batch deletion still reports a missing id per item.
+- **Sample lookups no longer swallow database errors** — only a genuinely absent row counts as "no sample"; an unreadable database stops the delete transaction instead of silently continuing.
+
+---
+
 ## [0.3.39] — 2026-08-21
 
 ### Fixed
