@@ -5,6 +5,7 @@ pub mod path_builder;
 pub mod samples;
 pub mod stats;
 pub mod storage;
+pub mod thumbnail_scheduler;
 pub mod tile_cache_db;
 pub mod tile_proxy;
 pub mod updater;

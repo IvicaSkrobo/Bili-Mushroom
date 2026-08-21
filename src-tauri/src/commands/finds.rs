@@ -14,6 +14,7 @@ use crate::commands::import::{
 use crate::commands::path_builder::{
     build_dest_path, next_seq_for_folder, plain_species_name, resolve_location_component,
 };
+use crate::commands::thumbnail_scheduler::run_thumbnail_job;
 
 // ---------------------------------------------------------------------------
 // create_find
@@ -262,17 +263,75 @@ pub async fn get_photo_thumbnail(
     size: Option<u32>,
 ) -> Result<String, String> {
     let size = size.unwrap_or(256);
-    tauri::async_runtime::spawn_blocking(move || {
+    run_thumbnail_job(move || {
         generate_photo_thumbnail_blocking(&storage_path, &photo_path, size)
     })
     .await
-    .map_err(|e| format!("Thumbnail worker failed: {}", e))?
 }
 
 #[derive(serde::Serialize)]
 pub struct ThumbnailWarmupSummary {
     pub processed: u32,
     pub failed: u32,
+}
+
+fn next_thumbnail_warmup_batch(
+    conn: &Connection,
+    size: u32,
+    limit: u32,
+) -> Result<Vec<String>, String> {
+    let cursor_key = format!("thumbnail_warmup_cursor_{size}");
+    let cursor = conn
+        .query_row(
+            "SELECT CAST(value AS INTEGER) FROM app_metadata WHERE key = ?1",
+            params![cursor_key],
+            |row| row.get::<_, i64>(0),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?
+        .unwrap_or(0);
+
+    let load_after = |after_id: i64| -> Result<Vec<(i64, String)>, String> {
+        let mut stmt = conn
+            .prepare(
+                "SELECT MIN(id) AS cursor_id, photo_path
+                 FROM find_photos
+                 GROUP BY photo_path
+                 HAVING MIN(id) > ?1
+                 ORDER BY cursor_id ASC
+                 LIMIT ?2",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map(params![after_id, limit], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        Ok(rows)
+    };
+
+    let mut rows = load_after(cursor)?;
+    if rows.is_empty() && cursor > 0 {
+        rows = load_after(0)?;
+    }
+
+    // Advancing before decode is intentional: one corrupt original must not pin every
+    // future startup to the same batch. This is disposable cache state, not user data.
+    let next_cursor = if rows.len() < limit as usize {
+        0
+    } else {
+        rows.last().map(|(id, _)| *id).unwrap_or(0)
+    };
+    conn.execute(
+        "INSERT INTO app_metadata (key, value) VALUES (?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        params![cursor_key, next_cursor.to_string()],
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok(rows.into_iter().map(|(_, photo_path)| photo_path).collect())
 }
 
 #[tauri::command]
@@ -283,37 +342,33 @@ pub async fn warm_photo_thumbnail_cache(
 ) -> Result<ThumbnailWarmupSummary, String> {
     let size = size.unwrap_or(256).clamp(64, 768);
     let limit = limit.unwrap_or(40).clamp(1, 500);
-    tauri::async_runtime::spawn_blocking(move || {
-        let conn = open_db(&storage_path)?;
-        let mut stmt = conn
-            .prepare(
-                "SELECT photo_path
-                 FROM find_photos
-                 GROUP BY photo_path
-                 ORDER BY MIN(id) ASC
-                 LIMIT ?1",
-            )
-            .map_err(|e| e.to_string())?;
-        let rows = stmt
-            .query_map(params![limit], |row| row.get::<_, String>(0))
-            .map_err(|e| e.to_string())?;
-
-        let mut processed = 0u32;
-        let mut failed = 0u32;
-        for row in rows {
-            match row {
-                Ok(photo_path) => match generate_photo_thumbnail_blocking(&storage_path, &photo_path, size) {
-                    Ok(_) => processed += 1,
-                    Err(_) => failed += 1,
-                },
-                Err(_) => failed += 1,
-            }
-        }
-
-        Ok(ThumbnailWarmupSummary { processed, failed })
+    let lookup_storage_path = storage_path.clone();
+    let photo_paths = tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&lookup_storage_path)?;
+        next_thumbnail_warmup_batch(&conn, size, limit)
     })
     .await
-    .map_err(|e| format!("Thumbnail warmup worker failed: {}", e))?
+    .map_err(|e| format!("Thumbnail warmup lookup failed: {e}"))??;
+
+    let mut processed = 0u32;
+    let mut failed = 0u32;
+    for photo_path in photo_paths {
+        let item_storage_path = storage_path.clone();
+        match run_thumbnail_job(move || {
+            generate_photo_thumbnail_blocking(&item_storage_path, &photo_path, size)
+        })
+        .await
+        {
+            Ok(_) => processed += 1,
+            Err(_) => failed += 1,
+        }
+
+        // The semaphore is released after every image. Yield here so queued visible
+        // thumbnails can claim the next permit before background warmup continues.
+        tokio::task::yield_now().await;
+    }
+
+    Ok(ThumbnailWarmupSummary { processed, failed })
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -2623,6 +2678,55 @@ mod tests {
     use super::*;
     use crate::commands::import::test_helpers::{make_find_record, setup_in_memory_db};
     use crate::commands::import::{find_record_from_row, insert_find_photo, insert_find_row};
+
+    #[test]
+    fn thumbnail_warmup_advances_through_the_library_and_wraps() {
+        let conn = setup_in_memory_db();
+        let find_id = insert_find_row(&conn, &make_find_record("one.jpg", "2024-05-10"))
+            .expect("insert find");
+        for index in 1..=5 {
+            insert_find_photo(
+                &conn,
+                find_id,
+                &format!("Boletus_edulis/photo-{index}.jpg"),
+                index == 1,
+            )
+            .expect("insert photo");
+        }
+        insert_find_photo(
+            &conn,
+            find_id,
+            "Boletus_edulis/photo-1.jpg",
+            false,
+        )
+        .expect("insert duplicate path");
+
+        assert_eq!(
+            next_thumbnail_warmup_batch(&conn, 256, 2).expect("first batch"),
+            vec![
+                "Boletus_edulis/photo-1.jpg".to_string(),
+                "Boletus_edulis/photo-2.jpg".to_string()
+            ]
+        );
+        assert_eq!(
+            next_thumbnail_warmup_batch(&conn, 256, 2).expect("second batch"),
+            vec![
+                "Boletus_edulis/photo-3.jpg".to_string(),
+                "Boletus_edulis/photo-4.jpg".to_string()
+            ]
+        );
+        assert_eq!(
+            next_thumbnail_warmup_batch(&conn, 256, 2).expect("short final batch"),
+            vec!["Boletus_edulis/photo-5.jpg".to_string()]
+        );
+        assert_eq!(
+            next_thumbnail_warmup_batch(&conn, 256, 2).expect("wrapped batch"),
+            vec![
+                "Boletus_edulis/photo-1.jpg".to_string(),
+                "Boletus_edulis/photo-2.jpg".to_string()
+            ]
+        );
+    }
 
     // -----------------------------------------------------------------------
     // create_find tests
