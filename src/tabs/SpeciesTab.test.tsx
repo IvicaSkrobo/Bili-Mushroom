@@ -280,17 +280,30 @@ describe('SpeciesTab', () => {
     expect(screen.queryAllByText('Boletus edulis')).toHaveLength(0);
   });
 
-  it('finds a species by scientific word, common name, synonym, and other name', () => {
+  it('searches scientific names by default and includes aliases only when requested', () => {
     render(<SpeciesTab />);
     const search = screen.getByPlaceholderText(/search species/i);
+    const searchAllNames = screen.getByRole('checkbox', { name: /search common names and aliases too/i });
 
-    for (const query of ['edu', 'bun', 'bulb', 'porc']) {
+    expect(searchAllNames).not.toBeChecked();
+    fireEvent.change(search, { target: { value: 'edu' } });
+    expect(screen.getAllByText('Boletus edulis').length).toBeGreaterThan(0);
+
+    fireEvent.change(search, { target: { value: 'bun' } });
+    expect(screen.queryAllByText('Boletus edulis')).toHaveLength(0);
+
+    fireEvent.click(searchAllNames);
+    for (const query of ['bun', 'bulb', 'porc']) {
       fireEvent.change(search, { target: { value: query } });
       expect(screen.getAllByText('Boletus edulis').length).toBeGreaterThan(0);
       expect(screen.queryAllByText('Cantharellus cibarius')).toHaveLength(0);
     }
 
     fireEvent.change(search, { target: { value: 'rci' } });
+    expect(screen.queryAllByText('Boletus edulis')).toHaveLength(0);
+
+    fireEvent.change(search, { target: { value: 'bun' } });
+    fireEvent.click(searchAllNames);
     expect(screen.queryAllByText('Boletus edulis')).toHaveLength(0);
   });
 

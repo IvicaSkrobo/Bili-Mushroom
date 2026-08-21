@@ -457,6 +457,7 @@ export default function SpeciesTab() {
   const upsertSpeciesRecipe = useUpsertSpeciesRecipe();
   const deleteSpeciesRecipe = useDeleteSpeciesRecipe();
   const [search, setSearch] = useState('');
+  const [searchAllNames, setSearchAllNames] = useState(false);
   const [selectedSpecies, setSelectedSpecies] = useState<string | null>(null);
   const [coverPickerOpen, setCoverPickerOpen] = useState(false);
   const [coverUploadError, setCoverUploadError] = useState<string | null>(null);
@@ -507,9 +508,9 @@ export default function SpeciesTab() {
     return speciesPreviews.filter((entry) => matchesSpeciesQuery(
       query,
       entry.speciesName,
-      speciesProfilesByName.get(entry.speciesName),
+      searchAllNames ? speciesProfilesByName.get(entry.speciesName) : undefined,
     ));
-  }, [search, speciesPreviews, speciesProfilesByName]);
+  }, [search, searchAllNames, speciesPreviews, speciesProfilesByName]);
 
   const shouldVirtualizeSpeciesList = filteredSpecies.length > SPECIES_LIST_VIRTUALIZATION_THRESHOLD;
   const speciesListVirtualizer = useVirtualizer({
@@ -1153,9 +1154,18 @@ export default function SpeciesTab() {
                 className="h-10 w-full rounded-md border border-border bg-input pl-10 pr-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
               />
             </div>
+            <label className="mt-2.5 flex cursor-pointer items-center gap-2 text-xs text-muted-foreground transition-colors hover:text-foreground">
+              <input
+                type="checkbox"
+                checked={searchAllNames}
+                onChange={(event) => setSearchAllNames(event.target.checked)}
+                className="h-3.5 w-3.5 rounded border-border accent-primary"
+              />
+              <span>{t('species.searchAllNames')}</span>
+            </label>
           </div>
 
-          <div ref={setSpeciesListScrollElement} className="overflow-y-auto px-3 pb-24 lg:h-[calc(100vh-13rem)]">
+          <div ref={setSpeciesListScrollElement} className="overflow-y-auto px-3 pb-24 lg:h-[calc(100vh-15rem)]">
             {filteredSpecies.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
                 {t('species.noResults')}
