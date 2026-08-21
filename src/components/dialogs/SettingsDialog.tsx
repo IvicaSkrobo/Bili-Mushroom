@@ -414,13 +414,14 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                   </AlertDialogContent>
                 </AlertDialog>
                 {pruneResult !== null && (
-                  pruneResult.inaccessible.length > 0 ? (
-                    // Nothing was removed: the cleanup could not read part of the library,
-                    // and a photo it cannot see is not a photo it may forget.
+                  pruneResult.blocked.length > 0 ? (
+                    // Nothing was removed: the cleanup could not confirm part of the
+                    // library is gone, and a photo it cannot see is not one it may forget.
                     <span className="text-xs text-amber-600">
-                      {t('settings.cleanMissingUnreadable', {
-                        path: pruneResult.inaccessible[0],
-                        count: pruneResult.inaccessible.length,
+                      {t('settings.cleanMissingBlocked', {
+                        path: pruneResult.blocked[0].item,
+                        reason: pruneResult.blocked[0].error,
+                        count: pruneResult.blocked.length,
                       })}
                     </span>
                   ) : (

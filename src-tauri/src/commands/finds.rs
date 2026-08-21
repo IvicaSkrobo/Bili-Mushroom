@@ -1375,15 +1375,16 @@ fn bulk_delete_finds_blocking(
             // Nothing was left behind, so there is nothing to warn about. The audit
             // reports rows like this separately.
             PathState::Missing => continue,
-            PathState::Inaccessible => {
+            PathState::File => {}
+            // A photo row pointing at a folder would otherwise put that whole folder in
+            // the Recycle Bin. Anything that is not plainly a file is left alone.
+            other => {
                 result.file_failures.push(BulkOperationFailure {
                     item: rel_path.clone(),
-                    error: "The photo could not be reached, so it was left in place"
-                        .to_string(),
+                    error: format!("Left in place: {}", other.describe()),
                 });
                 continue;
             }
-            PathState::Present => {}
         }
         if let Err(e) = trash::delete(&abs_path) {
             if removal_failure_is_real(&abs_path) {
@@ -1401,15 +1402,14 @@ fn bulk_delete_finds_blocking(
         match path_state(&folder_abs) {
             // Already gone is the requested outcome for a folder too.
             PathState::Missing => continue,
-            PathState::Inaccessible => {
+            PathState::Directory => {}
+            other => {
                 result.file_failures.push(BulkOperationFailure {
                     item: folder_rel.clone(),
-                    error: "The sample folder could not be reached, so it was left in place"
-                        .to_string(),
+                    error: format!("Left in place: {}", other.describe()),
                 });
                 continue;
             }
-            PathState::Present => {}
         }
         if let Err(error) = std::fs::remove_dir_all(&folder_abs) {
             if removal_failure_is_real(&folder_abs) {
@@ -1878,8 +1878,8 @@ pub struct PruneSummary {
     /// Photo rows removed because the filesystem confirmed the file is gone.
     pub removed: u32,
     pub affected_finds: u32,
-    /// Paths the filesystem refused to answer for. Non-empty means nothing was removed.
-    pub inaccessible: Vec<String>,
+    /// Paths that stopped the cleanup. Non-empty means nothing at all was removed.
+    pub blocked: Vec<BulkOperationFailure>,
     pub backup_path: Option<String>,
 }
 
@@ -1895,7 +1895,9 @@ pub(crate) struct PrunePlan {
     pub remove: Vec<i64>,
     pub primaries_lost: Vec<i64>,
     pub affected_finds: HashSet<i64>,
-    pub inaccessible: Vec<String>,
+    /// Paths that stopped the cleanup: unreadable, or present as something other than a
+    /// photo file. Non-empty means nothing may be removed.
+    pub blocked: Vec<BulkOperationFailure>,
 }
 
 /// Pure decision step, kept apart from the database so the rules can be tested without
@@ -1907,8 +1909,8 @@ pub(crate) fn plan_prune(
     let mut plan = PrunePlan::default();
     for row in rows {
         match state_of(&row.photo_path) {
-            PathState::Present => {}
-            PathState::Inaccessible => plan.inaccessible.push(row.photo_path.clone()),
+            // A healthy photo: leave it alone.
+            PathState::File => {}
             PathState::Missing => {
                 plan.remove.push(row.photo_id);
                 plan.affected_finds.insert(row.find_id);
@@ -1916,10 +1918,16 @@ pub(crate) fn plan_prune(
                     plan.primaries_lost.push(row.find_id);
                 }
             }
+            // Unreadable, or there but not a photo file. Either way the library is not in
+            // the state this cleanup assumes, so it stops rather than guessing.
+            other => plan.blocked.push(BulkOperationFailure {
+                item: row.photo_path.clone(),
+                error: other.describe().to_string(),
+            }),
         }
     }
-    // One unreadable path invalidates the whole run, so there is nothing to remove.
-    if !plan.inaccessible.is_empty() {
+    // One blocked path invalidates the whole run, so there is nothing to remove.
+    if !plan.blocked.is_empty() {
         plan.remove.clear();
         plan.primaries_lost.clear();
         plan.affected_finds.clear();
@@ -1931,22 +1939,44 @@ pub(crate) fn plan_prune(
 ///
 /// `Path::exists()` collapses "confirmed absent" and "could not tell" into `false`, which
 /// is how an unplugged drive or a permissions problem can look exactly like a deleted
-/// photo. Anything that decides to forget a row or skip a cleanup has to tell those two
-/// apart, so it uses `try_exists()` through here instead.
+/// photo. "Something is there" is not enough either: a photo row that now points at a
+/// folder would send that whole folder to the Recycle Bin, and a cleanup would read it as
+/// a healthy photo. So callers get the kind as well, and act only on what they expect.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PathState {
     /// The filesystem confirmed there is nothing there.
     Missing,
-    /// Something is there.
-    Present,
+    /// A regular file.
+    File,
+    /// A directory.
+    Directory,
+    /// Something else entirely: a symlink, a device, a reparse point. Never acted on.
+    Other,
     /// The filesystem refused to answer: permissions, I/O, an offline volume.
     Inaccessible,
 }
 
+impl PathState {
+    /// Short reason for a caller that expected something else.
+    pub(crate) fn describe(self) -> &'static str {
+        match self {
+            PathState::Missing => "nothing is there",
+            PathState::File => "it is a file",
+            PathState::Directory => "it is a folder, not a photo",
+            PathState::Other => "it is not a regular file or folder",
+            PathState::Inaccessible => "it could not be reached",
+        }
+    }
+}
+
+/// Uses `symlink_metadata` so a link is reported as `Other` rather than followed to
+/// whatever it points at -- deleting through a link is not something to guess at.
 pub(crate) fn path_state(path: &Path) -> PathState {
-    match path.try_exists() {
-        Ok(true) => PathState::Present,
-        Ok(false) => PathState::Missing,
+    match std::fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.is_file() => PathState::File,
+        Ok(metadata) if metadata.is_dir() => PathState::Directory,
+        Ok(_) => PathState::Other,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => PathState::Missing,
         Err(_) => PathState::Inaccessible,
     }
 }
@@ -2702,8 +2732,14 @@ pub async fn edit_source_photo_image(
 /// Returns the number of photo rows deleted.
 #[tauri::command]
 pub async fn prune_missing_photos(storage_path: String) -> Result<PruneSummary, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let mut conn = open_db(&storage_path)?;
+    tauri::async_runtime::spawn_blocking(move || prune_missing_photos_blocking(&storage_path))
+        .await
+        .map_err(|e| format!("Prune photos worker failed: {e}"))?
+}
+
+fn prune_missing_photos_blocking(storage_path: &str) -> Result<PruneSummary, String> {
+    {
+        let mut conn = open_db(storage_path)?;
 
         let mut stmt = conn
             .prepare(
@@ -2727,19 +2763,20 @@ pub async fn prune_missing_photos(storage_path: String) -> Result<PruneSummary, 
         // Look at every path before touching the database. Forgetting a row is only safe
         // when the filesystem actually confirmed the file is gone.
         let plan = plan_prune(&rows, |photo_path| {
-            let abs = Path::new(&storage_path)
+            let abs = Path::new(storage_path)
                 .join(photo_path.replace('/', std::path::MAIN_SEPARATOR_STR));
             path_state(&abs)
         });
 
-        if !plan.inaccessible.is_empty() {
-            // An unplugged drive or a permissions problem makes every photo look missing.
-            // Removing rows here would throw away the library's only record of them, so
-            // nothing is removed and the caller is told which path could not be read.
+        if !plan.blocked.is_empty() {
+            // An unplugged drive makes every photo look missing, and a row pointing at a
+            // folder is not a photo at all. Removing rows on either reading would throw
+            // away the library's only record of them, so nothing is removed and the
+            // caller is told which path stopped the run.
             return Ok(PruneSummary {
                 removed: 0,
                 affected_finds: 0,
-                inaccessible: plan.inaccessible,
+                blocked: plan.blocked,
                 backup_path: None,
             });
         }
@@ -2748,7 +2785,7 @@ pub async fn prune_missing_photos(storage_path: String) -> Result<PruneSummary, 
             return Ok(PruneSummary::default());
         }
 
-        let backup_path = backup_db_before_destructive_change(&storage_path, "prune-missing-photos")?;
+        let backup_path = backup_db_before_destructive_change(storage_path, "prune-missing-photos")?;
 
         let tx = conn
             .transaction()
@@ -2784,12 +2821,10 @@ pub async fn prune_missing_photos(storage_path: String) -> Result<PruneSummary, 
         Ok(PruneSummary {
             removed,
             affected_finds: plan.affected_finds.len() as u32,
-            inaccessible: Vec::new(),
+            blocked: Vec::new(),
             backup_path,
         })
-    })
-    .await
-    .map_err(|e| format!("Prune photos worker failed: {e}"))?
+    }
 }
 
 #[derive(serde::Serialize, Debug)]
@@ -3304,7 +3339,7 @@ mod tests {
             if path.starts_with("Boletus") {
                 PathState::Missing
             } else {
-                PathState::Present
+                PathState::File
             }
         });
 
@@ -3312,7 +3347,7 @@ mod tests {
         assert_eq!(plan.primaries_lost, vec![10], "find 10 lost its primary photo");
         assert!(plan.affected_finds.contains(&10));
         assert!(!plan.affected_finds.contains(&11));
-        assert!(plan.inaccessible.is_empty());
+        assert!(plan.blocked.is_empty());
     }
 
     /// An unplugged drive or a permissions problem makes every photo look missing to
@@ -3339,15 +3374,16 @@ mod tests {
         );
         assert!(plan.primaries_lost.is_empty());
         assert!(plan.affected_finds.is_empty());
-        assert_eq!(plan.inaccessible, vec!["OfflineDrive/unreadable.jpg".to_string()]);
+        assert_eq!(plan.blocked.len(), 1);
+        assert_eq!(plan.blocked[0].item, "OfflineDrive/unreadable.jpg");
     }
 
     #[test]
     fn prune_leaves_a_healthy_library_alone() {
         let rows = vec![photo_row(1, 10, "Boletus/here.jpg", true)];
-        let plan = plan_prune(&rows, |_| PathState::Present);
+        let plan = plan_prune(&rows, |_| PathState::File);
         assert!(plan.remove.is_empty());
-        assert!(plan.inaccessible.is_empty());
+        assert!(plan.blocked.is_empty());
     }
 
     #[test]
@@ -3389,6 +3425,143 @@ mod tests {
         // caller wanted, so it is not reported.
         let vanished = dir.path().join("vanished.jpg");
         assert!(!removal_failure_is_real(&vanished));
+    }
+
+    /// Drives the real cleanup, not just its decision step: the row goes, the surviving
+    /// photo is promoted to primary, and a backup is written first.
+    #[test]
+    fn prune_removes_the_row_promotes_a_new_primary_and_backs_up_first() {
+        let dir = tempfile::tempdir().expect("library");
+        let storage_path = dir.path().to_str().expect("storage path");
+        let folder = dir.path().join("Boletus_edulis");
+        std::fs::create_dir_all(&folder).expect("species folder");
+        std::fs::write(folder.join("kept.jpg"), b"kept").expect("surviving photo");
+        let (find_id, gone_id, kept_id) = {
+            let conn = open_db(storage_path).expect("open library");
+            let find_id = insert_find_row(&conn, &make_find_record("gone.jpg", "2024-05-10"))
+                .expect("insert find");
+            let gone_id = insert_find_photo(&conn, find_id, "Boletus_edulis/gone.jpg", true)
+                .expect("primary photo whose file is gone");
+            let kept_id = insert_find_photo(&conn, find_id, "Boletus_edulis/kept.jpg", false)
+                .expect("secondary photo still on disk");
+            (find_id, gone_id, kept_id)
+        };
+
+        let summary = prune_missing_photos_blocking(storage_path).expect("prune");
+
+        assert_eq!(summary.removed, 1);
+        assert_eq!(summary.affected_finds, 1);
+        assert!(summary.blocked.is_empty());
+        assert!(summary.backup_path.is_some(), "a destructive cleanup backs up first");
+
+        let conn = open_db(storage_path).expect("reopen library");
+        let remaining: Vec<(i64, bool)> = conn
+            .prepare("SELECT id, is_primary FROM find_photos WHERE find_id = ?1")
+            .unwrap()
+            .query_map(params![find_id], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)? == 1))
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(remaining, vec![(kept_id, true)], "the survivor becomes primary");
+        assert_ne!(gone_id, kept_id);
+    }
+
+    /// A photo row that now points at a folder is not a missing photo, and deleting its
+    /// row would lose the only record of it. One such path stops the whole cleanup.
+    #[test]
+    fn prune_stops_when_a_photo_path_is_a_folder() {
+        let dir = tempfile::tempdir().expect("library");
+        let storage_path = dir.path().to_str().expect("storage path");
+        std::fs::create_dir_all(dir.path().join("Boletus_edulis/looks_like.jpg"))
+            .expect("a folder where a photo should be");
+        {
+            let conn = open_db(storage_path).expect("open library");
+            let find_id = insert_find_row(&conn, &make_find_record("looks_like.jpg", "2024-05-10"))
+                .expect("insert find");
+            insert_find_photo(&conn, find_id, "Boletus_edulis/looks_like.jpg", true).unwrap();
+            insert_find_photo(&conn, find_id, "Boletus_edulis/really_gone.jpg", false).unwrap();
+        }
+
+        let summary = prune_missing_photos_blocking(storage_path).expect("prune");
+
+        assert_eq!(summary.removed, 0, "not even the genuinely missing row goes");
+        assert_eq!(summary.blocked.len(), 1);
+        assert_eq!(summary.blocked[0].item, "Boletus_edulis/looks_like.jpg");
+        let conn = open_db(storage_path).expect("reopen library");
+        let rows: i64 = conn
+            .query_row("SELECT COUNT(*) FROM find_photos", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(rows, 2, "the database is untouched");
+    }
+
+    /// The removals and the primary promotion share one transaction. A failure part way
+    /// through must leave every row where it was, not half a cleanup.
+    #[test]
+    fn prune_rolls_back_every_row_when_one_delete_fails() {
+        let dir = tempfile::tempdir().expect("library");
+        let storage_path = dir.path().to_str().expect("storage path");
+        let second_id = {
+            let conn = open_db(storage_path).expect("open library");
+            let find_id = insert_find_row(&conn, &make_find_record("gone.jpg", "2024-05-10"))
+                .expect("insert find");
+            insert_find_photo(&conn, find_id, "Boletus_edulis/first_gone.jpg", true).unwrap();
+            let second_id =
+                insert_find_photo(&conn, find_id, "Boletus_edulis/second_gone.jpg", false).unwrap();
+            // Make the second delete fail the way a constraint or a corrupt index would.
+            conn.execute_batch(&format!(
+                "CREATE TRIGGER block_second_delete BEFORE DELETE ON find_photos
+                 WHEN OLD.id = {second_id}
+                 BEGIN SELECT RAISE(ABORT, 'blocked'); END;"
+            ))
+            .expect("install trigger");
+            second_id
+        };
+
+        let error = prune_missing_photos_blocking(storage_path)
+            .expect_err("the blocked delete fails the cleanup");
+        assert!(error.contains("delete failed"), "unexpected error: {error}");
+
+        let conn = open_db(storage_path).expect("reopen library");
+        let rows: i64 = conn
+            .query_row("SELECT COUNT(*) FROM find_photos", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(rows, 2, "the first delete is rolled back with the second");
+        let still_there: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM find_photos WHERE id = ?1",
+                params![second_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(still_there, 1);
+    }
+
+    #[test]
+    fn a_photo_row_pointing_at_a_folder_is_never_sent_to_the_recycle_bin() {
+        let dir = tempfile::tempdir().expect("library");
+        let storage_path = dir.path().to_str().expect("storage path");
+        let folder_as_photo = dir.path().join("Boletus_edulis/album.jpg");
+        std::fs::create_dir_all(&folder_as_photo).expect("folder standing in for a photo");
+        std::fs::write(folder_as_photo.join("inside.jpg"), b"someone's photos").expect("content");
+        let find_id = {
+            let conn = open_db(storage_path).expect("open library");
+            let find_id = insert_find_row(&conn, &make_find_record("album.jpg", "2024-05-10"))
+                .expect("insert find");
+            insert_find_photo(&conn, find_id, "Boletus_edulis/album.jpg", true).unwrap();
+            find_id
+        };
+
+        let result = delete_single_find_blocking(storage_path, find_id, true, false)
+            .expect("the record still goes");
+
+        assert_eq!(result.completed, 1);
+        assert_eq!(result.file_failures.len(), 1, "the caller hears it was left alone");
+        assert!(
+            folder_as_photo.join("inside.jpg").exists(),
+            "a folder must never be trashed because a photo row pointed at it"
+        );
     }
 
     #[test]

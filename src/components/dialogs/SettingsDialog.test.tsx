@@ -101,6 +101,53 @@ describe('SettingsDialog', () => {
     invokeHandlers.open_library_backups_folder = vi.fn().mockReturnValue(undefined);
   });
 
+  // This suite renders i18n keys rather than translations, so assertions name the key.
+  async function runCleanReferences() {
+    renderDialog();
+    // The cleanup lives under the Advanced tab.
+    fireEvent.click(await screen.findByText('settings.tabAdvanced'));
+    // The button opens a confirmation; the last one performs it.
+    const buttons = await screen.findAllByText('settings.cleanMissingButton');
+    fireEvent.click(buttons[0]);
+    const confirm = await screen.findAllByText('settings.cleanMissingButton');
+    fireEvent.click(confirm[confirm.length - 1]);
+  }
+
+  it('reports removed references after a clean run', async () => {
+    invokeHandlers.prune_missing_photos = vi.fn().mockReturnValue({
+      removed: 3,
+      affected_finds: 2,
+      blocked: [],
+      backup_path: 'backups/before-prune.db',
+    });
+
+    await runCleanReferences();
+
+    await waitFor(() => {
+      expect(screen.getByText('settings.cleanMissingRemoved')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('settings.cleanMissingBlocked')).toBeNull();
+  });
+
+  it('says nothing was removed when a path could not be confirmed missing', async () => {
+    // An offline drive makes every photo look missing, so the cleanup refuses to run and
+    // has to say why rather than reporting a reassuring "0 removed".
+    invokeHandlers.prune_missing_photos = vi.fn().mockReturnValue({
+      removed: 0,
+      affected_finds: 0,
+      blocked: [{ item: 'Boletus edulis/2024-05-10_001.jpg', error: 'it could not be reached' }],
+      backup_path: null,
+    });
+
+    await runCleanReferences();
+
+    await waitFor(() => {
+      expect(screen.getByText('settings.cleanMissingBlocked')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('settings.cleanMissingNone')).toBeNull();
+    expect(screen.queryByText('settings.cleanMissingRemoved')).toBeNull();
+  });
+
   it('displays the Map Cache section heading', async () => {
     renderDialog();
     expect(screen.getByText('settings.mapCache')).toBeTruthy();

@@ -20,6 +20,9 @@ A small honesty follow-up to v0.3.39, from a cross-review of the delete paths.
 - An unplugged drive or a permissions problem is no longer mistaken for deleted photos.
   Deletion, sample folder cleanup and the Settings cleanup now tell *confirmed absent*
   apart from *could not be read*, and never act on the second.
+- Paths are also checked for what they are, not only whether something is there. A photo
+  entry that points at a folder is left alone instead of sending that whole folder to the
+  Recycle Bin, and the cleanup no longer reads such a folder as a healthy photo.
 - **Clean up missing photo references** in Settings scans the whole library before it
   changes anything, removes nothing at all if any path could not be read — naming the
   path so you can plug the drive back in — and makes its row removals and primary-photo
@@ -37,13 +40,17 @@ A small honesty follow-up to v0.3.39, from a cross-review of the delete paths.
 
 ## Verification
 
-- Rust: 141 passed, 0 failed, 1 ignored (optional real-GPS EXIF fixture).
-- Frontend: 369 passed.
+- Rust: 145 passed, 0 failed, 1 ignored (optional real-GPS EXIF fixture).
+- Frontend: 371 passed.
 - New Rust regression tests: the single-delete path reports what it could not remove; a
   photo already off the disk is not reported; a repeated delete of the same find succeeds
   while the batch contract keeps reporting the missing id.
-- New frontend test: the delete dialog warns instead of claiming success when something
-  could not be removed.
+- The cleanup is covered end to end, not only in its decision step: a real run removes the
+  row, promotes a new primary photo and writes a backup first; a folder standing in for a
+  photo stops it without a single change; and a delete that fails part way rolls the whole
+  cleanup back.
+- New frontend tests: the delete dialog warns instead of claiming success when something
+  could not be removed, and Settings distinguishes "removed N" from "nothing was removed".
 - TypeScript typecheck, Cargo all-targets and the version check pass.
 
 No database migration is required. No files are moved during installation or startup.

@@ -568,8 +568,11 @@ export interface BulkOperationFailure {
 export interface PruneSummary {
   removed: number;
   affected_finds: number;
-  /** Paths the filesystem refused to answer for. Non-empty means nothing was removed. */
-  inaccessible: string[];
+  /**
+   * Paths that stopped the cleanup: unreadable, or present as something other than a
+   * photo file. Non-empty means nothing at all was removed.
+   */
+  blocked: BulkOperationFailure[];
   backup_path: string | null;
 }
 
