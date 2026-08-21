@@ -31,6 +31,14 @@ const root = path.resolve(__dirname, '..');
 const manifestDir = path.join(root, 'src-tauri');
 const forwarded = process.argv.slice(2);
 
+// Cargo's JSON output may use a Win32 extended-length prefix. mt.exe can return
+// success for that spelling without actually adding a resource section, and Node
+// can then report a misleading successful spawn. The normal path is well below
+// MAX_PATH here and works reliably with both tools.
+function windowsNativePath(value) {
+  return value.startsWith('\\\\?\\') ? value.slice(4) : value;
+}
+
 if (process.platform !== 'win32') {
   const result = spawnSync('cargo', ['test', '--lib', ...forwarded], {
     cwd: manifestDir,
@@ -75,6 +83,10 @@ const build = spawnSync(
   ['test', '--lib', '--no-run', '--message-format=json-render-diagnostics'],
   { cwd: manifestDir, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
 );
+if (build.error) {
+  console.error(`[rust-test] cargo could not start: ${build.error.message}`);
+  process.exit(1);
+}
 if (build.stderr) process.stderr.write(build.stderr);
 if (build.status !== 0) process.exit(build.status ?? 1);
 
@@ -88,7 +100,7 @@ for (const line of build.stdout.split('\n')) {
     continue;
   }
   if (message.reason === 'compiler-artifact' && message.profile?.test && message.executable) {
-    executables.push(message.executable);
+    executables.push(windowsNativePath(message.executable));
   }
 }
 
@@ -119,8 +131,21 @@ if (mt) {
 }
 
 let failed = 0;
+let ran = 0;
 for (const executable of executables) {
+  console.log(`[rust-test] running ${path.basename(executable)}`);
   const run = spawnSync(executable, forwarded, { stdio: 'inherit' });
+  if (run.error) {
+    console.error(`[rust-test] could not start ${path.basename(executable)}: ${run.error.message}`);
+    failed = 1;
+    continue;
+  }
+  ran += 1;
+  console.log(`[rust-test] ${path.basename(executable)} exited with ${run.status}`);
   if (run.status !== 0) failed = run.status ?? 1;
+}
+if (ran === 0) {
+  console.error('[rust-test] no test executable was successfully started.');
+  process.exit(1);
 }
 process.exit(failed);
