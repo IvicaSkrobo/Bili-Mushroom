@@ -861,7 +861,7 @@ fn prune_migration_backups(backup_dir: &Path) {
 /// Kept separate from the filesystem so the rules can be exercised directly: the newest
 /// copy always survives however large it is, then up to [`MIGRATION_BACKUPS_KEPT`] more
 /// while they fit inside [`MIGRATION_BACKUP_BUDGET_BYTES`].
-fn backups_to_discard(backups: &[(PathBuf, u64)]) -> Vec<PathBuf> {
+pub(crate) fn backups_to_discard(backups: &[(PathBuf, u64)]) -> Vec<PathBuf> {
     if backups.len() <= 1 {
         return Vec::new();
     }
@@ -886,7 +886,7 @@ fn backups_to_discard(backups: &[(PathBuf, u64)]) -> Vec<PathBuf> {
 
 /// The backups that may be sacrificed to make room for a new one: everything except the
 /// newest, which stays until its replacement exists and has passed its check.
-fn backups_expendable_for_space(backups: &[PathBuf]) -> &[PathBuf] {
+pub(crate) fn backups_expendable_for_space(backups: &[PathBuf]) -> &[PathBuf] {
     if backups.len() <= 1 {
         &[]
     } else {
@@ -894,7 +894,7 @@ fn backups_expendable_for_space(backups: &[PathBuf]) -> &[PathBuf] {
     }
 }
 
-fn format_bytes(bytes: u64) -> String {
+pub(crate) fn format_bytes(bytes: u64) -> String {
     const MB: f64 = (1024 * 1024) as f64;
     const GB: f64 = (1024 * 1024 * 1024) as f64;
     let bytes = bytes as f64;
@@ -906,7 +906,7 @@ fn format_bytes(bytes: u64) -> String {
 }
 
 #[cfg(windows)]
-fn free_space_bytes(path: &Path) -> Option<u64> {
+pub(crate) fn free_space_bytes(path: &Path) -> Option<u64> {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
 
@@ -934,7 +934,7 @@ fn free_space_bytes(path: &Path) -> Option<u64> {
 }
 
 #[cfg(not(windows))]
-fn free_space_bytes(_path: &Path) -> Option<u64> {
+pub(crate) fn free_space_bytes(_path: &Path) -> Option<u64> {
     // No portable std API for this. VACUUM INTO below still fails safely on a full disk.
     None
 }

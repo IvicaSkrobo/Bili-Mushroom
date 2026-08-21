@@ -1414,12 +1414,15 @@ fn backup_db_before_destructive_change(
     storage_path: &str,
     reason: &str,
 ) -> Result<Option<String>, String> {
+    const BACKUP_HEADROOM_BYTES: u64 = 32 * 1024 * 1024;
     let db_path = Path::new(storage_path).join("bili-mushroom.db");
     if !db_path.exists() {
         return Ok(None);
     }
 
-    let backup_dir = Path::new(storage_path).join(".bili-backups");
+    let backup_dir = Path::new(storage_path)
+        .join(".bili-backups")
+        .join("maintenance");
     std::fs::create_dir_all(&backup_dir).map_err(|e| {
         format!(
             "Failed to create backup folder '{}': {}",
@@ -1427,6 +1430,28 @@ fn backup_db_before_destructive_change(
             e
         )
     })?;
+
+    let needed = std::fs::metadata(&db_path)
+        .map(|metadata| metadata.len())
+        .unwrap_or(0)
+        .saturating_add(BACKUP_HEADROOM_BYTES);
+    if crate::commands::import::free_space_bytes(&backup_dir)
+        .is_some_and(|free| free < needed)
+    {
+        let existing = maintenance_backups(&backup_dir);
+        for stale in crate::commands::import::backups_expendable_for_space(&existing) {
+            let _ = std::fs::remove_file(stale);
+        }
+    }
+    if let Some(free) = crate::commands::import::free_space_bytes(&backup_dir) {
+        if free < needed {
+            return Err(format!(
+                "A safety copy of the library database ({}) is needed before maintenance, but only {} is free. Free some disk space and try again — your library has not been changed.",
+                crate::commands::import::format_bytes(needed),
+                crate::commands::import::format_bytes(free),
+            ));
+        }
+    }
 
     let safe_reason: String = reason
         .chars()
@@ -1455,7 +1480,39 @@ fn backup_db_before_destructive_change(
         )
     })?;
 
+    prune_maintenance_backups(&backup_dir);
+
     Ok(Some(backup_path.to_string_lossy().to_string()))
+}
+
+/// Automatic maintenance backups, oldest first. The dedicated folder ensures pruning
+/// can never touch a manual copy or a migration backup.
+fn maintenance_backups(backup_dir: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(backup_dir) else {
+        return Vec::new();
+    };
+    let mut backups: Vec<PathBuf> = entries
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "db"))
+        .collect();
+    backups.sort();
+    backups
+}
+
+fn prune_maintenance_backups(backup_dir: &Path) {
+    let backups: Vec<(PathBuf, u64)> = maintenance_backups(backup_dir)
+        .into_iter()
+        .map(|path| {
+            let size = std::fs::metadata(&path)
+                .map(|metadata| metadata.len())
+                .unwrap_or(0);
+            (path, size)
+        })
+        .collect();
+    for stale in crate::commands::import::backups_to_discard(&backups) {
+        let _ = std::fs::remove_file(stale);
+    }
 }
 
 #[tauri::command]
@@ -1935,25 +1992,25 @@ pub async fn edit_find_photo_image(
     rotate_degrees: Option<i32>,
     crop: Option<CropRect>,
 ) -> Result<(), String> {
-    let conn = open_db(&storage_path)?;
-    let photo_path: String = conn
-        .query_row(
-            "SELECT photo_path FROM find_photos WHERE id = ?1",
-            params![photo_id],
-            |row| row.get(0),
-        )
-        .map_err(|e| format!("Photo not found: {}", e))?;
-
-    let absolute_path =
-        Path::new(&storage_path).join(photo_path.replace('/', std::path::MAIN_SEPARATOR_STR));
-    if !absolute_path.exists() {
-        return Err(format!(
-            "Photo file does not exist: {}",
-            absolute_path.display()
-        ));
-    }
-
     tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        let photo_path: String = conn
+            .query_row(
+                "SELECT photo_path FROM find_photos WHERE id = ?1",
+                params![photo_id],
+                |row| row.get(0),
+            )
+            .map_err(|e| format!("Photo not found: {}", e))?;
+
+        let absolute_path = Path::new(&storage_path)
+            .join(photo_path.replace('/', std::path::MAIN_SEPARATOR_STR));
+        if !absolute_path.exists() {
+            return Err(format!(
+                "Photo file does not exist: {}",
+                absolute_path.display()
+            ));
+        }
+
         let mut image = image::open(&absolute_path)
             .map_err(|e| format!("Failed to open image for editing: {}", e))?;
 
@@ -2439,6 +2496,16 @@ mod tests {
             file_name.ends_with("-prune-missing-photos-.db"),
             "the reason is sanitised into the file name, got {file_name}"
         );
+        assert_eq!(
+            Path::new(&backup_path).parent(),
+            Some(
+                dir.path()
+                    .join(".bili-backups")
+                    .join("maintenance")
+                    .as_path()
+            ),
+            "maintenance copies stay isolated from manual and migration backups"
+        );
 
         let backup = Connection::open(&backup_path).expect("open the backup");
         let check: String = backup
@@ -2461,6 +2528,31 @@ mod tests {
                 .expect("no database is not an error")
                 .is_none()
         );
+    }
+
+    #[test]
+    fn maintenance_backup_retention_keeps_three_newest_and_ignores_other_files() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let backup_dir = dir.path();
+        let names = [
+            "bili-mushroom-20260101-000000.000-cleanup.db",
+            "bili-mushroom-20260201-000000.000-cleanup.db",
+            "bili-mushroom-20260301-000000.000-cleanup.db",
+            "bili-mushroom-20260401-000000.000-cleanup.db",
+        ];
+        for name in names {
+            std::fs::write(backup_dir.join(name), b"backup").expect("write backup fixture");
+        }
+        let unrelated = backup_dir.join("readme.txt");
+        std::fs::write(&unrelated, b"do not delete").expect("write unrelated fixture");
+
+        prune_maintenance_backups(backup_dir);
+
+        assert!(!backup_dir.join(names[0]).exists());
+        for name in &names[1..] {
+            assert!(backup_dir.join(name).exists(), "{name} should be retained");
+        }
+        assert!(unrelated.exists(), "non-database files are never considered");
     }
 
     fn make_create_payload(species_name: &str) -> CreateFindPayload {
