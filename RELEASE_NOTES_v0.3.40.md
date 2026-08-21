@@ -17,6 +17,13 @@ A small honesty follow-up to v0.3.39, from a cross-review of the delete paths.
 - Reading a find's sample entry no longer treats an unreadable database as "this find has
   no sample". Only a genuinely absent row counts as absent; a corrupt or failing read now
   stops the delete transaction instead of quietly continuing.
+- An unplugged drive or a permissions problem is no longer mistaken for deleted photos.
+  Deletion, sample folder cleanup and the Settings cleanup now tell *confirmed absent*
+  apart from *could not be read*, and never act on the second.
+- **Clean up missing photo references** in Settings scans the whole library before it
+  changes anything, removes nothing at all if any path could not be read — naming the
+  path so you can plug the drive back in — and makes its row removals and primary-photo
+  promotions in one transaction rather than one row at a time.
 
 ## Deliberately unchanged
 
@@ -30,7 +37,7 @@ A small honesty follow-up to v0.3.39, from a cross-review of the delete paths.
 
 ## Verification
 
-- Rust: 136 passed, 0 failed, 1 ignored (optional real-GPS EXIF fixture).
+- Rust: 141 passed, 0 failed, 1 ignored (optional real-GPS EXIF fixture).
 - Frontend: 369 passed.
 - New Rust regression tests: the single-delete path reports what it could not remove; a
   photo already off the disk is not reported; a repeated delete of the same find succeeds

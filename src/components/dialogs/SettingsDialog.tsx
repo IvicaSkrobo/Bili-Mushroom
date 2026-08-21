@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { FINDS_QUERY_KEY } from '@/lib/finds';
+import { FINDS_QUERY_KEY, type PruneSummary } from '@/lib/finds';
 import { Archive, Database, FolderOpen, Globe2, HardDrive, Images, Info } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
@@ -52,7 +52,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [pruneConfirmOpen, setPruneConfirmOpen] = useState(false);
   const [pruning, setPruning] = useState(false);
-  const [pruneResult, setPruneResult] = useState<number | null>(null);
+  const [pruneResult, setPruneResult] = useState<PruneSummary | null>(null);
   const [suggestionsReset, setSuggestionsReset] = useState(false);
   const [stats, setStats] = useState<TileCacheStats>({ sizeBytes: 0, tileCount: 0 });
   const [libraryStats, setLibraryStats] = useState<LibraryStorageStats | null>(null);
@@ -97,10 +97,10 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     setPruning(true);
     setPruneResult(null);
     try {
-      const removed = await invoke<number>('prune_missing_photos', { storagePath });
-      setPruneResult(removed);
+      const summary = await invoke<PruneSummary>('prune_missing_photos', { storagePath });
+      setPruneResult(summary);
       setPruneConfirmOpen(false);
-      if (removed > 0) {
+      if (summary.removed > 0) {
         qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
       }
     } finally {
@@ -414,14 +414,25 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                   </AlertDialogContent>
                 </AlertDialog>
                 {pruneResult !== null && (
-                  <span className="text-xs text-muted-foreground">
-                    {pruneResult === 0
-                      ? t('settings.cleanMissingNone')
-                      : t('settings.cleanMissingRemoved', {
-                        count: pruneResult,
-                        suffix: pruneResult === 1 ? '' : 's',
+                  pruneResult.inaccessible.length > 0 ? (
+                    // Nothing was removed: the cleanup could not read part of the library,
+                    // and a photo it cannot see is not a photo it may forget.
+                    <span className="text-xs text-amber-600">
+                      {t('settings.cleanMissingUnreadable', {
+                        path: pruneResult.inaccessible[0],
+                        count: pruneResult.inaccessible.length,
                       })}
-                  </span>
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      {pruneResult.removed === 0
+                        ? t('settings.cleanMissingNone')
+                        : t('settings.cleanMissingRemoved', {
+                          count: pruneResult.removed,
+                          suffix: pruneResult.removed === 1 ? '' : 's',
+                        })}
+                    </span>
+                  )
                 )}
               </div>
             </div>

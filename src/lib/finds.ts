@@ -564,6 +564,15 @@ export interface BulkOperationFailure {
   error: string;
 }
 
+/** Result of the "clean up missing photo references" action in Settings. */
+export interface PruneSummary {
+  removed: number;
+  affected_finds: number;
+  /** Paths the filesystem refused to answer for. Non-empty means nothing was removed. */
+  inaccessible: string[];
+  backup_path: string | null;
+}
+
 export interface BulkOperationResult {
   requested: number;
   completed: number;

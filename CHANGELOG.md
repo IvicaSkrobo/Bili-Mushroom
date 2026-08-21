@@ -7,6 +7,8 @@
 - **No warning for photos that are already gone** — a file removed outside the app is treated as already deleted rather than as a failure, so deletion no longer points at a photo that does not exist. The photo library audit still lists such rows.
 - **Idempotent deletion** — deleting a find that is already gone counts as done instead of showing an error, so a stale list or a second confirmation no longer fails on completed work. Batch deletion still reports a missing id per item.
 - **Sample lookups no longer swallow database errors** — only a genuinely absent row counts as "no sample"; an unreadable database stops the delete transaction instead of silently continuing.
+- **An unreadable disk can no longer be mistaken for missing photos** — deletion, sample folder cleanup and "clean up missing photo references" now tell *confirmed absent* apart from *could not be read*. A path the filesystem refuses to answer for is never treated as deleted.
+- **Safer reference cleanup** — the Settings cleanup scans every path before touching the database, removes nothing at all if any path is unreadable and names it, and performs its row deletions and primary-photo promotions in a single transaction instead of one at a time.
 
 ---
 
