@@ -652,29 +652,52 @@ fn ensure_performance_indexes(conn: &Connection) -> Result<(), String> {
     Ok(())
 }
 
-static INITIALIZED_DATABASES: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+// Stores whether WAL was successfully enabled for each library path. Journal mode is
+// persistent, so negotiating it on every IPC connection adds work and can itself need a
+// database lock. `synchronous`, unlike journal mode, remains a per-connection setting.
+static INITIALIZED_DATABASES: OnceLock<Mutex<HashMap<String, bool>>> = OnceLock::new();
 
-fn configure_library_connection(conn: &Connection) -> Result<(), String> {
-    let current_mode: String = conn
-        .query_row("PRAGMA journal_mode", [], |row| row.get(0))
-        .map_err(|e| format!("Failed to read DB journal mode: {e}"))?;
-    let journal_mode = if current_mode.eq_ignore_ascii_case("wal") {
-        current_mode
-    } else {
-        conn.query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))
-            .map_err(|e| format!("Failed to enable WAL journal mode: {e}"))?
+fn enable_wal_if_supported(conn: &Connection) -> bool {
+    let current_mode = match conn.query_row("PRAGMA journal_mode", [], |row| {
+        row.get::<_, String>(0)
+    }) {
+        Ok(mode) => mode,
+        Err(error) => {
+            eprintln!("[db] Could not read journal mode; using rollback-safe settings: {error}");
+            return false;
+        }
     };
-    if !journal_mode.eq_ignore_ascii_case("wal") {
-        return Err(format!(
-            "SQLite could not enable WAL journal mode (active mode: {journal_mode})."
-        ));
+    if current_mode.eq_ignore_ascii_case("wal") {
+        return true;
     }
 
-    // NORMAL is SQLite's recommended durability/performance balance for WAL. A
-    // committed transaction remains safe from application crashes; only a sudden OS
-    // or power failure can lose the latest transaction, without corrupting the DB.
-    conn.execute_batch("PRAGMA synchronous = NORMAL;")
-        .map_err(|e| format!("Failed to configure WAL synchronization: {e}"))?;
+    match conn.query_row("PRAGMA journal_mode = WAL", [], |row| {
+        row.get::<_, String>(0)
+    }) {
+        Ok(mode) if mode.eq_ignore_ascii_case("wal") => true,
+        Ok(mode) => {
+            eprintln!("[db] WAL unavailable; staying on journal mode {mode}");
+            false
+        }
+        Err(error) => {
+            eprintln!(
+                "[db] WAL could not be enabled; staying on journal mode {current_mode}: {error}"
+            );
+            false
+        }
+    }
+}
+
+fn configure_connection_safety(conn: &Connection, wal_active: bool) -> Result<(), String> {
+    // NORMAL is safe from corruption under WAL and avoids an extra sync per commit. A
+    // rollback journal needs FULL so a sudden power loss cannot leave a partial commit.
+    let pragma = if wal_active {
+        "PRAGMA synchronous = NORMAL;"
+    } else {
+        "PRAGMA synchronous = FULL;"
+    };
+    conn.execute_batch(pragma)
+        .map_err(|e| format!("Failed to configure DB synchronization: {e}"))?;
     Ok(())
 }
 
@@ -690,17 +713,22 @@ pub(crate) fn open_db(storage_path: &str) -> Result<Connection, String> {
     // Migrations, repair PRAGMAs and CREATE INDEX checks are process-level setup,
     // not per-query work. Keep the first-open safety for tests and storage-path
     // switching while ensuring normal IPC reads only pay the connection cost.
-    let initialized = INITIALIZED_DATABASES.get_or_init(|| Mutex::new(HashSet::new()));
+    let initialized = INITIALIZED_DATABASES.get_or_init(|| Mutex::new(HashMap::new()));
     let mut initialized_paths = initialized
         .lock()
         .map_err(|_| "Database initialization lock was poisoned".to_string())?;
-    if !initialized_paths.contains(&db_path) {
+    let wal_active = if let Some(wal_active) = initialized_paths.get(&db_path) {
+        *wal_active
+    } else {
         backup_before_migration(&conn, storage_path)?;
         migrate_db(&conn)?;
         ensure_performance_indexes(&conn)?;
-        initialized_paths.insert(db_path);
-    }
-    configure_library_connection(&conn)?;
+        let wal_active = enable_wal_if_supported(&conn);
+        initialized_paths.insert(db_path, wal_active);
+        wal_active
+    };
+    drop(initialized_paths);
+    configure_connection_safety(&conn, wal_active)?;
     Ok(conn)
 }
 
@@ -3651,6 +3679,28 @@ mod tests {
         );
 
         writer.execute_batch("ROLLBACK").expect("release writer");
+    }
+
+    #[test]
+    fn unsupported_wal_falls_back_to_full_synchronous_without_rejecting_the_database() {
+        // SQLite in-memory databases deliberately keep journal_mode=memory when asked
+        // for WAL, which gives us a deterministic stand-in for a filesystem that cannot
+        // create the shared-memory sidecar used by WAL.
+        let conn = Connection::open_in_memory().expect("open in-memory database");
+
+        let wal_active = enable_wal_if_supported(&conn);
+        assert!(!wal_active, "in-memory SQLite must reject WAL");
+        configure_connection_safety(&conn, wal_active)
+            .expect("rollback fallback remains a usable database");
+
+        let journal_mode: String = conn
+            .query_row("PRAGMA journal_mode", [], |row| row.get(0))
+            .expect("read fallback journal mode");
+        assert_eq!(journal_mode.to_ascii_lowercase(), "memory");
+        let synchronous: i64 = conn
+            .query_row("PRAGMA synchronous", [], |row| row.get(0))
+            .expect("read fallback synchronous mode");
+        assert_eq!(synchronous, 2, "rollback fallback must use FULL");
     }
 
     #[test]
