@@ -1419,12 +1419,52 @@ fn bulk_rename_species_blocking(
         old_folders.sort();
         old_folders.dedup();
 
-        let renamed_whole_folder =
-            if old_folders.len() == 1 && old_folders[0].exists() && !target_folder.exists() {
-                std::fs::rename(&old_folders[0], &target_folder).is_ok()
-            } else {
-                false
-            };
+        // A species is only *leaving* if every find carrying it is in this selection.
+        // Renaming part of a species is a normal thing to do from the collection, and it
+        // must not disturb the finds left behind — neither their photos on disk nor the
+        // zones, notes and profile that still belong to the old name.
+        let selected: std::collections::HashSet<i64> = find_ids.iter().copied().collect();
+        let mut distinct_old_species: Vec<String> = old_species_names.clone();
+        distinct_old_species.sort();
+        distinct_old_species.dedup();
+        let mut fully_moved_species: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
+        for species in &distinct_old_species {
+            if species == &new_species_name {
+                continue;
+            }
+            let mut stmt = conn
+                .prepare("SELECT id FROM finds WHERE species_name = ?1")
+                .map_err(|e| e.to_string())?;
+            let mut all_selected = true;
+            let ids = stmt
+                .query_map(params![species], |row| row.get::<_, i64>(0))
+                .map_err(|e| e.to_string())?;
+            for id in ids {
+                let id = id.map_err(|e| e.to_string())?;
+                if !selected.contains(&id) {
+                    all_selected = false;
+                    break;
+                }
+            }
+            if all_selected {
+                fully_moved_species.insert(species.clone());
+            }
+        }
+
+        // Renaming the folder itself carries every file inside it, including photos of
+        // finds that were not selected. Only safe when the whole species is moving.
+        let whole_species_is_moving = distinct_old_species.len() == 1
+            && fully_moved_species.contains(&distinct_old_species[0]);
+        let renamed_whole_folder = if whole_species_is_moving
+            && old_folders.len() == 1
+            && old_folders[0].exists()
+            && !target_folder.exists()
+        {
+            std::fs::rename(&old_folders[0], &target_folder).is_ok()
+        } else {
+            false
+        };
 
         if !renamed_whole_folder {
             std::fs::create_dir_all(&target_folder).map_err(|e| {
@@ -1512,6 +1552,12 @@ fn bulk_rename_species_blocking(
         }
 
         for old_species_name in &old_species_names {
+            // Zones, notes and the profile describe the species, not these particular
+            // finds. Moving them while finds remain under the old name would take them
+            // away from the species that still has them.
+            if !fully_moved_species.contains(old_species_name) {
+                continue;
+            }
             tx.execute(
                 "UPDATE zones SET species_name = ?1 WHERE species_name = ?2",
                 params![new_species_name, old_species_name],
@@ -2972,6 +3018,110 @@ mod tests {
             )
             .expect("count renamed notes");
         assert_eq!(renamed_notes, 1, "species notes follow the rename");
+    }
+
+    /// Renaming part of a species must leave the rest of it alone: its finds, the photo
+    /// files on disk, and the zones, notes and profile that still describe it.
+    #[test]
+    fn partial_rename_leaves_the_remaining_finds_and_their_metadata_untouched() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_str().expect("storage path").to_string();
+        let old_species = "Boletus edulis";
+        let new_species = "Boletus reticulatus";
+
+        let old_folder = Path::new(&storage_path).join(resolve_location_component(
+            &plain_species_name(old_species),
+            "unknown_species",
+        ));
+        std::fs::create_dir_all(&old_folder).expect("create species folder");
+        let old_folder_name = old_folder
+            .file_name()
+            .and_then(|name| name.to_str())
+            .expect("folder name")
+            .to_string();
+        std::fs::write(old_folder.join("moved.jpg"), b"a").expect("write photo");
+        std::fs::write(old_folder.join("stays.jpg"), b"b").expect("write photo");
+
+        let (moved_id, stays_id);
+        {
+            let conn = open_db(&storage_path).expect("open library");
+            let mut record = make_find_record("moved.jpg", "2024-05-10");
+            record.species_name = old_species.to_string();
+            moved_id = insert_find_row(&conn, &record).expect("insert find");
+            insert_find_photo(&conn, moved_id, &format!("{old_folder_name}/moved.jpg"), true)
+                .expect("insert photo");
+
+            let mut other = make_find_record("stays.jpg", "2024-05-11");
+            other.species_name = old_species.to_string();
+            stays_id = insert_find_row(&conn, &other).expect("insert find");
+            insert_find_photo(&conn, stays_id, &format!("{old_folder_name}/stays.jpg"), true)
+                .expect("insert photo");
+
+            conn.execute(
+                "INSERT INTO species_notes (species_name, notes, updated_at) VALUES (?1, ?2, ?3)",
+                params![old_species, "sjeverna padina", "2024-05-10T00:00:00Z"],
+            )
+            .expect("insert species note");
+        }
+
+        bulk_rename_species_blocking(&storage_path, &[moved_id], new_species)
+            .expect("rename only one of the two finds");
+
+        let conn = open_db(&storage_path).expect("reopen library");
+
+        let stayed_species: String = conn
+            .query_row(
+                "SELECT species_name FROM finds WHERE id = ?1",
+                params![stays_id],
+                |row| row.get(0),
+            )
+            .expect("read the untouched find");
+        assert_eq!(
+            stayed_species, old_species,
+            "a find that was not selected keeps its species"
+        );
+
+        let stayed_photo: String = conn
+            .query_row(
+                "SELECT photo_path FROM find_photos WHERE find_id = ?1",
+                params![stays_id],
+                |row| row.get(0),
+            )
+            .expect("read the untouched photo row");
+        assert!(
+            Path::new(&storage_path)
+                .join(stayed_photo.replace('/', std::path::MAIN_SEPARATOR_STR))
+                .exists(),
+            "the untouched find's photo must still be where its row says: {stayed_photo}"
+        );
+
+        let notes_left_behind: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM species_notes WHERE species_name = ?1",
+                params![old_species],
+                |row| row.get(0),
+            )
+            .expect("count notes on the old species");
+        assert_eq!(
+            notes_left_behind, 1,
+            "species notes belong to the species that still has finds, not to the ones that left"
+        );
+
+        // And the find that did move is where it should be.
+        let moved_photo: String = conn
+            .query_row(
+                "SELECT photo_path FROM find_photos WHERE find_id = ?1",
+                params![moved_id],
+                |row| row.get(0),
+            )
+            .expect("read the moved photo row");
+        assert!(
+            Path::new(&storage_path)
+                .join(moved_photo.replace('/', std::path::MAIN_SEPARATOR_STR))
+                .exists(),
+            "the moved find's photo must exist at its new path: {moved_photo}"
+        );
+        assert_ne!(moved_photo, format!("{old_folder_name}/moved.jpg"));
     }
 
     #[test]
