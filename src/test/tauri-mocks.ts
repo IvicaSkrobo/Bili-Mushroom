@@ -55,9 +55,23 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
     return Array.from(new Map(labels.map((label) => [label.toLowerCase(), label])).values())
       .sort((a, b) => a.localeCompare(b));
   },
-  get_map_points: (args: unknown) =>
-    (invokeHandlers.get_finds(args) as Array<Record<string, any>>)
+  get_map_points: (args: unknown) => {
+    const query = (args as { query?: {
+      bounds?: { south: number; west: number; north: number; east: number } | null;
+      species_names?: string[];
+    } })?.query;
+    const selected = new Set(query?.species_names ?? []);
+    return (invokeHandlers.get_finds(args) as Array<Record<string, any>>)
       .filter((find) => find.lat != null && find.lng != null)
+      .filter((find) => selected.size === 0 || selected.has(String(find.species_name)))
+      .filter((find) => {
+        const bounds = query?.bounds;
+        if (!bounds) return true;
+        return Number(find.lat) >= bounds.south
+          && Number(find.lat) <= bounds.north
+          && Number(find.lng) >= bounds.west
+          && Number(find.lng) <= bounds.east;
+      })
       .map((find) => ({
         id: find.id,
         species_name: find.species_name,
@@ -67,7 +81,50 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
         notes: find.notes ?? '',
         location_note: find.location_note ?? '',
         photos: (find.photos ?? []).slice(0, 1),
-      })),
+      }));
+  },
+  get_map_metadata: (args: unknown) => {
+    const points = invokeHandlers.get_map_points({ ...(args as object), query: null }) as Array<Record<string, any>>;
+    const bySpecies = new Map<string, Array<Record<string, any>>>();
+    for (const point of points) {
+      const list = bySpecies.get(String(point.species_name)) ?? [];
+      list.push(point);
+      bySpecies.set(String(point.species_name), list);
+    }
+    const species = Array.from(bySpecies, ([species_name, rows]) => ({
+      species_name,
+      point_count: rows.length,
+      bounds: {
+        south: Math.min(...rows.map((row) => Number(row.lat))),
+        west: Math.min(...rows.map((row) => Number(row.lng))),
+        north: Math.max(...rows.map((row) => Number(row.lat))),
+        east: Math.max(...rows.map((row) => Number(row.lng))),
+      },
+    })).sort((a, b) => a.species_name.localeCompare(b.species_name));
+    return {
+      total_points: points.length,
+      bounds: species.length === 0 ? null : {
+        south: Math.min(...species.map((row) => row.bounds.south)),
+        west: Math.min(...species.map((row) => row.bounds.west)),
+        north: Math.max(...species.map((row) => row.bounds.north)),
+        east: Math.max(...species.map((row) => row.bounds.east)),
+      },
+      species,
+    };
+  },
+  get_map_clusters: (args: unknown) => {
+    const query = (args as { query: {
+      bounds: { south: number; west: number; north: number; east: number };
+      species_names?: string[];
+    } }).query;
+    const points = invokeHandlers.get_map_points({ ...(args as object), query }) as Array<Record<string, any>>;
+    return points.length === 0 ? [] : [{
+      lat: points.reduce((sum, point) => sum + Number(point.lat), 0) / points.length,
+      lng: points.reduce((sum, point) => sum + Number(point.lng), 0) / points.length,
+      point_count: points.length,
+      species_count: new Set(points.map((point) => point.species_name)).size,
+    }];
+  },
   get_species_options: (args: unknown) => {
     const byKey = new Map<string, Record<string, any>>();
     const add = (name: unknown, hasFinds: boolean, profile?: Record<string, any>) => {

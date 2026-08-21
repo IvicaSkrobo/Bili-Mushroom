@@ -12,6 +12,8 @@ const mapPointsRef = {
 };
 vi.mock('@/hooks/useFinds', () => ({
   useMapPoints: () => mapPointsRef.current,
+  useMapClusters: () => ({ data: [], error: null }),
+  useMapMetadata: () => ({ data: { total_points: 0, bounds: null, species: [] }, error: null }),
 }));
 
 vi.mock('@/hooks/useZones', () => ({

@@ -2,6 +2,12 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
 let mapEvents: Record<string, (event: any) => void> = {};
+const mapMock = {
+  addLayer: vi.fn(),
+  removeLayer: vi.fn(),
+  fitBounds: vi.fn(),
+  flyTo: vi.fn(),
+};
 
 // Stub react-leaflet so jsdom does not try to render a real map
 vi.mock('react-leaflet', () => ({
@@ -10,7 +16,7 @@ vi.mock('react-leaflet', () => ({
       {children}
     </div>
   ),
-  useMap: () => ({ addLayer: vi.fn(), removeLayer: vi.fn() }),
+  useMap: () => mapMock,
   useMapEvents: (events: Record<string, (event: any) => void>) => {
     mapEvents = events;
     return {};
@@ -33,6 +39,7 @@ import { FindsMap } from './FindsMap';
 describe('FindsMap', () => {
   beforeEach(() => {
     mapEvents = {};
+    vi.clearAllMocks();
   });
 
   it('renders MapContainer with Croatia center [45.1, 15.2] zoom 7 when finds is empty', () => {
@@ -63,6 +70,25 @@ describe('FindsMap', () => {
     expect(screen.getByRole('button', { name: /move \(m\)/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /add point \(n\)/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
+  });
+
+  it('fits a selected species when metadata bounds become available', () => {
+    const { rerender } = render(
+      <FindsMap finds={[]} fitBoundsTrigger={1} focusBounds={null} />,
+    );
+    expect(mapMock.fitBounds).not.toHaveBeenCalled();
+
+    rerender(
+      <FindsMap
+        finds={[]}
+        fitBoundsTrigger={1}
+        focusBounds={{ south: 44, west: 14, north: 46, east: 17 }}
+      />,
+    );
+    expect(mapMock.fitBounds).toHaveBeenCalledWith(
+      [[44, 14], [46, 17]],
+      expect.objectContaining({ maxZoom: 15 }),
+    );
   });
 
   it('inserts add-mode clicks into the nearest polygon edge once a polygon exists', () => {

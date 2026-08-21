@@ -276,8 +276,61 @@ export interface MapPoint {
   photos: FindPhoto[];
 }
 
-export async function getMapPoints(storagePath: string): Promise<MapPoint[]> {
-  return invoke<MapPoint[]>('get_map_points', { storagePath });
+export interface MapBounds {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
+
+export interface MapPointQuery {
+  bounds?: MapBounds | null;
+  species_names?: string[];
+}
+
+export interface MapSpeciesSummary {
+  species_name: string;
+  point_count: number;
+  bounds: MapBounds;
+}
+
+export interface MapMetadata {
+  total_points: number;
+  bounds: MapBounds | null;
+  species: MapSpeciesSummary[];
+}
+
+export interface MapViewport {
+  bounds: MapBounds;
+  zoom: number;
+}
+
+export interface MapCluster {
+  lat: number;
+  lng: number;
+  point_count: number;
+  species_count: number;
+}
+
+export interface MapClusterQuery {
+  bounds: MapBounds;
+  species_names?: string[];
+  zoom: number;
+}
+
+export async function getMapPoints(
+  storagePath: string,
+  query?: MapPointQuery,
+): Promise<MapPoint[]> {
+  return invoke<MapPoint[]>('get_map_points', { storagePath, query: query ?? null });
+}
+
+export async function getMapMetadata(storagePath: string): Promise<MapMetadata> {
+  return invoke<MapMetadata>('get_map_metadata', { storagePath });
+}
+
+export async function getMapClusters(storagePath: string, query: MapClusterQuery): Promise<MapCluster[]> {
+  return invoke<MapCluster[]>('get_map_clusters', { storagePath, query });
 }
 
 export async function getCollectionFolders(

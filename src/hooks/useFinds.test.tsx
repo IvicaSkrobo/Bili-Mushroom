@@ -5,6 +5,9 @@ import { ReactNode } from 'react';
 import {
   useFinds,
   useFindLocations,
+  useMapClusters,
+  useMapMetadata,
+  useMapPoints,
   useSetFindFavorite,
   useSpeciesNote,
   useSpeciesOptions,
@@ -118,6 +121,55 @@ describe('useFinds', () => {
     expect(result.current.isLoading).toBe(false);
     expect(result.current.fetchStatus).toBe('idle');
     expect(result.current.data).toBeUndefined();
+  });
+});
+
+describe('map queries', () => {
+  beforeEach(() => {
+    useAppStore.setState({ storagePath: '/storage/test', dbReady: true });
+  });
+
+  it('sends viewport and species filters to the lightweight map command', async () => {
+    let received: unknown;
+    invokeHandlers.get_map_points = (args: unknown) => {
+      received = args;
+      return [];
+    };
+    const query = {
+      bounds: { south: 44, west: 14, north: 46, east: 17 },
+      species_names: ['Boletus edulis'],
+    };
+    const { result } = renderHook(() => useMapPoints(query), {
+      wrapper: makeWrapper(makeQueryClient()),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(received).toEqual({ storagePath: '/storage/test', query });
+  });
+
+  it('loads global map metadata separately from point rows', async () => {
+    invokeHandlers.get_map_metadata = () => ({ total_points: 12, bounds: null, species: [] });
+    const { result } = renderHook(() => useMapMetadata(), {
+      wrapper: makeWrapper(makeQueryClient()),
+    });
+    await waitFor(() => expect(result.current.data?.total_points).toBe(12));
+  });
+
+  it('sends viewport and zoom to the aggregate cluster command', async () => {
+    let received: unknown;
+    invokeHandlers.get_map_clusters = (args: unknown) => {
+      received = args;
+      return [{ lat: 45, lng: 16, point_count: 12, species_count: 3 }];
+    };
+    const query = {
+      bounds: { south: 44, west: 14, north: 46, east: 17 },
+      species_names: ['Boletus edulis'],
+      zoom: 7,
+    };
+    const { result } = renderHook(() => useMapClusters(query), {
+      wrapper: makeWrapper(makeQueryClient()),
+    });
+    await waitFor(() => expect(result.current.data?.[0].point_count).toBe(12));
+    expect(received).toEqual({ storagePath: '/storage/test', query });
   });
 });
 

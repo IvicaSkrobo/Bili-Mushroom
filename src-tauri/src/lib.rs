@@ -28,6 +28,8 @@ pub fn run() {
             commands::import::get_find_locations,
             commands::import::get_species_options,
             commands::import::get_map_points,
+            commands::import::get_map_clusters,
+            commands::import::get_map_metadata,
             commands::import::get_collection_folders,
             commands::import::get_species_finds,
             commands::import::update_find,

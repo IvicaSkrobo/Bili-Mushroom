@@ -3,7 +3,8 @@ import { FindsMap } from '@/components/map/FindsMap';
 import { SpeciesFilterPanel } from '@/components/map/SpeciesFilterPanel';
 import { ZoneModeControl } from '@/components/map/ZoneModeControl';
 import { useAppStore } from '@/stores/appStore';
-import { useMapPoints } from '@/hooks/useFinds';
+import { useMapClusters, useMapMetadata, useMapPoints } from '@/hooks/useFinds';
+import { MAP_POINT_DETAIL_ZOOM } from '@/components/map/MapClusters';
 import { useUpsertZone, useZones } from '@/hooks/useZones';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 import {
@@ -17,7 +18,8 @@ import {
   type ZoneViewMode,
 } from '@/lib/zones';
 import type { Zone } from '@/lib/zones';
-import type { MapPoint } from '@/lib/finds';
+import { getMapPoints, type MapPoint, type MapViewport } from '@/lib/finds';
+import { boundsForSelectedSpecies } from '@/lib/mapViewport';
 import { compareSpeciesNames, plainSpeciesName } from '@/lib/speciesName';
 import { useT } from '@/i18n/index';
 import { X } from 'lucide-react';
@@ -30,7 +32,8 @@ export default function MapTab() {
   const setPendingMapSpeciesFilter = useAppStore((s) => s.setPendingMapSpeciesFilter);
   // An empty map and a failed load look identical, which once cost an evening of
   // hunting a bug that was really a stale binary. Surface the failure.
-  const { data: finds, error: findsError } = useMapPoints(isActive);
+  const [viewport, setViewport] = useState<MapViewport | null>(null);
+  const { data: mapMetadata, error: metadataError } = useMapMetadata(isActive);
   const { data: zones } = useZones(isActive);
   const upsertZone = useUpsertZone();
   const [selectedSpecies, setSelectedSpecies] = useState<Set<string>>(new Set());
@@ -44,6 +47,28 @@ export default function MapTab() {
   const [regionTargetFind, setRegionTargetFind] = useState<MapPoint | null>(null);
   const [fitBoundsTrigger, setFitBoundsTrigger] = useState(0);
   const polygonEditorActive = polygonEditor != null;
+  const selectedSpeciesNames = useMemo(
+    () => Array.from(selectedSpecies).sort(compareSpeciesNames),
+    [selectedSpecies],
+  );
+  const mapPointQuery = useMemo(() => ({
+    bounds: viewport?.bounds,
+    species_names: selectedSpeciesNames,
+  }), [selectedSpeciesNames, viewport]);
+  const detailMode = (viewport?.zoom ?? 0) >= MAP_POINT_DETAIL_ZOOM;
+  const { data: finds, error: findsError } = useMapPoints(
+    mapPointQuery,
+    isActive && viewport != null && detailMode,
+  );
+  const clusterQuery = useMemo(() => viewport ? ({
+    bounds: viewport.bounds,
+    species_names: selectedSpeciesNames,
+    zoom: viewport.zoom,
+  }) : null, [selectedSpeciesNames, viewport]);
+  const { data: clusters, error: clustersError } = useMapClusters(
+    clusterQuery,
+    isActive && viewport != null && !detailMode,
+  );
 
   // Space toggles filter panel when map tab is active
   useEffect(() => {
@@ -98,13 +123,11 @@ export default function MapTab() {
   }, [polygonEditorActive]);
 
   const allSpecies = useMemo(() => {
-    const names = new Set<string>();
-    for (const f of finds ?? []) {
-      if (isInternalLibraryName(f.species_name)) continue;
-      names.add(f.species_name);
-    }
-    return Array.from(names).sort(compareSpeciesNames);
-  }, [finds]);
+    return (mapMetadata?.species ?? [])
+      .map((summary) => summary.species_name)
+      .filter((name) => !isInternalLibraryName(name))
+      .sort(compareSpeciesNames);
+  }, [mapMetadata]);
 
   const filteredFinds = useMemo(() => {
     const visibleFinds = (finds ?? []).filter((f) => !isInternalLibraryName(f.species_name));
@@ -112,10 +135,9 @@ export default function MapTab() {
     return visibleFinds.filter((f) => selectedSpecies.has(f.species_name));
   }, [finds, selectedSpecies]);
 
-  const visibleSpecies = useMemo(
-    () => new Set(filteredFinds.map((find) => find.species_name)),
-    [filteredFinds],
-  );
+  const visibleSpecies = useMemo(() => (
+    selectedSpecies.size > 0 ? selectedSpecies : new Set(allSpecies)
+  ), [allSpecies, selectedSpecies]);
 
   const filteredZones = useMemo(
     () => (zones ?? []).filter((zone) => visibleSpecies.has(zone.species_name)),
@@ -123,13 +145,18 @@ export default function MapTab() {
   );
 
   const regionTargetSpecies = useMemo(() => {
-    if (activeSpecies && visibleSpecies.has(activeSpecies)) return activeSpecies;
+    if (activeSpecies && allSpecies.includes(activeSpecies)) return activeSpecies;
     if (selectedSpecies.size === 1) {
       const [only] = Array.from(selectedSpecies);
-      return visibleSpecies.has(only) ? only : null;
+      return allSpecies.includes(only) ? only : null;
     }
     return null;
-  }, [activeSpecies, selectedSpecies, visibleSpecies]);
+  }, [activeSpecies, allSpecies, selectedSpecies]);
+
+  const focusBounds = useMemo(
+    () => boundsForSelectedSpecies(mapMetadata, selectedSpecies),
+    [mapMetadata, selectedSpecies],
+  );
 
   const existingRegionZone = useMemo(() => {
     if (!regionTargetSpecies) return null;
@@ -154,6 +181,18 @@ export default function MapTab() {
   const activeZone = useMemo(
     () => (activeZoneId == null ? null : (zones ?? []).find((zone) => zone.id === activeZoneId) ?? null),
     [zones, activeZoneId],
+  );
+  const zoneContextSpecies = activeZone?.species_name ?? polygonEditor?.speciesName ?? null;
+  const zoneContextQuery = useMemo(() => ({
+    species_names: zoneContextSpecies ? [zoneContextSpecies] : [],
+  }), [zoneContextSpecies]);
+  const { data: zoneContextFinds } = useMapPoints(
+    zoneContextQuery,
+    isActive && zoneContextSpecies != null,
+  );
+  const accurateZoneFinds = useMemo(
+    () => (zoneContextFinds ?? []).filter((find) => find.species_name === zoneContextSpecies),
+    [zoneContextFinds, zoneContextSpecies],
   );
   const existingLocalCircle = useMemo(() => {
     if (!localTargetFind) return null;
@@ -258,7 +297,9 @@ export default function MapTab() {
   }
 
   async function createRegionZoneForSpecies(speciesName: string, preferredSourceFindId: number | null = null) {
-    const locatableFinds = (finds ?? []).filter(
+    if (!storagePath) return null;
+    const speciesPoints = await getMapPoints(storagePath, { species_names: [speciesName] });
+    const locatableFinds = speciesPoints.filter(
       (find): find is MapPoint & { lat: number; lng: number } =>
         find.species_name === speciesName && find.lat != null && find.lng != null,
     );
@@ -497,6 +538,9 @@ export default function MapTab() {
   async function handleZoneTypeSelected(zone: Zone, zoneType: ZoneType) {
     setZoneMode((current) => (current === 'all' ? current : zoneType));
     setActiveSpecies(zone.species_name);
+    const speciesFinds = storagePath
+      ? await getMapPoints(storagePath, { species_names: [zone.species_name] })
+      : (finds ?? []);
     const siblingZones = (zones ?? []).filter(
       (candidate) =>
         candidate.zone_type === zoneType &&
@@ -505,10 +549,10 @@ export default function MapTab() {
 
     if (zoneType === 'local') {
       const targetFind =
-        (finds ?? []).find((find) => find.id === zone.source_find_id) ??
+        speciesFinds.find((find) => find.id === zone.source_find_id) ??
         (localTargetFind?.species_name === zone.species_name ? localTargetFind : null) ??
         ((siblingZones.length === 1 && siblingZones[0].source_find_id != null)
-          ? (finds ?? []).find((find) => find.id === siblingZones[0].source_find_id) ?? null
+          ? speciesFinds.find((find) => find.id === siblingZones[0].source_find_id) ?? null
           : null);
       setLocalTargetFind(targetFind);
     }
@@ -535,8 +579,8 @@ export default function MapTab() {
 
     if (zoneType === 'local') {
       const targetFind =
-        (finds ?? []).find((find) => find.id === zone.source_find_id) ??
-        (finds ?? []).find((find) => find.species_name === zone.species_name && find.lat != null && find.lng != null) ??
+        speciesFinds.find((find) => find.id === zone.source_find_id) ??
+        speciesFinds.find((find) => find.lat != null && find.lng != null) ??
         null;
 
       if (!targetFind) {
@@ -563,8 +607,8 @@ export default function MapTab() {
     }
 
     const targetFind =
-      (finds ?? []).find((find) => find.id === zone.source_find_id) ??
-      (finds ?? []).find((find) => find.species_name === zone.species_name && find.lat != null && find.lng != null) ??
+      speciesFinds.find((find) => find.id === zone.source_find_id) ??
+      speciesFinds.find((find) => find.lat != null && find.lng != null) ??
       null;
     if (!targetFind) {
       window.alert(t('map.zoneNoFindRegion'));
@@ -584,7 +628,7 @@ export default function MapTab() {
 
   return (
     <div className="relative h-full w-full">
-      {findsError != null && (
+      {(findsError != null || clustersError != null || metadataError != null) && (
         <div
           role="alert"
           className="pointer-events-none absolute inset-x-0 top-2 z-[1200] mx-auto w-fit max-w-[80%] rounded-sm border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs text-destructive backdrop-blur-sm"
@@ -593,7 +637,8 @@ export default function MapTab() {
         </div>
       )}
       <FindsMap
-        finds={filteredFinds}
+        finds={detailMode ? filteredFinds : []}
+        clusters={detailMode ? [] : (clusters ?? [])}
         zones={filteredZones}
         zoneMode={zoneMode}
         onStartLocalPolygonForFind={handleStartLocalPolygonForFind}
@@ -626,6 +671,10 @@ export default function MapTab() {
         onZoneTypeSelected={handleZoneTypeSelected}
         focusMode={polygonEditorActive}
         fitBoundsTrigger={fitBoundsTrigger}
+        libraryBounds={mapMetadata?.bounds ?? null}
+        focusBounds={focusBounds}
+        zoneSummaryFinds={activeZone ? accurateZoneFinds : filteredFinds}
+        onViewportChange={setViewport}
         drawTargetFind={
           polygonEditor?.zoneType === 'local'
             ? localTargetFind
@@ -640,6 +689,9 @@ export default function MapTab() {
           mode={zoneMode}
           visibleFinds={filteredFinds}
           activeSpecies={regionTargetSpecies}
+          hasMappedActiveSpecies={regionTargetSpecies != null && (mapMetadata?.species ?? []).some(
+            (summary) => summary.species_name === regionTargetSpecies && summary.point_count > 0,
+          )}
           localTargetFind={localTargetFind}
           hasLocalCircle={existingLocalCircle != null}
           hasLocalPolygon={existingLocalPolygon != null}

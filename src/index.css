@@ -381,3 +381,21 @@ input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: po
     0 0 0 3px rgba(255, 244, 217, 0.86),
     0 6px 14px rgba(0, 0, 0, 0.28);
 }
+
+.leaflet-tooltip.bili-map-cluster-label {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #fff8e8;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.leaflet-tooltip.bili-map-cluster-label::before {
+  display: none;
+}

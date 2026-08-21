@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import { MapContainer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import {
@@ -14,7 +14,7 @@ import { useAppStore, saveMapViewport, loadMapViewport } from '@/stores/appStore
 import { applyLeafletIconFix } from './leafletIconFix';
 import { createRustProxyTileLayer } from './RustProxyTileLayer';
 import type { MapLayer } from '@/stores/appStore';
-import { useMapPoints } from '@/hooks/useFinds';
+import { useMapClusters, useMapMetadata, useMapPoints } from '@/hooks/useFinds';
 import { useZones } from '@/hooks/useZones';
 import { findContainingRegionZone } from '@/lib/zones';
 import { PickerPins } from './PickerPins';
@@ -22,6 +22,10 @@ import { SpeciesFilterPanel } from './SpeciesFilterPanel';
 import { isInternalLibraryName } from '@/lib/internalEntries';
 import { compareSpeciesNames } from '@/lib/speciesName';
 import { LocateFixed } from 'lucide-react';
+import type { MapBounds, MapViewport } from '@/lib/finds';
+import { boundsForSelectedSpecies } from '@/lib/mapViewport';
+import { MapViewportReporter } from './MapViewportReporter';
+import { MapClusters, MAP_POINT_DETAIL_ZOOM } from './MapClusters';
 
 applyLeafletIconFix();
 
@@ -125,7 +129,7 @@ function PickerViewportSaver() {
   return null;
 }
 
-function PickerFitButton({ finds }: { finds: Array<{ lat: number | null; lng: number | null }> }) {
+function PickerFitButton({ bounds }: { bounds: MapBounds | null }) {
   const map = useMap();
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const stopMapEvent = (event: React.SyntheticEvent) => {
@@ -155,12 +159,9 @@ function PickerFitButton({ finds }: { finds: Array<{ lat: number | null; lng: nu
       onDoubleClick={stopMapEvent}
       onClick={(event) => {
         stopMapEvent(event);
-        const withCoords = finds.filter(
-          (find): find is { lat: number; lng: number } => find.lat != null && find.lng != null,
-        );
-        if (withCoords.length > 0) {
+        if (bounds) {
           map.fitBounds(
-            withCoords.map((find) => [find.lat, find.lng] as [number, number]),
+            [[bounds.south, bounds.west], [bounds.north, bounds.east]],
             { padding: [40, 40], maxZoom: 16 },
           );
         } else {
@@ -191,6 +192,7 @@ export function LocationPickerMap({
   const [manualError, setManualError] = useState<string | null>(null);
   const [selectedSpecies, setSelectedSpecies] = useState<Set<string>>(new Set());
   const [filterOpen, setFilterOpen] = useState(false);
+  const [viewport, setViewport] = useState<MapViewport | null>(null);
 
   const savedViewport = !initialLatLng ? loadMapViewport() : null;
   const initialCenter: [number, number] = initialLatLng
@@ -216,19 +218,37 @@ export function LocationPickerMap({
       setPinLabel(null);
       setPinLocationNote(null);
       setFilterOpen(false);
+      setViewport(null);
       const sv = !initialLatLng ? loadMapViewport() : null;
       currentZoomRef.current = initialLatLng ? EXISTING_PIN_ZOOM : (sv?.zoom ?? CROATIA_ZOOM);
     }
   }, [open, initialLatLng]);
 
-  const { data: finds } = useMapPoints(open);
+  const selectedSpeciesNames = useMemo(
+    () => Array.from(selectedSpecies).sort(compareSpeciesNames),
+    [selectedSpecies],
+  );
+  const mapPointQuery = useMemo(() => ({
+    bounds: viewport?.bounds,
+    species_names: selectedSpeciesNames,
+  }), [selectedSpeciesNames, viewport]);
+  const detailMode = (viewport?.zoom ?? 0) >= MAP_POINT_DETAIL_ZOOM;
+  const { data: mapMetadata } = useMapMetadata(open);
+  const { data: finds } = useMapPoints(mapPointQuery, open && viewport != null && detailMode);
+  const clusterQuery = useMemo(() => viewport ? ({
+    bounds: viewport.bounds,
+    species_names: selectedSpeciesNames,
+    zoom: viewport.zoom,
+  }) : null, [selectedSpeciesNames, viewport]);
+  const { data: clusters } = useMapClusters(clusterQuery, open && viewport != null && !detailMode);
   const { data: zones } = useZones(open);
   const visibleFinds = (finds ?? []).filter((find) => !isInternalLibraryName(find.species_name));
-  const allSpecies = Array.from(new Set(visibleFinds.map((find) => find.species_name).filter(Boolean)))
+  const allSpecies = (mapMetadata?.species ?? []).map((summary) => summary.species_name)
     .sort(compareSpeciesNames);
   const filteredFinds = selectedSpecies.size === 0
     ? visibleFinds
     : visibleFinds.filter((find) => selectedSpecies.has(find.species_name));
+  const fitBounds = boundsForSelectedSpecies(mapMetadata, selectedSpecies);
 
   function handleToggleSpecies(name: string) {
     setSelectedSpecies((prev) => {
@@ -281,7 +301,11 @@ export function LocationPickerMap({
                 <PickerLayerSwitcher />
                 <MapZoomTracker zoomRef={currentZoomRef} />
                 <PickerViewportSaver />
-                <PickerFitButton finds={filteredFinds} />
+                <MapViewportReporter onViewportChange={(nextViewport) => {
+                  currentZoomRef.current = nextViewport.zoom;
+                  setViewport(nextViewport);
+                }} />
+                <PickerFitButton bounds={fitBounds} />
                 <ClickHandler
                   onPick={(latlng) => {
                     setPickedCoordinate(latlng.lat, latlng.lng);
@@ -290,11 +314,12 @@ export function LocationPickerMap({
 
               {/* Existing find pins — click to adopt that location, no popup */}
                 <PickerPins
-                  finds={filteredFinds}
+                  finds={detailMode ? filteredFinds : []}
                   onPickLocation={(lat, lng, label, locationNote) => {
                     setPickedCoordinate(lat, lng, locationNote, label);
                   }}
                 />
+                {!detailMode && <MapClusters clusters={clusters ?? []} />}
 
               {/* Selected pin — draggable */}
                 {pin && (

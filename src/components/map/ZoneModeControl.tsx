@@ -11,6 +11,7 @@ interface ZoneModeControlProps {
   mode: ZoneViewMode;
   visibleFinds: MapPoint[];
   activeSpecies: string | null;
+  hasMappedActiveSpecies?: boolean;
   localTargetFind: MapPoint | null;
   hasLocalCircle: boolean;
   hasLocalPolygon: boolean;
@@ -33,6 +34,7 @@ export function ZoneModeControl({
   mode,
   visibleFinds,
   activeSpecies,
+  hasMappedActiveSpecies = false,
   localTargetFind,
   hasLocalCircle,
   hasLocalPolygon,
@@ -60,8 +62,10 @@ export function ZoneModeControl({
   ];
   const species = Array.from(new Set(visibleFinds.map((find) => find.species_name)));
   const targetSpecies = activeSpecies ?? (species.length === 1 ? species[0] : null);
-  const canCreateRegion = targetSpecies != null && visibleFinds.some(
-    (find) => find.species_name === targetSpecies && find.lat != null && find.lng != null,
+  const canCreateRegion = targetSpecies != null && (
+    hasMappedActiveSpecies || visibleFinds.some(
+      (find) => find.species_name === targetSpecies && find.lat != null && find.lng != null,
+    )
   );
   const showRegionTools = !activeZoneOpen && (mode === 'region' || mode === 'all');
   const showLocalTools = !activeZoneOpen && mode === 'local';

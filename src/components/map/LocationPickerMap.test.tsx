@@ -120,8 +120,29 @@ vi.mock('./leafletIconFix', () => ({
 // LocationPickerMap uses useFinds to load finds passed to CollectionPins
 vi.mock('@/hooks/useFinds', () => ({
   useMapPoints: () => ({ data: findsMock.data }),
+  useMapClusters: () => ({ data: [] }),
+  useMapMetadata: () => ({
+    data: {
+      total_points: findsMock.data.length,
+      bounds: findsMock.data.length > 0 ? { south: 44, west: 13, north: 47, east: 19 } : null,
+      species: Array.from(new Set(findsMock.data.map((find) => find.species_name))).map((species_name) => ({
+        species_name,
+        point_count: 1,
+        bounds: { south: 44, west: 13, north: 47, east: 19 },
+      })),
+    },
+  }),
   useSpeciesNotes: () => ({ data: [] }),
   useSpeciesProfiles: () => ({ data: [] }),
+}));
+
+vi.mock('./MapViewportReporter', () => ({
+  MapViewportReporter: ({ onViewportChange }: { onViewportChange: (viewport: unknown) => void }) => {
+    React.useEffect(() => {
+      onViewportChange({ bounds: { south: 44, west: 13, north: 47, east: 19 }, zoom: 13 });
+    }, []);
+    return null;
+  },
 }));
 
 // Mock PickerPins — renders one marker per find with coordinates

@@ -1852,25 +1852,145 @@ pub struct MapPoint {
     pub photos: Vec<FindPhoto>,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct MapBounds {
+    pub south: f64,
+    pub west: f64,
+    pub north: f64,
+    pub east: f64,
+}
+
+#[derive(serde::Deserialize, Default)]
+pub struct MapPointQuery {
+    #[serde(default)]
+    pub bounds: Option<MapBounds>,
+    #[serde(default)]
+    pub species_names: Vec<String>,
+}
+
+#[derive(serde::Serialize, Debug, PartialEq)]
+pub struct MapSpeciesSummary {
+    pub species_name: String,
+    pub point_count: i64,
+    pub bounds: MapBounds,
+}
+
+#[derive(serde::Serialize, Debug, PartialEq)]
+pub struct MapMetadata {
+    pub total_points: i64,
+    pub bounds: Option<MapBounds>,
+    pub species: Vec<MapSpeciesSummary>,
+}
+
+#[derive(serde::Serialize, Debug, PartialEq)]
+pub struct MapCluster {
+    pub lat: f64,
+    pub lng: f64,
+    pub point_count: i64,
+    pub species_count: i64,
+}
+
+#[derive(serde::Deserialize)]
+pub struct MapClusterQuery {
+    pub bounds: MapBounds,
+    #[serde(default)]
+    pub species_names: Vec<String>,
+    pub zoom: u8,
+}
+
+fn validate_map_bounds(bounds: MapBounds) -> Result<MapBounds, String> {
+    if !bounds.south.is_finite()
+        || !bounds.west.is_finite()
+        || !bounds.north.is_finite()
+        || !bounds.east.is_finite()
+        || bounds.south < -90.0
+        || bounds.north > 90.0
+        || bounds.west < -180.0
+        || bounds.west > 180.0
+        || bounds.east < -180.0
+        || bounds.east > 180.0
+        || bounds.south > bounds.north
+    {
+        return Err("Invalid map bounds".to_string());
+    }
+    Ok(bounds)
+}
+
+fn push_map_query_filters(
+    query: Option<&MapPointQuery>,
+    where_clauses: &mut Vec<String>,
+    query_params: &mut Vec<Box<dyn ToSql>>,
+) -> Result<(), String> {
+    if let Some(bounds) = query.and_then(|value| value.bounds) {
+        let bounds = validate_map_bounds(bounds)?;
+        where_clauses.push("f.lat BETWEEN ? AND ?".to_string());
+        query_params.push(Box::new(bounds.south));
+        query_params.push(Box::new(bounds.north));
+        if bounds.west <= bounds.east {
+            where_clauses.push("f.lng BETWEEN ? AND ?".to_string());
+        } else {
+            where_clauses.push("(f.lng >= ? OR f.lng <= ?)".to_string());
+        }
+        query_params.push(Box::new(bounds.west));
+        query_params.push(Box::new(bounds.east));
+    }
+    if let Some(species_names) = query
+        .map(|value| {
+            value
+                .species_names
+                .iter()
+                .map(|name| name.trim())
+                .filter(|name| !name.is_empty())
+                .collect::<Vec<_>>()
+        })
+        .filter(|names| !names.is_empty())
+    {
+        let placeholders = std::iter::repeat("?")
+            .take(species_names.len())
+            .collect::<Vec<_>>()
+            .join(",");
+        where_clauses.push(format!("f.species_name IN ({placeholders})"));
+        query_params.extend(
+            species_names
+                .into_iter()
+                .map(|name| Box::new(name.to_string()) as Box<dyn ToSql>),
+        );
+    }
+    Ok(())
+}
+
 /// Finds that can actually be drawn on the map.
 #[tauri::command]
-pub async fn get_map_points(storage_path: String) -> Result<Vec<MapPoint>, String> {
+pub async fn get_map_points(
+    storage_path: String,
+    query: Option<MapPointQuery>,
+) -> Result<Vec<MapPoint>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let conn = open_db(&storage_path)?;
-        get_map_points_for_connection(&conn)
+        get_map_points_for_connection(&conn, query.as_ref())
     })
     .await
     .map_err(|error| format!("Map points worker failed: {error}"))?
 }
 
-fn get_map_points_for_connection(conn: &Connection) -> Result<Vec<MapPoint>, String> {
+fn get_map_points_for_connection(
+    conn: &Connection,
+    query: Option<&MapPointQuery>,
+) -> Result<Vec<MapPoint>, String> {
     // Finds without coordinates were previously loaded in full and then dropped by the
     // grouping code; they are excluded here instead. The photo comes from a correlated
     // subquery rather than a second IN (...) pass, so this stays one statement with no
     // parameter list that grows with the library.
-    let mut stmt = conn
-        .prepare(
-            "SELECT f.id, f.species_name, f.date_found, f.lat, f.lng, f.notes, f.location_note,
+    let mut where_clauses = vec![
+        "f.lat IS NOT NULL".to_string(),
+        "f.lng IS NOT NULL".to_string(),
+        "LOWER(TRIM(f.species_name)) NOT IN ('tile-cache', '.bili-cache', '.bili-cache-tiles')"
+            .to_string(),
+    ];
+    let mut query_params: Vec<Box<dyn ToSql>> = Vec::new();
+    push_map_query_filters(query, &mut where_clauses, &mut query_params)?;
+    let sql = format!(
+        "SELECT f.id, f.species_name, f.date_found, f.lat, f.lng, f.notes, f.location_note,
                     fp.id, fp.photo_path, fp.is_primary
              FROM finds f
              LEFT JOIN find_photos fp ON fp.id = (
@@ -1880,15 +2000,16 @@ fn get_map_points_for_connection(conn: &Connection) -> Result<Vec<MapPoint>, Str
                ORDER BY inner_photo.is_primary DESC, inner_photo.id ASC
                LIMIT 1
              )
-             WHERE f.lat IS NOT NULL
-               AND f.lng IS NOT NULL
-               AND LOWER(TRIM(f.species_name)) NOT IN ('tile-cache', '.bili-cache', '.bili-cache-tiles')
+             WHERE {}
              ORDER BY f.date_found DESC, f.id DESC",
-        )
+        where_clauses.join(" AND ")
+    );
+    let mut stmt = conn
+        .prepare(&sql)
         .map_err(|error| format!("Failed to prepare map points query: {error}"))?;
 
     let points = stmt
-        .query_map([], |row| {
+        .query_map(params_from_iter(query_params.iter().map(|value| value.as_ref())), |row| {
             let find_id: i64 = row.get(0)?;
             let photo_id: Option<i64> = row.get(7)?;
             let photos = match photo_id {
@@ -1915,6 +2036,136 @@ fn get_map_points_for_connection(conn: &Connection) -> Result<Vec<MapPoint>, Str
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| format!("Map points row mapping failed: {error}"))?;
     Ok(points)
+}
+
+#[tauri::command]
+pub async fn get_map_clusters(
+    storage_path: String,
+    query: MapClusterQuery,
+) -> Result<Vec<MapCluster>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        get_map_clusters_for_connection(&conn, &query)
+    })
+    .await
+    .map_err(|error| format!("Map clusters worker failed: {error}"))?
+}
+
+fn get_map_clusters_for_connection(
+    conn: &Connection,
+    query: &MapClusterQuery,
+) -> Result<Vec<MapCluster>, String> {
+    let point_query = MapPointQuery {
+        bounds: Some(validate_map_bounds(query.bounds)?),
+        species_names: query.species_names.clone(),
+    };
+    let mut where_clauses = vec![
+        "f.lat IS NOT NULL".to_string(),
+        "f.lng IS NOT NULL".to_string(),
+        "LOWER(TRIM(f.species_name)) NOT IN ('tile-cache', '.bili-cache', '.bili-cache-tiles')"
+            .to_string(),
+    ];
+    let mut query_params: Vec<Box<dyn ToSql>> = Vec::new();
+    push_map_query_filters(
+        Some(&point_query),
+        &mut where_clauses,
+        &mut query_params,
+    )?;
+
+    // One world tile at the current zoom is a useful cluster cell: the number of
+    // returned cells stays proportional to the screen, not to the library size.
+    let cell_degrees = 360.0 / 2_f64.powi(i32::from(query.zoom.min(20)));
+    let sql = format!(
+        "SELECT AVG(f.lat), AVG(f.lng), COUNT(*), COUNT(DISTINCT f.species_name)
+         FROM finds f
+         WHERE {}
+         GROUP BY CAST((f.lat + 90.0) / ? AS INTEGER),
+                  CAST((f.lng + 180.0) / ? AS INTEGER)
+         ORDER BY COUNT(*) DESC",
+        where_clauses.join(" AND ")
+    );
+    // Cell-size placeholders occur after WHERE placeholders in SQL text, so keep
+    // filter parameters first and append the two cell values.
+    query_params.push(Box::new(cell_degrees));
+    query_params.push(Box::new(cell_degrees));
+    let mut statement = conn
+        .prepare(&sql)
+        .map_err(|error| format!("Failed to prepare map cluster query: {error}"))?;
+    let clusters = statement
+        .query_map(
+            params_from_iter(query_params.iter().map(|value| value.as_ref())),
+            |row| {
+                Ok(MapCluster {
+                    lat: row.get(0)?,
+                    lng: row.get(1)?,
+                    point_count: row.get(2)?,
+                    species_count: row.get(3)?,
+                })
+            },
+        )
+        .map_err(|error| format!("Map cluster query failed: {error}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("Map cluster row mapping failed: {error}"))?;
+    Ok(clusters)
+}
+
+#[tauri::command]
+pub async fn get_map_metadata(storage_path: String) -> Result<MapMetadata, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = open_db(&storage_path)?;
+        get_map_metadata_for_connection(&conn)
+    })
+    .await
+    .map_err(|error| format!("Map metadata worker failed: {error}"))?
+}
+
+fn get_map_metadata_for_connection(conn: &Connection) -> Result<MapMetadata, String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT f.species_name, COUNT(*), MIN(f.lat), MIN(f.lng), MAX(f.lat), MAX(f.lng)
+             FROM finds f
+             WHERE f.lat IS NOT NULL
+               AND f.lng IS NOT NULL
+               AND LOWER(TRIM(f.species_name)) NOT IN ('tile-cache', '.bili-cache', '.bili-cache-tiles')
+             GROUP BY f.species_name
+             ORDER BY f.species_name COLLATE NOCASE ASC",
+        )
+        .map_err(|error| format!("Failed to prepare map metadata query: {error}"))?;
+    let species = statement
+        .query_map([], |row| {
+            Ok(MapSpeciesSummary {
+                species_name: row.get(0)?,
+                point_count: row.get(1)?,
+                bounds: MapBounds {
+                    south: row.get(2)?,
+                    west: row.get(3)?,
+                    north: row.get(4)?,
+                    east: row.get(5)?,
+                },
+            })
+        })
+        .map_err(|error| format!("Map metadata query failed: {error}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("Map metadata row mapping failed: {error}"))?;
+    let total_points = species.iter().map(|summary| summary.point_count).sum();
+    let bounds = species
+        .iter()
+        .fold(None::<MapBounds>, |combined, summary| {
+        Some(match combined {
+            None => summary.bounds,
+            Some(current) => MapBounds {
+                south: current.south.min(summary.bounds.south),
+                west: current.west.min(summary.bounds.west),
+                north: current.north.max(summary.bounds.north),
+                east: current.east.max(summary.bounds.east),
+            },
+        })
+        });
+    Ok(MapMetadata {
+        total_points,
+        bounds,
+        species,
+    })
 }
 
 /// Every species the user could pick, from finds and profiles alike.
@@ -3305,18 +3556,25 @@ mod tests {
             Some(46.0),
             Some(16.0),
         );
+        let outside_viewport = insert(
+            "Boletus edulis",
+            "outside.jpg",
+            "2024-06-15",
+            Some(46.4),
+            Some(17.0),
+        );
         let _no_coordinates = insert("Cantharellus cibarius", "nogps.jpg", "2024-08-01", None, None);
         let _internal = insert("tile-cache", "tile.png", "2024-08-01", Some(45.0), Some(15.0));
 
-        let points = get_map_points_for_connection(&conn).expect("load map points");
+        let points = get_map_points_for_connection(&conn, None).expect("load map points");
 
         assert_eq!(
             points.iter().map(|point| point.id).collect::<Vec<_>>(),
-            vec![photoless, mapped],
+            vec![photoless, outside_viewport, mapped],
             "only coordinate-bearing, non-internal finds appear, newest first"
         );
 
-        let with_photo = &points[1];
+        let with_photo = &points[2];
         assert_eq!(with_photo.species_name, "Boletus edulis");
         assert_eq!(with_photo.lat, 45.1);
         assert_eq!(with_photo.lng, 15.2);
@@ -3331,6 +3589,58 @@ mod tests {
         assert!(
             points[0].photos.is_empty(),
             "a find with no photos still gets a pin"
+        );
+
+        let viewport_query = MapPointQuery {
+            bounds: Some(MapBounds {
+                south: 44.9,
+                west: 15.0,
+                north: 45.3,
+                east: 15.4,
+            }),
+            species_names: vec!["Boletus edulis".to_string()],
+        };
+        let viewport = get_map_points_for_connection(&conn, Some(&viewport_query))
+            .expect("load viewport points");
+        assert_eq!(viewport.len(), 1);
+        assert_eq!(viewport[0].id, mapped);
+
+        let clusters = get_map_clusters_for_connection(
+            &conn,
+            &MapClusterQuery {
+                bounds: MapBounds {
+                    south: -90.0,
+                    west: -180.0,
+                    north: 90.0,
+                    east: 180.0,
+                },
+                species_names: Vec::new(),
+                zoom: 0,
+            },
+        )
+        .expect("cluster mapped finds");
+        assert_eq!(clusters.len(), 1, "wide views aggregate rows into bounded cells");
+        assert_eq!(clusters[0].point_count, 3);
+        assert_eq!(clusters[0].species_count, 2);
+
+        let metadata = get_map_metadata_for_connection(&conn).expect("load map metadata");
+        assert_eq!(metadata.total_points, 3);
+        assert_eq!(
+            metadata
+                .species
+                .iter()
+                .map(|summary| summary.species_name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Amanita muscaria", "Boletus edulis"]
+        );
+        assert_eq!(
+            metadata.bounds,
+            Some(MapBounds {
+                south: 45.1,
+                west: 15.2,
+                north: 46.4,
+                east: 17.0,
+            })
         );
     }
 

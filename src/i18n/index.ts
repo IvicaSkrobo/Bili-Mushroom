@@ -136,6 +136,8 @@ const hr: Translations = {
   'collection.showPhotos': 'Prikaži fotografije',
   'map.filterLabel': 'Filtar:',
   'map.clearFilter': 'Ukloni filtar',
+  'map.clusterOneSpecies': '{count} nalaza jedne vrste',
+  'map.clusterManySpecies': '{finds} nalaza · {species} vrsta',
   'map.viewOnMap': 'Prikaži na karti',
 
   // species tab
@@ -848,6 +850,8 @@ const en: Translations = {
   'collection.showPhotos': 'Show photos',
   'map.filterLabel': 'Showing:',
   'map.clearFilter': 'Clear filter',
+  'map.clusterOneSpecies': '{count} finds from one species',
+  'map.clusterManySpecies': '{finds} finds · {species} species',
   'map.viewOnMap': 'View on map',
 
   // species tab

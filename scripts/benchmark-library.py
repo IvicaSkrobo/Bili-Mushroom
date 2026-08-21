@@ -45,6 +45,31 @@ QUERIES = {
         WHERE f.lat IS NOT NULL AND f.lng IS NOT NULL AND {INTERNAL}
         ORDER BY f.date_found DESC, f.id DESC
     """,
+    "map_metadata": f"""
+        SELECT f.species_name, COUNT(*), MIN(f.lat), MIN(f.lng), MAX(f.lat), MAX(f.lng)
+        FROM finds f
+        WHERE f.lat IS NOT NULL AND f.lng IS NOT NULL AND {INTERNAL}
+        GROUP BY f.species_name ORDER BY f.species_name COLLATE NOCASE ASC
+    """,
+    "map_viewport": f"""
+        SELECT f.id, f.species_name, f.date_found, f.lat, f.lng, f.notes, f.location_note,
+               fp.id, fp.photo_path, fp.is_primary
+        FROM finds f
+        LEFT JOIN find_photos fp ON fp.id=(
+          SELECT p.id FROM find_photos p WHERE p.find_id=f.id
+          ORDER BY p.is_primary DESC, p.id ASC LIMIT 1
+        )
+        WHERE f.lat BETWEEN ? AND ? AND f.lng BETWEEN ? AND ? AND {INTERNAL}
+        ORDER BY f.date_found DESC, f.id DESC
+    """,
+    "map_clusters_zoom_7": f"""
+        SELECT AVG(f.lat), AVG(f.lng), COUNT(*), COUNT(DISTINCT f.species_name)
+        FROM finds f
+        WHERE f.lat BETWEEN ? AND ? AND f.lng BETWEEN ? AND ? AND {INTERNAL}
+        GROUP BY CAST((f.lat + 90.0) / ? AS INTEGER),
+                 CAST((f.lng + 180.0) / ? AS INTEGER)
+        ORDER BY COUNT(*) DESC
+    """,
     "stats_lean": f"""
         SELECT f.id, f.species_name, f.date_found, f.country, f.region,
                f.location_note, f.notes, f.observed_count, f.observed_count_min,
@@ -136,7 +161,14 @@ def main() -> None:
             path = Path(temp) / f"library-{size}.sqlite"
             conn = create_library(path, size)
             for name, query in QUERIES.items():
-                params = ("%species 0001%",) * 3 if name == "search_page" else ()
+                if name == "search_page":
+                    params = ("%species 0001%",) * 3
+                elif name == "map_viewport":
+                    params = (44.0, 45.0, 14.0, 15.0)
+                elif name == "map_clusters_zoom_7":
+                    params = (42.0, 47.0, 13.0, 17.0, 360 / 2**7, 360 / 2**7)
+                else:
+                    params = ()
                 elapsed, rows, payload = measure(conn, query, params)
                 print(f"| {size:,} | {name} | {elapsed:.2f} | {rows:,} | {payload / 1048576:.2f} |")
             conn.close()

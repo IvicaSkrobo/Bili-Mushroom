@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.38] — 2026-08-21
+
+### Performance
+- **Scalable map loading** — wide views use bounded server-side clusters; detailed views load only points inside the visible viewport with overscan and debouncing.
+- **Measured large-library improvement** — at 100,000 synthetic finds, the wide-map payload drops from 80,000 rows / 11.85 MiB to 8 aggregate rows, and measured SQL time drops from about 1.02 s to 147 ms.
+- **Lightweight global context** — fit-to-all, fit-to-species, filters, and zone availability use compact map metadata rather than loading every point.
+
+### Changed
+- Cluster clicks progressively zoom toward the unchanged individual pins and popups.
+- The location picker shares the viewport/cluster path while preserving existing-pin location-note reuse.
+- Performance documentation and the repeatable benchmark now cover map metadata, viewport points, and server clustering.
+
+---
+
 ## [0.3.37] — 2026-08-21
 
 ### Fixed

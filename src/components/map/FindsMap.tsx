@@ -2,11 +2,12 @@ import { CircleMarker, MapContainer, Marker, Polygon, Polyline, useMap, useMapEv
 import L from 'leaflet';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, LocateFixed, Move, Plus, Trash2, X } from 'lucide-react';
-import type { MapPoint } from '@/lib/finds';
+import type { MapBounds, MapCluster, MapPoint, MapViewport } from '@/lib/finds';
 import { parsePolygonJson, type PolygonEditorMode, type Zone, type ZonePolygonPoint, type ZoneType, type ZoneViewMode } from '@/lib/zones';
 import { applyLeafletIconFix } from './leafletIconFix';
 import { CollectionPins } from './CollectionPins';
-import { FitBoundsControl } from './FitBoundsControl';
+import { MapViewportReporter } from './MapViewportReporter';
+import { MapClusters } from './MapClusters';
 import { LayerSwitcher } from './LayerSwitcher';
 import { OnlineStatusBadge } from './OnlineStatusBadge';
 import { ZoneLayers } from './ZoneLayers';
@@ -21,6 +22,7 @@ const CROATIA_ZOOM = 7;
 
 interface FindsMapProps {
   finds: MapPoint[];
+  clusters?: MapCluster[];
   zones?: Zone[];
   zoneMode?: ZoneViewMode;
   onStartLocalPolygonForFind?: (find: MapPoint) => void;
@@ -52,10 +54,15 @@ interface FindsMapProps {
   drawTargetFind?: MapPoint | null;
   drawTargetZoneType?: ZoneType | null;
   fitBoundsTrigger?: number;
+  libraryBounds?: MapBounds | null;
+  focusBounds?: MapBounds | null;
+  zoneSummaryFinds?: MapPoint[];
+  onViewportChange?: (viewport: MapViewport) => void;
 }
 
 export function FindsMap({
   finds,
+  clusters = [],
   zones = [],
   zoneMode = 'pins',
   onStartLocalPolygonForFind = () => undefined,
@@ -86,6 +93,10 @@ export function FindsMap({
   drawTargetFind = null,
   drawTargetZoneType = null,
   fitBoundsTrigger = 0,
+  libraryBounds = null,
+  focusBounds = null,
+  zoneSummaryFinds,
+  onViewportChange,
 }: FindsMapProps) {
   const t = useT();
   const [map, setMap] = useState<L.Map | null>(null);
@@ -93,6 +104,17 @@ export function FindsMap({
   const activeZone = activeZoneId == null
     ? null
     : zones.find((zone) => zone.id === activeZoneId) ?? null;
+  const didAutoFitLibrary = useRef(false);
+
+  useEffect(() => {
+    if (!map || !libraryBounds || initialViewport.current || didAutoFitLibrary.current) return;
+    didAutoFitLibrary.current = true;
+    const outsideCroatia = libraryBounds.south < 42.3
+      || libraryBounds.north > 46.6
+      || libraryBounds.west < 13.5
+      || libraryBounds.east > 19.5;
+    if (outsideCroatia) fitMapToBounds(map, libraryBounds, 16);
+  }, [libraryBounds, map]);
 
   // When editing, always show the pins tied to the zone being drawn.
   const focusFinds = useMemo(() => {
@@ -188,9 +210,10 @@ export function FindsMap({
         boxZoom={false}
       >
         <MapReady onReady={setMap} />
+        {onViewportChange && <MapViewportReporter onViewportChange={onViewportChange} />}
         <MapViewportSaver />
         <MapFlyTo />
-        <FitBoundsOnTrigger trigger={fitBoundsTrigger} finds={focusFinds} />
+        <FitBoundsOnTrigger trigger={fitBoundsTrigger} bounds={focusBounds} />
         <PolygonEditorController
           active={polygonEditorActive}
           mode={polygonEditorMode}
@@ -228,7 +251,7 @@ export function FindsMap({
           onStartRegionPolygonForFind={handleStartRegionPolygonFromPin}
           onSelectSpecies={onSelectSpecies}
         />
-        <FitBoundsControl finds={finds} />
+        {!polygonEditorActive && <MapClusters clusters={clusters} />}
         {!focusMode && <OnlineStatusBadge />}
       </MapContainer>
       {/* Fit-to-pins button */}
@@ -236,14 +259,8 @@ export function FindsMap({
         <button
           onClick={() => {
             if (!map) return;
-            const withCoords = finds.filter(
-              (f): f is MapPoint & { lat: number; lng: number } => f.lat != null && f.lng != null,
-            );
-            if (withCoords.length > 0) {
-              map.fitBounds(
-                withCoords.map((f) => [f.lat, f.lng] as [number, number]),
-                { padding: [40, 40], maxZoom: 16 },
-              );
+            if (libraryBounds) {
+              fitMapToBounds(map, libraryBounds, 16);
             } else {
               map.flyTo(CROATIA_CENTER, CROATIA_ZOOM, { animate: true, duration: 0.7 });
             }
@@ -259,7 +276,7 @@ export function FindsMap({
         <ZoneEditorPanel
           key={activeZone.id}
           zone={activeZone}
-          finds={finds}
+          finds={zoneSummaryFinds ?? finds}
           onStartPolygonEdit={onStartPolygonEdit}
           onClose={() => onEditZone(null)}
           onZoneSaved={(zone) => onZoneSaved?.(zone)}
@@ -769,25 +786,23 @@ function PolygonDraftLayer({
   );
 }
 
-function FitBoundsOnTrigger({ trigger, finds }: { trigger: number; finds: MapPoint[] }) {
+function fitMapToBounds(map: L.Map, bounds: MapBounds, maxZoom = 15) {
+  if (bounds.south === bounds.north && bounds.west === bounds.east) {
+    map.flyTo([bounds.south, bounds.west], maxZoom, { animate: true, duration: 0.7 });
+    return;
+  }
+  map.fitBounds(
+    [[bounds.south, bounds.west], [bounds.north, bounds.east]],
+    { padding: [60, 60], maxZoom, animate: true },
+  );
+}
+
+function FitBoundsOnTrigger({ trigger, bounds }: { trigger: number; bounds: MapBounds | null }) {
   const map = useMap();
   useEffect(() => {
-    if (trigger === 0) return;
-    const withCoords = finds.filter(
-      (f): f is MapPoint & { lat: number; lng: number } => f.lat != null && f.lng != null,
-    );
-    if (withCoords.length === 0) return;
-    if (withCoords.length === 1) {
-      map.flyTo([withCoords[0].lat, withCoords[0].lng], 15, { animate: true, duration: 0.7 });
-    } else {
-      map.fitBounds(
-        withCoords.map((f) => [f.lat, f.lng] as [number, number]),
-        { padding: [60, 60], maxZoom: 15, animate: true },
-      );
-    }
-  // trigger is the only signal — finds is already up-to-date in the same render cycle
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trigger]);
+    if (trigger === 0 || !bounds) return;
+    fitMapToBounds(map, bounds);
+  }, [bounds, map, trigger]);
   return null;
 }
 

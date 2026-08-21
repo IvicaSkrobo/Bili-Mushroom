@@ -1,11 +1,11 @@
-import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  getFinds, getFindLocations, getMapPoints, getSpeciesOptions, getCollectionFolders, getSpeciesFinds, updateFind, deleteFind, getFindPhotos, getSpeciesNotes, getSpeciesNote, upsertSpeciesNote,
+  getFinds, getFindLocations, getMapClusters, getMapMetadata, getMapPoints, getSpeciesOptions, getCollectionFolders, getSpeciesFinds, updateFind, deleteFind, getFindPhotos, getSpeciesNotes, getSpeciesNote, upsertSpeciesNote,
   getSpeciesProfiles, getSpeciesProfile, getSpeciesProfileSummaries, upsertSpeciesProfile, patchSpeciesProfile, getSpeciesRecipes, getSpeciesRecipesForSpecies, upsertSpeciesRecipe, deleteSpeciesRecipe,
   bulkRenameSpecies, renameSpeciesFolder, moveFindToFolder, bulkMoveFindsToFolder, bulkDeleteFinds, setFindFavorite, addFindPhotos, createFind,
   deleteFindPhoto, bulkDeleteFindPhotos,
   FINDS_QUERY_KEY, SPECIES_NOTES_QUERY_KEY, SPECIES_PROFILES_QUERY_KEY, SPECIES_RECIPES_QUERY_KEY,
-  type Find, type FindSearchFilters, type MapPoint, type SpeciesOption, type SpeciesProfilePatch, type UpdateFindPayload, type CreateFindPayload,
+  type Find, type FindSearchFilters, type MapCluster, type MapClusterQuery, type MapMetadata, type MapPoint, type MapPointQuery, type SpeciesOption, type SpeciesProfilePatch, type UpdateFindPayload, type CreateFindPayload,
 } from '@/lib/finds';
 import { SAMPLES_QUERY_KEY } from '@/lib/samples';
 import { useAppStore } from '@/stores/appStore';
@@ -37,12 +37,33 @@ export function useSpeciesOptions(enabled = true) {
  * Pins for the map. Replaces loading every find with its photo rows just to read four
  * fields off each one.
  */
-export function useMapPoints(enabled = true) {
+export function useMapPoints(query?: MapPointQuery, enabled = true) {
   const storagePath = useAppStore((s) => s.storagePath);
   return useQuery<MapPoint[]>({
-    queryKey: [FINDS_QUERY_KEY, storagePath, 'map-points'],
-    queryFn: () => getMapPoints(storagePath!),
+    queryKey: [FINDS_QUERY_KEY, storagePath, 'map-points', query ?? null],
+    queryFn: () => getMapPoints(storagePath!, query),
     enabled: !!storagePath && enabled,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useMapMetadata(enabled = true) {
+  const storagePath = useAppStore((s) => s.storagePath);
+  return useQuery<MapMetadata>({
+    queryKey: [FINDS_QUERY_KEY, storagePath, 'map-metadata'],
+    queryFn: () => getMapMetadata(storagePath!),
+    enabled: !!storagePath && enabled,
+    staleTime: 60_000,
+  });
+}
+
+export function useMapClusters(query: MapClusterQuery | null, enabled = true) {
+  const storagePath = useAppStore((s) => s.storagePath);
+  return useQuery<MapCluster[]>({
+    queryKey: [FINDS_QUERY_KEY, storagePath, 'map-clusters', query],
+    queryFn: () => getMapClusters(storagePath!, query!),
+    enabled: !!storagePath && query != null && enabled,
+    placeholderData: keepPreviousData,
   });
 }
 
