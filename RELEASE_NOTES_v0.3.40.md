@@ -28,6 +28,12 @@ A small honesty follow-up to v0.3.39, from a cross-review of the delete paths.
   visited" and the busiest places list could carry a blank entry.
 - A date the database cannot read can no longer be reported as your busiest month, and a
   failing read of that figure is surfaced instead of quietly looking like "no month yet".
+- A single unreadable date no longer empties Best months, the Calendar or the species
+  summaries. Those read the parsed month straight into a number, so one bad date failed
+  the whole query; the find still counts, only its month is left out.
+- The busiest places list and the "locations visited" figure now agree on what a place is.
+  The card counted trimmed names while the list grouped the raw text, so the same spot
+  could appear once on the card and twice in the ranking.
 - Statistics refresh after cleaning up missing photo references. Previously an open
   Statistics tab kept showing photo counts for references that had just been removed.
 - A cleanup that fails — a backup that could not be written, a database that refused the
@@ -51,8 +57,8 @@ A small honesty follow-up to v0.3.39, from a cross-review of the delete paths.
 
 ## Verification
 
-- Rust: 150 passed, 0 failed, 1 ignored (optional real-GPS EXIF fixture).
-- Frontend: 372 passed.
+- Rust: 152 passed, 0 failed, 1 ignored (optional real-GPS EXIF fixture).
+- Frontend: 373 passed.
 - New Rust regression tests: the single-delete path reports what it could not remove; a
   photo already off the disk is not reported; a repeated delete of the same find succeeds
   while the batch contract keeps reporting the missing id.

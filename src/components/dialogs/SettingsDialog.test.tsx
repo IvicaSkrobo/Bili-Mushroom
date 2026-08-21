@@ -73,8 +73,8 @@ vi.mock('@/components/ui/tabs', () => ({
 describe('SettingsDialog', () => {
   let tileCacheMock: typeof import('@/lib/tileCache');
 
-  function renderDialog() {
-    const queryClient = new QueryClient({
+  function renderDialog(client?: QueryClient) {
+    const queryClient = client ?? new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
     return render(
@@ -102,8 +102,8 @@ describe('SettingsDialog', () => {
   });
 
   // This suite renders i18n keys rather than translations, so assertions name the key.
-  async function runCleanReferences() {
-    renderDialog();
+  async function runCleanReferences(client?: QueryClient) {
+    renderDialog(client);
     // The cleanup lives under the Advanced tab.
     fireEvent.click(await screen.findByText('settings.tabAdvanced'));
     // The button opens a confirmation; the last one performs it.
@@ -150,6 +150,31 @@ describe('SettingsDialog', () => {
     });
     expect(screen.queryByText('settings.cleanMissingNone')).toBeNull();
     expect(screen.queryByText('settings.cleanMissingRemoved')).toBeNull();
+  });
+
+  it('refreshes the statistics after removing references', async () => {
+    // Photo counts feed the statistics, so an open Statistics tab would otherwise keep
+    // showing photos the cleanup has just forgotten.
+    invokeHandlers.prune_missing_photos = vi.fn().mockReturnValue({
+      removed: 2,
+      affected_finds: 1,
+      blocked: [],
+      backup_path: null,
+    });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+
+    await runCleanReferences(client);
+
+    await waitFor(() => {
+      expect(screen.getByText('settings.cleanMissingRemoved')).toBeInTheDocument();
+    });
+    const invalidated = invalidate.mock.calls.map(([arg]) => (arg as { queryKey: unknown[] }).queryKey[0]);
+    for (const key of ['finds', 'stats_cards', 'stats_finds', 'top_spots', 'best_months', 'calendar', 'species_stats']) {
+      expect(invalidated).toContain(key);
+    }
   });
 
   it('explains a failed cleanup instead of closing silently', async () => {

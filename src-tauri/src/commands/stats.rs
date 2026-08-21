@@ -214,9 +214,12 @@ fn get_top_spots_blocking(storage_path: &str) -> Result<Vec<TopSpot>, String> {
     let mut stmt = conn
         .prepare(
             &format!(
-                "SELECT country, region, location_note, COUNT(*) as cnt FROM finds \
+                "SELECT TRIM(COALESCE(country, '')) AS country, \
+                 TRIM(COALESCE(region, '')) AS region, \
+                 TRIM(COALESCE(location_note, '')) AS location_note, \
+                 COUNT(*) as cnt FROM finds \
                  WHERE {} AND {} \
-                 GROUP BY country, region, location_note ORDER BY cnt DESC",
+                 GROUP BY TRIM(COALESCE(country, '')), TRIM(COALESCE(region, '')), \n                 TRIM(COALESCE(location_note, '')) ORDER BY cnt DESC",
                 INTERNAL_SPECIES_FILTER,
                 HAS_LOCATION
             ),
@@ -253,6 +256,7 @@ fn get_best_months_blocking(storage_path: &str) -> Result<Vec<BestMonth>, String
             &format!(
                 "SELECT CAST(strftime('%m', date_found) AS INTEGER) as month_num, COUNT(*) as cnt \
                  FROM finds WHERE {} AND date_found IS NOT NULL AND date_found != '' \
+                 AND strftime('%m', date_found) IS NOT NULL \
                  GROUP BY month_num ORDER BY cnt DESC",
                 INTERNAL_SPECIES_FILTER
             ),
@@ -287,6 +291,7 @@ fn get_calendar_blocking(storage_path: &str) -> Result<Vec<CalendarEntry>, Strin
             &format!(
                 "SELECT CAST(strftime('%m', date_found) AS INTEGER) as month, species_name, date_found, location_note \
                  FROM finds WHERE {} AND date_found IS NOT NULL AND date_found != '' \
+                 AND strftime('%m', date_found) IS NOT NULL \
                  ORDER BY month ASC, date_found ASC",
                 INTERNAL_SPECIES_FILTER
             ),
@@ -372,6 +377,7 @@ fn get_species_stats_blocking(storage_path: &str) -> Result<Vec<SpeciesStatSumma
             "SELECT species_name, strftime('%Y-%m', date_found) AS ym, COUNT(*) AS cnt
              FROM finds
              WHERE {} AND date_found IS NOT NULL AND date_found != ''
+               AND strftime('%Y-%m', date_found) IS NOT NULL
              GROUP BY species_name, ym
              ORDER BY species_name COLLATE NOCASE, cnt DESC, ym ASC",
             INTERNAL_SPECIES_FILTER
@@ -710,6 +716,58 @@ mod tests {
 
         assert_eq!(cards.most_active_month, None);
         assert_eq!(cards.locations_visited, 0);
+    }
+
+    /// `CAST(strftime(...) AS INTEGER)` over a date SQLite cannot parse yields NULL, which
+    /// fails `row.get::<i64>` and takes the whole panel down with it. One bad row must not
+    /// be able to empty Best months, the Calendar or the species summaries.
+    #[test]
+    fn one_unparseable_date_does_not_break_the_monthly_panels() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_string_lossy().to_string();
+        let conn = open_db(&storage_path).expect("open db");
+        insert_find_with(&conn, "Boletus edulis", "not a date", "Croatia", "Istra", "Pine");
+        insert_find_with(&conn, "Boletus edulis", "2024-06-01", "Croatia", "Istra", "Pine");
+        insert_find_with(&conn, "Boletus edulis", "2024-06-14", "Croatia", "Istra", "Pine");
+        drop(conn);
+
+        let months = get_best_months_blocking(&storage_path).expect("best months survive");
+        assert_eq!(months.len(), 1, "only June is a real month here");
+        assert_eq!(months[0].count, 2);
+
+        let calendar = get_calendar_blocking(&storage_path).expect("calendar survives");
+        assert_eq!(calendar.len(), 2, "the unreadable date is left out, not fatal");
+        assert!(calendar.iter().all(|entry| entry.month == 6));
+
+        let species = get_species_stats_blocking(&storage_path).expect("species stats survive");
+        assert_eq!(species.len(), 1);
+        assert_eq!(species[0].find_count, 3, "the find still counts, only its month is unknown");
+        assert_eq!(species[0].best_month.as_deref(), Some("2024-06"));
+    }
+
+    /// The cards counted trimmed locations while Top spots grouped the raw text, so the
+    /// same place could be one location on the card and two rows in the ranking.
+    #[test]
+    fn top_spots_treats_padded_and_clean_place_names_as_one_place() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_string_lossy().to_string();
+        let conn = open_db(&storage_path).expect("open db");
+        insert_find_with(&conn, "Boletus edulis", "2024-05-01", "Croatia", "Istra", "Oak");
+        insert_find_with(&conn, "Boletus edulis", "2024-05-02", "Croatia", "Istra", " Oak ");
+        insert_find_with(&conn, "Amanita", "2024-05-03", " Croatia ", "Istra", "Oak");
+        drop(conn);
+
+        let spots = get_top_spots_blocking(&storage_path).expect("top spots");
+        let cards = get_stats_cards_blocking(&storage_path).expect("stats cards");
+
+        assert_eq!(spots.len(), 1, "one place, however it was typed");
+        assert_eq!(spots[0].location_note, "Oak", "the displayed name is the trimmed one");
+        assert_eq!(spots[0].count, 3);
+        assert_eq!(
+            cards.locations_visited as usize,
+            spots.len(),
+            "the card and the ranking must agree on what a place is"
+        );
     }
 
     #[test]
