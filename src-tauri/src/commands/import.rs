@@ -657,6 +657,33 @@ fn ensure_performance_indexes(conn: &Connection) -> Result<(), String> {
 // database lock. `synchronous`, unlike journal mode, remains a per-connection setting.
 static INITIALIZED_DATABASES: OnceLock<Mutex<HashMap<String, bool>>> = OnceLock::new();
 
+const SLOW_SQL_THRESHOLD: Duration = Duration::from_millis(100);
+const MAX_LOGGED_SQL_CHARS: usize = 240;
+
+fn compact_sql_for_log(sql: &str) -> String {
+    let compact = sql.split_whitespace().collect::<Vec<_>>().join(" ");
+    if compact.chars().count() <= MAX_LOGGED_SQL_CHARS {
+        return compact;
+    }
+
+    let mut truncated = compact
+        .chars()
+        .take(MAX_LOGGED_SQL_CHARS.saturating_sub(1))
+        .collect::<String>();
+    truncated.push('…');
+    truncated
+}
+
+fn log_slow_sql(sql: &str, elapsed: Duration) {
+    if elapsed >= SLOW_SQL_THRESHOLD {
+        eprintln!(
+            "[db][slow] {} ms | {}",
+            elapsed.as_millis(),
+            compact_sql_for_log(sql)
+        );
+    }
+}
+
 fn enable_wal_if_supported(conn: &Connection) -> bool {
     let current_mode = match conn.query_row("PRAGMA journal_mode", [], |row| {
         row.get::<_, String>(0)
@@ -703,8 +730,9 @@ fn configure_connection_safety(conn: &Connection, wal_active: bool) -> Result<()
 
 pub(crate) fn open_db(storage_path: &str) -> Result<Connection, String> {
     let db_path = format!("{}/bili-mushroom.db", storage_path);
-    let conn = Connection::open(&db_path)
+    let mut conn = Connection::open(&db_path)
         .map_err(|e| format!("Failed to open DB at {}: {}", db_path, e))?;
+    conn.profile(Some(log_slow_sql));
     conn.busy_timeout(Duration::from_secs(5))
         .map_err(|e| format!("Failed to configure DB busy timeout: {e}"))?;
     conn.execute_batch("PRAGMA foreign_keys = ON;")
@@ -2952,6 +2980,21 @@ mod tests {
     const MIGRATION_0001: &str = include_str!("../../migrations/0001_initial.sql");
     const MIGRATION_0002: &str = include_str!("../../migrations/0002_finds.sql");
     const MIGRATION_0003: &str = include_str!("../../migrations/0003_find_photos.sql");
+
+    #[test]
+    fn compact_sql_for_log_collapses_whitespace() {
+        assert_eq!(
+            compact_sql_for_log("SELECT  *\n  FROM finds\tWHERE id = ?1"),
+            "SELECT * FROM finds WHERE id = ?1"
+        );
+    }
+
+    #[test]
+    fn compact_sql_for_log_bounds_diagnostic_size() {
+        let compact = compact_sql_for_log(&"x".repeat(MAX_LOGGED_SQL_CHARS + 20));
+        assert_eq!(compact.chars().count(), MAX_LOGGED_SQL_CHARS);
+        assert!(compact.ends_with('…'));
+    }
 
     #[test]
     fn test_has_existing_photo_path_returns_true_when_exists() {
