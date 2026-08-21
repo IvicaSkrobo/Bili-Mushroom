@@ -187,6 +187,14 @@ Entry points:
 No direct repo edits outside GSD workflow unless user explicitly bypasses.
 <!-- GSD:workflow-end -->
 
+## Codex Workflow Override
+
+The user explicitly bypassed mandatory GSD orchestration for Codex on 2026-08-21.
+
+- Codex must not start GSD commands, spawn GSD planner/executor agents, or create `.planning/quick` artifacts unless the user explicitly asks for GSD on that task.
+- Codex should keep the same engineering discipline using its own lightweight flow: inspect, state a concise plan when useful, implement directly, add regression tests, review the diff, run proportionate verification, and make clean commits when requested or already established by the task.
+- Claude may continue using the GSD workflow independently; this override applies specifically to Codex.
+
 
 
 <!-- GSD:profile-start -->
