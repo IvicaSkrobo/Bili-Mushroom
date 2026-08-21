@@ -8,7 +8,7 @@ import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useAddFindPhotos, useInfiniteCollectionFolders, useInfiniteSpeciesFinds, useSpeciesNote, useUpsertSpeciesNote, useSpeciesProfile, useSpeciesProfileSummaries, useUpsertSpeciesProfile, useSpeciesRecipesForSpecies, useUpsertSpeciesRecipe, useDeleteSpeciesRecipe } from '@/hooks/useFinds';
+import { useAddFindPhotos, useFindPhotos, useInfiniteCollectionFolders, useInfiniteSpeciesFinds, useSpeciesNote, useUpsertSpeciesNote, useSpeciesProfile, useSpeciesProfileSummaries, useUpsertSpeciesProfile, useSpeciesRecipesForSpecies, useUpsertSpeciesRecipe, useDeleteSpeciesRecipe } from '@/hooks/useFinds';
 import { usePhotoThumbnailSrc } from '@/hooks/usePhotoThumbnail';
 import { useAppStore } from '@/stores/appStore';
 import { useT } from '@/i18n/index';
@@ -17,7 +17,7 @@ import type { Find, FindPhoto, SpeciesFolderSummary } from '@/lib/finds';
 import { openSpeciesFolder } from '@/lib/finds';
 import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { EdibilitySelectBadge, ThreatStatusSelectBadge, DistributionSelectBadge } from '@/components/species/StatusSelectBadge';
-import { PhotoLightbox, type LightboxPhoto } from '@/components/finds/PhotoLightbox';
+import { PhotoLightbox } from '@/components/finds/PhotoLightbox';
 import { EditFindDialog } from '@/components/finds/EditFindDialog';
 import { renderSpeciesName, plainSpeciesName, normalizeCommonName, compareSpeciesNames } from '@/lib/speciesName';
 import { formatDisplayDate } from '@/lib/dateFormat';
@@ -462,8 +462,8 @@ export default function SpeciesTab() {
   const [coverUploadError, setCoverUploadError] = useState<string | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-  const [lightboxPhotosOverride, setLightboxPhotosOverride] = useState<LightboxPhoto[] | null>(null);
   const [lightboxFallbackFind, setLightboxFallbackFind] = useState<Find | null>(null);
+  const [lightboxGalleryFind, setLightboxGalleryFind] = useState<Find | null>(null);
   const [editingFind, setEditingFind] = useState<Find | null>(null);
   const [detailTab, setDetailTab] = useState<'overview' | 'finds' | 'recipes' | 'description' | 'habitat'>('overview');
   const [speciesListScrollElement, setSpeciesListScrollElement] = useState<HTMLDivElement | null>(null);
@@ -484,10 +484,17 @@ export default function SpeciesTab() {
     ))
     .sort((a, b) => compareSpeciesNames(a.speciesName, b.speciesName)), [folderSummaries, speciesProfilesByName]);
 
-  const openLightbox = (index: number, fallbackFind: Find | null = null) => {
-    setLightboxPhotosOverride(fallbackFind && fallbackFind.photos.length === 0 ? [] : null);
-    setLightboxFallbackFind(fallbackFind);
+  const openLightbox = (index: number) => {
+    setLightboxGalleryFind(null);
+    setLightboxFallbackFind(null);
     setLightboxIndex(index);
+    setLightboxOpen(true);
+  };
+
+  const openFindLightbox = (find: Find) => {
+    setLightboxGalleryFind(find);
+    setLightboxFallbackFind(find);
+    setLightboxIndex(0);
     setLightboxOpen(true);
   };
 
@@ -590,6 +597,10 @@ export default function SpeciesTab() {
   const { data: selectedNoteRecord } = useSpeciesNote(selectedSpeciesName);
   const { data: selectedProfile = null } = useSpeciesProfile(selectedSpeciesName);
   const { data: selectedRecipes = [] } = useSpeciesRecipesForSpecies(selectedSpeciesName);
+  const findGalleryEnabled = lightboxOpen
+    && lightboxGalleryFind !== null
+    && lightboxGalleryFind.photos.length > 0;
+  const { data: lightboxGalleryPhotos } = useFindPhotos(lightboxGalleryFind?.id ?? 0, findGalleryEnabled);
   const coverPickerFilters = useMemo(() => ({ photosMode: 'all' as const }), []);
   const coverPickerFindsQuery = useInfiniteSpeciesFinds(
     selectedJournal?.speciesName ?? null,
@@ -689,18 +700,27 @@ export default function SpeciesTab() {
   const currentCoverPhotoId = selectedProfile?.cover_photo_id ?? selectedJournal?.heroPhotoId ?? null;
   const coverPhotoEntry = coverPickerPhotos.find((entry) => entry.photo.id === currentCoverPhotoId) ?? null;
   const selectedHeroPhotoPath = coverPhotoEntry?.photo.photo_path ?? selectedJournal?.heroPhotoPath ?? null;
-  const selectedLightboxPhotos = lightboxPhotosOverride
+  const findGallerySnapshot = useMemo(() => {
+    if (!lightboxGalleryFind) return null;
+    const photos = lightboxGalleryPhotos ?? lightboxGalleryFind.photos;
+    const find = { ...lightboxGalleryFind, photos };
+    return {
+      find,
+      photos: photos.map((photo) => ({ photo, find })),
+    };
+  }, [lightboxGalleryFind, lightboxGalleryPhotos]);
+  const selectedLightboxPhotos = findGallerySnapshot?.photos
     ?? (coverPickerPhotos.length > 0 ? coverPickerPhotos : selectedJournal?.allPhotos ?? []);
-  const lightboxWindowStart = lightboxPhotosOverride
+  const lightboxWindowStart = findGallerySnapshot
     ? 0
     : Math.max(0, lightboxIndex - LIGHTBOX_WINDOW_RADIUS);
-  const lightboxWindowEnd = lightboxPhotosOverride
+  const lightboxWindowEnd = findGallerySnapshot
     ? selectedLightboxPhotos.length
     : Math.min(selectedLightboxPhotos.length, lightboxIndex + LIGHTBOX_WINDOW_RADIUS + 1);
-  const lightboxWindowPhotos = lightboxPhotosOverride
+  const lightboxWindowPhotos = findGallerySnapshot
     ? selectedLightboxPhotos
     : selectedLightboxPhotos.slice(lightboxWindowStart, lightboxWindowEnd);
-  const lightboxLocalIndex = lightboxPhotosOverride
+  const lightboxLocalIndex = findGallerySnapshot
     ? lightboxIndex
     : Math.max(0, Math.min(lightboxWindowPhotos.length - 1, lightboxIndex - lightboxWindowStart));
   const selectedTags = selectedProfile?.tags ?? [];
@@ -712,6 +732,7 @@ export default function SpeciesTab() {
   const [threatStatusInput, setThreatStatusInput] = useState(selectedProfile?.threat_status ?? 'unknown');
   const [distributionInput, setDistributionInput] = useState(selectedProfile?.distribution ?? 'unknown');
   const [synonymsInput, setSynonymsInput] = useState('');
+  const [otherNamesInput, setOtherNamesInput] = useState('');
   const [fruitingBodyCountInput, setFruitingBodyCountInput] = useState(selectedProfile?.fruiting_body_count_override ?? '');
   const [isEditingFruitingBodyCount, setIsEditingFruitingBodyCount] = useState(false);
   const [showFruitingBodyTotal, setShowFruitingBodyTotal] = useState(false);
@@ -731,6 +752,10 @@ export default function SpeciesTab() {
     setIsEditingFruitingBodyCount(false);
     setShowFruitingBodyTotal(false);
     setSynonymsInput('');
+    setOtherNamesInput('');
+    setLightboxOpen(false);
+    setLightboxGalleryFind(null);
+    setLightboxFallbackFind(null);
     setNewRecipeTitle('');
     setNewRecipeNotes('');
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -750,6 +775,12 @@ export default function SpeciesTab() {
     setDistributionInput(selectedProfile?.distribution ?? 'unknown');
     setFruitingBodyCountInput(selectedProfile?.fruiting_body_count_override ?? '');
   }, [selectedProfile]);
+
+  useEffect(() => {
+    if (!findGallerySnapshot) return;
+    setLightboxFallbackFind(findGallerySnapshot.find);
+    setLightboxIndex((current) => Math.min(current, Math.max(0, findGallerySnapshot.photos.length - 1)));
+  }, [findGallerySnapshot]);
 
   // Radix Dialog can occasionally leave body scroll/pointer locks behind in Tauri WebView.
   useEffect(() => {
@@ -977,6 +1008,44 @@ export default function SpeciesTab() {
       edibilityNote: legacyEdibilityNote,
       synonyms: selectedSynonyms.filter((s) => s !== value),
       otherNames: selectedOtherNames,
+      fruitingBodyCountOverride: selectedFruitingBodyCountOverride,
+      description: profileDescription,
+      habitat: profileHabitat,
+    });
+  };
+
+  const handleAddOtherName = (value: string) => {
+    const normalized = value.trim();
+    if (!selectedJournal || !normalized || selectedOtherNames.includes(normalized)) return;
+    upsertSpeciesProfile.mutate({
+      speciesName: selectedJournal.speciesName,
+      coverPhotoId: currentCoverPhotoId,
+      tags: selectedTags,
+      edibility: edibilityInput === 'unknown' ? null : edibilityInput,
+      threatStatus: threatStatusInput === 'unknown' ? null : threatStatusInput,
+      distribution: distributionInput === 'unknown' ? null : distributionInput,
+      edibilityNote: legacyEdibilityNote,
+      synonyms: selectedSynonyms,
+      otherNames: [...selectedOtherNames, normalized],
+      fruitingBodyCountOverride: selectedFruitingBodyCountOverride,
+      description: profileDescription,
+      habitat: profileHabitat,
+    });
+    setOtherNamesInput('');
+  };
+
+  const handleRemoveOtherName = (value: string) => {
+    if (!selectedJournal) return;
+    upsertSpeciesProfile.mutate({
+      speciesName: selectedJournal.speciesName,
+      coverPhotoId: currentCoverPhotoId,
+      tags: selectedTags,
+      edibility: edibilityInput === 'unknown' ? null : edibilityInput,
+      threatStatus: threatStatusInput === 'unknown' ? null : threatStatusInput,
+      distribution: distributionInput === 'unknown' ? null : distributionInput,
+      edibilityNote: legacyEdibilityNote,
+      synonyms: selectedSynonyms,
+      otherNames: selectedOtherNames.filter((name) => name !== value),
       fruitingBodyCountOverride: selectedFruitingBodyCountOverride,
       description: profileDescription,
       habitat: profileHabitat,
@@ -1532,9 +1601,6 @@ export default function SpeciesTab() {
                             const find = selectedJournal.finds[virtualRow.index];
                             if (!find) return null;
                             const primaryPhoto = find.photos.find((p) => p.is_primary) ?? find.photos[0] ?? null;
-                            const photoIdx = primaryPhoto
-                              ? selectedLightboxPhotos.findIndex((e) => e.photo.id === primaryPhoto.id)
-                              : -1;
                             const obsMin = find.observed_count_min ?? find.observed_count;
                             const obsMax = find.observed_count_max ?? find.observed_count_min ?? find.observed_count;
                             const obsDisplay = obsMin != null
@@ -1551,8 +1617,9 @@ export default function SpeciesTab() {
                               >
                                 <button
                                   type="button"
-                                  onClick={() => openLightbox(photoIdx >= 0 ? photoIdx : 0, find)}
+                                  onClick={() => openFindLightbox(find)}
                                   className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                                  aria-label={`${t('collection.showPhotos')}: ${formatDate(find.date_found, locale)}`}
                                 >
                                   <div className="h-12 w-12 shrink-0 overflow-hidden rounded border border-border/30 bg-muted/40">
                                     {primaryPhoto ? (
@@ -1739,6 +1806,53 @@ export default function SpeciesTab() {
                               </div>
                             </div>
                           )}
+
+                          <div className="space-y-1.5 border-t border-border/50 pt-3">
+                            <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground/70">{t('species.otherNames')}</p>
+                            <div className="flex gap-1">
+                              <input
+                                value={otherNamesInput}
+                                onChange={(e) => setOtherNamesInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ',') {
+                                    e.preventDefault();
+                                    handleAddOtherName(otherNamesInput.replace(/,$/, ''));
+                                  }
+                                }}
+                                placeholder={t('species.otherNamesPlaceholder')}
+                                className="min-w-0 flex-1 rounded border border-border/70 bg-input px-2.5 py-1 text-sm font-medium text-foreground placeholder:text-muted-foreground/55 focus:outline-none focus:ring-1 focus:ring-ring/40"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleAddOtherName(otherNamesInput)}
+                                disabled={!otherNamesInput.trim()}
+                                className="rounded border border-border/70 bg-input px-2 py-1 text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-40"
+                                aria-label={t('species.otherNamesPlaceholder')}
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {selectedOtherNames.length > 0 && (
+                            <div className="rounded-md border border-border/70 bg-card/35 p-1.5">
+                              <div className="flex flex-wrap gap-1.5">
+                                {selectedOtherNames.map((name) => (
+                                  <span key={name} className="inline-flex max-w-full items-center gap-1.5 rounded border border-secondary/25 bg-secondary/8 px-2 py-0.5 text-xs text-foreground">
+                                    <span className="min-w-0 truncate font-serif italic" title={name}>{name}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveOtherName(name)}
+                                      className="shrink-0 text-muted-foreground transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                                      aria-label={lang === 'hr' ? `Ukloni drugi naziv ${name}` : `Remove other name ${name}`}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
@@ -1875,7 +1989,7 @@ export default function SpeciesTab() {
             setLightboxOpen(open);
             if (!open) {
               setLightboxFallbackFind(null);
-              setLightboxPhotosOverride(null);
+              setLightboxGalleryFind(null);
             }
           }}
           photos={lightboxWindowPhotos}

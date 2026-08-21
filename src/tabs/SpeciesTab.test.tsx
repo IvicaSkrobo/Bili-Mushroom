@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 const setActiveTab = vi.fn();
 const setSelectedCollectionSpecies = vi.fn();
@@ -7,6 +7,8 @@ const mutateSpeciesProfile = vi.fn();
 const fetchNextSpeciesFolderPage = vi.fn();
 const fetchNextSelectedFindPage = vi.fn();
 const emptyMutate = vi.fn();
+const mockUseFindPhotos = vi.fn();
+const mockLightboxProps = vi.fn();
 
 const boletusFinds = [
   {
@@ -93,12 +95,32 @@ const allBoletusPhotoFinds = [
   },
 ];
 
+const liveBoletusPhotos = [
+  { id: 1, find_id: 1, photo_path: 'Boletus/hero.jpg', is_primary: true },
+  { id: 2, find_id: 1, photo_path: 'Boletus/alt.jpg', is_primary: false },
+  { id: 4, find_id: 1, photo_path: 'Boletus/detail.jpg', is_primary: false },
+];
+
 const speciesNotes = [
   { species_name: 'Boletus edulis', notes: 'Best after steady rain.' },
 ];
 
 const speciesProfiles = [
-  { species_name: 'Boletus edulis', cover_photo_id: 2, tags: ['confirmed', 'oak'] },
+  {
+    species_name: 'Boletus edulis',
+    common_name: 'Penny bun',
+    cover_photo_id: 2,
+    tags: ['confirmed', 'oak'],
+    edibility: 'edible',
+    threat_status: 'least-concern',
+    distribution: 'widespread',
+    edibility_note: 'Cook before eating.',
+    synonyms: ['Boletus bulbosus'],
+    other_names: ['Porcino'],
+    fruiting_body_count_override: '12',
+    description: 'A sturdy bolete.',
+    habitat: 'Oak and beech woods.',
+  },
 ];
 
 const speciesRecipes: Array<{ id: number; species_name: string; title: string; notes: string; created_at: string; updated_at: string }> = [];
@@ -129,12 +151,16 @@ vi.mock('@/hooks/useFinds', () => ({
     hasNextPage: false,
     isFetchingNextPage: false,
   }),
-  useInfiniteSpeciesFinds: () => ({
-    data: { pages: [boletusFinds] },
+  useInfiniteSpeciesFinds: (speciesName: string | null) => ({
+    data: { pages: [speciesName === 'Cantharellus cibarius' ? [collectionFolderPages[0][1].representative_find] : boletusFinds] },
     fetchNextPage: fetchNextSelectedFindPage,
     hasNextPage: false,
     isFetchingNextPage: false,
   }),
+  useFindPhotos: (findId: number, enabled: boolean) => {
+    mockUseFindPhotos(findId, enabled);
+    return { data: enabled && findId === 1 ? liveBoletusPhotos : undefined };
+  },
   useSpeciesFinds: () => ({
     data: allBoletusPhotoFinds,
     isLoading: false,
@@ -190,7 +216,15 @@ vi.mock('@/hooks/useFinds', () => ({
 }));
 
 vi.mock('@/components/finds/PhotoLightbox', () => ({
-  PhotoLightbox: () => null,
+  PhotoLightbox: (props: {
+    open: boolean;
+    photos: Array<{ photo: { id: number; find_id: number }; find: { id: number; photos: unknown[] } }>;
+    fallbackFind: { id: number; photos: unknown[] } | null;
+    currentIndex: number;
+  }) => {
+    mockLightboxProps(props);
+    return props.open ? <div data-testid="photo-lightbox">{props.photos.map((entry) => entry.photo.id).join(',')}</div> : null;
+  },
 }));
 
 vi.mock('@/components/finds/EditFindDialog', () => ({
@@ -214,6 +248,12 @@ vi.mock('@/stores/appStore', () => ({
 import SpeciesTab from './SpeciesTab';
 
 describe('SpeciesTab', () => {
+  beforeEach(() => {
+    mutateSpeciesProfile.mockClear();
+    mockUseFindPhotos.mockClear();
+    mockLightboxProps.mockClear();
+  });
+
   it('renders searchable species list and selected journal details', () => {
     render(<SpeciesTab />);
 
@@ -265,5 +305,75 @@ describe('SpeciesTab', () => {
 
     expect(screen.getByRole('button', { name: /open in collection/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /edit cover photo/i })).toBeInTheDocument();
+  });
+
+  it('loads and opens every photo only for the clicked find', async () => {
+    render(<SpeciesTab />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^finds \d+$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /show photos: oct 12, 2026/i }));
+
+    await waitFor(() => expect(mockUseFindPhotos).toHaveBeenCalledWith(1, true));
+    await waitFor(() => expect(screen.getByTestId('photo-lightbox')).toHaveTextContent('1,2,4'));
+
+    const props = mockLightboxProps.mock.calls.at(-1)?.[0];
+    expect(props.currentIndex).toBe(0);
+    expect(props.photos.map((entry: { photo: { find_id: number } }) => entry.photo.find_id)).toEqual([1, 1, 1]);
+    expect(props.photos.every((entry: { find: { id: number; photos: unknown[] } }) => entry.find.id === 1 && entry.find.photos.length === 3)).toBe(true);
+  });
+
+  it('opens a photo-free find without enabling the full photo query', async () => {
+    render(<SpeciesTab />);
+
+    fireEvent.click(screen.getAllByText('Cantharellus cibarius')[0]);
+    fireEvent.click(screen.getByRole('button', { name: /^finds \d+$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /show photos: jul 3, 2026/i }));
+
+    await waitFor(() => expect(screen.getByTestId('photo-lightbox')).toBeInTheDocument());
+    expect(mockUseFindPhotos).not.toHaveBeenCalledWith(3, true);
+    const props = mockLightboxProps.mock.calls.at(-1)?.[0];
+    expect(props.photos).toEqual([]);
+    expect(props.fallbackFind.id).toBe(3);
+  });
+
+  it('adds another name without changing synonyms or other profile fields', () => {
+    render(<SpeciesTab />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^description$/i }));
+    const input = screen.getByPlaceholderText(/add other name/i);
+    fireEvent.change(input, { target: { value: '  King bolete  ' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(mutateSpeciesProfile).toHaveBeenCalledWith(expect.objectContaining({
+      speciesName: 'Boletus edulis',
+      tags: ['confirmed', 'oak'],
+      synonyms: ['Boletus bulbosus'],
+      otherNames: ['Porcino', 'King bolete'],
+      edibility: 'edible',
+      threatStatus: 'least-concern',
+      distribution: 'widespread',
+      description: 'A sturdy bolete.',
+      habitat: 'Oak and beech woods.',
+    }));
+  });
+
+  it('removes only the selected other name and rejects blank or duplicate additions', () => {
+    render(<SpeciesTab />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^description$/i }));
+    const input = screen.getByPlaceholderText(/add other name/i);
+    fireEvent.change(input, { target: { value: 'Porcino' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    fireEvent.change(input, { target: { value: '   ' } });
+    fireEvent.keyDown(input, { key: ',' });
+    expect(mutateSpeciesProfile).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /remove other name porcino/i }));
+    expect(mutateSpeciesProfile).toHaveBeenCalledWith(expect.objectContaining({
+      synonyms: ['Boletus bulbosus'],
+      otherNames: [],
+      tags: ['confirmed', 'oak'],
+      description: 'A sturdy bolete.',
+    }));
   });
 });
