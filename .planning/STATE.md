@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-04-09)
 Phase: 04.2 complete — MAINTENANCE
 Plan: Post-phase maintenance
 Status: Completed planned phase work; maintenance fixes and planning artifacts are synced to the current shipped behavior
-Last activity: 2026-08-21 - Completed quick task 260821-unicode-and-species-alias-search: Unicode-safe Croatian search, ordering, and searchable species aliases
+Last activity: 2026-08-21 - Completed quick task 260821-collation-whitespace-parity: Rust and frontend Croatian collation agree for every whitespace character
 
 Progress: [████████░░] 79%
 
@@ -197,6 +197,7 @@ Recent decisions affecting current work:
 | 260821-species-find-gallery-other-names | 2026-08-21 | Species → Finds opens the selected find's complete photo set lazily in PhotoLightbox; Description adds keyboard-accessible add/remove editing for Other names while preserving synonyms and all unrelated profile metadata. |
 | 260821-collection-word-prefix-search | 2026-08-21 | Collection species search matches the beginning of the full name or any later space-separated word (`b` and `edu` find `Boletus edulis`, while `dul` does not). Matching remains case-insensitive, strips display markup, escapes LIKE wildcards, and stays in SQL before alphabetical pagination. |
 | 260821-unicode-and-species-alias-search | 2026-08-21 | Collection search now handles Croatian `Č/Ć/Š/Ž/Đ` initials and uses the same deterministic Croatian/scientific alphabet in SQLite pagination and the frontend. Lightweight species summaries carry synonyms and other names in one batch query, so Vrste search finds scientific, common, synonym, and other names from the start of any word without N+1/full-profile loading. |
+| 260821-collation-whitespace-parity | 2026-08-21 | Rust Croatian collation now classifies all Unicode whitespace exactly like the frontend. TAB, ordinary space, and NBSP retain deterministic code-point order, with a regression that spans multiple SQL pages in both alpha and recent-tie modes. |
 
 ### Roadmap Evolution
 
