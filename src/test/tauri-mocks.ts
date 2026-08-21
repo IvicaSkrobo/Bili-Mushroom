@@ -117,6 +117,8 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
     photos: [],
   }),
   delete_find: (_args: unknown) => undefined,
+  bulk_delete_finds: (_args: unknown) => undefined,
+  bulk_move_finds_to_folder: (_args: unknown) => undefined,
   move_find_files: (_args: unknown) => undefined,
   get_find_photos: (_args: unknown) => [],
   get_photo_thumbnail: (args: unknown) => {

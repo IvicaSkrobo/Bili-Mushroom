@@ -857,42 +857,53 @@ pub async fn move_find_files(
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let conn = open_db(&storage_path)?;
-
-        let mut stmt = conn
-            .prepare("SELECT photo_path FROM find_photos WHERE find_id = ?1")
-            .map_err(|e| e.to_string())?;
-        let paths: Vec<String> = stmt
-            .query_map(params![find_id], |row| row.get(0))
-            .map_err(|e| e.to_string())?
-            .filter_map(|r| r.ok())
-            .collect();
-
-        for rel_path in &paths {
-            let abs_src = format!("{}/{}", storage_path, rel_path);
-            let filename = std::path::Path::new(rel_path.as_str())
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or(rel_path.as_str());
-            let abs_dest = format!("{}/{}", dest_folder, filename);
-            // Try rename first; fall back to copy+delete for cross-device moves
-            if std::fs::rename(&abs_src, &abs_dest).is_err() {
-                std::fs::copy(&abs_src, &abs_dest)
-                    .map_err(|e| format!("Failed to copy '{}': {}", abs_src, e))?;
-                std::fs::remove_file(&abs_src)
-                    .map_err(|e| format!("Copied '{}' but could not remove source: {}", abs_src, e))?;
-            }
-        }
-
         conn.execute_batch("PRAGMA foreign_keys = ON;")
             .map_err(|e| e.to_string())?;
-        crate::commands::samples::remove_sample_for_find(&conn, &storage_path, find_id, false)?;
-        conn.execute("DELETE FROM finds WHERE id = ?1", params![find_id])
-            .map_err(|e| format!("DB delete failed: {}", e))?;
-
-        Ok(())
+        move_find_files_on_conn(&conn, &storage_path, find_id, &dest_folder)
     })
     .await
     .map_err(|e| format!("Move find files worker failed: {e}"))?
+}
+
+/// Moves one find's photos into `dest_folder` and then drops its record.
+///
+/// Files first, row second: the record must not disappear while its photos are still
+/// where they were.
+fn move_find_files_on_conn(
+    conn: &Connection,
+    storage_path: &str,
+    find_id: i64,
+    dest_folder: &str,
+) -> Result<(), String> {
+    let mut stmt = conn
+        .prepare("SELECT photo_path FROM find_photos WHERE find_id = ?1")
+        .map_err(|e| e.to_string())?;
+    let paths: Vec<String> = stmt
+        .query_map(params![find_id], |row| row.get(0))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    for rel_path in &paths {
+        let abs_src = format!("{}/{}", storage_path, rel_path);
+        let filename = std::path::Path::new(rel_path.as_str())
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(rel_path.as_str());
+        let abs_dest = format!("{}/{}", dest_folder, filename);
+        // Try rename first; fall back to copy+delete for cross-device moves
+        if std::fs::rename(&abs_src, &abs_dest).is_err() {
+            std::fs::copy(&abs_src, &abs_dest)
+                .map_err(|e| format!("Failed to copy '{}': {}", abs_src, e))?;
+            std::fs::remove_file(&abs_src)
+                .map_err(|e| format!("Copied '{}' but could not remove source: {}", abs_src, e))?;
+        }
+    }
+
+    crate::commands::samples::remove_sample_for_find(conn, storage_path, find_id, false)?;
+    conn.execute("DELETE FROM finds WHERE id = ?1", params![find_id])
+        .map_err(|e| format!("DB delete failed: {}", e))?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -1124,6 +1135,130 @@ pub async fn delete_find(
     })
     .await
     .map_err(|e| format!("Delete find worker failed: {e}"))?
+}
+
+/// Deletes many finds in one command.
+///
+/// The per-find command is fine for one row and wrong for five hundred: each call was a
+/// separate IPC round trip opening its own connection, and they then queued behind
+/// SQLite's single writer. This takes one connection and removes every row inside one
+/// transaction, so a batch either lands or does not.
+///
+/// Irreversible filesystem work happens *after* the commit, deliberately. Trashing
+/// photos first and then failing to delete the rows would leave records pointing at
+/// files that are gone; this way a failure at worst leaves files behind, which
+/// `audit_photo_library` already reports as orphans.
+#[tauri::command]
+pub async fn bulk_delete_finds(
+    storage_path: String,
+    find_ids: Vec<i64>,
+    delete_files: bool,
+    delete_sample_folder: Option<bool>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        bulk_delete_finds_blocking(
+            &storage_path,
+            &find_ids,
+            delete_files,
+            delete_sample_folder.unwrap_or(false),
+        )
+    })
+    .await
+    .map_err(|e| format!("Bulk delete worker failed: {e}"))?
+}
+
+fn bulk_delete_finds_blocking(
+    storage_path: &str,
+    find_ids: &[i64],
+    delete_files: bool,
+    delete_sample_folder: bool,
+) -> Result<(), String> {
+    if find_ids.is_empty() {
+        return Ok(());
+    }
+
+    let mut conn = open_db(storage_path)?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| e.to_string())?;
+
+    // Collect before deleting: once the rows are gone the paths are unrecoverable.
+    let mut photo_paths: Vec<String> = Vec::new();
+    let mut sample_folders: Vec<String> = Vec::new();
+    for find_id in find_ids {
+        if delete_files {
+            let mut stmt = conn
+                .prepare("SELECT photo_path FROM find_photos WHERE find_id = ?1")
+                .map_err(|e| e.to_string())?;
+            let paths = stmt
+                .query_map(params![find_id], |row| row.get::<_, String>(0))
+                .map_err(|e| e.to_string())?
+                .filter_map(|row| row.ok());
+            photo_paths.extend(paths);
+        }
+        if delete_sample_folder {
+            if let Ok(Some(folder)) = conn.query_row(
+                "SELECT folder_path FROM samples WHERE find_id = ?1",
+                params![find_id],
+                |row| row.get::<_, Option<String>>(0),
+            ) {
+                sample_folders.push(folder);
+            }
+        }
+    }
+
+    let tx = conn
+        .transaction()
+        .map_err(|e| format!("Could not start the delete transaction: {e}"))?;
+    for find_id in find_ids {
+        // The register entry always goes with the find — it points at a row that is
+        // about to disappear. The folder is handled below, after the commit.
+        crate::commands::samples::remove_sample_for_find(&tx, storage_path, *find_id, false)?;
+        tx.execute("DELETE FROM finds WHERE id = ?1", params![find_id])
+            .map_err(|e| format!("DB delete failed: {}", e))?;
+    }
+    tx.commit()
+        .map_err(|e| format!("Could not finish the delete: {e}"))?;
+
+    for rel_path in &photo_paths {
+        let abs_path = format!("{}/{}", storage_path, rel_path);
+        if let Err(e) = trash::delete(&abs_path) {
+            eprintln!("trash::delete failed for {}: {}", abs_path, e);
+        }
+    }
+    for folder_rel in &sample_folders {
+        let folder_abs =
+            Path::new(storage_path).join(folder_rel.replace('/', std::path::MAIN_SEPARATOR_STR));
+        let _ = std::fs::remove_dir_all(folder_abs);
+    }
+    Ok(())
+}
+
+/// Moves many finds' photos out to a folder and drops their records, in one command.
+///
+/// Unlike the delete above this is *not* one transaction: each find's files are moved
+/// and only then is its row removed. Moving files out of the library is irreversible, so
+/// a failure part way through must leave the already-moved finds correctly deleted
+/// rather than rolling their rows back into records pointing at files that have left.
+#[tauri::command]
+pub async fn bulk_move_finds_to_folder(
+    storage_path: String,
+    find_ids: Vec<i64>,
+    dest_folder: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if find_ids.is_empty() {
+            return Ok(());
+        }
+        let conn = open_db(&storage_path)?;
+        conn.execute_batch("PRAGMA foreign_keys = ON;")
+            .map_err(|e| e.to_string())?;
+        for find_id in &find_ids {
+            move_find_files_on_conn(&conn, &storage_path, *find_id, &dest_folder)?;
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Bulk move worker failed: {e}"))?
 }
 
 #[tauri::command]
@@ -2553,6 +2688,78 @@ mod tests {
             assert!(backup_dir.join(name).exists(), "{name} should be retained");
         }
         assert!(unrelated.exists(), "non-database files are never considered");
+    }
+
+    #[test]
+    fn bulk_delete_removes_every_find_in_one_transaction() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_str().expect("storage path");
+        let ids: Vec<i64> = {
+            let conn = open_db(storage_path).expect("open library");
+            (0..5)
+                .map(|i| {
+                    insert_find_row(&conn, &make_find_record(&format!("f{i}.jpg"), "2024-05-10"))
+                        .expect("insert find")
+                })
+                .collect()
+        };
+
+        bulk_delete_finds_blocking(storage_path, &ids[..3], false, false).expect("bulk delete");
+
+        let conn = open_db(storage_path).expect("reopen library");
+        let remaining: i64 = conn
+            .query_row("SELECT COUNT(*) FROM finds", [], |row| row.get(0))
+            .expect("count finds");
+        assert_eq!(remaining, 2, "only the requested finds are removed");
+        for id in &ids[..3] {
+            let gone: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM finds WHERE id = ?1",
+                    params![id],
+                    |row| row.get(0),
+                )
+                .expect("look up deleted find");
+            assert_eq!(gone, 0);
+        }
+    }
+
+    #[test]
+    fn bulk_delete_of_an_empty_selection_touches_nothing() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_str().expect("storage path");
+        {
+            let conn = open_db(storage_path).expect("open library");
+            insert_find_row(&conn, &make_find_record("keep.jpg", "2024-05-10")).expect("insert");
+        }
+
+        bulk_delete_finds_blocking(storage_path, &[], true, true).expect("empty selection is fine");
+
+        let conn = open_db(storage_path).expect("reopen library");
+        let remaining: i64 = conn
+            .query_row("SELECT COUNT(*) FROM finds", [], |row| row.get(0))
+            .expect("count finds");
+        assert_eq!(remaining, 1);
+    }
+
+    /// A missing id must not take the rest of the batch down with it: the transaction
+    /// still commits the finds that do exist.
+    #[test]
+    fn bulk_delete_tolerates_ids_that_are_already_gone() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_str().expect("storage path");
+        let existing = {
+            let conn = open_db(storage_path).expect("open library");
+            insert_find_row(&conn, &make_find_record("here.jpg", "2024-05-10")).expect("insert")
+        };
+
+        bulk_delete_finds_blocking(storage_path, &[existing, 9_999], false, false)
+            .expect("bulk delete with a stale id");
+
+        let conn = open_db(storage_path).expect("reopen library");
+        let remaining: i64 = conn
+            .query_row("SELECT COUNT(*) FROM finds", [], |row| row.get(0))
+            .expect("count finds");
+        assert_eq!(remaining, 0);
     }
 
     fn make_create_payload(species_name: &str) -> CreateFindPayload {

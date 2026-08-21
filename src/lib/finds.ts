@@ -476,6 +476,32 @@ export async function moveFindToFolder(
   return invoke<void>('move_find_files', { storagePath, findId, destFolder });
 }
 
+/**
+ * Deletes many finds in one command. One IPC round trip, one connection, one
+ * transaction — the per-find call is for a single row, not for a selection.
+ */
+export async function bulkDeleteFinds(
+  storagePath: string,
+  findIds: number[],
+  deleteFiles: boolean,
+  deleteSampleFolder = false,
+): Promise<void> {
+  return invoke<void>('bulk_delete_finds', {
+    storagePath,
+    findIds,
+    deleteFiles,
+    deleteSampleFolder,
+  });
+}
+
+export async function bulkMoveFindsToFolder(
+  storagePath: string,
+  findIds: number[],
+  destFolder: string,
+): Promise<void> {
+  return invoke<void>('bulk_move_finds_to_folder', { storagePath, findIds, destFolder });
+}
+
 export async function openFindFolder(
   storagePath: string,
   findId: number,

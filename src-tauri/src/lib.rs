@@ -59,6 +59,8 @@ pub fn run() {
             commands::finds::add_find_photos,
             commands::finds::delete_find_photo,
             commands::finds::bulk_delete_find_photos,
+            commands::finds::bulk_delete_finds,
+            commands::finds::bulk_move_finds_to_folder,
             commands::finds::edit_find_photo_image,
             commands::finds::edit_source_photo_image,
             commands::finds::prune_missing_photos,

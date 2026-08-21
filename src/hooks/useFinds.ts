@@ -2,13 +2,12 @@ import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tansta
 import {
   getFinds, getFindLocations, getMapPoints, getSpeciesOptions, getCollectionFolders, getSpeciesFinds, updateFind, deleteFind, getFindPhotos, getSpeciesNotes, getSpeciesNote, upsertSpeciesNote,
   getSpeciesProfiles, getSpeciesProfile, getSpeciesProfileSummaries, upsertSpeciesProfile, patchSpeciesProfile, getSpeciesRecipes, getSpeciesRecipesForSpecies, upsertSpeciesRecipe, deleteSpeciesRecipe,
-  bulkRenameSpecies, renameSpeciesFolder, moveFindToFolder, setFindFavorite, addFindPhotos, createFind,
+  bulkRenameSpecies, renameSpeciesFolder, moveFindToFolder, bulkMoveFindsToFolder, bulkDeleteFinds, setFindFavorite, addFindPhotos, createFind,
   deleteFindPhoto, bulkDeleteFindPhotos,
   FINDS_QUERY_KEY, SPECIES_NOTES_QUERY_KEY, SPECIES_PROFILES_QUERY_KEY, SPECIES_RECIPES_QUERY_KEY,
   type Find, type FindSearchFilters, type MapPoint, type SpeciesOption, type SpeciesProfilePatch, type UpdateFindPayload, type CreateFindPayload,
 } from '@/lib/finds';
 import { SAMPLES_QUERY_KEY } from '@/lib/samples';
-import { BULK_COMMAND_CONCURRENCY, runWithLimit } from '@/lib/concurrency';
 import { useAppStore } from '@/stores/appStore';
 
 export function useFinds(filters?: FindSearchFilters, enabled = true) {
@@ -243,12 +242,7 @@ export function useBulkMoveFindToFolder() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ findIds, destFolder }: { findIds: number[]; destFolder: string }) => {
-      // Bounded: each call opens its own SQLite connection on the Rust blocking pool,
-      // and writes serialise there anyway, so firing all of them at once only buys
-      // threads and contention.
-      await runWithLimit(findIds, BULK_COMMAND_CONCURRENCY, (id) =>
-        moveFindToFolder(storagePath!, id, destFolder),
-      );
+      await bulkMoveFindsToFolder(storagePath!, findIds, destFolder);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
@@ -261,11 +255,7 @@ export function useBulkDeleteFinds() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ findIds, deleteFiles }: { findIds: number[]; deleteFiles: boolean }) => {
-      // Bounded, and it stops at the first failure rather than racing ahead — this
-      // deletes the user's finds and their files.
-      await runWithLimit(findIds, BULK_COMMAND_CONCURRENCY, (id) =>
-        deleteFind(storagePath!, id, deleteFiles),
-      );
+      await bulkDeleteFinds(storagePath!, findIds, deleteFiles);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
