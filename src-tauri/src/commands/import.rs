@@ -2261,6 +2261,13 @@ fn get_collection_folders_for_connection(
         .unwrap_or(200);
     let offset = filters.offset.unwrap_or(0).max(0);
     let where_sql = format!(" WHERE {}", where_clauses.join(" AND "));
+    let order_sql = if filters.sort_mode.as_deref() == Some("alpha") {
+        // Collection pagination must be ordered before LIMIT/OFFSET. Strip optional display
+        // markup so a name such as `*Boletus* edulis` is filed under B rather than `*`.
+        "LOWER(REPLACE(f.species_name, '*', '')) COLLATE NOCASE ASC, f.species_name ASC"
+    } else {
+        "latest_date DESC, LOWER(REPLACE(f.species_name, '*', '')) COLLATE NOCASE ASC"
+    };
     let sql = format!(
         "SELECT
            f.species_name,
@@ -2270,9 +2277,10 @@ fn get_collection_folders_for_connection(
            MAX(f.date_found) AS latest_date
          FROM finds f{}
          GROUP BY f.species_name
-         ORDER BY latest_date DESC, f.species_name COLLATE NOCASE ASC
+         ORDER BY {}
          LIMIT ? OFFSET ?",
         where_sql,
+        order_sql,
     );
     query_params.push(Box::new(limit));
     query_params.push(Box::new(offset));
@@ -2770,6 +2778,7 @@ fn hydrate_find_photos(
 #[serde(rename_all = "camelCase")]
 pub struct FindSearchFilters {
     pub species_query: Option<String>,
+    pub sort_mode: Option<String>,
     pub location_query: Option<String>,
     pub favorites_only: Option<bool>,
     pub date_start: Option<String>,
@@ -2797,11 +2806,11 @@ fn push_find_search_filters(
     };
 
     if include_species_query {
-        if let Some(species_query) = normalized_like_query(filters.species_query.as_deref()) {
+        if let Some(species_query) = normalized_like_prefix(filters.species_query.as_deref()) {
             // species_name may contain '*' markup (bold/non-bold display convention, see
             // src/lib/speciesName.tsx). The query string is always plain (asterisks stripped
             // client-side), so strip '*' from the column here too before comparing — otherwise
-            // an embedded asterisk in the stored name breaks the substring match entirely.
+            // an embedded asterisk in the stored name breaks the prefix match entirely.
             where_clauses.push(format!(
                 "LOWER(REPLACE({}, '*', '')) LIKE ? ESCAPE '\\'",
                 col("species_name")
@@ -2854,6 +2863,18 @@ fn normalized_like_query(value: Option<&str>) -> Option<String> {
     } else {
         Some(format!(
             "%{}%",
+            trimmed.replace('%', "\\%").replace('_', "\\_")
+        ))
+    }
+}
+
+fn normalized_like_prefix(value: Option<&str>) -> Option<String> {
+    let trimmed = value?.trim().to_lowercase();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(format!(
+            "{}%",
             trimmed.replace('%', "\\%").replace('_', "\\_")
         ))
     }
@@ -3435,6 +3456,77 @@ mod tests {
         assert_eq!(amanita.photo_count, Some(0));
         assert!(amanita.photos.is_empty());
         assert_ne!(amanita.id, amanita_old);
+    }
+
+    #[test]
+    fn collection_folder_species_search_matches_prefix_only_from_first_letter() {
+        let conn = setup_in_memory_db();
+        let insert = |species_name: &str, date: &str| {
+            let mut record = make_find_record("photo.jpg", date);
+            record.species_name = species_name.to_string();
+            insert_find_row(&conn, &record).expect("insert find");
+        };
+
+        insert("Amanita rubescens", "2024-07-01");
+        insert("Boletus edulis", "2024-05-01");
+        insert("*Bovista* plumbea", "2024-06-01");
+        insert("Cantharellus cibarius", "2024-08-01");
+
+        let summaries = get_collection_folders_for_connection(
+            &conn,
+            &FindSearchFilters {
+                species_query: Some("b".to_string()),
+                ..FindSearchFilters::default()
+            },
+        )
+        .expect("search collection folders");
+        let names: Vec<&str> = summaries
+            .iter()
+            .map(|summary| summary.species_name.as_str())
+            .collect();
+
+        assert_eq!(
+            names.len(),
+            2,
+            "a middle-of-name match must not leak into prefix search"
+        );
+        assert!(names.contains(&"Boletus edulis"));
+        assert!(
+            names.contains(&"*Bovista* plumbea"),
+            "display markup must not break prefix matching"
+        );
+    }
+
+    #[test]
+    fn collection_folder_alpha_sort_happens_before_pagination() {
+        let conn = setup_in_memory_db();
+        let insert = |species_name: &str, date: &str| {
+            let mut record = make_find_record("photo.jpg", date);
+            record.species_name = species_name.to_string();
+            insert_find_row(&conn, &record).expect("insert find");
+        };
+
+        // Recent order is the reverse of alphabetical order. A two-row page therefore proves
+        // that SQL sorted the full result before LIMIT rather than the UI sorting one page later.
+        insert("Amanita muscaria", "2024-05-01");
+        insert("*Boletus* edulis", "2024-06-01");
+        insert("Cantharellus cibarius", "2024-07-01");
+
+        let summaries = get_collection_folders_for_connection(
+            &conn,
+            &FindSearchFilters {
+                sort_mode: Some("alpha".to_string()),
+                limit: Some(2),
+                ..FindSearchFilters::default()
+            },
+        )
+        .expect("load alphabetical collection page");
+        let names: Vec<&str> = summaries
+            .iter()
+            .map(|summary| summary.species_name.as_str())
+            .collect();
+
+        assert_eq!(names, vec!["Amanita muscaria", "*Boletus* edulis"]);
     }
 
     /// A cover belongs to the species profile that chose it, not to the find that holds

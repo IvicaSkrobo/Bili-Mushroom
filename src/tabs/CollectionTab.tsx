@@ -634,6 +634,7 @@ export default function CollectionTab() {
   const collectionFindFilters = useMemo(() => {
     const filters: {
       speciesQuery?: string;
+      sortMode: 'recent' | 'alpha';
       locationQuery?: string;
       favoritesOnly?: boolean;
       dateStart?: string;
@@ -641,7 +642,7 @@ export default function CollectionTab() {
       datePrefix?: string;
       dateDayMonth?: string;
       photosMode: 'primary';
-    } = { photosMode: 'primary' };
+    } = { photosMode: 'primary', sortMode: speciesSortMode };
     const speciesQuery = plainSpeciesName(debouncedSearch).trim();
     const locationQuery = debouncedLocationSearch.trim();
     if (speciesQuery) filters.speciesQuery = speciesQuery;
@@ -675,7 +676,7 @@ export default function CollectionTab() {
     }
 
     return filters;
-  }, [dateFilterMode, debouncedDateSearch, debouncedDateSearchEnd, debouncedDayMonthSearch, debouncedLocationSearch, debouncedMonthSearch, debouncedSearch, debouncedYearSearch, favoritesOnly]);
+  }, [dateFilterMode, debouncedDateSearch, debouncedDateSearchEnd, debouncedDayMonthSearch, debouncedLocationSearch, debouncedMonthSearch, debouncedSearch, debouncedYearSearch, favoritesOnly, speciesSortMode]);
 
   const {
     data: folderPages,

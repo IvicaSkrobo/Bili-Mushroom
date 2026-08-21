@@ -205,8 +205,8 @@ describe('CollectionTab', () => {
     // `search` state can already hold a stale/unrelated value from a previous visit when the
     // "Otvori u zbirci" jump signal arrives from the Species tab. This mock mirrors the real Rust
     // `get_collection_folders` filtering behavior: it applies `speciesQuery` as a case-insensitive
-    // substring match against the species name with '*' stripped from BOTH sides (matching the
-    // fixed SQL: LOWER(REPLACE(species_name, '*', '')) LIKE '%<plain query>%'). Without the fix,
+    // prefix match against the species name with '*' stripped from BOTH sides (matching the
+    // fixed SQL: LOWER(REPLACE(species_name, '*', '')) LIKE '<plain query>%'). Without the fix,
     // the effect fed the RAW markup name into the search filter and the server-side match would
     // fail even after the stale filter clears, leaving the jump a permanent no-op.
     const markupFind: Find = {
@@ -219,7 +219,7 @@ describe('CollectionTab', () => {
       const all = [markupFind, find2];
       const q = filters?.speciesQuery?.trim().toLowerCase();
       if (!q) return all;
-      return all.filter((f) => f.species_name.toLowerCase().replace(/\*/g, '').includes(q));
+      return all.filter((f) => f.species_name.toLowerCase().replace(/\*/g, '').startsWith(q));
     };
 
     // Simulate CollectionTab already mounted with an unrelated, non-matching search active
@@ -493,6 +493,36 @@ describe('species sort mode', () => {
 
     await waitFor(() => {
       expect(getOrderedNames()).toEqual(['Chanterelle', 'Amanita muscaria']);
+    });
+  });
+
+  it('searches from the first typed letter using a species-name prefix', async () => {
+    const boletus = { ...find2, id: 3, species_name: 'Boletus edulis' };
+    const allFolders = [
+      { species_name: 'Amanita rubescens', find_count: 1, photo_count: 1, favorite_count: 0, latest_date: '2024-07-01', representative_find: { ...find1, species_name: 'Amanita rubescens' } },
+      { species_name: 'Boletus edulis', find_count: 1, photo_count: 1, favorite_count: 0, latest_date: '2024-06-01', representative_find: boletus },
+    ];
+    const foldersSpy = vi.fn((args: unknown) => {
+      const filters = (args as { filters?: { speciesQuery?: string; sortMode?: string } })?.filters;
+      const query = filters?.speciesQuery?.trim().toLowerCase();
+      const matching = query
+        ? allFolders.filter((folder) => folder.species_name.toLowerCase().startsWith(query))
+        : allFolders;
+      return filters?.sortMode === 'alpha'
+        ? [...matching].sort((a, b) => a.species_name.localeCompare(b.species_name))
+        : matching;
+    });
+    invokeHandlers['get_collection_folders'] = foldersSpy;
+
+    renderTab();
+    fireEvent.change(screen.getByPlaceholderText('Search species…'), { target: { value: 'b' } });
+
+    await waitFor(() => {
+      expect(foldersSpy).toHaveBeenLastCalledWith(expect.objectContaining({
+        filters: expect.objectContaining({ speciesQuery: 'b', sortMode: 'alpha' }),
+      }));
+      expect(screen.getByText('Boletus edulis')).toBeInTheDocument();
+      expect(screen.queryByText('Amanita rubescens')).not.toBeInTheDocument();
     });
   });
 });

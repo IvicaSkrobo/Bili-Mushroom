@@ -65,6 +65,7 @@ export interface Find {
 
 export interface FindSearchFilters {
   speciesQuery?: string;
+  sortMode?: 'recent' | 'alpha';
   locationQuery?: string;
   favoritesOnly?: boolean;
   dateStart?: string;
