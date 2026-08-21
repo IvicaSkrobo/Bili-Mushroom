@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SettingsDialog } from './SettingsDialog';
@@ -110,7 +110,11 @@ describe('SettingsDialog', () => {
     const buttons = await screen.findAllByText('settings.cleanMissingButton');
     fireEvent.click(buttons[0]);
     const confirm = await screen.findAllByText('settings.cleanMissingButton');
-    fireEvent.click(confirm[confirm.length - 1]);
+    // The confirm click starts an async command whose result lands after the click
+    // returns; without act the state update happens outside React's knowledge.
+    await act(async () => {
+      fireEvent.click(confirm[confirm.length - 1]);
+    });
   }
 
   it('reports removed references after a clean run', async () => {
@@ -143,6 +147,22 @@ describe('SettingsDialog', () => {
 
     await waitFor(() => {
       expect(screen.getByText('settings.cleanMissingBlocked')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('settings.cleanMissingNone')).toBeNull();
+    expect(screen.queryByText('settings.cleanMissingRemoved')).toBeNull();
+  });
+
+  it('explains a failed cleanup instead of closing silently', async () => {
+    // A failed backup or transaction leaves the library untouched, but saying nothing
+    // would look identical to a clean run that found nothing.
+    invokeHandlers.prune_missing_photos = vi.fn().mockImplementation(() => {
+      throw new Error('backup failed');
+    });
+
+    await runCleanReferences();
+
+    await waitFor(() => {
+      expect(screen.getByText('settings.cleanMissingFailed')).toBeInTheDocument();
     });
     expect(screen.queryByText('settings.cleanMissingNone')).toBeNull();
     expect(screen.queryByText('settings.cleanMissingRemoved')).toBeNull();

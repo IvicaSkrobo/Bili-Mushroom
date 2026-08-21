@@ -23,6 +23,10 @@ A small honesty follow-up to v0.3.39, from a cross-review of the delete paths.
 - Paths are also checked for what they are, not only whether something is there. A photo
   entry that points at a folder is left alone instead of sending that whole folder to the
   Recycle Bin, and the cleanup no longer reads such a folder as a healthy photo.
+- A cleanup that fails — a backup that could not be written, a database that refused the
+  change — now says so in your language. It previously closed the dialog with nothing to
+  show, which looked the same as a clean run that found nothing. The reason a path stopped
+  the cleanup is translated too, rather than appearing as an English fragment.
 - **Clean up missing photo references** in Settings scans the whole library before it
   changes anything, removes nothing at all if any path could not be read — naming the
   path so you can plug the drive back in — and makes its row removals and primary-photo
@@ -41,7 +45,7 @@ A small honesty follow-up to v0.3.39, from a cross-review of the delete paths.
 ## Verification
 
 - Rust: 145 passed, 0 failed, 1 ignored (optional real-GPS EXIF fixture).
-- Frontend: 371 passed.
+- Frontend: 372 passed.
 - New Rust regression tests: the single-delete path reports what it could not remove; a
   photo already off the disk is not reported; a repeated delete of the same find succeeds
   while the batch contract keeps reporting the missing id.
@@ -50,7 +54,7 @@ A small honesty follow-up to v0.3.39, from a cross-review of the delete paths.
   photo stops it without a single change; and a delete that fails part way rolls the whole
   cleanup back.
 - New frontend tests: the delete dialog warns instead of claiming success when something
-  could not be removed, and Settings distinguishes "removed N" from "nothing was removed".
+  could not be removed, and Settings distinguishes "removed N", "nothing was removed" and an outright failure.
 - TypeScript typecheck, Cargo all-targets and the version check pass.
 
 No database migration is required. No files are moved during installation or startup.

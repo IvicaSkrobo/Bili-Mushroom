@@ -1381,7 +1381,7 @@ fn bulk_delete_finds_blocking(
             other => {
                 result.file_failures.push(BulkOperationFailure {
                     item: rel_path.clone(),
-                    error: format!("Left in place: {}", other.describe()),
+                    error: other.reason_code().to_string(),
                 });
                 continue;
             }
@@ -1406,7 +1406,7 @@ fn bulk_delete_finds_blocking(
             other => {
                 result.file_failures.push(BulkOperationFailure {
                     item: folder_rel.clone(),
-                    error: format!("Left in place: {}", other.describe()),
+                    error: other.reason_code().to_string(),
                 });
                 continue;
             }
@@ -1922,7 +1922,7 @@ pub(crate) fn plan_prune(
             // the state this cleanup assumes, so it stops rather than guessing.
             other => plan.blocked.push(BulkOperationFailure {
                 item: row.photo_path.clone(),
-                error: other.describe().to_string(),
+                error: other.reason_code().to_string(),
             }),
         }
     }
@@ -1957,14 +1957,17 @@ pub(crate) enum PathState {
 }
 
 impl PathState {
-    /// Short reason for a caller that expected something else.
-    pub(crate) fn describe(self) -> &'static str {
+    /// Stable code for a caller that expected something else.
+    ///
+    /// A code rather than a sentence: these travel to the UI, which has to render them in
+    /// the user's language. An English string here would show up mid-sentence in Croatian.
+    pub(crate) fn reason_code(self) -> &'static str {
         match self {
-            PathState::Missing => "nothing is there",
-            PathState::File => "it is a file",
-            PathState::Directory => "it is a folder, not a photo",
-            PathState::Other => "it is not a regular file or folder",
-            PathState::Inaccessible => "it could not be reached",
+            PathState::Missing => "path-missing",
+            PathState::File => "path-is-file",
+            PathState::Directory => "path-is-folder",
+            PathState::Other => "path-not-a-file",
+            PathState::Inaccessible => "path-unreadable",
         }
     }
 }

@@ -53,6 +53,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const [pruneConfirmOpen, setPruneConfirmOpen] = useState(false);
   const [pruning, setPruning] = useState(false);
   const [pruneResult, setPruneResult] = useState<PruneSummary | null>(null);
+  const [pruneError, setPruneError] = useState<string | null>(null);
   const [suggestionsReset, setSuggestionsReset] = useState(false);
   const [stats, setStats] = useState<TileCacheStats>({ sizeBytes: 0, tileCount: 0 });
   const [libraryStats, setLibraryStats] = useState<LibraryStorageStats | null>(null);
@@ -96,6 +97,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     if (!storagePath) return;
     setPruning(true);
     setPruneResult(null);
+    setPruneError(null);
     try {
       const summary = await invoke<PruneSummary>('prune_missing_photos', { storagePath });
       setPruneResult(summary);
@@ -103,6 +105,11 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
       if (summary.removed > 0) {
         qc.invalidateQueries({ queryKey: [FINDS_QUERY_KEY, storagePath] });
       }
+    } catch {
+      // A failed backup or a failed transaction leaves the library untouched, but the
+      // user has to be told rather than watching the dialog close with nothing to show.
+      setPruneError(t('settings.cleanMissingFailed'));
+      setPruneConfirmOpen(false);
     } finally {
       setPruning(false);
     }
@@ -413,6 +420,9 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
+                {pruneError !== null && (
+                  <span className="text-xs text-destructive">{pruneError}</span>
+                )}
                 {pruneResult !== null && (
                   pruneResult.blocked.length > 0 ? (
                     // Nothing was removed: the cleanup could not confirm part of the
@@ -420,7 +430,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                     <span className="text-xs text-amber-600">
                       {t('settings.cleanMissingBlocked', {
                         path: pruneResult.blocked[0].item,
-                        reason: pruneResult.blocked[0].error,
+                        reason: t(`settings.pathReason.${pruneResult.blocked[0].error}`),
                         count: pruneResult.blocked.length,
                       })}
                     </span>
