@@ -19,7 +19,7 @@ import { resolvePhotoSrc } from '@/lib/photoSrc';
 import { EdibilitySelectBadge, ThreatStatusSelectBadge, DistributionSelectBadge } from '@/components/species/StatusSelectBadge';
 import { PhotoLightbox } from '@/components/finds/PhotoLightbox';
 import { EditFindDialog } from '@/components/finds/EditFindDialog';
-import { renderSpeciesName, plainSpeciesName, normalizeCommonName, compareSpeciesNames } from '@/lib/speciesName';
+import { renderSpeciesName, plainSpeciesName, normalizeCommonName, compareSpeciesNames, matchesSpeciesQuery } from '@/lib/speciesName';
 import { formatDisplayDate } from '@/lib/dateFormat';
 
 const SPECIES_FOLDER_PAGE_SIZE = 500;
@@ -504,8 +504,12 @@ export default function SpeciesTab() {
   const filteredSpecies = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return speciesPreviews;
-    return speciesPreviews.filter((entry) => plainSpeciesName(entry.speciesName).toLowerCase().startsWith(query));
-  }, [search, speciesPreviews]);
+    return speciesPreviews.filter((entry) => matchesSpeciesQuery(
+      query,
+      entry.speciesName,
+      speciesProfilesByName.get(entry.speciesName),
+    ));
+  }, [search, speciesPreviews, speciesProfilesByName]);
 
   const shouldVirtualizeSpeciesList = filteredSpecies.length > SPECIES_LIST_VIRTUALIZATION_THRESHOLD;
   const speciesListVirtualizer = useVirtualizer({

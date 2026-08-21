@@ -41,19 +41,75 @@ export function plainSpeciesName(name: string): string {
   return name.replace(/\*/g, '');
 }
 
+const CROATIAN_ALPHABET = [
+  'a', 'b', 'c', 'č', 'ć', 'd', 'dž', 'đ', 'e', 'f', 'g', 'h', 'i', 'j', 'k',
+  'l', 'lj', 'm', 'n', 'nj', 'o', 'p', 'q', 'r', 's', 'š', 't', 'u', 'v', 'w',
+  'x', 'y', 'z', 'ž',
+] as const;
+
+function croatianSortTokens(value: string): Array<readonly [number, number]> {
+  const characters = Array.from(plainSpeciesName(value).toLowerCase());
+  const tokens: Array<readonly [number, number]> = [];
+  for (let index = 0; index < characters.length; index += 1) {
+    const pair = characters[index] + (characters[index + 1] ?? '');
+    const pairWeight = CROATIAN_ALPHABET.indexOf(pair as (typeof CROATIAN_ALPHABET)[number]);
+    if (pairWeight >= 0) {
+      tokens.push([1, pairWeight]);
+      index += 1;
+      continue;
+    }
+    const character = characters[index];
+    const codePoint = character.codePointAt(0)!;
+    const weight = CROATIAN_ALPHABET.indexOf(character as (typeof CROATIAN_ALPHABET)[number]);
+    const isAsciiPunctuation = (codePoint >= 33 && codePoint <= 47)
+      || (codePoint >= 58 && codePoint <= 64)
+      || (codePoint >= 91 && codePoint <= 96)
+      || (codePoint >= 123 && codePoint <= 126);
+    if (weight >= 0) {
+      tokens.push([1, weight]);
+    } else if (character.trim().length === 0 || isAsciiPunctuation) {
+      tokens.push([0, codePoint]);
+    } else {
+      tokens.push([2, codePoint]);
+    }
+  }
+  return tokens;
+}
+
+function compareNumberPairs(a: readonly [number, number], b: readonly [number, number]): number {
+  return a[0] - b[0] || a[1] - b[1];
+}
+
+function compareUnicodeScalars(a: string, b: string): number {
+  const left = Array.from(a, (character) => character.codePointAt(0)!);
+  const right = Array.from(b, (character) => character.codePointAt(0)!);
+  const count = Math.min(left.length, right.length);
+  for (let index = 0; index < count; index += 1) {
+    if (left[index] !== right[index]) return left[index] - right[index];
+  }
+  return left.length - right.length;
+}
+
 /**
  * Compares two species names for alphabetical sorting.
- * Strips markup (*) before comparing and uses the Croatian locale
- * so č, ć, š, ž, đ sort naturally after their base letters.
+ * Uses the same explicit Croatian weights as the SQLite collation so browser ICU
+ * differences cannot move a species across a backend pagination boundary.
  */
 export function compareSpeciesNames(a: string, b: string): number {
-  return plainSpeciesName(a).localeCompare(plainSpeciesName(b), 'hr', { sensitivity: 'base' });
+  const left = croatianSortTokens(a);
+  const right = croatianSortTokens(b);
+  const count = Math.min(left.length, right.length);
+  for (let index = 0; index < count; index += 1) {
+    const compared = compareNumberPairs(left[index], right[index]);
+    if (compared !== 0) return compared;
+  }
+  return left.length - right.length || compareUnicodeScalars(a, b);
 }
 
 /**
  * Returns true when the query matches any searchable field of a species:
  * latin name, common/folk name, synonyms, or other names.
- * Case-insensitive prefix match. Pass query already lowercased for efficiency.
+ * Case-insensitive prefix match at the start of any whitespace-delimited word.
  */
 export function matchesSpeciesQuery(
   query: string,
@@ -61,11 +117,19 @@ export function matchesSpeciesQuery(
   profile?: { common_name?: string | null; synonyms?: string[] | null; other_names?: string[] | null } | null,
 ): boolean {
   if (!query) return true;
-  if (plainSpeciesName(rawName).toLowerCase().startsWith(query)) return true;
-  if (profile?.common_name?.toLowerCase().startsWith(query)) return true;
-  if (profile?.synonyms?.some((s) => s.toLowerCase().startsWith(query))) return true;
-  if (profile?.other_names?.some((n) => n.toLowerCase().startsWith(query))) return true;
-  return false;
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return true;
+  const matchesWordPrefix = (candidate: string | null | undefined) => (
+    candidate != null
+    && plainSpeciesName(candidate)
+      .toLowerCase()
+      .split(/\s+/u)
+      .some((word) => word.startsWith(normalizedQuery))
+  );
+  return matchesWordPrefix(rawName)
+    || matchesWordPrefix(profile?.common_name)
+    || Boolean(profile?.synonyms?.some(matchesWordPrefix))
+    || Boolean(profile?.other_names?.some(matchesWordPrefix));
 }
 
 export function normalizeCommonName(commonName?: string | null, latinName?: string | null): string | null {

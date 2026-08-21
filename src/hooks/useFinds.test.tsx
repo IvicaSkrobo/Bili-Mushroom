@@ -233,6 +233,8 @@ describe('lazy species detail queries', () => {
       edibility: 'edible',
       threat_status: null,
       distribution: 'common',
+      synonyms: ['Boletus bulbosus'],
+      other_names: ['Penny bun'],
     }];
     invokeHandlers['get_species_profile'] = (args: unknown) => ({
       species_name: (args as { speciesName: string }).speciesName,
@@ -249,7 +251,40 @@ describe('lazy species detail queries', () => {
     await waitFor(() => expect(summaries.result.current.isSuccess).toBe(true));
     await waitFor(() => expect(detail.result.current.isSuccess).toBe(true));
     expect(summaries.result.current.data?.[0].cover_photo_id).toBe(7);
+    expect(summaries.result.current.data?.[0].synonyms).toEqual(['Boletus bulbosus']);
+    expect(summaries.result.current.data?.[0].other_names).toEqual(['Penny bun']);
     expect(detail.result.current.data?.description).toBe('Long detail loaded on demand');
+  });
+
+  it('loads searchable aliases without invoking either full-profile endpoint', async () => {
+    const fullListSpy = vi.fn(() => []);
+    const detailSpy = vi.fn(() => null);
+    invokeHandlers['get_species_profiles'] = fullListSpy;
+    invokeHandlers['get_species_profile'] = detailSpy;
+    invokeHandlers['get_species_profile_summaries'] = () => [{
+      species_name: 'Boletus edulis',
+      common_name: 'Vrganj',
+      cover_photo_id: null,
+      tags: [],
+      edibility: null,
+      threat_status: null,
+      distribution: null,
+      synonyms: ['Boletus bulbosus', 'Boletus solidus'],
+      other_names: ['Pravi vrganj', 'Penny bun'],
+    }];
+
+    const summaries = renderHook(() => useSpeciesProfileSummaries(), {
+      wrapper: makeWrapper(makeQueryClient()),
+    });
+    await waitFor(() => expect(summaries.result.current.isSuccess).toBe(true));
+
+    expect(summaries.result.current.data?.[0]).toMatchObject({
+      common_name: 'Vrganj',
+      synonyms: ['Boletus bulbosus', 'Boletus solidus'],
+      other_names: ['Pravi vrganj', 'Penny bun'],
+    });
+    expect(fullListSpy).not.toHaveBeenCalled();
+    expect(detailSpy).not.toHaveBeenCalled();
   });
 
   it('loads note and recipes only for the selected species', async () => {

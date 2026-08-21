@@ -1,5 +1,7 @@
 use chrono::Utc;
+use rusqlite::functions::FunctionFlags;
 use rusqlite::{params, params_from_iter, Connection, ToSql};
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
@@ -728,10 +730,82 @@ fn configure_connection_safety(conn: &Connection, wal_active: bool) -> Result<()
     Ok(())
 }
 
+const CROATIAN_ALPHABET: &[&str] = &[
+    "a", "b", "c", "č", "ć", "d", "dž", "đ", "e", "f", "g", "h", "i", "j", "k",
+    "l", "lj", "m", "n", "nj", "o", "p", "q", "r", "s", "š", "t", "u", "v", "w",
+    "x", "y", "z", "ž",
+];
+
+fn unicode_search_value(value: &str, strip_markup: bool) -> String {
+    value.chars()
+        .filter(|character| !strip_markup || *character != '*')
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
+fn croatian_sort_tokens(value: &str) -> Vec<(u8, u32)> {
+    let characters: Vec<char> = unicode_search_value(value, true).chars().collect();
+    let mut tokens = Vec::with_capacity(characters.len());
+    let mut index = 0;
+    while index < characters.len() {
+        let pair = (index + 1 < characters.len()).then(|| {
+            [characters[index], characters[index + 1]]
+                .iter()
+                .collect::<String>()
+        });
+        if let Some(weight) = pair.as_deref().and_then(|candidate| {
+            CROATIAN_ALPHABET
+                .iter()
+                .position(|letter| *letter == candidate)
+        })
+        {
+            tokens.push((1, weight as u32));
+            index += 2;
+            continue;
+        }
+
+        let character = characters[index];
+        if let Some(weight) = CROATIAN_ALPHABET
+            .iter()
+            .position(|letter| *letter == character.to_string())
+        {
+            tokens.push((1, weight as u32));
+        } else if character == ' ' || character.is_ascii_punctuation() {
+            tokens.push((0, character as u32));
+        } else {
+            tokens.push((2, character as u32));
+        }
+        index += 1;
+    }
+    tokens
+}
+
+fn compare_croatian_species_names(a: &str, b: &str) -> Ordering {
+    croatian_sort_tokens(a).cmp(&croatian_sort_tokens(b)).then_with(|| a.chars().cmp(b.chars()))
+}
+
+fn register_library_sql_helpers(conn: &Connection) -> Result<(), String> {
+    let flags = FunctionFlags::SQLITE_UTF8
+        | FunctionFlags::SQLITE_DETERMINISTIC
+        | FunctionFlags::SQLITE_INNOCUOUS;
+    conn.create_scalar_function("bili_normalize_search", 2, flags, |context| {
+        let value = context.get::<String>(0)?;
+        Ok(unicode_search_value(
+            &value,
+            context.get::<i64>(1)? != 0,
+        ))
+    })
+    .map_err(|error| format!("Failed to register Unicode search helper: {error}"))?;
+    conn.create_collation("BILI_CROATIAN", compare_croatian_species_names)
+        .map_err(|error| format!("Failed to register Croatian database collation: {error}"))?;
+    Ok(())
+}
+
 pub(crate) fn open_db(storage_path: &str) -> Result<Connection, String> {
     let db_path = format!("{}/bili-mushroom.db", storage_path);
     let mut conn = Connection::open(&db_path)
         .map_err(|e| format!("Failed to open DB at {}: {}", db_path, e))?;
+    register_library_sql_helpers(&conn)?;
     conn.profile(Some(log_slow_sql));
     conn.busy_timeout(Duration::from_secs(5))
         .map_err(|e| format!("Failed to configure DB busy timeout: {e}"))?;
@@ -2264,9 +2338,9 @@ fn get_collection_folders_for_connection(
     let order_sql = if filters.sort_mode.as_deref() == Some("alpha") {
         // Collection pagination must be ordered before LIMIT/OFFSET. Strip optional display
         // markup so a name such as `*Boletus* edulis` is filed under B rather than `*`.
-        "LOWER(REPLACE(f.species_name, '*', '')) COLLATE NOCASE ASC, f.species_name ASC"
+        "f.species_name COLLATE BILI_CROATIAN ASC, f.species_name ASC"
     } else {
-        "latest_date DESC, LOWER(REPLACE(f.species_name, '*', '')) COLLATE NOCASE ASC"
+        "latest_date DESC, f.species_name COLLATE BILI_CROATIAN ASC, f.species_name ASC"
     };
     let sql = format!(
         "SELECT
@@ -2814,7 +2888,7 @@ fn push_find_search_filters(
             // client-side), so strip '*' from the column here too before comparing — otherwise
             // an embedded asterisk in the stored name breaks the prefix match entirely.
             where_clauses.push(format!(
-                "(LOWER(REPLACE({}, '*', '')) LIKE ? ESCAPE '\\' OR LOWER(REPLACE({}, '*', '')) LIKE ? ESCAPE '\\')",
+                "(bili_normalize_search({}, 1) LIKE ? ESCAPE '\\' OR bili_normalize_search({}, 1) LIKE ? ESCAPE '\\')",
                 col("species_name"),
                 col("species_name"),
             ));
@@ -3187,6 +3261,7 @@ pub(crate) mod test_helpers {
 
     pub(crate) fn setup_in_memory_db() -> Connection {
         let conn = Connection::open_in_memory().expect("in-memory DB");
+        register_library_sql_helpers(&conn).expect("register SQLite helpers");
         conn.execute_batch(MIGRATION_0001).expect("migration 0001");
         conn.execute_batch(MIGRATION_0002).expect("migration 0002");
         conn.execute_batch(MIGRATION_0003).expect("migration 0003");
@@ -3477,6 +3552,11 @@ mod tests {
         insert("Alpha xbeta", "2024-03-01");
         insert("Alpha _delta", "2024-02-01");
         insert("Alpha xdelta", "2024-01-01");
+        insert("Čupava koraljača", "2024-09-01");
+        insert("Ćubasta puhara", "2024-09-02");
+        insert("Šumska puževica", "2024-09-03");
+        insert("Žuta krunica", "2024-09-04");
+        insert("Đurđevača", "2024-09-05");
 
         let search = |query: &str| {
             get_collection_folders_for_connection(
@@ -3523,6 +3603,13 @@ mod tests {
             vec!["Alpha _delta"],
             "an underscore in the query must remain literal"
         );
+        assert_eq!(search("č"), vec!["Čupava koraljača"]);
+        assert_eq!(search("ću"), vec!["Ćubasta puhara"]);
+        assert_eq!(search("š"), vec!["Šumska puževica"]);
+        assert_eq!(search("ž"), vec!["Žuta krunica"]);
+        assert_eq!(search("đ"), vec!["Đurđevača"]);
+        assert_eq!(search("pu"), vec!["Šumska puževica", "Ćubasta puhara"]);
+        assert!(search("uba").is_empty(), "middle-of-word Croatian fragments stay excluded");
     }
 
     #[test]
@@ -3534,27 +3621,38 @@ mod tests {
             insert_find_row(&conn, &record).expect("insert find");
         };
 
-        // Recent order is the reverse of alphabetical order. A two-row page therefore proves
-        // that SQL sorted the full result before LIMIT rather than the UI sorting one page later.
-        insert("Amanita muscaria", "2024-05-01");
-        insert("*Boletus* edulis", "2024-06-01");
-        insert("Cantharellus cibarius", "2024-07-01");
+        let expected = vec![
+            "*Amanita*", "amanita", "crvena", "Čupava", "Ćubasta", "dubovka",
+            "Džinovska", "Đurđevača", "Lisičarka", "Ljuskava", "Niska", "Njivska",
+            "Quercus", "Rujnica", "siva", "Šampinjon", "Vlažna", "Wulfenia",
+            "Xerocomus", "Ypsilandra", "zvončić", "Žuta",
+        ];
+        for name in expected.iter().rev() {
+            insert(name, "2024-05-01");
+        }
+        let load_page = |offset: i64, sort_mode: Option<&str>| {
+            get_collection_folders_for_connection(
+                &conn,
+                &FindSearchFilters {
+                    sort_mode: sort_mode.map(str::to_string),
+                    limit: Some(11),
+                    offset: Some(offset),
+                    ..FindSearchFilters::default()
+                },
+            )
+            .expect("load alphabetical collection page")
+            .into_iter()
+            .map(|summary| summary.species_name)
+            .collect::<Vec<_>>()
+        };
 
-        let summaries = get_collection_folders_for_connection(
-            &conn,
-            &FindSearchFilters {
-                sort_mode: Some("alpha".to_string()),
-                limit: Some(2),
-                ..FindSearchFilters::default()
-            },
-        )
-        .expect("load alphabetical collection page");
-        let names: Vec<&str> = summaries
-            .iter()
-            .map(|summary| summary.species_name.as_str())
-            .collect();
+        let mut names = load_page(0, Some("alpha"));
+        names.extend(load_page(11, Some("alpha")));
+        assert_eq!(names, expected);
 
-        assert_eq!(names, vec!["Amanita muscaria", "*Boletus* edulis"]);
+        let mut recent_names = load_page(0, None);
+        recent_names.extend(load_page(11, None));
+        assert_eq!(recent_names, expected, "recent ties use the same Croatian secondary order");
     }
 
     /// A cover belongs to the species profile that chose it, not to the find that holds

@@ -143,7 +143,10 @@ export interface SpeciesProfile {
 export type SpeciesProfileSummary = Pick<
   SpeciesProfile,
   'species_name' | 'common_name' | 'cover_photo_id' | 'tags' | 'edibility' | 'threat_status' | 'distribution'
->;
+> & {
+  synonyms: string[];
+  other_names: string[];
+};
 
 export interface SpeciesRecipe {
   id: number;

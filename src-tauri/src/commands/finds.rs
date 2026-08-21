@@ -151,6 +151,8 @@ pub struct SpeciesProfileSummary {
     pub edibility: Option<String>,
     pub threat_status: Option<String>,
     pub distribution: Option<String>,
+    pub synonyms: Vec<String>,
+    pub other_names: Vec<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -459,32 +461,46 @@ pub async fn get_species_profile_summaries(
 ) -> Result<Vec<SpeciesProfileSummary>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let conn = open_db(&storage_path)?;
-        let mut stmt = conn
-            .prepare(
-                "SELECT species_name, common_name, cover_photo_id, tags_json, edibility, threat_status, distribution
-                 FROM species_profiles ORDER BY species_name",
-            )
-            .map_err(|e| e.to_string())?;
-        let rows = stmt.query_map([], |row| {
-            let tags_json: String = row.get(3)?;
-            Ok(SpeciesProfileSummary {
-                species_name: row.get(0)?,
-                common_name: row.get(1)?,
-                cover_photo_id: row.get(2)?,
-                tags: serde_json::from_str(&tags_json).unwrap_or_default(),
-                edibility: row.get(4)?,
-                threat_status: row.get(5)?,
-                distribution: row.get(6)?,
-            })
-        })
-        .map_err(|e| e.to_string())?;
-        let summaries = rows
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())?;
-        Ok(summaries)
+        get_species_profile_summaries_for_connection(&conn)
     })
     .await
     .map_err(|e| format!("Species profile summaries worker failed: {}", e))?
+}
+
+fn get_species_profile_summaries_for_connection(
+    conn: &Connection,
+) -> Result<Vec<SpeciesProfileSummary>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT species_name, common_name, cover_photo_id, tags_json, edibility, threat_status, distribution, synonyms, other_names
+             FROM species_profiles ORDER BY species_name",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt.query_map([], |row| {
+        let tags_json: String = row.get(3)?;
+        let synonyms_json: Option<String> = row.get(7)?;
+        let other_names_json: Option<String> = row.get(8)?;
+        Ok(SpeciesProfileSummary {
+            species_name: row.get(0)?,
+            common_name: row.get(1)?,
+            cover_photo_id: row.get(2)?,
+            tags: serde_json::from_str(&tags_json).unwrap_or_default(),
+            edibility: row.get(4)?,
+            threat_status: row.get(5)?,
+            distribution: row.get(6)?,
+            synonyms: synonyms_json
+                .as_deref()
+                .and_then(|value| serde_json::from_str(value).ok())
+                .unwrap_or_default(),
+            other_names: other_names_json
+                .as_deref()
+                .and_then(|value| serde_json::from_str(value).ok())
+                .unwrap_or_default(),
+        })
+    })
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -4688,6 +4704,48 @@ mod tests {
                 .is_none(),
             "an unknown species must still return None so a new profile can be created"
         );
+    }
+
+    #[test]
+    fn species_profile_summaries_include_searchable_names_with_safe_fallbacks() {
+        let conn = setup_in_memory_db();
+        conn.execute(
+            "INSERT INTO species_profiles
+             (species_name, common_name, tags_json, synonyms, other_names, description, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            rusqlite::params![
+                "Boletus edulis", "Jestivi vrganj", r#"["jestivo"]"#,
+                r#"["Boletus bulbosus","Boletus solidus"]"#,
+                r#"["Pravi vrganj","Penny bun"]"#,
+                "Large full-profile description that the summary query must not select",
+                "2026-08-21T00:00:00Z",
+            ],
+        )
+        .expect("insert aliased profile");
+        conn.execute(
+            "INSERT INTO species_profiles
+             (species_name, tags_json, synonyms, other_names, updated_at)
+             VALUES (?1, ?2, NULL, ?3, ?4)",
+            rusqlite::params!["Cantharellus cibarius", "[]", "not-json", "2026-08-21T00:00:00Z"],
+        )
+        .expect("insert legacy profile");
+
+        let summaries = get_species_profile_summaries_for_connection(&conn)
+            .expect("load lightweight profile summaries");
+        assert_eq!(summaries.len(), 2);
+        let boletus = summaries
+            .iter()
+            .find(|summary| summary.species_name == "Boletus edulis")
+            .expect("Boletus summary");
+        assert_eq!(boletus.common_name.as_deref(), Some("Jestivi vrganj"));
+        assert_eq!(boletus.synonyms, vec!["Boletus bulbosus", "Boletus solidus"]);
+        assert_eq!(boletus.other_names, vec!["Pravi vrganj", "Penny bun"]);
+        let legacy = summaries
+            .iter()
+            .find(|summary| summary.species_name == "Cantharellus cibarius")
+            .expect("legacy summary");
+        assert!(legacy.synonyms.is_empty(), "NULL aliases decode as an empty array");
+        assert!(legacy.other_names.is_empty(), "invalid legacy JSON cannot break the list");
     }
 
     #[test]
