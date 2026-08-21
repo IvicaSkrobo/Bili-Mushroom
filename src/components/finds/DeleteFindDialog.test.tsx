@@ -9,7 +9,7 @@ import type { Find } from '@/lib/finds';
 
 import '@/test/tauri-mocks';
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
 function makeQueryClient() {
   return new QueryClient({
@@ -50,9 +50,15 @@ describe('DeleteFindDialog', () => {
   const onOpenChange = vi.fn();
 
   beforeEach(() => {
+    vi.clearAllMocks();
     onOpenChange.mockClear();
     useAppStore.setState({ storagePath: '/storage/test', dbReady: true, language: 'en' });
-    invokeHandlers['delete_find'] = (_args: unknown) => undefined;
+    invokeHandlers['delete_find'] = (_args: unknown) => ({
+      requested: 1,
+      completed: 1,
+      file_failures: [],
+      operation_failures: [],
+    });
     invokeHandlers['move_find_files'] = (_args: unknown) => undefined;
   });
 
@@ -170,6 +176,25 @@ describe('DeleteFindDialog', () => {
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalled();
     });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('warns instead of claiming success when a photo could not be trashed', async () => {
+    const { toast } = await import('sonner');
+    // The record goes, the file does not: reporting this as a clean success is what let a
+    // locked photo look like a finished cleanup.
+    invokeHandlers['delete_find'] = (_args: unknown) => ({
+      requested: 1,
+      completed: 1,
+      file_failures: [{ item: 'Boletus_edulis/locked.jpg', error: 'file in use' }],
+      operation_failures: [],
+    });
+    renderDialog(sampleFind);
+    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }));
+    await waitFor(() => {
+      expect(toast.warning).toHaveBeenCalled();
+    });
+    expect(toast.success).not.toHaveBeenCalled();
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 

@@ -1190,36 +1190,63 @@ pub async fn quit_app() {
 /// `delete_sample_folder` controls whether a linked sample's folder goes too. It defaults
 /// to keeping the folder: it holds the specimen's data sheet and photos, so destroying it
 /// has to be asked for explicitly.
+/// Returns the same structured result as the bulk delete so the caller can tell a clean
+/// delete from one that dropped the record but left photos on disk. Reporting that as a
+/// plain success is what made a locked photo look like a finished cleanup.
 pub async fn delete_find(
     storage_path: String,
     find_id: i64,
     delete_files: bool,
     delete_sample_folder: Option<bool>,
-) -> Result<(), String> {
+) -> Result<BulkOperationResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let result = bulk_delete_finds_blocking(
+        delete_single_find_blocking(
             &storage_path,
-            &[find_id],
+            find_id,
             delete_files,
             delete_sample_folder.unwrap_or(false),
-        )?;
-        if result.completed == 1 {
-            // Preserve the single-delete UX: once the DB record is safely gone, leftover
-            // files are non-fatal and are discoverable by the library audit.
-            for failure in result.file_failures {
-                eprintln!("delete_find file cleanup failed for {}: {}", failure.item, failure.error);
-            }
-            Ok(())
-        } else {
-            Err(result
-                .operation_failures
-                .first()
-                .map(|failure| failure.error.clone())
-                .unwrap_or_else(|| format!("Find {find_id} was not deleted")))
-        }
+        )
     })
     .await
     .map_err(|e| format!("Delete find worker failed: {e}"))?
+}
+
+fn delete_single_find_blocking(
+    storage_path: &str,
+    find_id: i64,
+    delete_files: bool,
+    delete_sample_folder: bool,
+) -> Result<BulkOperationResult, String> {
+    let result =
+        bulk_delete_finds_blocking(storage_path, &[find_id], delete_files, delete_sample_folder)?;
+    if result.completed == 1 {
+        return Ok(result);
+    }
+
+    // Deleting a find that is already gone is the outcome the caller asked for, so it
+    // reports as done rather than as a red error on a stale list or a double confirm. A row
+    // that is still there means a real failure the caller has to see. The bulk contract is
+    // left alone: for a batch, "one of the ten was missing" is worth reporting.
+    let conn = open_db(storage_path)?;
+    let still_present = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM finds WHERE id = ?1)",
+            params![find_id],
+            |row| row.get::<_, bool>(0),
+        )
+        .map_err(|e| format!("Could not confirm whether find {find_id} was deleted: {e}"))?;
+    if still_present {
+        return Err(result
+            .operation_failures
+            .first()
+            .map(|failure| failure.error.clone())
+            .unwrap_or_else(|| format!("Find {find_id} was not deleted")));
+    }
+
+    let mut already_gone = result;
+    already_gone.completed = 1;
+    already_gone.operation_failures.clear();
+    Ok(already_gone)
 }
 
 /// Deletes many finds in one command.
@@ -3058,6 +3085,59 @@ mod tests {
                 .expect("look up deleted find");
             assert_eq!(gone, 0);
         }
+    }
+
+    #[test]
+    fn deleting_a_find_reports_photos_that_could_not_be_trashed() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_str().expect("storage path");
+        let find_id = {
+            let conn = open_db(storage_path).expect("open library");
+            let find_id = insert_find_row(&conn, &make_find_record("gone.jpg", "2024-05-10"))
+                .expect("insert find");
+            // The row points at a file that is not on disk, so trashing it must fail.
+            insert_find_photo(&conn, find_id, "Boletus_edulis/gone.jpg", true)
+                .expect("insert photo");
+            find_id
+        };
+
+        let result = bulk_delete_finds_blocking(storage_path, &[find_id], true, false)
+            .expect("delete the record");
+
+        assert_eq!(result.completed, 1, "the record still goes");
+        assert_eq!(
+            result.file_failures.len(),
+            1,
+            "the caller must be able to see that a photo was left behind"
+        );
+        assert_eq!(result.file_failures[0].item, "Boletus_edulis/gone.jpg");
+    }
+
+    #[test]
+    fn deleting_a_find_that_is_already_gone_counts_as_done() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let storage_path = dir.path().to_str().expect("storage path");
+        let find_id = {
+            let conn = open_db(storage_path).expect("open library");
+            insert_find_row(&conn, &make_find_record("here.jpg", "2024-05-10")).expect("insert")
+        };
+
+        let first = delete_single_find_blocking(storage_path, find_id, false, false)
+            .expect("first delete");
+        assert_eq!(first.completed, 1);
+
+        // Deleting it again is the same requested outcome, not a red error on a stale
+        // list or a double confirm.
+        let second = delete_single_find_blocking(storage_path, find_id, false, false)
+            .expect("deleting an already deleted find succeeds");
+        assert_eq!(second.completed, 1);
+        assert!(second.operation_failures.is_empty());
+
+        // The bulk contract still reports a missing id, so batches stay informative.
+        let bulk = bulk_delete_finds_blocking(storage_path, &[find_id], false, false)
+            .expect("bulk delete with a stale id");
+        assert_eq!(bulk.completed, 0);
+        assert_eq!(bulk.operation_failures.len(), 1);
     }
 
     #[test]

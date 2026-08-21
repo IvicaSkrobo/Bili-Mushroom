@@ -383,14 +383,18 @@ export async function updateFind(storagePath: string, payload: UpdateFindPayload
 /**
  * Calls the Rust `delete_find` command.
  * Removes DB record(s) and optionally moves photo files to system trash.
+ *
+ * Returns the same structured result as the bulk delete: `file_failures` lists photos the
+ * record no longer references but that are still on disk, so the caller can say so
+ * instead of reporting a clean success.
  */
 export async function deleteFind(
   storagePath: string,
   findId: number,
   deleteFiles: boolean,
   deleteSampleFolder = false,
-): Promise<void> {
-  return invoke<void>('delete_find', { storagePath, findId, deleteFiles, deleteSampleFolder });
+): Promise<BulkOperationResult> {
+  return invoke<BulkOperationResult>('delete_find', { storagePath, findId, deleteFiles, deleteSampleFolder });
 }
 
 /**

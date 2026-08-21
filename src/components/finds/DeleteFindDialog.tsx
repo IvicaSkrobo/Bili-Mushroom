@@ -69,8 +69,13 @@ export function DeleteFindDialog({ find, onOpenChange }: DeleteFindDialogProps) 
           deleteSampleFolder: deleteSampleFolder && Boolean(linkedSample.data),
         },
         {
-          onSuccess: () => {
-            toast.success(mode === 'files' ? t('delete.successFiles') : t('delete.successRecord'));
+          onSuccess: (result) => {
+            // The record is gone either way; say so honestly when its photos are not.
+            if ((result?.file_failures?.length ?? 0) > 0) {
+              toast.warning(t('delete.partialFiles', { files: result.file_failures.length }));
+            } else {
+              toast.success(mode === 'files' ? t('delete.successFiles') : t('delete.successRecord'));
+            }
             onOpenChange(false);
           },
         },

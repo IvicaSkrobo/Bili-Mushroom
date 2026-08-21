@@ -173,7 +173,12 @@ export const invokeHandlers: Record<string, (...args: unknown[]) => unknown> = {
     created_at: '2024-05-10T14:00:00Z',
     photos: [],
   }),
-  delete_find: (_args: unknown) => undefined,
+  delete_find: (_args: unknown) => ({
+    requested: 1,
+    completed: 1,
+    file_failures: [],
+    operation_failures: [],
+  }),
   bulk_delete_finds: (args: unknown) => {
     const findIds = (args as { findIds?: number[] }).findIds ?? [];
     return {
