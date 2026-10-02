@@ -12,7 +12,7 @@ use crate::commands::import::{
     open_db, remember_source_path, upsert_species_common_name, FindPhoto, FindRecord,
 };
 use crate::commands::path_builder::{
-    build_dest_path, next_seq_for_folder, plain_species_name, resolve_location_component,
+    build_dest_path, copy_photo_without_overwrite, next_seq_for_folder, plain_species_name, resolve_location_component,
 };
 use crate::commands::thumbnail_scheduler::run_thumbnail_job;
 
@@ -2226,6 +2226,45 @@ pub async fn cleanup_internal_records(storage_path: String) -> Result<i64, Strin
     .map_err(|e| format!("Library cleanup worker failed: {e}"))?
 }
 
+fn register_added_photo(
+    conn: &Connection,
+    storage: &Path,
+    find_id: i64,
+    source: &Path,
+    destination: &Path,
+) -> Result<(), String> {
+    if !source.is_file() { return Err(format!("Photo is missing or unreadable: {}", source.display())); }
+    let mut stmt = conn.prepare("SELECT photo_path FROM find_photos WHERE find_id = ?1").map_err(|e| e.to_string())?;
+    let paths = stmt.query_map([find_id], |r| r.get::<_, String>(0)).map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+    for path in &paths {
+        if super::import::is_likely_duplicate_content(&storage.join(path).to_string_lossy(), &source.to_string_lossy()) {
+            return Ok(());
+        }
+    }
+    // A photo owned by another find needs its own copy: deleting that find must
+    // not delete this find's photo. Repeated additions to this find were skipped above.
+    let owned_by_another_find = match source.strip_prefix(storage) {
+        Ok(relative) => conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM find_photos WHERE photo_path = ?1 AND find_id <> ?2)",
+            params![relative.to_string_lossy().replace('\\', "/"), find_id],
+            |row| row.get::<_, bool>(0),
+        ).map_err(|e| e.to_string())?,
+        Err(_) => false,
+    };
+    let (actual, copied) = if source.starts_with(storage) && !owned_by_another_find {
+        (source.to_path_buf(), false)
+    } else {
+        (copy_photo_without_overwrite(source, destination).map_err(|e| e.to_string())?, true)
+    };
+    let relative = actual.strip_prefix(storage).map_err(|e| e.to_string())?.to_string_lossy().replace('\\', "/");
+    if let Err(error) = insert_find_photo(conn, find_id, &relative, paths.is_empty()) {
+        if copied { let _ = std::fs::remove_file(actual); }
+        return Err(format!("DB insert photo failed: {error}"));
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn add_find_photos(
     storage_path: String,
@@ -2296,7 +2335,7 @@ pub async fn add_find_photos(
                 .unwrap_or_else(|| ".jpg".to_string());
 
             let seq = next_seq_for_folder(&dest_folder);
-            let dest_path = build_dest_path(
+            let generated_path = build_dest_path(
                 &storage_path,
                 &species_name,
                 &date_found,
@@ -2305,27 +2344,8 @@ pub async fn add_find_photos(
                 &ext,
             );
 
-            std::fs::copy(source_path, &dest_path).map_err(|e| {
-                format!(
-                    "Failed to copy '{}' to '{}': {}",
-                    source_path,
-                    dest_path.display(),
-                    e
-                )
-            })?;
-
-            let relative = dest_path
-                .strip_prefix(&storage_path)
-                .map(|p| {
-                    p.to_string_lossy()
-                        .replace('\\', "/")
-                        .trim_start_matches('/')
-                        .to_string()
-                })
-                .unwrap_or_else(|_| dest_path.to_string_lossy().replace('\\', "/"));
-
-            insert_find_photo(&conn, find_id, &relative, false)
-                .map_err(|e| format!("DB insert photo failed: {}", e))?;
+            let dest_path = dest_folder.join(generated_path.file_name().ok_or("Photo has no filename")?);
+            register_added_photo(&conn, Path::new(&storage_path), find_id, Path::new(source_path), &dest_path)?;
         }
 
         // Backfill find lat/lng from the first GPS-tagged newly-added photo, but only if
@@ -3092,6 +3112,30 @@ mod tests {
     use super::*;
     use crate::commands::import::test_helpers::{make_find_record, setup_in_memory_db};
     use crate::commands::import::{find_record_from_row, insert_find_photo, insert_find_row};
+
+    #[test]
+    fn adding_library_photos_reuses_files_and_skips_repeated_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let external = tempfile::tempdir().unwrap();
+        let conn = setup_in_memory_db();
+        let id = insert_find_row(&conn, &make_find_record("one.jpg", "2026-10-02")).unwrap();
+        let source = dir.path().join("original.jpg");
+        let duplicate = external.path().join("renamed.jpg");
+        let destination = dir.path().join("copy.jpg");
+        std::fs::write(&source, b"same photo").unwrap();
+        std::fs::write(&duplicate, b"same photo").unwrap();
+        register_added_photo(&conn, dir.path(), id, &source, &destination).unwrap();
+        register_added_photo(&conn, dir.path(), id, &source, &destination).unwrap();
+        register_added_photo(&conn, dir.path(), id, &duplicate, &destination).unwrap();
+        assert!(!destination.exists());
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+        assert_eq!(conn.query_row("SELECT COUNT(*) FROM find_photos", [], |r| r.get::<_, i64>(0)).unwrap(), 1);
+        assert_eq!(conn.query_row("SELECT photo_path, is_primary FROM find_photos", [], |r| Ok((r.get::<_, String>(0)?, r.get::<_, bool>(1)?))).unwrap(), ("original.jpg".into(), true));
+        let other_id = insert_find_row(&conn, &make_find_record("other.jpg", "2026-10-03")).unwrap();
+        register_added_photo(&conn, dir.path(), other_id, &source, &destination).unwrap();
+        assert!(destination.exists(), "a different find owns a separate file");
+        assert_eq!(conn.query_row("SELECT COUNT(DISTINCT photo_path) FROM find_photos", [], |r| r.get::<_, i64>(0)).unwrap(), 2);
+    }
 
     #[test]
     fn thumbnail_warmup_advances_through_the_library_and_wraps() {

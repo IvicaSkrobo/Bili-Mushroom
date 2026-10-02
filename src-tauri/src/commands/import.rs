@@ -11,7 +11,7 @@ use tauri::Emitter;
 
 use crate::commands::exif::extract_exif;
 use crate::commands::path_builder::{
-    build_dest_path, next_seq_for_folder, resolve_location_component,
+    build_dest_path, copy_photo_without_overwrite, next_seq_for_folder, plain_species_name, resolve_location_component,
 };
 
 #[derive(serde::Deserialize)]
@@ -1088,6 +1088,38 @@ fn has_existing_photo_path(conn: &Connection, photo_path: &str) -> rusqlite::Res
     Ok(count > 0)
 }
 
+/// Check every photo, not just the first one returned by read_dir (whose order
+/// can change). Re-scanning must neither re-register old photos nor miss new ones.
+fn retain_new_library_photos(
+    conn: &Connection,
+    storage: &Path,
+    payload: &mut ImportPayload,
+    skipped: &mut Vec<String>,
+) -> Result<bool, String> {
+    let mut remaining = Vec::new();
+    for source in std::iter::once(&payload.source_path).chain(payload.additional_photos.iter()) {
+        let path = Path::new(source);
+        let registered = match path.strip_prefix(storage) {
+            Ok(relative) => has_existing_photo_path(conn, &relative.to_string_lossy().replace('\\', "/"))
+                .map_err(|e| format!("Duplicate check failed: {e}"))?,
+            Err(_) => false,
+        };
+        if registered {
+            skipped.push(path.file_name().unwrap_or_default().to_string_lossy().into_owned());
+        } else {
+            remaining.push(source.clone());
+        }
+    }
+    if remaining.is_empty() { return Ok(false); }
+    let first = remaining.remove(0);
+    if first != payload.source_path {
+        payload.original_filename = Path::new(&first).file_name().unwrap_or_default().to_string_lossy().into_owned();
+    }
+    payload.source_path = first;
+    payload.additional_photos = remaining;
+    Ok(true)
+}
+
 pub(crate) fn insert_find_row(conn: &Connection, record: &FindRecord) -> rusqlite::Result<i64> {
     conn.execute(
         "INSERT INTO finds (original_filename, species_name, date_found, country, region, lat, lng, notes, location_note, observed_count, observed_count_min, observed_count_max, is_favorite, created_at, edibility_note, weather, determiner, finder)
@@ -1262,7 +1294,7 @@ fn cleanup_staged_photos(staged: &[StagedPhoto]) {
 /// most non-duplicate photos differ in size, so the much more expensive full-content
 /// read only happens when sizes already match, keeping this cheap for the common case
 /// of genuinely different photos in a large import batch.
-fn is_likely_duplicate_content(a: &str, b: &str) -> bool {
+pub(crate) fn is_likely_duplicate_content(a: &str, b: &str) -> bool {
     let size_a = std::fs::metadata(a).map(|m| m.len()).ok();
     let size_b = std::fs::metadata(b).map(|m| m.len()).ok();
     let (size_a, size_b) = match (size_a, size_b) {
@@ -1381,13 +1413,8 @@ fn copy_payload_photos(
             &ext,
         );
 
-        if let Err(e) = std::fs::copy(&payload.source_path, &dest_path) {
-            cleanup_staged_photos(&staged);
-            return Err(format!(
-                "Failed to copy {:?} to {:?}: {}",
-                payload.source_path, dest_path, e
-            ));
-        }
+        let dest_path = copy_photo_without_overwrite(src_path, &dest_path)
+            .map_err(|e| format!("Failed to copy {:?} to {:?}: {}", payload.source_path, dest_path, e))?;
 
         let relative_path = dest_path
             .strip_prefix(storage_path)
@@ -1443,13 +1470,27 @@ fn copy_payload_photos(
             continue;
         }
 
+        // Folder scans must register every library photo in place, just like the
+        // primary photo. Copying these creates new files on each fresh DB import.
+        if let Ok(relative) = Path::new(additional_src).strip_prefix(storage_path_buf) {
+            staged_sources.push(additional_src.clone());
+            staged.push(StagedPhoto {
+                source_path: additional_src.clone(),
+                dest_abs: PathBuf::from(additional_src),
+                relative_path: relative.to_string_lossy().replace('\\', "/"),
+                is_primary: false,
+                was_copied: false,
+            });
+            continue;
+        }
+
         let add_ext = Path::new(additional_src)
             .extension()
             .map(|e| format!(".{}", e.to_string_lossy().to_lowercase()))
             .unwrap_or_else(|| ".jpg".to_string());
 
         let add_seq = next_seq_for_folder(&add_dest_folder);
-        let add_dest_path = build_dest_path(
+        let add_filename = build_dest_path(
             storage_path,
             &payload.species_name,
             &payload.date_found,
@@ -1458,13 +1499,14 @@ fn copy_payload_photos(
             &add_ext,
         );
 
-        if let Err(e) = std::fs::copy(additional_src, &add_dest_path) {
-            cleanup_staged_photos(&staged);
-            return Err(format!(
-                "Failed to copy additional photo {:?} to {:?}: {}",
-                additional_src, add_dest_path, e
-            ));
-        }
+        let add_dest_path = add_dest_folder.join(add_filename.file_name().ok_or("Photo has no filename")?);
+        let add_dest_path = match copy_photo_without_overwrite(Path::new(additional_src), &add_dest_path) {
+            Ok(path) => path,
+            Err(e) => {
+                cleanup_staged_photos(&staged);
+                return Err(format!("Failed to copy additional photo {:?} to {:?}: {}", additional_src, add_dest_path, e));
+            }
+        };
 
         let add_relative_path = add_dest_path
             .strip_prefix(storage_path)
@@ -1493,10 +1535,14 @@ fn copy_payload_photos(
 pub async fn import_find(
     app: tauri::AppHandle,
     storage_path: String,
-    payloads: Vec<ImportPayload>,
+    mut payloads: Vec<ImportPayload>,
     delete_source: bool,
 ) -> Result<ImportSummary, String> {
     tauri::async_runtime::spawn_blocking(move || {
+        // Two scans can overlap (for example React StrictMode or repeated folder
+        // selection). Keep the duplicate check and registration in one import lane.
+        static IMPORT_LOCK: Mutex<()> = Mutex::new(());
+        let _import_guard = IMPORT_LOCK.lock().map_err(|e| format!("Import lock failed: {e}"))?;
         let total = payloads.len();
         let mut imported: Vec<FindRecord> = Vec::new();
         let mut skipped: Vec<String> = Vec::new();
@@ -1506,7 +1552,14 @@ pub async fn import_find(
         let storage_path_buf = Path::new(&storage_path);
         let mut seen_source_paths: HashSet<String> = HashSet::new();
 
-        for (i, payload) in payloads.iter().enumerate() {
+        for (i, payload) in payloads.iter_mut().enumerate() {
+            if !retain_new_library_photos(&conn, storage_path_buf, payload, &mut skipped)? {
+                let _ = app.emit("import-progress", ImportProgress {
+                    current: i + 1, total, filename: payload.original_filename.clone(),
+                });
+                continue;
+            }
+            payload.species_name = super::species_identity::resolve_species_name(&conn, &payload.species_name)?;
             if !remember_source_path(&mut seen_source_paths, &payload.source_path) {
                 skipped.push(payload.original_filename.clone());
                 let _ = app.emit(
@@ -1523,39 +1576,6 @@ pub async fn import_find(
             // Location label for filename: only location_note (user-entered "oznaka").
             // Region is NOT used — user wants the manual label, not the auto-geocoded region.
             let location_label = payload.location_note.trim().to_string();
-
-            // If source is already inside storage_path, register it in-place — no copy, no
-            // delete. This handles auto-import where the user picks their existing mushroom
-            // library folder. Skip-if-duplicate check happens before any copy is attempted.
-            let src_path = Path::new(&payload.source_path);
-            if src_path.starts_with(storage_path_buf) {
-                let existing_photo_path = src_path
-                    .strip_prefix(storage_path_buf)
-                    .map(|p| {
-                        p.to_string_lossy()
-                            .replace('\\', "/")
-                            .trim_start_matches('/')
-                            .to_string()
-                    })
-                    .unwrap_or_else(|_| payload.source_path.clone());
-
-                match has_existing_photo_path(&conn, &existing_photo_path) {
-                    Ok(true) => {
-                        skipped.push(payload.original_filename.clone());
-                        let _ = app.emit(
-                            "import-progress",
-                            ImportProgress {
-                                current: i + 1,
-                                total,
-                                filename: payload.original_filename.clone(),
-                            },
-                        );
-                        continue;
-                    }
-                    Ok(false) => {}
-                    Err(e) => return Err(format!("Duplicate check failed: {}", e)),
-                }
-            }
 
             // --- Copy phase: copy every photo for this find to storage first. No DB writes,
             // no source deletion yet. If any copy fails, everything staged for THIS find is
@@ -3140,7 +3160,7 @@ fn move_find_photos_to_species_folder(
     }
 
     let target_folder = Path::new(storage_path).join(resolve_location_component(
-        new_species_name,
+        &plain_species_name(new_species_name),
         "unknown_species",
     ));
     std::fs::create_dir_all(&target_folder).map_err(|e| {
@@ -4758,6 +4778,90 @@ mod tests {
                 photo.dest_abs
             );
         }
+    }
+
+    #[test]
+    fn test_copy_payload_photos_library_rescan_keeps_all_photos_in_place() {
+        let storage = tempfile::tempdir().unwrap();
+        let folder = storage.path().join("Boletus edulis");
+        std::fs::create_dir(&folder).unwrap();
+        let first = folder.join("first.jpg");
+        let second = folder.join("second.jpg");
+        std::fs::write(&first, b"first photo").unwrap();
+        std::fs::write(&second, b"second photo").unwrap();
+        let payload = make_import_payload(
+            first.to_string_lossy().into_owned(),
+            vec![second.to_string_lossy().into_owned()],
+        );
+        // A fresh database on another installation must not multiply files either.
+        for _ in 0..2 {
+            let staged = copy_payload_photos(
+                storage.path().to_str().unwrap(), storage.path(), &payload, "woods",
+                &mut HashSet::new(), &mut Vec::new(),
+            ).unwrap();
+            assert_eq!(staged.len(), 2);
+            assert!(staged.iter().all(|photo| !photo.was_copied));
+            assert_eq!(staged[1].relative_path, "Boletus edulis/second.jpg");
+            cleanup_staged_photos(&staged);
+            assert_eq!(std::fs::read_dir(&folder).unwrap().count(), 2);
+            assert_eq!(std::fs::read(&second).unwrap(), b"second photo");
+        }
+    }
+
+    #[test]
+    fn test_library_rescan_is_idempotent_and_imports_only_new_photos() {
+        let storage = tempfile::tempdir().unwrap();
+        let root = storage.path().to_str().unwrap();
+        let conn = open_db(root).unwrap();
+        let folder = storage.path().join("Amanita citrina Pers");
+        std::fs::create_dir(&folder).unwrap();
+        let paths: Vec<String> = ["first.jpg", "second.jpg", "third.jpg"].iter()
+            .map(|name| folder.join(name).to_string_lossy().into_owned()).collect();
+        for (i, path) in paths.iter().enumerate() {
+            std::fs::write(path, format!("distinct photo {i}")).unwrap();
+        }
+        conn.execute("INSERT INTO species_profiles (species_name, updated_at) VALUES ('Amanita citrina *Pers.*', '')", []).unwrap();
+
+        let mut payload = make_import_payload(paths[0].clone(), vec![paths[1].clone()]);
+        payload.species_name = super::super::species_identity::resolve_species_name(&conn, "Amanita citrina Pers").unwrap();
+        let mut skipped = Vec::new();
+        assert!(retain_new_library_photos(&conn, storage.path(), &mut payload, &mut skipped).unwrap());
+        let staged = copy_payload_photos(root, storage.path(), &payload, "", &mut HashSet::new(), &mut skipped).unwrap();
+        let mut record = make_find_record("first.jpg", "2026-10-02");
+        record.species_name = payload.species_name.clone();
+        let id = insert_find_row(&conn, &record).unwrap();
+        for photo in &staged {
+            assert!(!photo.was_copied);
+            insert_find_photo(&conn, id, &photo.relative_path, photo.is_primary).unwrap();
+        }
+        // A different read_dir order must still skip every registered photo.
+        let mut again = make_import_payload(paths[1].clone(), vec![paths[0].clone()]);
+        assert!(!retain_new_library_photos(&conn, storage.path(), &mut again, &mut skipped).unwrap());
+        // A previously imported primary must not hide a new additional photo.
+        again.additional_photos.push(paths[2].clone());
+        assert!(retain_new_library_photos(&conn, storage.path(), &mut again, &mut skipped).unwrap());
+        assert_eq!(again.source_path, paths[2]);
+        assert!(again.additional_photos.is_empty());
+        // Nor may a new primary cause existing additional photos to be re-registered.
+        again.additional_photos = vec![paths[0].clone(), paths[1].clone()];
+        assert!(retain_new_library_photos(&conn, storage.path(), &mut again, &mut skipped).unwrap());
+        assert!(again.additional_photos.is_empty());
+        assert_eq!(std::fs::read_dir(&folder).unwrap().count(), 3);
+        assert_eq!(conn.query_row("SELECT COUNT(DISTINCT species_name) FROM finds", [], |r| r.get::<_, i64>(0)).unwrap(), 1);
+    }
+
+    #[test]
+    fn editing_species_formatting_does_not_create_an_underscore_folder() {
+        let storage = tempfile::tempdir().unwrap();
+        let conn = setup_in_memory_db();
+        let folder = storage.path().join("Boletus edulis Bull.");
+        std::fs::create_dir(&folder).unwrap();
+        std::fs::write(folder.join("one.jpg"), b"photo").unwrap();
+        let id = insert_find_row(&conn, &make_find_record("one.jpg", "2026-10-02")).unwrap();
+        insert_find_photo(&conn, id, "Boletus edulis Bull./one.jpg", true).unwrap();
+        move_find_photos_to_species_folder(&conn, storage.path().to_str().unwrap(), id, "Boletus edulis *Bull.*").unwrap();
+        assert!(folder.join("one.jpg").exists());
+        assert_eq!(std::fs::read_dir(storage.path()).unwrap().count(), 1);
     }
 
     #[test]

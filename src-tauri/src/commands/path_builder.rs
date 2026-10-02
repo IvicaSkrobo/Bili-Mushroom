@@ -1,5 +1,32 @@
 use std::path::{Path, PathBuf};
 
+/// Reserve a new file atomically: existing library photos must never be overwritten,
+/// including when sequence numbers have gaps or another writer picks the same name.
+pub(crate) fn copy_photo_without_overwrite(source: &Path, destination: &Path) -> std::io::Result<PathBuf> {
+    let mut input = std::fs::File::open(source)?;
+    let mut candidate = destination.to_path_buf();
+    let mut suffix = 1u64;
+    loop {
+        match std::fs::OpenOptions::new().write(true).create_new(true).open(&candidate) {
+            Ok(mut output) => {
+                if let Err(error) = std::io::copy(&mut input, &mut output) {
+                    drop(output);
+                    let _ = std::fs::remove_file(&candidate);
+                    return Err(error);
+                }
+                return Ok(candidate);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                let stem = destination.file_stem().unwrap_or_default().to_string_lossy();
+                let ext = destination.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+                candidate = destination.with_file_name(format!("{stem}_{suffix}{ext}"));
+                suffix += 1;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+}
+
 /// Replace Windows-illegal characters with underscores, collapse consecutive underscores,
 /// and trim outer whitespace/underscores while preserving user-entered spaces.
 pub fn sanitize_path_component(s: &str) -> String {
@@ -94,6 +121,22 @@ pub fn next_seq_for_folder(folder: &Path) -> u32 {
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    #[test]
+    fn copying_a_photo_never_overwrites_an_existing_destination() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("source.jpg");
+        let destination = dir.path().join("2026-10-02_003.jpg");
+        std::fs::write(&source, b"new photo").unwrap();
+        std::fs::write(&destination, b"precious original").unwrap();
+        let first = copy_photo_without_overwrite(&source, &destination).unwrap();
+        let second = copy_photo_without_overwrite(&source, &destination).unwrap();
+        assert_ne!(first, destination);
+        assert_ne!(first, second);
+        assert_eq!(std::fs::read(&destination).unwrap(), b"precious original");
+        assert_eq!(std::fs::read(first).unwrap(), b"new photo");
+        assert_eq!(std::fs::read(second).unwrap(), b"new photo");
+    }
 
     #[test]
     fn test_build_dest_path_standard() {

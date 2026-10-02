@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { matchSpeciesOption } from '@/lib/speciesIdentity';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { readDir } from '@tauri-apps/plugin-fs';
 import { convertFileSrc } from '@tauri-apps/api/core';
@@ -45,7 +46,6 @@ import { useFindLocations, useSpeciesNotes, useSpeciesOptions } from '@/hooks/us
 import { useT } from '@/i18n/index';
 import { createSampleForFind, SAMPLES_QUERY_KEY } from '@/lib/samples';
 import { isInternalLibraryName } from '@/lib/internalEntries';
-import { plainSpeciesName } from '@/lib/speciesName';
 import { cn } from '@/lib/utils';
 import { filledClass } from '@/lib/filledFieldStyle';
 
@@ -201,22 +201,6 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   const { data: speciesOptions } = useSpeciesOptions();
   const { data: knownLocationNotes } = useFindLocations();
 
-  const speciesNameSet = useMemo(() => {
-    const set = new Set<string>();
-    for (const option of speciesOptions ?? []) {
-      set.add(option.species_name.toLowerCase());
-    }
-    return set;
-  }, [speciesOptions]);
-
-  const speciesOptionsByLowerName = useMemo(() => {
-    const map = new Map<string, NonNullable<typeof speciesOptions>[number]>();
-    for (const option of speciesOptions ?? []) {
-      map.set(option.species_name.toLowerCase(), option);
-      map.set(plainSpeciesName(option.species_name).toLowerCase(), option);
-    }
-    return map;
-  }, [speciesOptions]);
   const knownCommonNames = useMemo(() => {
     const set = new Set<string>();
     for (const option of speciesOptions ?? []) {
@@ -283,12 +267,12 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
   const isNewSpecies = useMemo(() => {
     const name = sharedName.trim().toLowerCase();
     if (!name) return false;
-    return !speciesNameSet.has(name) && !speciesOptionsByLowerName.has(name);
-  }, [sharedName, speciesNameSet, speciesOptionsByLowerName]);
+    return !matchSpeciesOption(sharedName, speciesOptions ?? []);
+  }, [sharedName, speciesOptions]);
 
   const sharedSpeciesOption = useMemo(
-    () => speciesOptionsByLowerName.get(sharedName.trim().toLowerCase()) ?? null,
-    [speciesOptionsByLowerName, sharedName],
+    () => matchSpeciesOption(sharedName, speciesOptions ?? []),
+    [speciesOptions, sharedName],
   );
   // The spelling the library already uses, when the typed text names a species we know.
   const sharedCanonicalSpeciesName = useMemo(
@@ -562,9 +546,10 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
       };
 
       const summary = await importFind(storagePath, [payload], deleteSource);
+      const savedSpeciesName = summary.imported[0]?.species_name ?? sharedCanonicalSpeciesName;
 
       if (sharedName && sharedFolderNotes.trim()) {
-        await upsertSpeciesNote(storagePath, sharedName, sharedFolderNotes.trim());
+        await upsertSpeciesNote(storagePath, savedSpeciesName, sharedFolderNotes.trim());
         qc.invalidateQueries({ queryKey: [SPECIES_NOTES_QUERY_KEY, storagePath] });
       }
 
@@ -581,7 +566,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
         // saving right after typing a name cannot wipe tags, cover or edibility.
         // Patch only the fields this dialog owns. Tags, cover, synonyms and habitat stay
         // exactly as the species editor left them.
-        await patchSpeciesProfile(storagePath, sharedCanonicalSpeciesName, {
+        await patchSpeciesProfile(storagePath, savedSpeciesName, {
           ...(sharedCommonName.trim() ? { commonName: sharedCommonName.trim() } : {}),
           ...(sharedSpeciesDescription.trim()
             ? { description: sharedSpeciesDescription.trim() }

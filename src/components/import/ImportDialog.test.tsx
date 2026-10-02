@@ -182,6 +182,32 @@ beforeEach(() => {
 });
 
 describe('ImportDialog', () => {
+  it('saves species metadata under the name resolved by the import backend', async () => {
+    const canonical = 'Amanita citrina *Pers.*';
+    invokeHandlers['import_find'] = () => ({
+      ...sampleSummary,
+      imported: [{ ...sampleSummary.imported[0], species_name: canonical }],
+    });
+    vi.mocked(mockOpen).mockResolvedValueOnce(['/photos/shroom.jpg']);
+    const { invoke } = await import('@tauri-apps/api/core');
+    renderDialog();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Pick Photos/i }));
+    });
+    await waitFor(() => screen.getByRole('button', { name: /Remove photo/i }));
+    fireEvent.change(getSpeciesInput(), { target: { value: 'Amanita citrina Pers' } });
+    fireEvent.change(screen.getByLabelText(/Species note/i), { target: { value: 'Keep this species note' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Import All/i }));
+    });
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith('upsert_species_note', expect.objectContaining({
+        speciesName: canonical, notes: 'Keep this species note',
+      }));
+      expect(invoke).toHaveBeenCalledWith('patch_species_profile', expect.objectContaining({ speciesName: canonical }));
+    });
+  });
+
   it('renders Pick Photos and Pick Folder buttons when open', () => {
     renderDialog();
     expect(screen.getByRole('button', { name: /Pick Photos/i })).toBeInTheDocument();
@@ -456,6 +482,10 @@ describe('ImportDialog', () => {
   });
 
   it('saves the import note on the find payload, separate from the species note', async () => {
+    invokeHandlers['import_find'] = () => ({
+      ...sampleSummary,
+      imported: [{ ...sampleSummary.imported[0], species_name: 'Boletus edulis' }],
+    });
     vi.mocked(mockOpen).mockResolvedValueOnce(['/photos/shroom.jpg']);
     invokeHandlers['parse_exif'] = () => ({ date: '2024-05-10', lat: null, lng: null });
     const { invoke } = await import('@tauri-apps/api/core');
