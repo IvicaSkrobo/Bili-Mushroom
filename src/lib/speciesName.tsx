@@ -109,7 +109,7 @@ export function compareSpeciesNames(a: string, b: string): number {
 /**
  * Returns true when the query matches any searchable field of a species:
  * latin name, common/folk name, synonyms, or other names.
- * Case-insensitive prefix match at the start of any whitespace-delimited word.
+ * Case-insensitive prefix match at the start of each complete name.
  */
 export function matchesSpeciesQuery(
   query: string,
@@ -119,17 +119,17 @@ export function matchesSpeciesQuery(
   if (!query) return true;
   const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) return true;
-  const matchesWordPrefix = (candidate: string | null | undefined) => (
+  const matchesNamePrefix = (candidate: string | null | undefined) => (
     candidate != null
     && plainSpeciesName(candidate)
+      .trim()
       .toLowerCase()
-      .split(/\s+/u)
-      .some((word) => word.startsWith(normalizedQuery))
+      .startsWith(normalizedQuery)
   );
-  return matchesWordPrefix(rawName)
-    || matchesWordPrefix(profile?.common_name)
-    || Boolean(profile?.synonyms?.some(matchesWordPrefix))
-    || Boolean(profile?.other_names?.some(matchesWordPrefix));
+  return matchesNamePrefix(rawName)
+    || matchesNamePrefix(profile?.common_name)
+    || Boolean(profile?.synonyms?.some(matchesNamePrefix))
+    || Boolean(profile?.other_names?.some(matchesNamePrefix));
 }
 
 export function normalizeCommonName(commonName?: string | null, latinName?: string | null): string | null {

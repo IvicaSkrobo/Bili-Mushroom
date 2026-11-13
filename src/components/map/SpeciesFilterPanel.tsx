@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
-import { plainSpeciesName } from '@/lib/speciesName';
+import { compareSpeciesNames, matchesSpeciesQuery, plainSpeciesName } from '@/lib/speciesName';
 import { useT } from '@/i18n/index';
 
 interface SpeciesFilterPanelProps {
@@ -24,9 +24,9 @@ export function SpeciesFilterPanel({
   const [search, setSearch] = useState('');
 
   const isAll = selected.size === 0;
-  const filtered = search.trim()
-    ? allSpecies.filter((s) => s.toLowerCase().includes(search.toLowerCase()))
-    : allSpecies;
+  const filtered = allSpecies
+    .filter((name) => matchesSpeciesQuery(search, name))
+    .sort(compareSpeciesNames);
 
   return (
     <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[1001] font-sans select-none flex flex-col items-center">

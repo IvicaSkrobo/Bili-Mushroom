@@ -287,13 +287,15 @@ describe('SpeciesTab', () => {
 
     expect(searchAllNames).not.toBeChecked();
     fireEvent.change(search, { target: { value: 'edu' } });
+    expect(screen.queryAllByText('Boletus edulis')).toHaveLength(0);
+    fireEvent.change(search, { target: { value: 'bole' } });
     expect(screen.getAllByText('Boletus edulis').length).toBeGreaterThan(0);
 
     fireEvent.change(search, { target: { value: 'bun' } });
     expect(screen.queryAllByText('Boletus edulis')).toHaveLength(0);
 
     fireEvent.click(searchAllNames);
-    for (const query of ['bun', 'bulb', 'porc']) {
+    for (const query of ['penny', 'boletus bulb', 'porc']) {
       fireEvent.change(search, { target: { value: query } });
       expect(screen.getAllByText('Boletus edulis').length).toBeGreaterThan(0);
       expect(screen.queryAllByText('Cantharellus cibarius')).toHaveLength(0);

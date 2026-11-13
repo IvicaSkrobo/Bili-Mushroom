@@ -2900,20 +2900,18 @@ fn push_find_search_filters(
     };
 
     if include_species_query {
-        if let Some((first_word_query, later_word_query)) =
-            normalized_like_word_prefixes(filters.species_query.as_deref())
+        if let Some(name_prefix_query) =
+            normalized_like_name_prefix(filters.species_query.as_deref())
         {
             // species_name may contain '*' markup (bold/non-bold display convention, see
             // src/lib/speciesName.tsx). The query string is always plain (asterisks stripped
             // client-side), so strip '*' from the column here too before comparing — otherwise
             // an embedded asterisk in the stored name breaks the prefix match entirely.
             where_clauses.push(format!(
-                "(bili_normalize_search({}, 1) LIKE ? ESCAPE '\\' OR bili_normalize_search({}, 1) LIKE ? ESCAPE '\\')",
-                col("species_name"),
+                "bili_normalize_search({}, 1) LIKE ? ESCAPE '\\'",
                 col("species_name"),
             ));
-            query_params.push(Box::new(first_word_query));
-            query_params.push(Box::new(later_word_query));
+            query_params.push(Box::new(name_prefix_query));
         }
     }
 
@@ -2966,13 +2964,13 @@ fn normalized_like_query(value: Option<&str>) -> Option<String> {
     }
 }
 
-fn normalized_like_word_prefixes(value: Option<&str>) -> Option<(String, String)> {
+fn normalized_like_name_prefix(value: Option<&str>) -> Option<String> {
     let trimmed = value?.trim().to_lowercase();
     if trimmed.is_empty() {
         None
     } else {
         let escaped = trimmed.replace('%', "\\%").replace('_', "\\_");
-        Some((format!("{escaped}%"), format!("% {escaped}%")))
+        Some(format!("{escaped}%"))
     }
 }
 
@@ -3556,7 +3554,7 @@ mod tests {
     }
 
     #[test]
-    fn collection_folder_species_search_matches_prefix_at_start_of_any_word() {
+    fn collection_folder_species_search_matches_prefix_at_start_of_name() {
         let conn = setup_in_memory_db();
         let insert = |species_name: &str, date: &str| {
             let mut record = make_find_record("photo.jpg", date);
@@ -3564,13 +3562,15 @@ mod tests {
             insert_find_row(&conn, &record).expect("insert find");
         };
 
+        insert("Hydnum repandum", "2024-07-02");
+        insert("Boletus hortonii", "2024-07-03");
         insert("Amanita rubescens", "2024-07-01");
         insert("Boletus edulis", "2024-05-01");
         insert("*Bovista* plumbea", "2024-06-01");
         insert("Cantharellus cibarius", "2024-08-01");
-        insert("Alpha %beta", "2024-04-01");
+        insert("%beta", "2024-04-01");
         insert("Alpha xbeta", "2024-03-01");
-        insert("Alpha _delta", "2024-02-01");
+        insert("_delta", "2024-02-01");
         insert("Alpha xdelta", "2024-01-01");
         insert("Čupava koraljača", "2024-09-01");
         insert("Ćubasta puhara", "2024-09-02");
@@ -3593,9 +3593,10 @@ mod tests {
         };
 
         let names = search("b");
+        assert_eq!(search("h"), vec!["Hydnum repandum"]);
         assert_eq!(
             names.len(),
-            2,
+            3,
             "the first typed letter must match only word prefixes"
         );
         assert!(names.iter().any(|name| name == "Boletus edulis"));
@@ -3606,8 +3607,8 @@ mod tests {
 
         assert_eq!(
             search("EDU"),
-            vec!["Boletus edulis"],
-            "matching a later word must remain case-insensitive"
+            Vec::<String>::new(),
+            "a later word must not match the name prefix"
         );
         assert!(
             search("dul").is_empty(),
@@ -3615,12 +3616,12 @@ mod tests {
         );
         assert_eq!(
             search("%b"),
-            vec!["Alpha %beta"],
+            vec!["%beta"],
             "a percent sign in the query must remain literal"
         );
         assert_eq!(
             search("_d"),
-            vec!["Alpha _delta"],
+            vec!["_delta"],
             "an underscore in the query must remain literal"
         );
         assert_eq!(search("č"), vec!["Čupava koraljača"]);
@@ -3628,7 +3629,8 @@ mod tests {
         assert_eq!(search("š"), vec!["Šumska puževica"]);
         assert_eq!(search("ž"), vec!["Žuta krunica"]);
         assert_eq!(search("đ"), vec!["Đurđevača"]);
-        assert_eq!(search("pu"), vec!["Šumska puževica", "Ćubasta puhara"]);
+        assert!(search("pu").is_empty());
+        assert_eq!(search("BOLETUS E"), vec!["Boletus edulis"]);
         assert!(search("uba").is_empty(), "middle-of-word Croatian fragments stay excluded");
     }
 

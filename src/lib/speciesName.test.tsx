@@ -29,19 +29,25 @@ describe('speciesName display helpers', () => {
     expect(plainSpeciesName('Boletus *edulis*')).toBe('Boletus edulis');
   });
 
-  it('matches every searchable name only from the beginning of any word', () => {
+  it('matches every searchable name only from the beginning of each complete name', () => {
     expect(matchesSpeciesQuery('t', 'thumbnails', { common_name: 'svjetlucava' })).toBe(true);
     expect(matchesSpeciesQuery('t', 'chickens', { common_name: 'svjetlucava' })).toBe(false);
     expect(matchesSpeciesQuery('svj', 'chickens', { common_name: 'svjetlucava' })).toBe(true);
-    expect(matchesSpeciesQuery('edu', 'Boletus *edulis*')).toBe(true);
+    expect(matchesSpeciesQuery('edu', 'Boletus *edulis*')).toBe(false);
     expect(matchesSpeciesQuery('dul', 'Boletus *edulis*')).toBe(false);
-    expect(matchesSpeciesQuery('vrg', 'Boletus edulis', { common_name: 'Jestivi vrganj' })).toBe(true);
+    expect(matchesSpeciesQuery('vrg', 'Boletus edulis', { common_name: 'Jestivi vrganj' })).toBe(false);
     expect(matchesSpeciesQuery('rgan', 'Boletus edulis', { common_name: 'Jestivi vrganj' })).toBe(false);
-    expect(matchesSpeciesQuery('šu', 'Boletus edulis', { synonyms: ['Veliki Šumski vrganj'] })).toBe(true);
-    expect(matchesSpeciesQuery('ču', 'Boletus edulis', { other_names: ['Pravi Čupavac'] })).toBe(true);
-    expect(matchesSpeciesQuery('ć', 'Boletus edulis', { other_names: ['Gorski Ćubasti vrganj'] })).toBe(true);
+    expect(matchesSpeciesQuery('šu', 'Boletus edulis', { synonyms: ['Veliki Šumski vrganj'] })).toBe(false);
+    expect(matchesSpeciesQuery('ču', 'Boletus edulis', { other_names: ['Pravi Čupavac'] })).toBe(false);
+    expect(matchesSpeciesQuery('ć', 'Boletus edulis', { other_names: ['Gorski Ćubasti vrganj'] })).toBe(false);
     expect(matchesSpeciesQuery('ž', 'Boletus edulis', { synonyms: ['Žuti vrganj'] })).toBe(true);
     expect(matchesSpeciesQuery('đ', 'Boletus edulis', { other_names: ['Đurđevača'] })).toBe(true);
+  });
+
+  it('offers only names beginning with the typed letter, in alphabetical order', () => {
+    const names = ['Boletus hortonii', 'Hygrophorus', '*Hydnum* repandum', 'Chroogomphus'];
+    expect(names.filter((name) => matchesSpeciesQuery(' h ', name)).sort(compareSpeciesNames))
+      .toEqual(['*Hydnum* repandum', 'Hygrophorus']);
   });
 
   it('uses the deterministic Croatian species alphabet across markup and case', () => {
